@@ -22,7 +22,7 @@ import {
 import { analyzeMarketSentiment, chatWithAi, generateBotStrategy } from './services/geminiService';
 import { fetchRealPrices } from './services/priceService';
 import { AuthModal } from './components/AuthModal';
-import { supabase, getProfile, signOut as supabaseSignOut, isSupabaseConfigured } from './services/supabase';
+import { supabase, getProfile, signOut as supabaseSignOut, isSupabaseConfigured, createPost as supabaseCreatePost } from './services/supabase';
 import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, SocialSort, ProfileTab, BotStrategy, ActiveBot, Transaction, OpenOrder, ChartTimeframe } from './types';
 
 // --- Sound Service (Refined) ---
@@ -994,7 +994,7 @@ const TradeView = ({
                  <div className="flex-[3] overflow-hidden flex flex-col min-h-[400px] lg:min-h-0 relative bg-white dark:bg-[#080808] border-b lg:border-b-0 border-gray-200 dark:border-white/5 lg:rounded-tl-xl">
                       <TradingViewChart 
                          initialData={candles[activePair.id] || []} 
-                         theme={theme} 
+                         theme={'dark'} 
                          pairName={activePair.id} 
                          currentPrice={currentPrice}
                          activePosition={activePosition}
@@ -1293,7 +1293,7 @@ const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders
                          </div>
                      </div>
                      <div className="flex-1 w-full min-h-[200px]">
-                         <PortfolioChart data={getAdjustedChartData()} theme={theme} />
+                         <PortfolioChart data={getAdjustedChartData()} theme={'dark'} />
                      </div>
                      <div className="flex gap-4 mt-4 relative z-10">
                          <Button onClick={() => setDepositModalOpen(true)} variant="success" className="flex-1">Deposit</Button>
@@ -1829,6 +1829,76 @@ const App = () => {
         const hash = tabToHash[activeTab] || '';
         if (hash) window.history.replaceState(null, '', `#${hash}`);
     }, [activeTab, activePair, user, viewingProfile]);
+
+
+    // Supabase real-time: load posts from DB + subscribe to new ones
+    useEffect(() => {
+        if (!isSupabaseConfigured()) return;
+        
+        // Load existing posts from Supabase
+        const loadPosts = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('posts')
+                    .select('*, profiles!author_id(username, handle, avatar_url)')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+                    
+                if (data && data.length > 0) {
+                    const dbPosts = data.map((p: any) => ({
+                        id: p.id,
+                        authorId: p.author_id,
+                        authorHandle: p.profiles?.handle || '@unknown',
+                        authorAvatar: p.profiles?.avatar_url || '',
+                        content: p.content,
+                        image: p.image_url,
+                        timestamp: p.created_at,
+                        likes: 0,
+                        reposts: 0,
+                        likedBy: [],
+                        repostedBy: [],
+                        comments: [],
+                        isTradeSignal: p.is_trade_signal,
+                        tradeDetails: p.is_trade_signal ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry } : undefined,
+                    }));
+                    setPosts(prev => {
+                        // Merge DB posts with local, deduplicate by id
+                        const existing = new Set(prev.map(p => p.id));
+                        const newPosts = dbPosts.filter((p: any) => !existing.has(p.id));
+                        return [...newPosts, ...prev];
+                    });
+                }
+            } catch(e) { console.warn('Failed to load posts:', e); }
+        };
+        loadPosts();
+        
+        // Subscribe to new posts in real-time
+        const channel = supabase
+            .channel('public:posts')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
+                const p = payload.new;
+                // Fetch author profile
+                const { data: profile } = await supabase.from('profiles').select('username, handle, avatar_url').eq('id', p.author_id).single();
+                const newPost = {
+                    id: p.id,
+                    authorId: p.author_id,
+                    authorHandle: profile?.handle || '@unknown',
+                    authorAvatar: profile?.avatar_url || '',
+                    content: p.content,
+                    image: p.image_url,
+                    timestamp: p.created_at,
+                    likes: 0, reposts: 0, likedBy: [], repostedBy: [], comments: [],
+                    isTradeSignal: p.is_trade_signal,
+                };
+                setPosts(prev => {
+                    if (prev.some(existing => existing.id === p.id)) return prev;
+                    return [newPost, ...prev];
+                });
+            })
+            .subscribe();
+            
+        return () => { supabase.removeChannel(channel); };
+    }, []);
 
     useEffect(() => {
         const storedUser = getStoredUser(); if (storedUser) setUser(storedUser);
@@ -2564,7 +2634,17 @@ const App = () => {
         setToast({ message: 'Profile Updated', type: 'SUCCESS' });
         playSound('SUCCESS');
     };
-    const handleCreatePost = (c: string) => { if(!user) return setLoginOpen(true); setPosts(prev => [{ id: `p_${Date.now()}`, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[]}, ...prev]); setToast({message:'Post Shared', type:'SUCCESS'}); playSound('SUCCESS'); };
+    const handleCreatePost = async (c: string) => { 
+        if(!user) return setLoginOpen(true); 
+        const newPost = { id: `p_${Date.now()}`, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[] };
+        setPosts(prev => [newPost, ...prev]); 
+        setToast({message:'Post Shared', type:'SUCCESS'}); 
+        playSound('SUCCESS');
+        // Also save to Supabase if configured
+        if (isSupabaseConfigured()) {
+            try { await supabaseCreatePost(user.id, c); } catch(e) { console.warn('Supabase post save failed:', e); }
+        }
+    };
     const handleLike = (id: string) => {
         if (!user) return setLoginOpen(true);
         setPosts(prevPosts => prevPosts.map(p => {
@@ -2628,7 +2708,7 @@ const App = () => {
             <StrategyDetailsModal isOpen={strategyModal.isOpen} type={strategyModal.type} data={strategyModal.data} onClose={() => setStrategyModal(prev => ({ ...prev, isOpen: false }))} positions={positions} openOrders={openOrders} marketPrices={marketPrices} onBotAction={handleBotAction} onCopyAction={handleCopyTrade} onViewProfile={handleViewProfile}/>
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
             <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} onRequireAuth={() => setLoginOpen(true)}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={() => setLoginOpen(true)} unreadCount={notifications.length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onNotificationClick={()=>{}} isNotifOpen={notifOpen} setNotifOpen={setNotifOpen} totalEquity={user ? user.balance + positions.reduce((acc, p) => acc + (p.size/p.leverage) + ((marketPrices[p.pair] || p.entryPrice) - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size/p.entryPrice), 0) : 0}/>
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} theme={'dark'} handleLogout={handleLogout} user={user} onRequireAuth={() => setLoginOpen(true)} unreadCount={notifications.length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onNotificationClick={()=>{}} isNotifOpen={notifOpen} setNotifOpen={setNotifOpen} totalEquity={user ? user.balance + positions.reduce((acc, p) => acc + (p.size/p.leverage) + ((marketPrices[p.pair] || p.entryPrice) - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size/p.entryPrice), 0) : 0}/>
             {/* Main content */}
             <main className={`w-full ${activeTab === TabView.TRADE ? '' : 'px-4 pt-6 pb-24 lg:pb-8'}`}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={setEditingPosition} onViewProfile={handleViewProfile} onOpenStrategyDetails={(p:any) => setStrategyModal({isOpen:true, ...p})} handleBotAction={handleBotAction} handleCopyTrade={handleCopyTrade}/>}
