@@ -1,24 +1,27 @@
-# VELO — Trading Terminal Prototype
+# VELO — SocialFi Exchange Prototype
 
-A real-time crypto perpetual futures trading terminal built with React + Vite. Live market data from CoinGecko API.
-
-![VELO Screenshot](https://img.shields.io/badge/Status-Prototype-blue)
+A full-featured social perpetual futures trading platform prototype built with React, TypeScript, and Vite. Live market data from CoinGecko.
 
 ## Features
 
-- **Real-time prices** — CoinGecko API with 15s polling + micro-simulation
-- **16 trading pairs** — BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, RNDR, TIA, SUI, WIF, PEPE, JUP, BONK, PYTH
-- **Professional chart** — Candles/Line/Area with SMA, EMA, Bollinger Bands indicators
-- **Order book** — Simulated depth with cumulative totals
-- **Full trading engine** — Market/Limit/Stop orders, leverage 1-125x, TP/SL, liquidation
-- **Demo mode** — $10,000 starting balance
+- **Trading Terminal** — Perpetual futures with leverage 1-100x, market/limit/stop orders, TP/SL
+- **Real-Time Prices** — CoinGecko API with 15s polling + micro-simulation between calls
+- **Interactive Chart** — Powered by lightweight-charts with candle/area views, SMA indicator, timeframes
+- **Order Book** — Dynamic depth visualization  
+- **Social Feed** — Twitter/CT-style feed with posts, likes, reposts, comments, trade signals
+- **Copy Trading** — Follow and auto-copy top traders' positions
+- **AI Trading Bots** — Deploy automated strategies with configurable risk levels
+- **Leaderboard** — Ranked traders by PnL with profiles
+- **Dashboard** — Portfolio overview, equity chart, active positions, bot/copy trade management
+- **Profile System** — User profiles with trade history, followers, following
 
 ## Tech Stack
 
-- React 19 + Vite 6
+- React 19 + TypeScript + Vite
+- lightweight-charts (TradingView charting)
+- Tailwind CSS (CDN)
 - CoinGecko API (free, no key needed)
-- Custom SVG charting engine
-- Deployed on Vercel
+- Lucide React icons
 
 ## Local Development
 
@@ -27,41 +30,10 @@ npm install
 npm run dev
 ```
 
-Opens at `http://localhost:3000`
+## Deploy
 
-## Deploy to Vercel
+Push to GitHub → auto-deploys on Vercel. Zero config needed.
 
-Push to GitHub, then import in Vercel — zero config needed.
+## Live Demo
 
-Or via CLI:
-
-```bash
-npm i -g vercel
-vercel
-```
-
-## Project Structure
-
-```
-src/
-├── App.jsx                    # Main app composition
-├── main.jsx                   # React entry point
-├── components/
-│   ├── TradingChart.jsx       # SVG chart + indicators + crosshair
-│   ├── OrderBook.jsx          # Depth visualization
-│   ├── OrderForm.jsx          # Trading controls (margin, leverage, TP/SL)
-│   ├── PositionsPanel.jsx     # Open positions + trade history
-│   ├── PairSelector.jsx       # Market selector modal
-│   └── UI.jsx                 # Header, Toast, Login modal
-├── hooks/
-│   └── useTrading.jsx         # Position management, PnL, TP/SL engine
-├── services/
-│   └── priceService.jsx       # CoinGecko real-time price feed
-└── utils/
-    ├── constants.jsx           # Pairs config, leverage options
-    └── helpers.jsx             # Formatting, calculations, indicators
-```
-
-## License
-
-MIT
+[velo-prototype.vercel.app](https://velo-prototype.vercel.app)

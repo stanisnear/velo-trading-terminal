@@ -1,7 +1,7 @@
 {
-  "name": "velo-trading-terminal",
+  "name": "velo-prototype",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,11 +9,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "lightweight-charts": "5.1.0",
+    "lucide-react": "^0.574.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "recharts": "^2.15.3",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.5.2",
+    "typescript": "~5.8.2",
     "vite": "^6.3.5"
   }
 }
