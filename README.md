@@ -1,37 +1,43 @@
-# VELO — SocialFi Exchange Prototype
+# VELO — SocialFi Exchange
 
-Social perpetual futures trading on Solana. Built with React, TypeScript, Vite, Supabase, and TradingView.
+Social perpetual futures trading platform. React + TypeScript + Vite + Supabase + TradingView.
 
-## Features
-
-- **TradingView Charts** — Full Advanced Chart with 100+ indicators, drawing tools
-- **Real-Time Prices** — CoinGecko API + TradingView Binance feed
-- **Perpetual Futures** — Leverage 1-100x, market/limit/stop, TP/SL
-- **Social Feed** — Posts, likes, reposts, trade signals
-- **Copy Trading** — Mirror top traders' positions
-- **AI Trading Bots** — Automated strategies
-- **Auth** — Supabase sign up/sign in (falls back to demo mode)
-- **Dashboard** — Portfolio, equity chart, bot management
-
-## Setup
+## Quick Start
 
 ```bash
 npm install
 npm run dev
 ```
 
-### Supabase (optional)
+## Supabase Setup
 
-Create `.env.local` with your Supabase credentials:
-```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
-```
+1. Project URL: `https://lhxserclykazheonpvjj.supabase.co`
+2. Disable email confirmation: Auth → Settings → Email → OFF
+3. Enable realtime: SQL Editor → `alter publication supabase_realtime add table posts;`
+4. Create storage bucket: Storage → New → "avatars" (public)
 
-App works in demo mode without Supabase configured.
+## Project Structure
+
+```
+src/
+├── App.tsx                    # Main app (being modularized)
+├── index.tsx                  # Entry point
+├── components/
+│   ├── AuthModal.tsx          # Sign up / Sign in
+│   ├── OrderBook.tsx          # Depth visualization
+│   ├── PortfolioChart.tsx     # Equity chart
+│   └── TradingViewChart.tsx   # TradingView widget
+├── services/
+│   ├── geminiService.ts       # AI integration
+│   ├── mockStore.ts           # Local data simulation
+│   ├── priceService.ts        # CoinGecko real-time
+│   └── supabase.ts            # Auth + DB + Storage
+└── utils/
+    └── types.ts               # Type definitions + PAIRS config
+```
 
 ## Deploy
 
-Push to GitHub → Vercel auto-deploys. Add env vars in Vercel Settings.
+Push to GitHub → Vercel auto-deploys.
 
-## Live: [velo-prototype.vercel.app](https://velo-prototype.vercel.app)
+Live: [velo-prototype.vercel.app](https://velo-prototype.vercel.app)
