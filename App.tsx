@@ -774,16 +774,15 @@ const TradeView = ({
         return (
         <GlassCard className="flex-1 flex flex-col p-0 overflow-hidden relative bg-white/40 dark:bg-[#121212]/40 !backdrop-blur-none shadow-none border-gray-200 dark:border-white/5 !rounded-3xl min-h-0">
             {!user && (
-                <div className="absolute inset-0 z-30 backdrop-blur-md bg-white/50 dark:bg-black/60 flex flex-col items-center justify-center text-center p-6 animate-fade-in">
-                    <div className="bg-black/20 dark:bg-white/5 p-4 rounded-full mb-4 backdrop-blur-xl border border-white/10">
-                        <Lock size={32} className="text-gray-900 dark:text-white" />
+                <div className="absolute inset-0 z-30 bg-gray-50/95 dark:bg-[#0a0a0a]/95 flex items-center justify-center">
+                    <div className="flex items-center gap-3 text-gray-400">
+                        <Lock size={14} />
+                        <span className="text-xs font-semibold">Sign in to view positions & orders</span>
+                        <Button onClick={onRequireAuth} className="px-3 py-1 text-[10px] h-6">Log In</Button>
                     </div>
-                    <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Trading Locked</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-xs font-medium">Connect your wallet to view your active positions, open orders, and trade history.</p>
-                    <Button onClick={onRequireAuth} className="px-8 py-3 text-sm shadow-xl shadow-blue-500/20">Log In to Trade</Button>
                 </div>
             )}
-            <div className={`flex border-b border-gray-200 dark:border-white/5 shrink-0 ${!user ? 'opacity-20 pointer-events-none blur-[2px]' : ''}`}>
+            <div className={`flex border-b border-gray-200 dark:border-white/5 shrink-0 ${!user ? 'opacity-0 pointer-events-none' : ''}`}>
                 {['POSITIONS', 'OPEN ORDERS', 'HISTORY'].map(t => (
                     <button 
                         key={t} 
@@ -995,7 +994,7 @@ const TradeView = ({
                  <div className="flex-[3] overflow-hidden flex flex-col min-h-[400px] lg:min-h-0 relative bg-white dark:bg-[#080808] border-b lg:border-b-0 border-gray-200 dark:border-white/5 lg:rounded-tl-xl">
                       <TradingViewChart 
                          initialData={candles[activePair.id] || []} 
-                         theme={'dark'} 
+                         theme={theme} 
                          pairName={activePair.id} 
                          currentPrice={currentPrice}
                          activePosition={activePosition}
@@ -1020,7 +1019,7 @@ const TradeView = ({
                         </button>
                         <div className="text-right">
                             <div className="text-sm font-bold font-mono text-gray-900 dark:text-white">${formatPrice(currentPrice)}</div>
-                            <div className="text-[9px] text-emerald-500 font-bold">Perpetual</div>
+                            <div className="text-[9px] text-emerald-500 font-bold">Perpetual · Mark</div>
                         </div>
                     </div>
                  </div>
@@ -1042,7 +1041,7 @@ const TradeView = ({
                                 <Button onClick={onRequireAuth} className="px-5 py-1.5 text-xs">Log In</Button>
                             </div>
                          )}
-                         <div className={`space-y-2 mb-3 ${!user ? 'opacity-20 pointer-events-none blur-[1px]' : ''}`}>
+                         <div className={`space-y-2 mb-3 ${!user ? 'opacity-10 pointer-events-none' : ''}`}>
                              <div className="flex bg-gray-100 dark:bg-white/5 rounded-md p-0.5">
                                 {['ISOLATED', 'CROSS'].map(m => {
                                     const hasPosition = positions.some((p: Position) => p.pair === activePair.id && !p.isBotTrade && !p.isCopyTrade);
@@ -1294,7 +1293,7 @@ const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders
                          </div>
                      </div>
                      <div className="flex-1 w-full min-h-[200px]">
-                         <PortfolioChart data={getAdjustedChartData()} theme={'dark'} />
+                         <PortfolioChart data={getAdjustedChartData()} theme={theme} />
                      </div>
                      <div className="flex gap-4 mt-4 relative z-10">
                          <Button onClick={() => setDepositModalOpen(true)} variant="success" className="flex-1">Deposit</Button>
@@ -1800,6 +1799,37 @@ const App = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+
+    // URL routing — sync tab with hash
+    useEffect(() => {
+        const hash = window.location.hash.slice(1);
+        if (hash) {
+            const tabMap: Record<string, string> = {
+                'dashboard': TabView.DASHBOARD,
+                'trade': TabView.TRADE,
+                'strategy': TabView.STRATEGY,
+                'social': TabView.SOCIAL,
+                'leaderboard': TabView.LEADERBOARD,
+                'profile': TabView.PROFILE,
+            };
+            if (tabMap[hash]) setActiveTab(tabMap[hash] as any);
+        }
+    }, []);
+
+    useEffect(() => {
+        const tabToHash: Record<string, string> = {
+            [TabView.DASHBOARD]: 'dashboard',
+            [TabView.TRADE]: `trade/${activePair?.id?.replace('/', '-') || 'SOL-USD'}`,
+            [TabView.STRATEGY]: 'strategy',
+            [TabView.SOCIAL]: 'social',
+            [TabView.LEADERBOARD]: 'leaderboard',
+            [TabView.PROFILE]: `profile/${user?.handle?.replace('@', '') || ''}`,
+            [TabView.PUBLIC_PROFILE]: `profile/${viewingProfile?.handle?.replace('@', '') || ''}`,
+        };
+        const hash = tabToHash[activeTab] || '';
+        if (hash) window.history.replaceState(null, '', `#${hash}`);
+    }, [activeTab, activePair, user, viewingProfile]);
+
     useEffect(() => {
         const storedUser = getStoredUser(); if (storedUser) setUser(storedUser);
         
@@ -2143,6 +2173,16 @@ const App = () => {
         const buyingPower = user ? user.balance + crossMarginPnl : 0;
 
         if (existingPosition) {
+            // Skip if size is 0 (leverage-only update)
+            if (size === 0 && existingPosition.side === side) {
+                // Just update leverage
+                const newLiqPrice = side === 'LONG' 
+                    ? existingPosition.entryPrice * (1 - (1/leverage) + 0.005)
+                    : existingPosition.entryPrice * (1 + (1/leverage) - 0.005);
+                setPositions(prev => prev.map(p => p.id === existingPosition.id ? { ...p, leverage, liquidationPrice: newLiqPrice } : p));
+                setToast({message:'Leverage Updated', type:'SUCCESS'}); playSound('OPEN');
+                return;
+            }
             if (existingPosition.side === side) {
                 // Merge
                 const totalSize = existingPosition.size + size;
