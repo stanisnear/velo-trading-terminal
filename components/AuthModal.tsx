@@ -53,8 +53,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuth, o
         setLoading(false);
         return;
       }
-      setSuccess('Account created! Check your email to confirm, then sign in.');
-      setMode('signin');
+      // Auto sign in after signup (works when email confirmation is disabled)
+      const { user: signedInUser, error: signInError } = await signIn(email, password);
+      if (signInError) {
+        // If auto-signin fails, show check email message
+        setSuccess('Account created! Check your email to confirm, then sign in.');
+        setMode('signin');
+        setLoading(false);
+        return;
+      }
+      if (signedInUser) {
+        onAuth(signedInUser, null);
+        onClose();
+        setLoading(false);
+        return;
+      }
       setLoading(false);
     } else {
       const { user, error: authError } = await signIn(email, password);

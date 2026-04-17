@@ -62,7 +62,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({ theme, 
           symbol: tvSymbol,
           interval: tvInterval,
           timezone: 'Etc/UTC',
-          theme: 'dark',
+          theme: theme === 'dark' ? 'dark' : 'light',
           style: '1',
           locale: 'en',
           enable_publishing: false,
@@ -87,16 +87,16 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({ theme, 
             'mainSeriesProperties.candleStyle.borderDownColor': '#ef4444',
             'mainSeriesProperties.candleStyle.wickUpColor': '#10b981',
             'mainSeriesProperties.candleStyle.wickDownColor': '#ef4444',
-            'paneProperties.background': '#080808',
+            'paneProperties.background': theme === 'dark' ? '#080808' : '#ffffff',
             'paneProperties.backgroundType': 'solid',
-            'paneProperties.vertGridProperties.color': 'rgba(255,255,255,0.02)',
-            'paneProperties.horzGridProperties.color': 'rgba(255,255,255,0.02)',
-            'scalesProperties.textColor': '#666',
-            'scalesProperties.backgroundColor': '#080808',
-            'scalesProperties.lineColor': 'rgba(255,255,255,0.04)',
+            'paneProperties.vertGridProperties.color': theme === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.03)',
+            'paneProperties.horzGridProperties.color': theme === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.03)',
+            'scalesProperties.textColor': theme === 'dark' ? '#666' : '#999',
+            'scalesProperties.backgroundColor': theme === 'dark' ? '#080808' : '#ffffff',
+            'scalesProperties.lineColor': theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)',
             'mainSeriesProperties.priceLineColor': '#3b82f6',
           },
-          loading_screen: { backgroundColor: '#080808', foregroundColor: '#3b82f6' },
+          loading_screen: { backgroundColor: theme === 'dark' ? '#080808' : '#ffffff', foregroundColor: '#3b82f6' },
           autosize: true,
         });
       } catch(e) {
@@ -116,7 +116,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({ theme, 
       };
       document.head.appendChild(script);
     }
-  }, [tvSymbol, tvInterval]);
+  }, [tvSymbol, tvInterval, theme]);
 
   const handleTf = (tf: string) => {
     setTimeframe(tf);
@@ -124,9 +124,9 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({ theme, 
   };
 
   return (
-    <div className="flex flex-col h-full relative bg-[#080808]">
+    <div className="flex flex-col h-full relative bg-[#080808] dark:bg-[#080808] bg-white">
       {/* Compact timeframe bar that matches VELO style */}
-      <div className="flex items-center gap-1 px-3 py-1 border-b border-white/[0.04] shrink-0 bg-[#080808]">
+      <div className="flex items-center gap-1 px-3 py-1 border-b border-white/[0.04] shrink-0 bg-white dark:bg-[#080808]">
         <span className="font-bold text-white text-xs mr-2 hidden md:block">{pairName}</span>
         {Object.keys(TV_INTERVALS).map(tf => (
           <button key={tf} onClick={() => handleTf(tf)}

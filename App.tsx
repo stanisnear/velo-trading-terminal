@@ -1036,13 +1036,10 @@ const TradeView = ({
                  <div className="flex-1 flex flex-col overflow-y-auto min-h-0 bg-white dark:bg-[#0d0d0d] relative custom-scrollbar">
                      <div className="flex-1 overflow-y-auto p-2.5 relative custom-scrollbar flex flex-col">
                          {!user && (
-                            <div className="absolute inset-0 z-30 bg-white/50 dark:bg-black/60 flex flex-col items-center justify-center text-center p-6 animate-fade-in backdrop-blur-sm">
-                                <div className="bg-black/20 dark:bg-white/5 p-3 rounded-full mb-3 border border-white/10">
-                                    <Lock size={24} className="text-gray-900 dark:text-white" />
-                                </div>
-                                <h3 className="text-sm font-black text-gray-900 dark:text-white mb-1">Trading Locked</h3>
-                                <p className="text-gray-600 dark:text-gray-400 mb-2 text-[10px]">Connect wallet to trade.</p>
-                                <Button onClick={onRequireAuth} className="px-6 py-2 text-xs shadow-xl shadow-blue-500/20">Log In</Button>
+                            <div className="absolute inset-0 z-30 bg-white/90 dark:bg-[#0d0d0d]/90 flex flex-col items-center justify-center text-center backdrop-blur-md">
+                                <Lock size={20} className="text-gray-400 mb-2" />
+                                <h3 className="text-xs font-bold text-gray-500 mb-2">Connect to trade</h3>
+                                <Button onClick={onRequireAuth} className="px-5 py-1.5 text-xs">Log In</Button>
                             </div>
                          )}
                          <div className={`space-y-2 mb-3 ${!user ? 'opacity-20 pointer-events-none blur-[1px]' : ''}`}>
@@ -1186,7 +1183,7 @@ const TradeView = ({
                             >
                                 {user ? (orderType === 'MARKET' ? `${side} ${activePair.id.split('/')[0]}` : `Place ${orderType}`) : 'Connect Wallet'}
                             </Button>
-                        </div>
+                            </div>
                      </div>
                  </div>
              </div>
