@@ -980,7 +980,7 @@ const TradeView = ({
     };
 
     return (
-        <div className="flex flex-col lg:flex-row gap-2 lg:h-[calc(100vh-65px)] min-h-0 animate-slide-in pb-24 lg:pb-0 overflow-y-auto lg:overflow-hidden">
+        <div className="flex flex-col lg:flex-row gap-0 lg:h-[calc(100vh-64px)] animate-slide-in pb-16 lg:pb-0 overflow-y-auto lg:overflow-hidden">
              <PairSelector isOpen={pairSelectorOpen} onClose={() => setPairSelectorOpen(false)} onSelect={setActivePair}/>
              
              {/* Mobile Header: Pair Selector */}
@@ -989,8 +989,8 @@ const TradeView = ({
              </div>
 
              {/* Left Column: Chart + Positions */}
-             <div className="flex-1 flex flex-col gap-1.5 min-w-0 h-full overflow-hidden">
-                 <GlassCard className="flex-[3] p-0 overflow-hidden flex flex-col min-h-[350px] lg:min-h-[300px] relative bg-white/40 dark:bg-[#121212]/40 !backdrop-blur-none shadow-none border-gray-200 dark:border-white/5 !rounded-3xl">
+             <div className="flex-1 flex flex-col gap-0 min-w-0 h-full overflow-hidden">
+                 <div className="flex-[3] overflow-hidden flex flex-col min-h-[400px] lg:min-h-0 relative bg-white dark:bg-[#0a0a0a] border-b lg:border-b-0 border-gray-200 dark:border-white/5">
                       <TradingViewChart 
                          initialData={candles[activePair.id] || []} 
                          theme={'dark'} 
@@ -999,30 +999,30 @@ const TradeView = ({
                          activePosition={activePosition}
                          onTimeframeChange={onTimeframeChange}
                       />
-                 </GlassCard>
+                 </div>
                  
                  {/* Desktop Bottom Panel (Positions) */}
-                 <div className="hidden lg:flex flex-[2] min-h-0 overflow-hidden">
+                 <div className="hidden lg:flex flex-[1.5] min-h-0 overflow-hidden border-t border-gray-200 dark:border-white/5">
                     <PositionsPanel />
                  </div>
              </div>
 
              {/* Right Column: Order Book + Form */}
-             <div className="w-full lg:w-[320px] flex flex-col gap-1.5 shrink-0 lg:h-full lg:overflow-y-auto">
+             <div className="w-full lg:w-[300px] flex flex-col gap-0 shrink-0 lg:h-full overflow-hidden">
                  {/* Desktop Pair Selector */}
                  <div className="hidden lg:block shrink-0">
                     <PairSelectorButton />
                  </div>
 
                  {/* Order Book Section - Detached */}
-                 <GlassCard className="h-[30%] min-h-[180px] p-0 overflow-hidden bg-white/40 dark:bg-[#121212]/40 !backdrop-blur-none relative border-gray-200 dark:border-white/5 shadow-none flex flex-col !rounded-3xl">
-                     <div className="flex-1 p-1.5 overflow-hidden flex flex-col">
+                 <div className="flex-1 min-h-0 overflow-hidden bg-white dark:bg-[#0d0d0d] border-b border-gray-200 dark:border-white/5 flex flex-col">
+                     <div className="flex-1 overflow-hidden flex flex-col">
                         <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} />
                      </div>
-                 </GlassCard>
+                 </div>
 
                  {/* Order Form Section - Detached */}
-                 <GlassCard className="flex-1 flex flex-col p-0 overflow-hidden min-h-0 bg-white/40 dark:bg-[#121212]/40 !backdrop-blur-none relative border-gray-200 dark:border-white/5 shadow-none !rounded-3xl">
+                 <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-white dark:bg-[#0d0d0d] relative">
                      <div className="flex-1 overflow-y-auto p-2.5 relative custom-scrollbar flex flex-col h-full">
                          {!user && (
                             <div className="absolute inset-0 z-30 bg-white/50 dark:bg-black/60 flex flex-col items-center justify-center text-center p-6 animate-fade-in backdrop-blur-sm">
@@ -1177,7 +1177,7 @@ const TradeView = ({
                             </Button>
                         </div>
                      </div>
-                 </GlassCard>
+                 </div>
              </div>
 
              {/* Mobile Bottom Panel: Positions */}
@@ -2521,7 +2521,8 @@ const App = () => {
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
             <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} onRequireAuth={() => setLoginOpen(true)}/>
             <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={() => setLoginOpen(true)} unreadCount={notifications.length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onNotificationClick={()=>{}} isNotifOpen={notifOpen} setNotifOpen={setNotifOpen} totalEquity={user ? user.balance + positions.reduce((acc, p) => acc + (p.size/p.leverage) + ((marketPrices[p.pair] || p.entryPrice) - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size/p.entryPrice), 0) : 0}/>
-            <main className="w-full px-4 pt-6 pb-24 lg:pb-8">
+            {/* Main content */}
+            <main className={`w-full ${activeTab === TabView.TRADE ? '' : 'px-4 pt-6 pb-24 lg:pb-8'}`}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={setEditingPosition} onViewProfile={handleViewProfile} onOpenStrategyDetails={(p:any) => setStrategyModal({isOpen:true, ...p})} handleBotAction={handleBotAction} handleCopyTrade={handleCopyTrade}/>}
                 {activeTab === TabView.TRADE && <TradeView activePair={activePair} setActivePair={setActivePair} marketPrices={marketPrices} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => setLoginOpen(true)} onEditPosition={setEditingPosition} onTimeframeChange={(tf: ChartTimeframe) => {
                     const intervals: Record<string, number> = { '1m': 60, '5m': 300, '15m': 900, '1H': 3600, '4H': 14400, '1D': 86400 };
