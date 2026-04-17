@@ -236,7 +236,7 @@ const PairSelector = ({ isOpen, onClose, onSelect }: any) => {
                                 )}
                                 <div className="text-left"><p className="font-bold text-gray-900 dark:text-white">{p.id}</p><p className="text-xs text-gray-500">{p.name}</p></div>
                             </div>
-                            <div className="text-right"><span className="block text-sm font-medium text-gray-900 dark:text-white">${formatPrice(p.basePrice)}</span><span className="text-[10px] font-bold" style={{color: (marketPrices[p.id] || p.basePrice) >= p.basePrice ? '#10b981' : '#ef4444'}}>{p.name}</span></div>
+                            <div className="text-right"><span className="block text-sm font-medium text-gray-900 dark:text-white">${formatPrice(p.basePrice)}</span><span className="text-[10px] text-gray-500">{p.name}</span></div>
                         </button>
                     ))}
                 </div>
@@ -992,7 +992,7 @@ const TradeView = ({
 
              {/* Left Column: Chart + Positions */}
              <div className="flex-1 flex flex-col gap-0 min-w-0 h-full overflow-hidden">
-                 <div className="flex-[3] overflow-hidden flex flex-col min-h-[400px] lg:min-h-0 relative bg-white dark:bg-[#0a0a0a] border-b lg:border-b-0 border-gray-200 dark:border-white/5">
+                 <div className="flex-[3] overflow-hidden flex flex-col min-h-[400px] lg:min-h-0 relative bg-white dark:bg-[#080808] border-b lg:border-b-0 border-gray-200 dark:border-white/5 lg:rounded-tl-xl">
                       <TradingViewChart 
                          initialData={candles[activePair.id] || []} 
                          theme={'dark'} 
@@ -1012,12 +1012,21 @@ const TradeView = ({
              {/* Right Column: Order Book + Form */}
              <div className="w-full lg:w-[300px] flex flex-col gap-0 shrink-0 lg:h-full overflow-hidden">
                  {/* Desktop Pair Selector */}
-                 <div className="hidden lg:block shrink-0">
-                    <PairSelectorButton />
+                 <div className="hidden lg:block shrink-0 px-3 py-2 border-b border-gray-200 dark:border-white/5 bg-white dark:bg-[#0d0d0d]">
+                    <div className="flex items-center justify-between">
+                        <button onClick={() => setPairSelectorOpen(true)} className="flex items-center gap-2 group">
+                            {activePair.logo && <img src={activePair.logo} className="w-6 h-6 rounded-full" onError={(e: any) => e.target.style.display='none'}/>}
+                            <span className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-blue-500 transition-colors">{activePair.id}</span>
+                        </button>
+                        <div className="text-right">
+                            <div className="text-sm font-bold font-mono text-gray-900 dark:text-white">${formatPrice(currentPrice)}</div>
+                            <div className="text-[9px] text-emerald-500 font-bold">Perpetual</div>
+                        </div>
+                    </div>
                  </div>
 
                  {/* Order Book Section - Detached */}
-                 <div className="h-[35%] min-h-[180px] max-h-[280px] overflow-hidden bg-white dark:bg-[#0d0d0d] border-b border-gray-200 dark:border-white/5 flex flex-col shrink-0">
+                 <div className="h-[28%] min-h-[150px] max-h-[220px] overflow-hidden bg-white dark:bg-[#0d0d0d] border-b border-gray-200 dark:border-white/5 flex flex-col shrink-0">
                      <div className="flex-1 overflow-hidden flex flex-col">
                         <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} />
                      </div>
@@ -1037,7 +1046,7 @@ const TradeView = ({
                             </div>
                          )}
                          <div className={`space-y-2 mb-3 ${!user ? 'opacity-20 pointer-events-none blur-[1px]' : ''}`}>
-                             <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-0.5">
+                             <div className="flex bg-gray-100 dark:bg-white/5 rounded-md p-0.5">
                                 {['ISOLATED', 'CROSS'].map(m => {
                                     const hasPosition = positions.some((p: Position) => p.pair === activePair.id && !p.isBotTrade && !p.isCopyTrade);
                                     return (

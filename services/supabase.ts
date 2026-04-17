@@ -10,7 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 // ═══════════════════════════════════════════════════════════════
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://lhxserclykazheonpvjj.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY_HERE'; // Replace with your anon key (eyJ...)
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoeHNlcmNseWthemhlb25wdmpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NDEzMjksImV4cCI6MjA5MjAxNzMyOX0.FwuLdcuM4w_Wf7Brn3Iorm0azLf-QfGl9HPF_w_wuwo'; // Replace with your anon key (eyJ...)
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

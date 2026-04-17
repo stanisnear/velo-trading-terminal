@@ -126,7 +126,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({ theme, 
   return (
     <div className="flex flex-col h-full relative bg-[#080808]">
       {/* Compact timeframe bar that matches VELO style */}
-      <div className="flex items-center gap-1 px-3 py-1 border-b border-white/[0.04] shrink-0 bg-[#0a0a0a]">
+      <div className="flex items-center gap-1 px-3 py-1 border-b border-white/[0.04] shrink-0 bg-[#080808]">
         <span className="font-bold text-white text-xs mr-2 hidden md:block">{pairName}</span>
         {Object.keys(TV_INTERVALS).map(tf => (
           <button key={tf} onClick={() => handleTf(tf)}
@@ -141,7 +141,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({ theme, 
         </div>
       </div>
       {/* TradingView Chart */}
-      <div ref={containerRef} className="flex-1 min-h-0" />
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
       {/* Position info pills */}
       {activePosition && (
         <div className="absolute bottom-1 left-1 z-20 flex gap-1 text-[9px] font-bold pointer-events-none">

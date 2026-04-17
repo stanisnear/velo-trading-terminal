@@ -23,7 +23,7 @@ function seededRandom(seed: number) {
   return x - Math.floor(x);
 }
 
-export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 16 }) => {
+export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8 }) => {
   const [grouping, setGrouping] = useState(0.01);
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 16 }) 
 
   return (
     <div className="flex flex-col h-full w-full text-[10px] font-mono select-none overflow-hidden bg-white/50 dark:bg-[#121212]/50">
-      <div className="flex justify-between items-center px-3 border-b border-gray-200 dark:border-white/5 py-2 shrink-0">
+      <div className="flex justify-between items-center px-3 border-b border-gray-200 dark:border-white/5 py-1.5 shrink-0">
         <span className="text-gray-500 font-bold uppercase tracking-wider text-[9px]">Order Book</span>
         <select value={grouping} onChange={(e) => setGrouping(parseFloat(e.target.value))}
           className="bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-gray-300 outline-none text-[10px] cursor-pointer font-bold rounded px-2 py-1 border border-gray-200 dark:border-white/10">
@@ -110,7 +110,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 16 }) 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
         <div className="flex-1 flex flex-col justify-end overflow-hidden">
           {asks.map((ask, i) => (
-            <div key={`ask-${i}`} className="flex justify-between relative group cursor-pointer hover:bg-red-500/10 px-3 items-center h-[18px]">
+            <div key={`ask-${i}`} className="flex justify-between relative group cursor-pointer hover:bg-red-500/10 px-3 items-center h-[15px]">
               <div className="absolute right-0 top-0 bottom-0 bg-red-500/[0.07] transition-all duration-300" style={{ width: `${(ask.total / maxTotal) * 100}%` }} />
               <span className="text-red-500 font-medium z-10 flex-1">{formatPrice(ask.price)}</span>
               <span className="text-gray-500 dark:text-gray-400 z-10 flex-1 text-right">{formatSize(ask.size)}</span>
@@ -119,14 +119,14 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 16 }) 
           ))}
         </div>
 
-        <div className="px-3 py-1.5 border-y border-gray-200 dark:border-white/5 shrink-0 flex justify-between items-center">
+        <div className="px-3 py-1 border-y border-gray-200 dark:border-white/5 shrink-0 flex justify-between items-center">
           <span className="text-sm font-black text-gray-900 dark:text-white">${formatPrice(price)}</span>
           <span className="text-[9px] text-gray-400">Spread: {formatPrice(spread)} ({spreadPct}%)</span>
         </div>
 
         <div className="flex-1 overflow-hidden">
           {bids.map((bid, i) => (
-            <div key={`bid-${i}`} className="flex justify-between relative group cursor-pointer hover:bg-emerald-500/10 px-3 items-center h-[18px]">
+            <div key={`bid-${i}`} className="flex justify-between relative group cursor-pointer hover:bg-emerald-500/10 px-3 items-center h-[15px]">
               <div className="absolute right-0 top-0 bottom-0 bg-emerald-500/[0.07] transition-all duration-300" style={{ width: `${(bid.total / maxTotal) * 100}%` }} />
               <span className="text-emerald-500 font-medium z-10 flex-1">{formatPrice(bid.price)}</span>
               <span className="text-gray-500 dark:text-gray-400 z-10 flex-1 text-right">{formatSize(bid.size)}</span>
