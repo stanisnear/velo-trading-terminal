@@ -21,6 +21,8 @@ import {
 } from './services/mockStore';
 import { analyzeMarketSentiment, chatWithAi, generateBotStrategy } from './services/geminiService';
 import { fetchRealPrices } from './services/priceService';
+import { AuthModal } from './components/AuthModal';
+import { supabase, getProfile, signOut as supabaseSignOut, isSupabaseConfigured } from './services/supabase';
 import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, SocialSort, ProfileTab, BotStrategy, ActiveBot, Transaction, OpenOrder, ChartTimeframe } from './types';
 
 // --- Sound Service (Refined) ---
@@ -1742,6 +1744,34 @@ const App = () => {
     // Ref to track positions currently being processed
     const processingIds = useRef<Set<string>>(new Set());
 
+    // Supabase auth state listener
+    useEffect(() => {
+        if (!isSupabaseConfigured()) return;
+        
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session?.user) {
+                const { profile } = await getProfile(session.user.id);
+                if (profile && !user) {
+                    handleLogin(profile.username);
+                }
+            } else if (event === 'SIGNED_OUT') {
+                resetAccount();
+            }
+        });
+        
+        // Check for existing session
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
+            if (session?.user) {
+                const { profile } = await getProfile(session.user.id);
+                if (profile && !user) {
+                    handleLogin(profile.username);
+                }
+            }
+        });
+        
+        return () => subscription.unsubscribe();
+    }, []);
+
     useEffect(() => {
         document.documentElement.classList.remove('light', 'dark');
         document.documentElement.classList.add(theme);
@@ -2063,7 +2093,7 @@ const App = () => {
     }, [marketPrices, candles, traders, user, posts, positions, openOrders]);
 
     const handleLogin = (u: string) => { setUser(registerUser(u, '')); setLoginOpen(false); playSound('SUCCESS'); };
-    const handleLogout = () => { resetAccount(); playSound('CLOSE'); };
+    const handleLogout = () => { if (isSupabaseConfigured()) supabaseSignOut(); resetAccount(); playSound('CLOSE'); };
     const handleDeposit = (a: number) => { setUser(prev => prev ? depositFunds(prev, a) : null); setAnimation('DEPOSIT'); playSound('SUCCESS'); setTimeout(()=>setAnimation(null), 2000); };
     const handleWithdraw = (a: number) => { setUser(prev => prev ? withdrawFunds(prev, a) : null); setAnimation('WITHDRAW'); playSound('SUCCESS'); setTimeout(()=>setAnimation(null), 2000); };
     const isProcessing = useRef(false);
@@ -2507,7 +2537,22 @@ const App = () => {
             {animation && <CoinAnimation type={animation}/>}
             {toast && <ToastNotification message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             <OrderSuccessModal isOpen={orderSuccess?.isOpen} details={orderSuccess?.details} />
-            <LoginModal isOpen={isLoginOpen} onClose={() => setLoginOpen(false)} onLogin={handleLogin}/>
+            <AuthModal 
+                isOpen={isLoginOpen} 
+                onClose={() => setLoginOpen(false)} 
+                onAuth={async (user, profile) => {
+                    // Supabase auth successful - load profile
+                    if (user) {
+                        const { profile: p } = await getProfile(user.id);
+                        if (p) {
+                            handleLogin(p.username);
+                        } else {
+                            handleLogin(user.user_metadata?.username || 'Trader');
+                        }
+                    }
+                }}
+                onFallbackLogin={handleLogin}
+            />
             <EditPositionModal isOpen={!!editingPosition} position={editingPosition} onClose={() => setEditingPosition(null)} onSave={handleUpdatePosition}/>
             <LeverageChangeModal 
                 isOpen={leverageModalOpen} 
