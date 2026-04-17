@@ -980,7 +980,7 @@ const TradeView = ({
     };
 
     return (
-        <div className="flex flex-col lg:flex-row gap-2 lg:h-[calc(100vh-65px)] min-h-[800px] lg:min-h-0 animate-slide-in pb-24 lg:pb-0">
+        <div className="flex flex-col lg:flex-row gap-2 lg:h-[calc(100vh-65px)] min-h-0 animate-slide-in pb-24 lg:pb-0 overflow-y-auto lg:overflow-hidden">
              <PairSelector isOpen={pairSelectorOpen} onClose={() => setPairSelectorOpen(false)} onSelect={setActivePair}/>
              
              {/* Mobile Header: Pair Selector */}
@@ -990,7 +990,7 @@ const TradeView = ({
 
              {/* Left Column: Chart + Positions */}
              <div className="flex-1 flex flex-col gap-1.5 min-w-0 h-full overflow-hidden">
-                 <GlassCard className="flex-[3] p-0 overflow-hidden flex flex-col min-h-[300px] relative bg-white/40 dark:bg-[#121212]/40 !backdrop-blur-none shadow-none border-gray-200 dark:border-white/5 !rounded-3xl">
+                 <GlassCard className="flex-[3] p-0 overflow-hidden flex flex-col min-h-[350px] lg:min-h-[300px] relative bg-white/40 dark:bg-[#121212]/40 !backdrop-blur-none shadow-none border-gray-200 dark:border-white/5 !rounded-3xl">
                       <TradingViewChart 
                          initialData={candles[activePair.id] || []} 
                          theme={'dark'} 
@@ -1008,7 +1008,7 @@ const TradeView = ({
              </div>
 
              {/* Right Column: Order Book + Form */}
-             <div className="w-full lg:w-[300px] flex flex-col gap-1.5 shrink-0 h-full overflow-hidden">
+             <div className="w-full lg:w-[320px] flex flex-col gap-1.5 shrink-0 lg:h-full lg:overflow-y-auto">
                  {/* Desktop Pair Selector */}
                  <div className="hidden lg:block shrink-0">
                     <PairSelectorButton />
@@ -2523,7 +2523,17 @@ const App = () => {
             <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={() => setLoginOpen(true)} unreadCount={notifications.length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onNotificationClick={()=>{}} isNotifOpen={notifOpen} setNotifOpen={setNotifOpen} totalEquity={user ? user.balance + positions.reduce((acc, p) => acc + (p.size/p.leverage) + ((marketPrices[p.pair] || p.entryPrice) - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size/p.entryPrice), 0) : 0}/>
             <main className="w-full px-4 pt-6 pb-24 lg:pb-8">
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={setEditingPosition} onViewProfile={handleViewProfile} onOpenStrategyDetails={(p:any) => setStrategyModal({isOpen:true, ...p})} handleBotAction={handleBotAction} handleCopyTrade={handleCopyTrade}/>}
-                {activeTab === TabView.TRADE && <TradeView activePair={activePair} setActivePair={setActivePair} marketPrices={marketPrices} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => setLoginOpen(true)} onEditPosition={setEditingPosition} onTimeframeChange={(tf: ChartTimeframe) => console.log(tf)}/>}
+                {activeTab === TabView.TRADE && <TradeView activePair={activePair} setActivePair={setActivePair} marketPrices={marketPrices} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => setLoginOpen(true)} onEditPosition={setEditingPosition} onTimeframeChange={(tf: ChartTimeframe) => {
+                    const intervals: Record<string, number> = { '1m': 60, '5m': 300, '15m': 900, '1H': 3600, '4H': 14400, '1D': 86400 };
+                    const interval = intervals[tf] || 900;
+                    const count = tf === '1D' ? 365 : tf === '4H' ? 180 : tf === '1H' ? 168 : 200;
+                    const newCandles: Record<string, Candle[]> = {};
+                    PAIRS.forEach(p => {
+                        const currentPrice = marketPrices[p.id] || p.basePrice;
+                        newCandles[p.id] = generateCandles(count, currentPrice, interval);
+                    });
+                    setCandles(newCandles);
+                }}/>}
                 {activeTab === TabView.SOCIAL && <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={() => setLoginOpen(true)} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onDeletePost={(id:string) => setPosts(posts.filter(p => p.id !== id))}/>}
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
                 {activeTab === TabView.STRATEGY && <StrategyView user={user} bots={AVAILABLE_BOTS} onDeployBot={handleDeployBot} onRequireAuth={() => setLoginOpen(true)} marketPrices={marketPrices} positions={positions} onBotAction={handleBotAction}/>}
