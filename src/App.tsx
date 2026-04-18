@@ -1075,7 +1075,7 @@ const buyingPower = user ? Math.max(0, user.balance + crossMarginPnl) : 0;
                                                     setToast({ message: 'Close existing position first to switch margin mode', type: 'ERROR' });
                                                     playSound('ERROR');
                                                 } else {
-                                                    try { setMarginMode(m as any); } catch(e) { console.warn('Margin mode switch error:', e); }
+                                                    setMarginMode(m as MarginMode);
                                                 }
                                             }} 
                                             className={`flex-1 py-1 text-[10px] font-bold rounded transition-all ${marginMode === m ? 'bg-white dark:bg-[#2A2A2A] shadow text-gray-900 dark:text-white' : 'text-gray-500'} ${hasPosition ? 'opacity-50 cursor-not-allowed' : ''}`}
