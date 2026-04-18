@@ -1720,6 +1720,7 @@ const App = () => {
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
     const [traders, setTraders] = useState<Trader[]>([]);
     const [posts, setPosts] = useState<Post[]>([]);
+    const [postsLoading, setPostsLoading] = useState(true);
     const [positions, setPositions] = useState<Position[]>([]);
     const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]); 
     const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
