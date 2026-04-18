@@ -696,21 +696,15 @@ const TradeView = ({
     }
 
     // Calculate Buying Power (Balance + Cross Margin Unrealized PnL)
-   const crossMarginPnl = useMemo(() => {
-    if (!positions || positions.length === 0) return 0;
-    return positions
+    const crossMarginPnl = positions
         .filter((p: Position) => p.marginMode === 'CROSS' && !p.isBotTrade && !p.isCopyTrade)
         .reduce((acc: number, p: Position) => {
-            const price = prices[p.pair] || p.entryPrice || 0;
-            if (!price || !p.entryPrice || !p.leverage) return acc;
-            const priceDiff = price - p.entryPrice;
-            const direction = p.side === 'LONG' ? 1 : -1;
-            const contracts = p.size / p.entryPrice;
-            return acc + (priceDiff * direction * contracts);
+            const cp = marketPrices[p.pair] || p.entryPrice;
+            const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size/p.entryPrice);
+            return acc + pnl;
         }, 0);
-}, [positions, prices]);
-
-const buyingPower = user ? Math.max(0, user.balance + crossMarginPnl) : 0;
+    
+    const buyingPower = user ? Math.max(0, user.balance + crossMarginPnl) : 0;
 
     // Risk Level Calculation
     let riskLevel = 'LOW';
@@ -1075,7 +1069,7 @@ const buyingPower = user ? Math.max(0, user.balance + crossMarginPnl) : 0;
                                                     setToast({ message: 'Close existing position first to switch margin mode', type: 'ERROR' });
                                                     playSound('ERROR');
                                                 } else {
-                                                    setMarginMode(m as MarginMode);
+                                                    try { setMarginMode(m as any); } catch(e) { console.warn('Margin mode switch error:', e); }
                                                 }
                                             }} 
                                             className={`flex-1 py-1 text-[10px] font-bold rounded transition-all ${marginMode === m ? 'bg-white dark:bg-[#2A2A2A] shadow text-gray-900 dark:text-white' : 'text-gray-500'} ${hasPosition ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -1720,7 +1714,6 @@ const App = () => {
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
     const [traders, setTraders] = useState<Trader[]>([]);
     const [posts, setPosts] = useState<Post[]>([]);
-    const [postsLoading, setPostsLoading] = useState(true);
     const [positions, setPositions] = useState<Position[]>([]);
     const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]); 
     const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
