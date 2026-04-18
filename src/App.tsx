@@ -696,15 +696,21 @@ const TradeView = ({
     }
 
     // Calculate Buying Power (Balance + Cross Margin Unrealized PnL)
-    const crossMarginPnl = positions
+   const crossMarginPnl = useMemo(() => {
+    if (!positions || positions.length === 0) return 0;
+    return positions
         .filter((p: Position) => p.marginMode === 'CROSS' && !p.isBotTrade && !p.isCopyTrade)
         .reduce((acc: number, p: Position) => {
-            const cp = marketPrices[p.pair] || p.entryPrice;
-            const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size/p.entryPrice);
-            return acc + pnl;
+            const price = prices[p.pair] || p.entryPrice || 0;
+            if (!price || !p.entryPrice || !p.leverage) return acc;
+            const priceDiff = price - p.entryPrice;
+            const direction = p.side === 'LONG' ? 1 : -1;
+            const contracts = p.size / p.entryPrice;
+            return acc + (priceDiff * direction * contracts);
         }, 0);
-    
-    const buyingPower = user ? Math.max(0, user.balance + crossMarginPnl) : 0;
+}, [positions, prices]);
+
+const buyingPower = user ? Math.max(0, user.balance + crossMarginPnl) : 0;
 
     // Risk Level Calculation
     let riskLevel = 'LOW';
