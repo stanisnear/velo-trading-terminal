@@ -242,7 +242,8 @@ export const simulateSocialActivity = (traders: Trader[], posts: Post[], current
     const newNotifications: Notification[] = [];
     let copierStatsUpdate = { newCopiers: 0, feesEarned: 0 };
 
-    if (Math.random() < 0.05) {
+    // Reduced rate: ~1.5% per tick (was 5%) — more realistic pacing
+    if (Math.random() < 0.015) {
         const trader = traders[Math.floor(Math.random() * traders.length)];
         const topics = ['$SOL', '$BTC', 'long', 'short', 'moon', 'rekt', 'alpha', 'airdrop'];
         const topic = topics[Math.floor(Math.random() * topics.length)];
@@ -250,8 +251,8 @@ export const simulateSocialActivity = (traders: Trader[], posts: Post[], current
         newPosts.push({ id: `p_${Date.now()}_${Math.random()}`, authorId: trader.id, authorHandle: trader.handle, authorAvatar: trader.avatar, content, timestamp: new Date().toISOString(), likes: 0, reposts: 0, likedBy: [], repostedBy: [], comments: [] });
     }
     
-    // External likes on user posts
-    if (currentUserId && Math.random() < 0.05) {
+    // External likes on user posts — reduced rate
+    if (currentUserId && Math.random() < 0.02) {
         const userPosts = updatedPosts.filter(p => p.authorId === currentUserId);
         if (userPosts.length > 0) {
             const randomPost = userPosts[Math.floor(Math.random() * userPosts.length)];
