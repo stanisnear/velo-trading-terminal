@@ -113,8 +113,17 @@ const calculateStats = (tradeHistory: TradeHistoryItem[]) => {
 
 // Check if user is Supabase-verified (UUID format vs demo timestamp format)
 const isVerifiedUser = (userId: string) => {
-    // UUID format: 8-4-4-4-12 hex chars
+    // UUID format: 8-4-4-4-12 hex chars (Supabase auth UUIDs)
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+};
+// Verified badge component — blue check for Supabase users, gray for bots/mock
+const VerifiedBadge = ({ userId, size = 16 }: { userId: string, size?: number }) => {
+    if (!isVerifiedUser(userId)) return null;
+    return (
+        <span title="Verified Account" className="inline-flex items-center justify-center rounded-full bg-blue-500 shrink-0" style={{ width: size + 2, height: size + 2 }}>
+            <Check size={size * 0.6} className="text-white" strokeWidth={3}/>
+        </span>
+    );
 };
 const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -622,7 +631,7 @@ const DeployBotModal = ({ isOpen, bot, onClose, onDeploy }: any) => { const [ris
 const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity }: any) => { const navItems = [ { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true }, { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false }, { id: TabView.STRATEGY, icon: Bot, label: 'AI Strategy', requiresAuth: false }, { id: TabView.SOCIAL, icon: Users, label: 'Social', requiresAuth: false }, { id: TabView.LEADERBOARD, icon: Trophy, label: 'Leaderboard', requiresAuth: false }, ].filter(item => !item.requiresAuth || user); return ( <nav className="border-b border-gray-200 dark:border-white/5 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-50 px-4 md:px-6 h-14 flex items-center justify-between"> <div className="flex items-center gap-2"> <button className="md:hidden p-2 -ml-2 text-gray-500" onClick={() => setMobileMenuOpen(true)}><Menu size={24}/></button> <div className="flex items-center gap-2 font-black text-xl text-gray-900 dark:text-white tracking-tighter cursor-pointer" onClick={() => user && setActiveTab(TabView.DASHBOARD)}> <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white"><Zap size={20} fill="currentColor"/></div> VELO </div> </div> <div className="hidden md:flex items-center gap-1 bg-gray-100 dark:bg-white/5 p-1 rounded-xl"> {navItems.map(item => ( <button key={item.id} onClick={() => setActiveTab(item.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === item.id ? 'bg-white dark:bg-[#1A1A1A] shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}> <item.icon size={16}/> {item.label} </button> ))} </div> <div className="flex items-center gap-3"> <div className="relative"> <button onClick={() => setNotifOpen(!isNotifOpen)} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full relative transition-colors"> <Bell size={20}/> {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-black"></span>} </button> {isNotifOpen && ( <> <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)}></div> <div className="fixed left-4 right-4 top-16 md:absolute md:left-auto md:right-0 md:top-full md:mt-2 md:w-80 bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl z-50 flex flex-col max-h-[400px]"> <div className="p-4 border-b border-gray-200 dark:border-white/5 font-bold">Notifications</div> <div className="flex-1 overflow-y-auto"> {notifications.length === 0 ? <p className="p-4 text-center text-sm text-gray-500">No notifications</p> : notifications.slice().reverse().map((n: any) => ( <div key={n.id} onClick={() => { onNotificationClick(n); setNotifOpen(false); }} className={`p-4 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer ${!n.read ? 'bg-blue-50/50 dark:bg-blue-500/5' : ''}`}> <p className="text-xs text-gray-500 mb-1">{new Date(n.timestamp).toLocaleTimeString()}</p> <p className="text-sm text-gray-900 dark:text-white">{n.message}</p> </div> )) } </div> </div> </> )} </div> <button onClick={toggleTheme} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors"> {theme === 'dark' ? <Sun size={20}/> : <Moon size={20}/>} </button> {user ? ( <div className="flex items-center gap-3 pl-3 border-l border-gray-200 dark:border-white/10"> <div className="text-right hidden md:block"> <p className="text-xs font-bold text-gray-900 dark:text-white">{user.username}</p> <p className="text-xs text-emerald-500 font-mono cursor-pointer hover:text-emerald-400" onClick={() => setActiveTab(TabView.DASHBOARD)}>${formatMoney(totalEquity || user.balance)}</p> </div> <button onClick={() => setActiveTab(TabView.PROFILE)} className="w-9 h-9 rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden border border-gray-200 dark:border-white/10"> <img src={user.avatar} className="w-full h-full object-cover"/> </button> <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full"><LogOut size={18}/></button> </div> ) : ( <Button onClick={onRequireAuth} className="px-6 h-9 text-xs">Connect</Button> )} </div> </nav> ) }
 const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount }: any) => { const navItems = [ { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true }, { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false }, { id: TabView.STRATEGY, icon: Bot, label: 'AI Strategy', requiresAuth: false }, { id: TabView.SOCIAL, icon: Users, label: 'Social', requiresAuth: false }, { id: TabView.LEADERBOARD, icon: Trophy, label: 'Leaderboard', requiresAuth: false }, { id: TabView.PROFILE, icon: UserCircle, label: 'Profile', requiresAuth: false }, ].filter(item => !item.requiresAuth || user); return ( <> <div className={`fixed inset-0 bg-black/50 z-[60] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setSidebarOpen(false)}></div> <div className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-[#121212] z-[70] transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl flex flex-col`}> <div className="p-6 border-b border-gray-200 dark:border-white/5 flex justify-between items-center"> <div className="font-black text-xl text-gray-900 dark:text-white tracking-tighter">VELO</div> <button onClick={() => setSidebarOpen(false)}><X size={20} className="text-gray-500"/></button> </div> <div className="flex-1 p-4 space-y-2"> {navItems.map(item => ( <button key={item.id} onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === item.id ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5'}`} > <item.icon size={18}/> {item.label} </button> ))} </div> {user && ( <div className="p-4 border-t border-gray-200 dark:border-white/5"> <div className="flex items-center gap-3 mb-4"> <img src={user.avatar} className="w-10 h-10 rounded-full"/> <div> <p className="font-bold text-gray-900 dark:text-white">{user.username}</p> <p className="text-xs text-emerald-500">${formatMoney(user.balance)}</p> </div> </div> <Button onClick={handleLogout} variant="danger" className="w-full">Logout</Button> </div> )} </div> </> ) }
 const MobileBottomNav = ({ activeTab, setActiveTab, setSidebarOpen }: any) => { return ( <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/90 dark:bg-black/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/5 z-[60] flex items-center justify-around px-2 pb-safe"> {[ { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Home' }, { id: TabView.TRADE, icon: TrendingUp, label: 'Trade' }, { id: TabView.SOCIAL, icon: MessageSquare, label: 'Social' }, { id: 'MENU', icon: Menu, label: 'Menu', action: () => setSidebarOpen(true) }, ].map(item => ( <button key={item.id} onClick={item.action ? item.action : () => setActiveTab(item.id)} className={`flex flex-col items-center justify-center w-full h-full gap-1 ${activeTab === item.id ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400'}`} > <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} /> <span className="text-[10px] font-bold">{item.label}</span> </button> ))} </div> ) }
-const LeaderboardView = ({ traders, user, handleFollow, handleCopyTrade, handleViewProfile }: any) => { const sortedTraders = [...traders].sort((a, b) => b.pnl - a.pnl); return ( <div className="w-full max-w-7xl mx-auto pb-20 animate-fade-in"> <div className="text-center mb-10"> <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">Top Traders</h1> <p className="text-gray-500">Copy the most profitable strategies on VELO.</p> </div> <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"> {sortedTraders.slice(0, 3).map((trader: any, i: number) => ( <GlassCard key={trader.id} className="relative overflow-hidden flex flex-col items-center text-center pt-8 border-t-4 border-t-blue-500"> <div className="absolute top-4 left-4 text-6xl font-black text-gray-200 dark:text-white/5 pointer-events-none">0{i+1}</div> <img src={trader.avatar} className="w-24 h-24 rounded-full border-4 border-white dark:border-[#121212] shadow-xl mb-4"/> <h3 className="text-xl font-bold text-gray-900 dark:text-white">{trader.username}</h3> <p className="text-gray-500 text-sm mb-4">{trader.handle}</p> <div className="flex gap-8 mb-6"> <div> <p className="text-[10px] uppercase text-gray-400 font-bold">PnL</p> <p className="text-xl font-black text-emerald-500">${formatMoney(trader.pnl)}</p> </div> <div> <p className="text-[10px] uppercase text-gray-400 font-bold">Win Rate</p> <p className="text-xl font-black text-blue-500">{trader.winRate}%</p> </div> </div> <Button onClick={() => handleViewProfile(trader)} className="w-full mt-auto">View Profile</Button> </GlassCard> ))} </div> <GlassCard className="overflow-hidden p-0"> <div className="overflow-x-auto"> <table className="w-full text-left whitespace-nowrap"> <thead className="bg-gray-50 dark:bg-white/5 text-[10px] font-bold text-gray-500 uppercase"> <tr> <th className="px-6 py-4">Rank</th> <th className="px-6 py-4">Trader</th> <th className="px-6 py-4">PnL (All Time)</th> <th className="px-6 py-4">Win Rate</th> <th className="px-6 py-4">Followers</th> <th className="px-6 py-4 text-right">Action</th> </tr> </thead> <tbody className="divide-y divide-gray-200 dark:divide-white/5"> {sortedTraders.map((trader: any, i: number) => ( <tr key={trader.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"> <td className="px-6 py-4 font-bold text-gray-400">#{i + 1}</td> <td className="px-6 py-4 flex items-center gap-3"> <img src={trader.avatar} className="w-8 h-8 rounded-full"/> <div> <p className="font-bold text-gray-900 dark:text-white text-sm">{trader.username}</p> <p className="text-xs text-gray-500">{trader.handle}</p> </div> </td> <td className="px-6 py-4 font-bold text-emerald-500">${formatMoney(trader.pnl)}</td> <td className="px-6 py-4 text-gray-900 dark:text-white font-mono">{trader.winRate}%</td> <td className="px-6 py-4 text-gray-500">{trader.followers.length}</td> <td className="px-6 py-4 text-right"> <Button onClick={() => handleViewProfile(trader)} variant="secondary" className="px-4 h-8 text-xs">View</Button> </td> </tr> ))} </tbody> </table> </div> </GlassCard> </div> ) }
+const LeaderboardView = ({ traders, user, handleFollow, handleCopyTrade, handleViewProfile }: any) => { const sortedTraders = [...traders].sort((a, b) => { const aVerified = isVerifiedUser(a.id) ? 1 : 0; const bVerified = isVerifiedUser(b.id) ? 1 : 0; if (bVerified !== aVerified) return bVerified - aVerified; return b.pnl - a.pnl; }); return ( <div className="w-full max-w-7xl mx-auto pb-20 animate-fade-in"> <div className="text-center mb-10"> <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">Top Traders</h1> <p className="text-gray-500">Copy the most profitable strategies on VELO.</p> </div> <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"> {sortedTraders.slice(0, 3).map((trader: any, i: number) => ( <GlassCard key={trader.id} className="relative overflow-hidden flex flex-col items-center text-center pt-8 border-t-4 border-t-blue-500"> <div className="absolute top-4 left-4 text-6xl font-black text-gray-200 dark:text-white/5 pointer-events-none">0{i+1}</div> <img src={trader.avatar} className="w-24 h-24 rounded-full border-4 border-white dark:border-[#121212] shadow-xl mb-4"/> <h3 className="text-xl font-bold text-gray-900 dark:text-white">{trader.username}</h3> <p className="text-gray-500 text-sm mb-4">{trader.handle}</p> <div className="flex gap-8 mb-6"> <div> <p className="text-[10px] uppercase text-gray-400 font-bold">PnL</p> <p className="text-xl font-black text-emerald-500">${formatMoney(trader.pnl)}</p> </div> <div> <p className="text-[10px] uppercase text-gray-400 font-bold">Win Rate</p> <p className="text-xl font-black text-blue-500">{trader.winRate}%</p> </div> </div> <Button onClick={() => handleViewProfile(trader)} className="w-full mt-auto">View Profile</Button> </GlassCard> ))} </div> <GlassCard className="overflow-hidden p-0"> <div className="overflow-x-auto"> <table className="w-full text-left whitespace-nowrap"> <thead className="bg-gray-50 dark:bg-white/5 text-[10px] font-bold text-gray-500 uppercase"> <tr> <th className="px-6 py-4">Rank</th> <th className="px-6 py-4">Trader</th> <th className="px-6 py-4">PnL (All Time)</th> <th className="px-6 py-4">Win Rate</th> <th className="px-6 py-4">Followers</th> <th className="px-6 py-4 text-right">Action</th> </tr> </thead> <tbody className="divide-y divide-gray-200 dark:divide-white/5"> {sortedTraders.map((trader: any, i: number) => ( <tr key={trader.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"> <td className="px-6 py-4 font-bold text-gray-400">#{i + 1}</td> <td className="px-6 py-4 flex items-center gap-3"> <img src={trader.avatar} className="w-8 h-8 rounded-full"/> <div> <p className="font-bold text-gray-900 dark:text-white text-sm">{trader.username}</p> <p className="text-xs text-gray-500">{trader.handle}</p> </div> </td> <td className="px-6 py-4 font-bold text-emerald-500">${formatMoney(trader.pnl)}</td> <td className="px-6 py-4 text-gray-900 dark:text-white font-mono">{trader.winRate}%</td> <td className="px-6 py-4 text-gray-500">{trader.followers.length}</td> <td className="px-6 py-4 text-right"> <Button onClick={() => handleViewProfile(trader)} variant="secondary" className="px-4 h-8 text-xs">View</Button> </td> </tr> ))} </tbody> </table> </div> </GlassCard> </div> ) }
 const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete }: any) => { const hasLiked = post.likedBy.includes(user?.id); const hasReposted = post.repostedBy.includes(user?.id); const isOwner = user?.id === post.authorId; return ( <GlassCard className="p-0 overflow-hidden hover:border-gray-300 dark:hover:border-white/20 transition-colors"> {post.repostedBy.length > 0 && ( <div className="px-4 py-2 text-xs font-bold text-gray-500 flex items-center gap-2 bg-gray-50 dark:bg-white/5"> <Repeat size={12}/> {post.repostedBy.length} reposts </div> )} <div className="p-4 flex gap-4"> <div className="shrink-0 cursor-pointer" onClick={() => onViewProfile({ id: post.authorId })}> <img src={post.authorAvatar} className="w-10 h-10 rounded-full"/> </div> <div className="flex-1 min-w-0"> <div className="flex justify-between items-start"> <div className="flex items-center gap-2"> <span className="font-bold text-gray-900 dark:text-white cursor-pointer hover:underline" onClick={() => onViewProfile({ id: post.authorId })}>{post.authorHandle}</span>{isVerifiedUser(post.authorId) && <span className="inline-flex items-center justify-center w-4 h-4 bg-blue-500 rounded-full ml-0.5"><Check size={9} className="text-white" strokeWidth={3}/></span>} <span className="text-xs text-gray-500">• {new Date(post.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span> </div> {isOwner && onDelete && ( <button onClick={() => onDelete(post.id)} className="text-gray-400 hover:text-red-500 transition-colors"> <Trash2 size={16}/> </button> )} </div> <p className="text-gray-800 dark:text-gray-200 mt-2 whitespace-pre-wrap">{post.content}</p> {post.image && ( <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10"> <img src={post.image} className="w-full h-auto object-cover max-h-[300px]"/> </div> )} {post.isTradeSignal && post.tradeDetails && ( <div className="mt-3 bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 flex justify-between items-center"> <div> <p className="text-xs font-bold text-blue-500 uppercase">Trade Signal</p> <p className="font-black text-gray-900 dark:text-white"> {post.tradeDetails.side} {post.tradeDetails.pair} <span className="opacity-50">@</span> ${post.tradeDetails.entry} </p> </div> <Button onClick={() => handleCopyTrade(post)} className="px-4 py-1.5 h-auto text-xs"> Copy Trade </Button> </div> )} <div className="flex items-center justify-between mt-4 text-gray-500"> <button onClick={() => onComment(post.id, "Nice!")} className="flex items-center gap-2 hover:text-blue-500 transition-colors group"> <div className="p-2 group-hover:bg-blue-500/10 rounded-full"><MessageCircle size={18}/></div> <span className="text-xs">{post.comments.length}</span> </button> <button onClick={() => onRepost(post.id)} className={`flex items-center gap-2 hover:text-green-500 transition-colors group ${hasReposted ? 'text-green-500' : ''}`}> <div className="p-2 group-hover:bg-green-500/10 rounded-full"><Repeat size={18}/></div> <span className="text-xs">{post.reposts}</span> </button> <button onClick={() => onLike(post.id)} className={`flex items-center gap-2 hover:text-red-500 transition-colors group ${hasLiked ? 'text-red-500' : ''}`}> <div className="p-2 group-hover:bg-red-500/10 rounded-full"><Heart size={18} fill={hasLiked ? "currentColor" : "none"}/></div> <span className="text-xs" onClick={(e) => { e.stopPropagation(); showUsersModal("Liked by", post.likedBy, onViewProfile); }}>{post.likes}</span> </button> <button className="flex items-center gap-2 hover:text-blue-500 transition-colors group"> <div className="p-2 group-hover:bg-blue-500/10 rounded-full"><Share2 size={18}/></div> </button> </div> </div> </div> </GlassCard> ); };
 const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost }: any) => { const [newPostContent, setNewPostContent] = useState(''); const [filter, setFilter] = useState<SocialSort>('LATEST'); const filteredPosts = [...posts].sort((a, b) => { if (filter === 'TRENDING') return b.likes - a.likes; return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); }); const handleViewProfileWrapper = (partial: { id: string }) => { const trader = traders.find((t: any) => t.id === partial.id); if (trader) { onViewProfile(trader); } else if (user && user.id === partial.id) { onViewProfile(user); } }; return ( <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in w-full max-w-7xl mx-auto"> <div className="hidden md:block md:col-span-1 space-y-6"> <GlassCard> <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2"><Flame size={18} className="text-orange-500"/> Trending Topics</h3> <div className="space-y-3"> {['$SOL', '$WIF', '#Bitcoin', 'Memecoins', 'Gemini'].map((t, i) => ( <div key={t} className="flex justify-between items-center text-sm"> <span className="text-gray-500 hover:text-blue-500 cursor-pointer">{t}</span> <span className="text-xs text-gray-400">{10 - i}k posts</span> </div> ))} </div> </GlassCard> </div> <div className="col-span-1 md:col-span-2 space-y-4"> <GlassCard className="p-4"> <div className="flex gap-4"> <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-white/10 shrink-0 overflow-hidden"> {user ? <img src={user.avatar} className="w-full h-full object-cover"/> : <UserCircle size={40} className="text-gray-400"/>} </div> <div className="flex-1"> <textarea placeholder="What's happening in the markets?" className="w-full bg-transparent border-none outline-none text-gray-900 dark:text-white placeholder-gray-500 resize-none h-20 text-lg font-medium" value={newPostContent} onChange={(e) => setNewPostContent(e.target.value)} /> <div className="flex justify-between items-center mt-2 border-t border-gray-100 dark:border-white/5 pt-2"> <div className="flex gap-2 text-blue-500"> <button className="p-2 hover:bg-blue-500/10 rounded-full"><ImageIcon size={20}/></button> <button className="p-2 hover:bg-blue-500/10 rounded-full"><BarChart2 size={20}/></button> </div> <Button onClick={() => { onPostCreate(newPostContent); setNewPostContent(''); }} disabled={!newPostContent.trim()} className="rounded-full px-6"> Post </Button> </div> </div> </div> </GlassCard> <div className="flex gap-4 border-b border-gray-200 dark:border-white/5 pb-2"> {['LATEST', 'TRENDING'].map((f) => ( <button key={f} onClick={() => setFilter(f as any)} className={`text-sm font-bold pb-2 relative transition-colors ${filter === f ? 'text-blue-500' : 'text-gray-500'}`}> {f} {filter === f && <div className="absolute bottom-[-9px] left-0 right-0 h-0.5 bg-blue-500 rounded-t-full"></div>} </button> ))} </div> <div className="space-y-4"> {filteredPosts.map(post => ( <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} /> ))} </div> </div> <div className="hidden md:block md:col-span-1 space-y-6"> <GlassCard> <h3 className="font-bold text-gray-900 dark:text-white mb-4">Who to follow</h3> <div className="space-y-4"> {traders.slice(0, 4).map((t: any) => ( <div key={t.id} className="flex items-center justify-between"> <div className="flex items-center gap-2 cursor-pointer" onClick={() => onViewProfile(t)}> <img src={t.avatar} className="w-10 h-10 rounded-full"/> <div className="overflow-hidden"> <p className="font-bold text-sm text-gray-900 dark:text-white truncate">{t.username}</p> <p className="text-xs text-gray-500 truncate">{t.handle}</p> </div> </div> <Button onClick={() => handleFollow(t.id)} variant="secondary" className="px-3 py-1 text-xs h-8"> {user?.following.includes(t.id) ? 'Following' : 'Follow'} </Button> </div> ))} </div> </GlassCard> </div> </div> ) }
 const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, isCopying, showUsersModal, onViewProfile, stats }: any) => { return ( <GlassCard className="mb-6 p-0 overflow-hidden"> <div className="h-32 sm:h-48 w-full bg-gray-800 relative"> {profile.banner ? ( <img src={profile.banner} className="w-full h-full object-cover"/> ) : ( <div className="w-full h-full bg-gray-900 dark:bg-black"></div> )} </div> <div className="px-6 pb-6 relative"> <div className="flex justify-between items-end -mt-10 sm:-mt-12 mb-4"> <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-white dark:border-[#1A1A1A] overflow-hidden bg-gray-200 shadow-xl"> <img src={profile.avatar} className="w-full h-full object-cover"/> </div> <div className="flex gap-2 mb-1"> {isOwn ? ( <Button variant="secondary" onClick={onEdit} className="h-9 px-4 text-xs">Edit Profile</Button> ) : ( <> <Button onClick={onFollow} variant={isFollowing ? 'secondary' : 'primary'} className="h-9 px-4 text-xs"> {isFollowing ? 'Unfollow' : 'Follow'} </Button> <Button onClick={onCopy} variant={isCopying ? 'danger' : 'success'} className="h-9 px-4 text-xs"> {isCopying ? 'Stop Copying' : 'Copy'} </Button> </> )} </div> </div> <div className="mb-4"> <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2"> {profile.username} {profile.veloRewards > 10000 && <Sparkles size={20} className="text-yellow-500" fill="currentColor"/>}
@@ -1754,12 +1763,15 @@ const App = () => {
     const processingIds = useRef<Set<string>>(new Set());
 
 
-    // Handle URL hash routing for profiles
+    // Handle URL hash routing for profiles (re-trigger when traders load)
     useEffect(() => {
         const hash = window.location.hash.slice(1);
         if (!hash || !hash.startsWith('profile/')) return;
         const handle = hash.split('/')[1];
         if (!handle || traders.length === 0) return;
+        
+        // If already viewing correct profile, skip
+        if (viewingProfile && (viewingProfile.handle?.replace('@', '').toLowerCase() === handle.toLowerCase() || viewingProfile.username?.toLowerCase() === handle.toLowerCase())) return;
         
         const trader = traders.find((t: any) => 
             t.handle?.replace('@', '').toLowerCase() === handle.toLowerCase() ||
@@ -1769,7 +1781,7 @@ const App = () => {
             setViewingProfile(trader);
             setActiveTab(TabView.PUBLIC_PROFILE);
         }
-    }, [traders]); // Re-run when traders are loaded
+    }, [traders]);
 
     // Supabase auth state listener
     useEffect(() => {
@@ -1822,53 +1834,93 @@ const App = () => {
     }, []);
 
 
-    // URL routing — sync tab with hash
-    useEffect(() => {
-        const hash = window.location.hash.slice(1);
-        if (hash) {
-            const tabMap: Record<string, string> = {
-                'dashboard': TabView.DASHBOARD,
-                'trade': TabView.TRADE,
-                'strategy': TabView.STRATEGY,
-                'social': TabView.SOCIAL,
-                'leaderboard': TabView.LEADERBOARD,
-                'profile': TabView.PROFILE,
-            };
-            // Direct tab match
-            const basePath = hash.split('/')[0];
-            if (tabMap[basePath]) setActiveTab(tabMap[basePath] as any);
-            
-            // Profile routing: #profile/username -> view that user's profile
-            if (hash.startsWith('profile/')) {
-                const handle = hash.split('/')[1];
-                if (handle) {
-                    // Try to find trader by handle
+    // URL routing — parse hash into tab/view state
+    const navigateFromHash = useCallback((hash: string) => {
+        if (!hash) return;
+        const tabMap: Record<string, string> = {
+            'dashboard': TabView.DASHBOARD,
+            'trade': TabView.TRADE,
+            'strategy': TabView.STRATEGY,
+            'social': TabView.SOCIAL,
+            'leaderboard': TabView.LEADERBOARD,
+            'profile': TabView.PROFILE,
+        };
+        const basePath = hash.split('/')[0];
+        
+        // Profile routing: #profile/username -> view that user's profile
+        if (hash.startsWith('profile/')) {
+            const handle = hash.split('/')[1];
+            if (handle) {
+                // Check if it's the current user's profile
+                if (user && (user.handle?.replace('@', '').toLowerCase() === handle.toLowerCase() || user.username?.toLowerCase() === handle.toLowerCase())) {
+                    setActiveTab(TabView.PROFILE);
+                    return;
+                }
+                // Find trader by handle or username
+                const allTraders = traders.length > 0 ? traders : getStoredTraders();
+                const trader = allTraders.find((t: any) => 
+                    t.handle?.replace('@', '').toLowerCase() === handle.toLowerCase() ||
+                    t.username?.toLowerCase() === handle.toLowerCase()
+                );
+                if (trader) {
+                    setViewingProfile(trader);
+                    setActiveTab(TabView.PUBLIC_PROFILE as any);
+                } else {
+                    // Trader not loaded yet — retry after a short delay
                     setTimeout(() => {
-                        const storedTraders = getStoredTraders();
-                        const trader = storedTraders.find((t: any) => 
+                        const retryTraders = getStoredTraders();
+                        const retryTrader = retryTraders.find((t: any) => 
                             t.handle?.replace('@', '').toLowerCase() === handle.toLowerCase() ||
                             t.username?.toLowerCase() === handle.toLowerCase()
                         );
-                        if (trader) {
-                            setViewingProfile(trader);
+                        if (retryTrader) {
+                            setViewingProfile(retryTrader);
                             setActiveTab(TabView.PUBLIC_PROFILE as any);
                         }
                     }, 500);
                 }
-            }
-            
-            // Trade routing: #trade/SOL-USD -> switch to that pair
-            if (hash.startsWith('trade/')) {
-                const pairSlug = hash.split('/')[1];
-                if (pairSlug) {
-                    const pairId = pairSlug.replace('-', '/');
-                    const pair = PAIRS.find(p => p.id === pairId);
-                    if (pair) setActivePair(pair);
-                }
+                return;
             }
         }
+        
+        // Trade routing: #trade/SOL-USD -> switch to that pair
+        if (hash.startsWith('trade/')) {
+            const pairSlug = hash.split('/')[1];
+            if (pairSlug) {
+                const pairId = pairSlug.replace('-', '/');
+                const pair = PAIRS.find(p => p.id === pairId);
+                if (pair) setActivePair(pair);
+            }
+            setActiveTab(TabView.TRADE);
+            return;
+        }
+        
+        // Direct tab match
+        if (tabMap[basePath]) setActiveTab(tabMap[basePath] as any);
+    }, [traders, user]);
+
+    // Initial hash parse on mount
+    useEffect(() => {
+        const hash = window.location.hash.slice(1);
+        if (hash) navigateFromHash(hash);
     }, []);
 
+    // Listen for hash changes (browser back/forward, manual URL edits, link clicks)
+    useEffect(() => {
+        const handleHashChange = () => {
+            const hash = window.location.hash.slice(1);
+            if (hash) navigateFromHash(hash);
+        };
+        window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('popstate', handleHashChange);
+        return () => {
+            window.removeEventListener('hashchange', handleHashChange);
+            window.removeEventListener('popstate', handleHashChange);
+        };
+    }, [navigateFromHash]);
+
+    // Sync active tab -> URL hash (using pushState for history support)
+    const isInternalNavRef = useRef(false);
     useEffect(() => {
         const tabToHash: Record<string, string> = {
             [TabView.DASHBOARD]: 'dashboard',
@@ -1880,18 +1932,19 @@ const App = () => {
             [TabView.PUBLIC_PROFILE]: `profile/${viewingProfile?.handle?.replace('@', '') || ''}`,
         };
         const hash = tabToHash[activeTab] || '';
-        if (hash) window.history.replaceState(null, '', `#${hash}`);
+        if (hash && `#${hash}` !== window.location.hash) {
+            window.history.pushState(null, '', `#${hash}`);
+        }
     }, [activeTab, activePair, user, viewingProfile]);
 
 
-    // Supabase real-time: load posts from DB + subscribe to new ones
+    // Supabase real-time: load posts from DB + subscribe to new ones + likes/comments sync
     useEffect(() => {
         if (!isSupabaseConfigured()) return;
         
-        // Load existing posts from Supabase
+        // Load existing posts from Supabase with like/comment counts
         const loadPosts = async () => {
             console.log('[VELO] Loading posts from Supabase...');
-            console.log('[VELO] Supabase configured:', isSupabaseConfigured());
             try {
                 const { data, error } = await supabase
                     .from('posts')
@@ -1900,6 +1953,30 @@ const App = () => {
                     .limit(50);
                     
                 if (data && data.length > 0) {
+                    // Fetch likes for these posts
+                    const postIds = data.map((p: any) => p.id);
+                    const { data: likesData } = await supabase.from('likes').select('post_id, user_id').in('post_id', postIds);
+                    const { data: commentsData } = await supabase.from('comments').select('id, post_id, author_id, content, created_at').in('post_id', postIds).order('created_at', { ascending: true });
+                    
+                    // Build lookup maps
+                    const likesMap: Record<string, string[]> = {};
+                    (likesData || []).forEach((l: any) => {
+                        if (!likesMap[l.post_id]) likesMap[l.post_id] = [];
+                        likesMap[l.post_id].push(l.user_id);
+                    });
+                    const commentsMap: Record<string, any[]> = {};
+                    (commentsData || []).forEach((c: any) => {
+                        if (!commentsMap[c.post_id]) commentsMap[c.post_id] = [];
+                        commentsMap[c.post_id].push({
+                            id: c.id,
+                            authorId: c.author_id,
+                            authorHandle: '@unknown',
+                            authorAvatar: '',
+                            content: c.content,
+                            timestamp: c.created_at,
+                        });
+                    });
+
                     const dbPosts = data.map((p: any) => ({
                         id: p.id,
                         authorId: p.author_id,
@@ -1908,11 +1985,11 @@ const App = () => {
                         content: p.content,
                         image: p.image_url,
                         timestamp: p.created_at,
-                        likes: 0,
+                        likes: (likesMap[p.id] || []).length,
                         reposts: 0,
-                        likedBy: [],
+                        likedBy: likesMap[p.id] || [],
                         repostedBy: [],
-                        comments: [],
+                        comments: commentsMap[p.id] || [],
                         isTradeSignal: p.is_trade_signal,
                         tradeDetails: p.is_trade_signal ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry } : undefined,
                     }));
@@ -1920,7 +1997,15 @@ const App = () => {
                         // Merge DB posts with local, deduplicate by id
                         const existing = new Set(prev.map(p => p.id));
                         const newPosts = dbPosts.filter((p: any) => !existing.has(p.id));
-                        return [...newPosts, ...prev];
+                        // Also update existing posts with DB like/comment data
+                        const updated = prev.map(p => {
+                            const dbPost = dbPosts.find((dp: any) => dp.id === p.id);
+                            if (dbPost) {
+                                return { ...p, likes: Math.max(p.likes, dbPost.likes), likedBy: [...new Set([...p.likedBy, ...dbPost.likedBy])], comments: dbPost.comments.length > p.comments.length ? dbPost.comments : p.comments };
+                            }
+                            return p;
+                        });
+                        return [...newPosts, ...updated];
                     });
                 }
             } catch(e) { console.warn('Failed to load posts:', e); }
@@ -1929,7 +2014,7 @@ const App = () => {
         
         // Subscribe to new posts in real-time
         const channel = supabase
-            .channel('public:posts')
+            .channel('social-sync')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
                 const p = payload.new;
                 // Fetch author profile
@@ -1949,6 +2034,44 @@ const App = () => {
                     if (prev.some(existing => existing.id === p.id)) return prev;
                     return [newPost, ...prev];
                 });
+            })
+            // Subscribe to likes in real-time
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, (payload: any) => {
+                const like = payload.new;
+                setPosts(prev => prev.map(p => {
+                    if (p.id === like.post_id && !p.likedBy.includes(like.user_id)) {
+                        return { ...p, likedBy: [...p.likedBy, like.user_id], likes: p.likedBy.length + 1 };
+                    }
+                    return p;
+                }));
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload: any) => {
+                const like = payload.old;
+                setPosts(prev => prev.map(p => {
+                    if (p.id === like.post_id) {
+                        const newLikedBy = p.likedBy.filter(uid => uid !== like.user_id);
+                        return { ...p, likedBy: newLikedBy, likes: newLikedBy.length };
+                    }
+                    return p;
+                }));
+            })
+            // Subscribe to comments in real-time
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload: any) => {
+                const c = payload.new;
+                const newComment = {
+                    id: c.id,
+                    authorId: c.author_id,
+                    authorHandle: '@user',
+                    authorAvatar: '',
+                    content: c.content,
+                    timestamp: c.created_at,
+                };
+                setPosts(prev => prev.map(p => {
+                    if (p.id === c.post_id && !p.comments.some(existing => existing.id === c.id)) {
+                        return { ...p, comments: [...p.comments, newComment] };
+                    }
+                    return p;
+                }));
             })
             .subscribe();
             
@@ -1972,6 +2095,42 @@ const App = () => {
         
         const storedTraders = getStoredTraders();
         setTraders(storedTraders.length > 0 ? storedTraders : INITIAL_TRADERS);
+        
+        // Load registered Supabase users and merge them into traders list
+        if (isSupabaseConfigured()) {
+            (async () => {
+                try {
+                    const { data: profiles } = await supabase.from('profiles').select('id, username, handle, avatar_url, banner_url, bio, created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(50);
+                    if (profiles && profiles.length > 0) {
+                        setTraders(prev => {
+                            const existingIds = new Set(prev.map(t => t.id));
+                            const newTraders = profiles
+                                .filter((p: any) => !existingIds.has(p.id))
+                                .map((p: any): Trader => ({
+                                    id: p.id,
+                                    handle: p.handle || `@${p.username}`,
+                                    username: p.username || 'Trader',
+                                    bio: p.bio || 'VELO Trader',
+                                    avatar: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`,
+                                    banner: p.banner_url || '',
+                                    pnl: 0,
+                                    followers: [],
+                                    following: [],
+                                    veloRewards: 0,
+                                    winRate: 0,
+                                    activePositions: [],
+                                    isPrivate: false,
+                                    joinedDate: p.created_at || new Date().toISOString(),
+                                }));
+                            if (newTraders.length === 0) return prev;
+                            return [...newTraders, ...prev];
+                        });
+                    }
+                } catch(e) { console.warn('Failed to load Supabase profiles:', e); }
+            })();
+        }
 
         const initialCandles: Record<string, Candle[]> = {};
         PAIRS.forEach(p => initialCandles[p.id] = generateCandles(100, p.basePrice));
@@ -2263,7 +2422,23 @@ const App = () => {
                 return remaining;
             });
             const { newPosts, newNotifications, copierStatsUpdate } = simulateSocialActivity(traders, posts, user?.id);
-            if (newPosts.length > 0) setPosts(prev => [...newPosts, ...prev]);
+            if (newPosts.length > 0) {
+                setPosts(prev => [...newPosts, ...prev]);
+                // Persist mock/bot posts to Supabase so all users see them
+                if (isSupabaseConfigured()) {
+                    newPosts.forEach(async (post) => {
+                        try {
+                            await supabase.from('posts').upsert({
+                                id: post.id,
+                                author_id: post.authorId,
+                                content: post.content,
+                                is_trade_signal: post.isTradeSignal || false,
+                                created_at: post.timestamp,
+                            }, { onConflict: 'id' });
+                        } catch(e) { /* ignore duplicates */ }
+                    });
+                }
+            }
             if (newNotifications.length > 0) setNotifications(prev => [...prev, ...newNotifications]);
             if (copierStatsUpdate && (copierStatsUpdate.newCopiers > 0 || copierStatsUpdate.feesEarned > 0)) {
                 setUser(prev => prev ? { ...prev, copierCount: (prev.copierCount || 0) + copierStatsUpdate.newCopiers, earnedFees: (prev.earnedFees || 0) + copierStatsUpdate.feesEarned } : null);
@@ -2761,7 +2936,56 @@ const App = () => {
             catch(e) { console.warn('Comment sync failed:', e); }
         }
     };
-    const handleViewProfile = (profile: any) => { setViewingProfile(profile); setActiveTab(TabView.PUBLIC_PROFILE); };
+    const handleViewProfile = (profile: any) => { 
+        // Resolve partial profiles (PostCard only passes { id })
+        if (profile && profile.id && !profile.handle) {
+            // Check if it's the current user
+            if (user && user.id === profile.id) {
+                setActiveTab(TabView.PROFILE);
+                return;
+            }
+            // Find full trader profile
+            const fullTrader = traders.find((t: Trader) => t.id === profile.id);
+            if (fullTrader) {
+                setViewingProfile(fullTrader);
+                setActiveTab(TabView.PUBLIC_PROFILE);
+                return;
+            }
+            // Try Supabase lookup for verified users not in local traders
+            if (isSupabaseConfigured() && isVerifiedUser(profile.id)) {
+                getProfile(profile.id).then(({ profile: p }) => {
+                    if (p) {
+                        const syntheticTrader: Trader = {
+                            id: profile.id,
+                            handle: p.handle || '@unknown',
+                            username: p.username || 'Unknown',
+                            bio: p.bio || '',
+                            avatar: p.avatar_url || '',
+                            banner: p.banner_url || '',
+                            pnl: 0,
+                            followers: [],
+                            following: [],
+                            veloRewards: 0,
+                            winRate: 0,
+                            activePositions: [],
+                            isPrivate: false,
+                            joinedDate: new Date().toISOString(),
+                        };
+                        setViewingProfile(syntheticTrader);
+                        setActiveTab(TabView.PUBLIC_PROFILE);
+                    }
+                });
+                return;
+            }
+        }
+        // Full profile object already provided
+        if (user && profile && user.id === profile.id) {
+            setActiveTab(TabView.PROFILE);
+            return;
+        }
+        setViewingProfile(profile); 
+        setActiveTab(TabView.PUBLIC_PROFILE); 
+    };
 
     return (
         <div className={`min-h-screen font-sans text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-black transition-colors duration-300 ${theme}`}>
