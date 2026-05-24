@@ -1,0 +1,223 @@
+/* VELO Brand Tokens — Light & Dark modes share accents; surfaces differ. */
+
+:root {
+  /* ── Typography ─────────────────────────────────────────────── */
+  --font-display: "Instrument Serif", "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-sans: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ── Iridescent palette (oklch, fixed chroma 0.18, lightness 0.72) ─ */
+  --iris-violet: oklch(0.68 0.22 295);
+  --iris-magenta: oklch(0.70 0.22 340);
+  --iris-coral: oklch(0.74 0.18 30);
+  --iris-amber: oklch(0.82 0.16 75);
+  --iris-lime: oklch(0.84 0.18 130);
+  --iris-cyan: oklch(0.80 0.14 205);
+  --iris-blue: oklch(0.68 0.18 250);
+
+  /* semantic */
+  --pnl-up: oklch(0.78 0.18 150);
+  --pnl-down: oklch(0.66 0.22 25);
+
+  /* Signature gradient */
+  --holo: conic-gradient(
+    from 210deg at 50% 50%,
+    var(--iris-violet),
+    var(--iris-magenta),
+    var(--iris-coral),
+    var(--iris-amber),
+    var(--iris-lime),
+    var(--iris-cyan),
+    var(--iris-blue),
+    var(--iris-violet)
+  );
+  --holo-linear: linear-gradient(
+    100deg,
+    var(--iris-violet) 0%,
+    var(--iris-magenta) 22%,
+    var(--iris-coral) 42%,
+    var(--iris-amber) 58%,
+    var(--iris-lime) 74%,
+    var(--iris-cyan) 90%,
+    var(--iris-blue) 100%
+  );
+
+  /* ── Radii & shadows ─────────────────────────────────────────── */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-2xl: 36px;
+}
+
+/* ── Light mode (soft paper) ──────────────────────────────────── */
+.mode-light,
+html.light,
+.light {
+  --bg-base: #F7F5F0;
+  --bg-base-2: #EDEAE2;
+  --bg-base-3: #E4E1D8;
+  --fg: #0B0B0E;
+  --fg-muted: #5A5A63;
+  --fg-subtle: #9A9AA4;
+  --hairline: rgba(10, 10, 14, 0.08);
+  --hairline-strong: rgba(10, 10, 14, 0.14);
+
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 rgba(10, 10, 14, 0.04) inset,
+    0 18px 40px -20px rgba(10, 10, 14, 0.25),
+    0 2px 6px rgba(10, 10, 14, 0.05);
+
+  --chip-bg: rgba(10, 10, 14, 0.04);
+  --chip-bg-hover: rgba(10, 10, 14, 0.08);
+  /* Modal uses fully opaque surface so text is always legible in light mode */
+  --modal-bg: #FFFFFF;
+
+  /* Podium card backgrounds — light mode: warm paper tones */
+  --podium-gold-bg: linear-gradient(160deg, oklch(0.94 0.04 75), oklch(0.90 0.03 75));
+  --podium-silver-bg: linear-gradient(160deg, oklch(0.92 0.01 270), oklch(0.88 0.01 270));
+  --podium-bronze-bg: linear-gradient(160deg, oklch(0.92 0.03 50), oklch(0.88 0.02 40));
+
+  /* Podium text colors — light mode: deeper tones for contrast */
+  --podium-gold-text: oklch(0.45 0.12 75);
+  --podium-silver-text: oklch(0.40 0.04 270);
+  --podium-bronze-text: oklch(0.42 0.10 50);
+
+  /* Podium borders — light mode */
+  --podium-gold-border: 1px solid oklch(0.70 0.15 75 / 0.35);
+  --podium-silver-border: 1px solid oklch(0.55 0.04 270 / 0.25);
+  --podium-bronze-border: 1px solid oklch(0.55 0.10 50 / 0.28);
+
+  /* Stats panel inside podium cards */
+  --podium-stats-bg: rgba(10, 10, 14, 0.06);
+  --podium-stats-border: rgba(10, 10, 14, 0.08);
+
+  /* Podium button hover */
+  --podium-btn-hover-bg: rgba(10, 10, 14, 0.08);
+
+  /* Ambient holographic wash behind content */
+  --ambient:
+    radial-gradient(at 12% 8%, oklch(0.88 0.10 295 / 0.55) 0px, transparent 40%),
+    radial-gradient(at 88% 4%, oklch(0.90 0.08 205 / 0.55) 0px, transparent 45%),
+    radial-gradient(at 92% 92%, oklch(0.90 0.09 130 / 0.55) 0px, transparent 45%),
+    radial-gradient(at 4% 96%, oklch(0.90 0.10 340 / 0.50) 0px, transparent 45%);
+}
+
+/* ── Dark mode (obsidian) ─────────────────────────────────────── */
+.mode-dark,
+html.dark,
+.dark {
+  --bg-base: #07070A;
+  --bg-base-2: #0E0E13;
+  --bg-base-3: #15151C;
+  --fg: #F4F4F7;
+  --fg-muted: #9A9AA4;
+  --fg-subtle: #56565F;
+  --hairline: rgba(255, 255, 255, 0.06);
+  --hairline-strong: rgba(255, 255, 255, 0.12);
+
+  --glass-bg: rgba(22, 22, 28, 0.55);
+  --glass-bg-strong: rgba(22, 22, 28, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.4) inset,
+    0 30px 60px -24px rgba(0, 0, 0, 0.7),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+
+  --chip-bg: rgba(255, 255, 255, 0.05);
+  --chip-bg-hover: rgba(255, 255, 255, 0.10);
+  /* Modal in dark mode keeps glass feel */
+  --modal-bg: rgba(18, 18, 24, 0.96);
+
+  /* Podium card backgrounds — dark mode: deep obsidian tones */
+  --podium-gold-bg: linear-gradient(160deg, oklch(0.22 0.04 75 / 1.0), oklch(0.14 0.03 75 / 1.0));
+  --podium-silver-bg: linear-gradient(160deg, oklch(0.20 0.01 270 / 1.0), oklch(0.13 0.01 270 / 1.0));
+  --podium-bronze-bg: linear-gradient(160deg, oklch(0.20 0.03 50 / 1.0), oklch(0.13 0.02 40 / 1.0));
+
+  /* Podium text colors — dark mode: bright metallic accents */
+  --podium-gold-text: oklch(0.78 0.16 75);
+  --podium-silver-text: oklch(0.72 0.04 270);
+  --podium-bronze-text: oklch(0.68 0.12 50);
+
+  /* Podium borders — dark mode */
+  --podium-gold-border: 1px solid oklch(0.70 0.15 75 / 0.35);
+  --podium-silver-border: 1px solid oklch(0.60 0.04 270 / 0.25);
+  --podium-bronze-border: 1px solid oklch(0.60 0.10 50 / 0.28);
+
+  /* Stats panel inside podium cards */
+  --podium-stats-bg: rgba(0, 0, 0, 0.25);
+  --podium-stats-border: rgba(255, 255, 255, 0.06);
+
+  /* Podium button hover */
+  --podium-btn-hover-bg: rgba(255, 255, 255, 0.07);
+
+  --ambient:
+    radial-gradient(at 12% 8%, oklch(0.55 0.22 295 / 0.35) 0px, transparent 40%),
+    radial-gradient(at 88% 4%, oklch(0.55 0.18 205 / 0.30) 0px, transparent 45%),
+    radial-gradient(at 92% 92%, oklch(0.60 0.18 130 / 0.25) 0px, transparent 45%),
+    radial-gradient(at 4% 96%, oklch(0.55 0.22 340 / 0.30) 0px, transparent 45%);
+}
+
+/* ── Glass primitives ─────────────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-radius: var(--r-lg);
+}
+.glass-strong {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+  border-radius: var(--r-lg);
+}
+.hairline { border: 1px solid var(--hairline); }
+
+/* Holographic text clip */
+.holo-text {
+  background: var(--holo-linear);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 100%;
+  animation: holoSlide 9s linear infinite;
+}
+@keyframes holoSlide {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Holographic foil surface (for badges/pills) */
+.holo-foil {
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 40%),
+    var(--holo-linear);
+  background-size: 100% 100%, 200% 100%;
+  animation: holoSlide 9s linear infinite;
+  color: #0B0B0E;
+}
+
+/* Ticker-style numeric alignment */
+.tnum { font-feature-settings: "tnum" 1, "ss01" 1; font-variant-numeric: tabular-nums; }
+
+/* Reset */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--fg);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

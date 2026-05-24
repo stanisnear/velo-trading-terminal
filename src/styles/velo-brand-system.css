@@ -1,0 +1,618 @@
+/* ============================================================================
+   VELO Brand System - Global Styles & Tokens
+   Integration: Add this file to your CSS imports or Tailwind config
+   ============================================================================ */
+
+:root {
+  /* Typography - Font stack from brand */
+  --font-display: "Instrument Serif", "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-sans: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Iridescent palette - oklch fixed chroma/lightness */
+  --iris-violet: oklch(0.68 0.22 295);
+  --iris-magenta: oklch(0.70 0.22 340);
+  --iris-coral: oklch(0.74 0.18 30);
+  --iris-amber: oklch(0.82 0.16 75);
+  --iris-lime: oklch(0.84 0.18 130);
+  --iris-cyan: oklch(0.80 0.14 205);
+  --iris-blue: oklch(0.68 0.18 250);
+
+  /* Semantic colors */
+  --pnl-up: oklch(0.78 0.18 150);
+  --pnl-down: oklch(0.66 0.22 25);
+
+  /* Iridescent gradient - signature of the brand */
+  --holo: conic-gradient(
+    from 210deg at 50% 50%,
+    var(--iris-violet),
+    var(--iris-magenta),
+    var(--iris-coral),
+    var(--iris-amber),
+    var(--iris-lime),
+    var(--iris-cyan),
+    var(--iris-blue),
+    var(--iris-violet)
+  );
+  
+  --holo-linear: linear-gradient(
+    100deg,
+    var(--iris-violet) 0%,
+    var(--iris-magenta) 22%,
+    var(--iris-coral) 42%,
+    var(--iris-amber) 58%,
+    var(--iris-lime) 74%,
+    var(--iris-cyan) 90%,
+    var(--iris-blue) 100%
+  );
+
+  /* Spacing & Radii */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-2xl: 36px;
+}
+
+/* ── Dark mode (default, obsidian background) ──────────────────────────── */
+:root,
+.mode-dark,
+.dark {
+  --bg-base: #07070A;
+  --bg-base-2: #0E0E13;
+  --bg-base-3: #1A1A1F;
+  --fg: #F4F4F7;
+  --fg-muted: #9A9AA4;
+  --fg-subtle: #56565F;
+  --hairline: rgba(255, 255, 255, 0.06);
+  --hairline-strong: rgba(255, 255, 255, 0.12);
+
+  --glass-bg: rgba(22, 22, 28, 0.55);
+  --glass-bg-strong: rgba(22, 22, 28, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.4) inset,
+    0 30px 60px -24px rgba(0, 0, 0, 0.7),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+
+  --chip-bg: rgba(255, 255, 255, 0.05);
+  --chip-bg-hover: rgba(255, 255, 255, 0.10);
+
+  --ambient:
+    radial-gradient(at 12% 8%, oklch(0.55 0.22 295 / 0.18) 0px, transparent 40%),
+    radial-gradient(at 88% 4%, oklch(0.55 0.18 205 / 0.15) 0px, transparent 45%),
+    radial-gradient(at 92% 92%, oklch(0.60 0.18 130 / 0.12) 0px, transparent 45%),
+    radial-gradient(at 4% 96%, oklch(0.55 0.22 340 / 0.15) 0px, transparent 45%);
+}
+
+/* ── Light mode (paper white base) ──────────────────────────────────────── */
+.mode-light,
+.light {
+  --bg-base: #F5F3EE;
+  --bg-base-2: #EBE7DE;
+  --bg-base-3: #E0DCD2;
+  --fg: #0B0B0E;
+  --fg-muted: #5A5A63;
+  --fg-subtle: #9A9AA4;
+  --hairline: rgba(10, 10, 14, 0.08);
+  --hairline-strong: rgba(10, 10, 14, 0.14);
+
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 0 rgba(10, 10, 14, 0.04) inset,
+    0 18px 40px -20px rgba(10, 10, 14, 0.25),
+    0 2px 6px rgba(10, 10, 14, 0.05);
+
+  --chip-bg: rgba(10, 10, 14, 0.04);
+  --chip-bg-hover: rgba(10, 10, 14, 0.08);
+
+  --ambient:
+    radial-gradient(at 12% 8%, oklch(0.88 0.10 295 / 0.30) 0px, transparent 40%),
+    radial-gradient(at 88% 4%, oklch(0.90 0.08 205 / 0.28) 0px, transparent 45%),
+    radial-gradient(at 92% 92%, oklch(0.90 0.09 130 / 0.25) 0px, transparent 45%),
+    radial-gradient(at 4% 96%, oklch(0.90 0.10 340 / 0.25) 0px, transparent 45%);
+}
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-sans);
+  color: var(--fg);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-style: italic;
+  letter-spacing: -0.03em;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* ── Glass morphism ─────────────────────────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-radius: var(--r-lg);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+  border-radius: var(--r-lg);
+}
+
+.hairline {
+  border: 1px solid var(--hairline);
+}
+
+/* ── Holographic effects ─────────────────────────────────────────────────── */
+.holo-text {
+  background: var(--holo-linear);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 100%;
+  animation: holoSlide 9s linear infinite;
+}
+
+.holo-foil {
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 40%),
+    var(--holo-linear);
+  background-size: 100% 100%, 200% 100%;
+  animation: holoSlide 9s linear infinite;
+  color: #0B0B0E;
+}
+
+@keyframes holoSlide {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* ── Logo bug (icon component) ──────────────────────────────────────────── */
+.velo-logo-bug {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--holo-linear);
+  background-size: 220% 100%;
+  animation: holoSlide 9s linear infinite;
+  position: relative;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.6) inset,
+    0 -1px 0 rgba(0,0,0,0.15) inset,
+    0 8px 20px -8px oklch(0.68 0.22 295 / 0.6);
+}
+
+.velo-logo-bug::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 11px;
+  background: radial-gradient(120% 80% at 30% 10%, rgba(255,255,255,0.55), rgba(255,255,255,0) 60%);
+  pointer-events: none;
+}
+
+/* ── Color utilities ─────────────────────────────────────────────────────── */
+.text-iris-violet { color: var(--iris-violet); }
+.text-iris-magenta { color: var(--iris-magenta); }
+.text-iris-coral { color: var(--iris-coral); }
+.text-iris-amber { color: var(--iris-amber); }
+.text-iris-lime { color: var(--iris-lime); }
+.text-iris-cyan { color: var(--iris-cyan); }
+.text-iris-blue { color: var(--iris-blue); }
+
+.bg-iris-violet { background: var(--iris-violet); }
+.bg-iris-magenta { background: var(--iris-magenta); }
+.bg-iris-coral { background: var(--iris-coral); }
+.bg-iris-amber { background: var(--iris-amber); }
+.bg-iris-lime { background: var(--iris-lime); }
+.bg-iris-cyan { background: var(--iris-cyan); }
+.bg-iris-blue { background: var(--iris-blue); }
+
+.border-iris-violet { border-color: var(--iris-violet); }
+.border-iris-magenta { border-color: var(--iris-magenta); }
+.border-iris-coral { border-color: var(--iris-coral); }
+.border-iris-amber { border-color: var(--iris-amber); }
+.border-iris-lime { border-color: var(--iris-lime); }
+.border-iris-cyan { border-color: var(--iris-cyan); }
+.border-iris-blue { border-color: var(--iris-blue); }
+
+/* ── Utility classes ─────────────────────────────────────────────────────── */
+.tnum {
+  font-feature-settings: "tnum" 1, "ss01" 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-holo {
+  background: var(--holo-linear);
+  background-size: 220% 100%;
+  animation: holoSlide 9s linear infinite;
+  color: #0B0B0E;
+  border-color: rgba(255,255,255,0.4);
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: var(--r-md);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid;
+}
+
+.btn-holo:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px oklch(0.68 0.22 295 / 0.5);
+}
+
+.btn-holo:active {
+  transform: translateY(0);
+}
+
+/* Animation for fade-in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* ── Velo row-highlight pulse — used by notification-driven focus on history rows ── */
+@keyframes velo-pulse {
+  0%   { box-shadow: 0 0 0 1px var(--iris-violet, #6b46c1), 0 0 0 rgba(107,70,193,0.0); }
+  50%  { box-shadow: 0 0 0 1px var(--iris-violet, #6b46c1), 0 0 24px rgba(107,70,193,0.55); }
+  100% { box-shadow: 0 0 0 1px var(--iris-violet, #6b46c1), 0 0 0 rgba(107,70,193,0.0); }
+}
+
+/* ── Velo iridescent range slider ─────────────────────────────────────────── */
+.velo-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--holo-linear);
+  background-size: 220% 100%;
+  animation: holoSlide 9s linear infinite;
+  outline: none;
+  cursor: pointer;
+}
+.velo-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: #fff;
+  border: 2px solid rgba(0,0,0,0.12);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.25),
+    0 0 0 3px oklch(0.68 0.22 295 / 0.25);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.velo-range::-webkit-slider-thumb:hover {
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.3),
+    0 0 0 5px oklch(0.68 0.22 295 / 0.35);
+  transform: scale(1.15);
+}
+.velo-range::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: #fff;
+  border: 2px solid rgba(0,0,0,0.12);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.25),
+    0 0 0 3px oklch(0.68 0.22 295 / 0.25);
+  cursor: pointer;
+}
+.velo-range:active::-webkit-slider-thumb {
+  box-shadow:
+    0 2px 10px rgba(0,0,0,0.35),
+    0 0 0 6px oklch(0.68 0.22 295 / 0.4);
+  transform: scale(1.2);
+}
+
+/* ── Custom scrollbar ─────────────────────────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Reset & Base ────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Smooth scrollbar for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--glass-bg-strong);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  h1 { font-size: 28px; }
+  h2 { font-size: 24px; }
+  h3 { font-size: 20px; }
+}
+
+/* ── Animated ambient background ─────────────────────────────────────────── */
+.velo-ambient-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--ambient);
+  animation: ambientShift 20s ease-in-out infinite alternate;
+}
+
+@keyframes ambientShift {
+  0%   { opacity: 0.7; filter: hue-rotate(0deg); }
+  50%  { opacity: 0.9; filter: hue-rotate(15deg); }
+  100% { opacity: 0.7; filter: hue-rotate(-10deg); }
+}
+
+/* ── Pulse animation for live indicators ─────────────────────────────────── */
+@keyframes veloPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+  50%       { opacity: 0.85; box-shadow: 0 0 0 4px transparent; }
+}
+.pulse-dot {
+  animation: veloPulse 2s ease-in-out infinite;
+}
+
+/* ── animate-bounce-in ───────────────────────────────────────────────────── */
+.animate-bounce-in {
+  animation: bounceIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes bounceIn {
+  from { transform: scale(0.92); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ── animate-slide-up ────────────────────────────────────────────────────── */
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Glass card baseline ─────────────────────────────────────────────────── */
+.velo-glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ── Tab underline bar ───────────────────────────────────────────────────── */
+.velo-tab-active {
+  border-bottom: 2px solid var(--iris-violet) !important;
+  color: var(--fg) !important;
+}
+
+/* ── 3D icon base ────────────────────────────────────────────────────────── */
+.ico-3d {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 28%;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ico-3d::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 30% 8%, rgba(255,255,255,0.65), rgba(255,255,255,0) 55%);
+  z-index: 2;
+  pointer-events: none;
+}
+.ico-3d::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.45) inset, 0 -1px 0 rgba(0,0,0,0.25) inset;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ── Ticker/data number font shorthand ───────────────────────────────────── */
+.data {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Leaderboard responsive ───────────────────────────────────────────────── */
+.lb-podium {
+  grid-template-columns: 1fr 1.12fr 1fr;
+  max-width: 900px;
+  margin: 0 auto;
+}
+@media (max-width: 700px) {
+  .lb-podium {
+    grid-template-columns: 1fr;
+  }
+  .lb-view table {
+    font-size: 11px;
+  }
+  .lb-view table td, .lb-view table th {
+    padding: 8px 10px;
+  }
+}
+
+/* ── Social feed layout ───────────────────────────────────────────────────── */
+.social-feed-grid {
+  display: grid;
+  grid-template-columns: clamp(220px, 18vw, 280px) minmax(0, 1fr) clamp(240px, 20vw, 320px);
+  gap: clamp(12px, 1.5vw, 24px);
+  align-items: start;
+}
+.social-feed-grid > div:first-child,
+.social-feed-grid > div:last-child {
+  position: sticky;
+  top: 88px;
+  max-height: calc(100vh - 108px);
+  overflow-y: auto;
+}
+.social-feed-grid > div:first-child::-webkit-scrollbar,
+.social-feed-grid > div:last-child::-webkit-scrollbar { width: 0; }
+
+/* ── Social feed responsive ───────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .social-feed-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .social-feed-grid > div:first-child,
+  .social-feed-grid > div:last-child {
+    position: static;
+    max-height: none;
+  }
+  .social-sidebar-hide {
+    display: none !important;
+  }
+}
+
+/* ── Token page grid — collapses to single column on mobile ──────────────── */
+.token-page-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .token-page-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Top tokens bar — 2 cols on mobile ───────────────────────────────────── */
+.top-tokens-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+@media (max-width: 700px) {
+  .top-tokens-bar {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+}
+
+/* ── Hide on mobile ──────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+/* ── Page content padding adjustments for mobile ─────────────────────────── */
+@media (max-width: 768px) {
+  /* Main page areas */
+  .animate-fade-in {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Table horizontal scroll indicator */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Panels */
+  .velo-glass {
+    border-radius: 12px;
+  }
+}
+
+/* ── Auth modal mobile ───────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .animate-bounce-in {
+    max-width: 100% !important;
+    border-radius: 16px !important;
+  }
+}
+
+/* ── Global scrollbar - matches TradeView ────────────────────────────────── */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-subtle);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
