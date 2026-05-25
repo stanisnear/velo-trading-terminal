@@ -173,8 +173,11 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
       onClaimed?.(normalized, hash);
     } catch (e: any) {
       const msg = e?.shortMessage || e?.message || 'Claim failed';
+      const rawData: string = e?.data || e?.cause?.data || '';
       if (/rejected|denied/i.test(msg)) setErrorMsg('You cancelled the signature.');
-      else if (/UsernameTaken/i.test(msg)) setErrorMsg('That handle was just claimed by someone else.');
+      else if (/UsernameTaken/i.test(msg) || rawData.startsWith('0x5a66c00a') || msg.includes('0x5a66c00a')) setErrorMsg('That handle is already taken. Try a different one.');
+      else if (/UsernameInvalid/i.test(msg) || rawData.startsWith('0xab1c6dc0') || msg.includes('0xab1c6dc0')) setErrorMsg('Invalid username. Use 3–16 lowercase letters, numbers, or underscores. Must start with a letter.');
+      else if (/ChangeCooldown/i.test(msg) || rawData.startsWith('0x8bd7cae7') || msg.includes('0x8bd7cae7')) setErrorMsg('You changed your handle recently. There is a 30-day cooldown between changes.');
       else if (/exceeds the balance/i.test(msg) || /gas \* gas/i.test(msg) || /insufficient funds/i.test(msg)) {
         setErrorMsg("Your trading wallet doesn't have any ETH for gas. Open Settings → Move to Trading Wallet first.");
       }

@@ -29,7 +29,8 @@ import { fetchPriceUpdate, PYTH_FEED_IDS } from './pythService';
 export const VELO_PERPS_V1_ADDRESS = (import.meta.env.VITE_VELO_PERPS_ADDRESS ||
   '0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163') as Address;
 
-export const VELO_PERPS_V2_ADDRESS = (import.meta.env.VITE_VELO_PERPS_V2_ADDRESS || '') as Address;
+export const VELO_PERPS_V2_ADDRESS = (import.meta.env.VITE_VELO_PERPS_V2_ADDRESS ||
+  '0x3C7cBCa2C675F1f788148aaD08eceab262298de8') as Address;
 
 /** The contract address new positions are opened against. V2 if deployed, else V1. */
 export const VELO_PERPS_ADDRESS: Address = (VELO_PERPS_V2_ADDRESS && VELO_PERPS_V2_ADDRESS.length === 42)

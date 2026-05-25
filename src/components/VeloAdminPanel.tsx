@@ -24,10 +24,20 @@ import {
   CartesianGrid,
 } from 'recharts';
 import {
-  VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE,
+  VELO_PERPS_ADDRESS, VELO_PERPS_V1_ADDRESS, VELO_PERPS_V2_ADDRESS, IS_V2,
+  VELO_PERPS_ABI, VELO_USDC_BASE,
   fetchPoolBalance, baseScanAddressUrl, baseScanTxUrl,
   PAIR_LABEL, type VeloPairLabel, type PairIndex,
 } from '@/services/veloPerpsService';
+
+const VELO_USDC_ABI = [
+  { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'mint',      stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  { type: 'function', name: 'transfer',  stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  { type: 'function', name: 'lastFaucetClaim', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'FAUCET_COOLDOWN',  stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'FAUCET_AMOUNT',    stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+] as const;
 import { PYTH_FEED_IDS } from '@/services/pythService';
 
 // Protocol stats payload from /api/protocol-stats
@@ -101,6 +111,9 @@ export const VeloAdminPanel: React.FC = () => {
   const [pairs, setPairs] = useState<PairState[]>([]);
   const [feeBalance, setFeeBalance] = useState(0);
   const [poolBalance, setPoolBalance] = useState(0);
+  const [adminUsdcBalance, setAdminUsdcBalance] = useState(0);
+  const [faucetCooldownEnd, setFaucetCooldownEnd] = useState(0);
+  const [seedAmount, setSeedAmount] = useState('1000');
   const [openFeeBps, setOpenFeeBps] = useState(0);
   const [closeFeeBps, setCloseFeeBps] = useState(0);
   const [maxLeverage, setMaxLeverage] = useState(0);
@@ -131,6 +144,18 @@ export const VeloAdminPanel: React.FC = () => {
       setMaxLeverage(Number(maxLev));
       setFeeBalance(Number(formatUnits(fees as bigint, 6)));
       setPoolBalance(pool);
+
+      // Admin wallet mUSDC balance + faucet cooldown
+      if (address) {
+        const [adminBal, lastClaim, cooldown] = await Promise.all([
+          publicClient.readContract({ address: VELO_USDC_BASE, abi: VELO_USDC_ABI, functionName: 'balanceOf', args: [address] }),
+          publicClient.readContract({ address: VELO_USDC_BASE, abi: VELO_USDC_ABI, functionName: 'lastFaucetClaim', args: [address] }),
+          publicClient.readContract({ address: VELO_USDC_BASE, abi: VELO_USDC_ABI, functionName: 'FAUCET_COOLDOWN' }),
+        ]);
+        setAdminUsdcBalance(Number(formatUnits(adminBal as bigint, 6)));
+        const cooldownEnd = Number(lastClaim) + Number(cooldown);
+        setFaucetCooldownEnd(cooldownEnd);
+      }
 
       // Pair states
       const pairResults: PairState[] = await Promise.all(
@@ -239,6 +264,59 @@ export const VeloAdminPanel: React.FC = () => {
       await refresh();
     } catch (e: any) {
       setActionError(e?.shortMessage || e?.message || 'Toggle failed');
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleMintFaucet = async () => {
+    if (!walletClient || !publicClient) return;
+    setActionBusy('faucet');
+    setActionError(null);
+    try {
+      const hash = await walletClient.writeContract({
+        address: VELO_USDC_BASE,
+        abi: VELO_USDC_ABI,
+        functionName: 'mint',
+        args: [],
+      });
+      setLastTx({ hash, label: 'Minted 1,000 mUSDC from faucet' });
+      await publicClient.waitForTransactionReceipt({ hash });
+      await refresh();
+    } catch (e: any) {
+      const msg = e?.shortMessage || e?.message || '';
+      if (/FaucetCooldown/i.test(msg) || msg.includes('0x9ad22e0f')) {
+        setActionError('Faucet cooldown active — wait 6 hours between mints.');
+      } else if (/FaucetBalanceCap/i.test(msg)) {
+        setActionError('Balance cap reached (10,000 mUSDC). Send some to the pool first.');
+      } else {
+        setActionError(msg || 'Faucet mint failed');
+      }
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleSeedPool = async () => {
+    if (!walletClient || !publicClient || !address) return;
+    const amount = parseFloat(seedAmount);
+    if (!amount || amount <= 0) { setActionError('Enter a valid amount to seed.'); return; }
+    if (amount > adminUsdcBalance) { setActionError(`You only have ${adminUsdcBalance.toFixed(2)} mUSDC. Mint more first.`); return; }
+    setActionBusy('seed');
+    setActionError(null);
+    try {
+      const raw = parseUnits(amount.toFixed(6), 6);
+      const hash = await walletClient.writeContract({
+        address: VELO_USDC_BASE,
+        abi: VELO_USDC_ABI,
+        functionName: 'transfer',
+        args: [VELO_PERPS_ADDRESS, raw],
+      });
+      setLastTx({ hash, label: `Seeded pool with ${amount.toLocaleString()} mUSDC` });
+      await publicClient.waitForTransactionReceipt({ hash });
+      await refresh();
+    } catch (e: any) {
+      setActionError(e?.shortMessage || e?.message || 'Seed failed');
     } finally {
       setActionBusy(null);
     }
@@ -595,16 +673,98 @@ export const VeloAdminPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Pool management */}
+      <div style={{
+        padding: 20, borderRadius: 16, marginBottom: 16,
+        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+      }}>
+        <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 4px' }}>Liquidity pool</h2>
+        <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
+          The pool pays out winning trades. Keep it funded or closes revert with InsufficientPool.
+          Faucet mints 1,000 mUSDC per call (6-hour cooldown, 10k cap per wallet).
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
+            <div style={S.label}>Pool reserves</div>
+            <div style={{ ...S.display, fontSize: 28, color: poolBalance < 500 ? 'var(--pnl-down)' : 'var(--pnl-up)', marginTop: 6 }}>
+              ${poolBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+            </div>
+            {poolBalance < 500 && (
+              <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 4 }}>Low - seed more</div>
+            )}
+          </div>
+          <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
+            <div style={S.label}>Your mUSDC balance</div>
+            <div style={{ ...S.display, fontSize: 28, color: 'var(--fg)', marginTop: 6 }}>
+              ${adminUsdcBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+            </div>
+            {faucetCooldownEnd > 0 && faucetCooldownEnd > Date.now() / 1000 && (
+              <div style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)', marginTop: 4 }}>
+                Faucet ready in {Math.ceil((faucetCooldownEnd - Date.now() / 1000) / 3600)}h
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' as const }}>
+          <button
+            onClick={handleMintFaucet}
+            disabled={actionBusy !== null}
+            style={{
+              ...S.mono, padding: '12px 20px', borderRadius: 12, border: 'none',
+              background: 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340))',
+              color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+              textTransform: 'uppercase' as const, cursor: actionBusy ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' as const,
+            }}
+          >
+            {actionBusy === 'faucet' ? <><Loader2 className="animate-spin" size={11} /> Minting...</> : '+ Mint 1,000 mUSDC'}
+          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1, minWidth: 240 }}>
+            <div style={{ position: 'relative' as const, flex: 1 }}>
+              <span style={{ position: 'absolute' as const, left: 12, top: '50%', transform: 'translateY(-50%)', ...S.mono, fontSize: 13, color: 'var(--fg-muted)' }}>$</span>
+              <input
+                type="number" value={seedAmount} onChange={e => setSeedAmount(e.target.value)}
+                min="1" max={adminUsdcBalance}
+                style={{
+                  ...S.mono, width: '100%', padding: '12px 12px 12px 24px', borderRadius: 12,
+                  border: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.04)',
+                  color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' as const, outline: 'none',
+                }}
+              />
+            </div>
+            <button
+              onClick={handleSeedPool}
+              disabled={actionBusy !== null || adminUsdcBalance <= 0}
+              style={{
+                ...S.mono, padding: '12px 20px', borderRadius: 12, border: 'none',
+                background: adminUsdcBalance > 0 ? 'linear-gradient(100deg, oklch(0.78 0.20 150), oklch(0.65 0.22 180))' : 'var(--chip-bg)',
+                color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+                textTransform: 'uppercase' as const, cursor: actionBusy || adminUsdcBalance <= 0 ? 'not-allowed' : 'pointer',
+                opacity: adminUsdcBalance > 0 ? 1 : 0.5,
+                display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' as const,
+              }}
+            >
+              {actionBusy === 'seed' ? <><Loader2 className="animate-spin" size={11} /> Seeding...</> : 'Seed pool'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Contract metadata */}
       <div style={{
         padding: 20, borderRadius: 16,
         background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
       }}>
         <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 16px' }}>Contract metadata</h2>
-        <MetadataRow label="VeloPerps" value={VELO_PERPS_ADDRESS} link={baseScanAddressUrl(VELO_PERPS_ADDRESS)} />
+        <MetadataRow label="VeloPerps V2 (active)" value={VELO_PERPS_V2_ADDRESS} link={baseScanAddressUrl(VELO_PERPS_V2_ADDRESS)} />
+        <MetadataRow label="VeloPerps V1 (legacy)" value={VELO_PERPS_V1_ADDRESS} link={baseScanAddressUrl(VELO_PERPS_V1_ADDRESS)} />
         <MetadataRow label="mUSDC" value={VELO_USDC_BASE} link={baseScanAddressUrl(VELO_USDC_BASE)} />
-        <MetadataRow label="Owner" value={contractOwner || '—'} />
-        <MetadataRow label="Connected" value={address || '—'} />
+        <MetadataRow label="Owner" value={contractOwner || '-'} />
+        <MetadataRow label="Connected" value={address || '-'} />
+        <div style={{ marginTop: 12, padding: '10px 0', borderTop: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)' }}>V2: add/reduce margin, partial close, on-chain TP/SL, 0.25% keeper bounty</span>
+          {IS_V2 && <span style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-up)', fontWeight: 700 }}>ROUTING TO V2</span>}
+        </div>
       </div>
     </div>
   );
