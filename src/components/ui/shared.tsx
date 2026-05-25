@@ -45,7 +45,10 @@ export const calculateStats = (tradeHistory: any[]) => {
     if (!tradeHistory || tradeHistory.length === 0) return { winRate: 0, realizedPnl: 0, totalTrades: 0, fees: 0 };
     const closed = tradeHistory.filter(t => t.action === 'CLOSE' || (!t.action && t.pnl !== 0));
     const wins = closed.filter(t => t.pnl > 0).length;
-    return { winRate: closed.length > 0 ? (wins / closed.length) * 100 : 0, realizedPnl: closed.reduce((a, t) => a + t.pnl, 0), totalTrades: closed.length, fees: closed.length * 2.5 };
+    // Fees: 0.1% open + 0.1% close = 0.2% round-trip on the notional. Each
+    // trade-history row's `size` is the notional. Cumulative fees ≈ Σ size × 0.002.
+    const fees = closed.reduce((a, t) => a + ((t.size || 0) * 0.002), 0);
+    return { winRate: closed.length > 0 ? (wins / closed.length) * 100 : 0, realizedPnl: closed.reduce((a, t) => a + t.pnl, 0), totalTrades: closed.length, fees };
 };
 
 // --- Glass Card (liquid glass panel) ---

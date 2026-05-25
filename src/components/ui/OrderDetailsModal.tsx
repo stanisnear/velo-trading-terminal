@@ -262,13 +262,13 @@ export const OrderDetailsModal = ({
               On-Chain
             </span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {t.orderlyOrderUrl && <ChainLink href={t.orderlyOrderUrl} label="Orderly" />}
-              {t.txHash && <ChainLink href={`https://sepolia.basescan.org/tx/${t.txHash}`} label="BaseScan" />}
+              {t.orderlyOrderUrl && <ChainLink href={t.orderlyOrderUrl} label="BaseScan" />}
+              {t.txHash && t.txHash !== t.orderlyOrderUrl && <ChainLink href={`https://sepolia.basescan.org/tx/${t.txHash}`} label="BaseScan" />}
             </div>
           </div>
         )}
         {t.orderlyOrderId && (
-          <R label="Orderly ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{t.orderlyOrderId}</span>} tip="Orderly matching engine order ID." />
+          <R label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{t.orderlyOrderId}</span>} tip="Velo Perps trade ID." />
         )}
       </>
     );
@@ -342,15 +342,16 @@ export const OrderDetailsModal = ({
           <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pnl-up)', boxShadow: '0 0 5px var(--pnl-up)', display: 'inline-block' }} />
-              On-Chain · Orderly
+              On-Chain · Velo Perps
             </span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <ChainLink href="https://sepolia.basescan.org/address/0xdc7348975aE9334DbdcB944DDa9163Ba8406a0ec" label="Vault on BaseScan" />
+              {(p as any).orderlyOrderUrl && <ChainLink href={(p as any).orderlyOrderUrl} label="BaseScan" />}
+              <ChainLink href="https://sepolia.basescan.org/address/0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163" label="Contract" />
             </div>
           </div>
         )}
-        {p.orderlyOrderId && (
-          <R label="Orderly Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{p.orderlyOrderId}</span>} tip="Orderly matching engine order ID. Orders are off-chain (matched on Orderly's L2) — only deposits and withdrawals produce on-chain transactions." />
+        {p.id?.startsWith('velo_') && (
+          <R label="Trade ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{p.id.slice(5)}</span>} tip="Velo Perps on-chain trade ID." />
         )}
       </>
     );
@@ -446,7 +447,7 @@ export const OrderDetailsModal = ({
             ? `https://sepolia.basescan.org/address/${addr}`
             : `https://sepolia.basescan.org/tx/${tx.txHash}`;
           const label = 'View on BaseScan';
-          const proofLabel = isFaucet ? 'Orderly Faucet (Testnet)' : 'On-Chain';
+          const proofLabel = isFaucet ? 'Velo Faucet (Testnet)' : 'On-Chain';
           return (
             <>
               <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

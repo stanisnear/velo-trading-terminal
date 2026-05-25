@@ -122,7 +122,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'rgba(34,197,94,0.05)' }}>
             <div style={{ ...S.label, fontSize: 10, marginBottom: 4 }}>Amount</div>
             <div style={{ ...S.mono, fontSize: 32, fontWeight: 700, color: 'var(--pnl-up)' }}>+${formatMoney(deposit.amount ?? 0)}</div>
-            <div style={{ ...S.sans, fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>USDC → Orderly Vault</div>
+            <div style={{ ...S.sans, fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>USDC → Velo Trading Wallet</div>
           </div>
           {/* Details */}
           <Row label="Status" value={<span style={{ color: statusColor }}>{statusLabel}</span>} />
@@ -462,7 +462,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                           </span>
                         </td>
                         <td style={{ padding: '11px 14px', ...S.sans, fontSize: 12, color: 'var(--fg-muted)' }}>
-                          {statusLabel} · USDC → Orderly Vault
+                          {statusLabel} · USDC → Velo Trading Wallet
                           {t.depositTx && (
                             <a href={`https://sepolia.basescan.org/tx/${t.depositTx}`} target="_blank" rel="noreferrer noopener"
                                onClick={e => e.stopPropagation()}

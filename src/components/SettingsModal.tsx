@@ -13,20 +13,21 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
-import { useAccount, useBalance, useChainId, useReadContract, useSignMessage } from 'wagmi';
-import { formatUnits } from 'viem';
+import { useAccount, useBalance, useChainId, usePublicClient, useReadContract, useSignMessage, useWalletClient } from 'wagmi';
+import { formatUnits, parseUnits } from 'viem';
 import {
   X, Copy, Check, Eye, EyeOff, AlertTriangle, KeyRound, RefreshCw,
-  ShieldCheck, Wallet, Network, ExternalLink,
+  ShieldCheck, Wallet, Network, ExternalLink, Send, AtSign,
 } from 'lucide-react';
 import {
   loadStoredBurner, exportPrivateKey, rederiveVeloBurner,
   type VeloBurnerWallet,
 } from '../services/veloBurnerWallet';
-import { USDC_BASE_SEPOLIA } from '../services/orderlyService';
+import { VELO_USDC_BASE as USDC_BASE_SEPOLIA } from '../services/veloPerpsService';
 
 const ERC20_BAL_ABI = [
   { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'transfer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
 ] as const;
 
 const F = {
@@ -50,12 +51,17 @@ const NETWORK_NAMES: Record<number, string> = {
 interface Props {
   isOpen:  boolean;
   onClose: () => void;
+  onOpenBridge?: () => void;
+  onOpenUsername?: () => void;
+  onOpenSend?: () => void;
 }
 
-export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
+export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend }) => {
   const { address: ownerAddress, connector } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
 
   const [burner, setBurner] = useState<VeloBurnerWallet | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -63,6 +69,8 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [copiedField, setCopiedField] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [movingFunds, setMovingFunds] = useState(false);
+  const [moveError, setMoveError] = useState('');
 
   // Reload burner whenever the modal opens
   useEffect(() => {
@@ -109,6 +117,54 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
       setCopiedField(key);
       setTimeout(() => setCopiedField(''), 1400);
     } catch { /* ignore */ }
+  };
+
+  // Move all mUSDC from main wallet → trading wallet. Sponsor a top-up of ETH
+  // to the burner first if it's empty, so the user immediately gets a working
+  // trading account in one click.
+  const moveToTradingWallet = async () => {
+    if (!burner || !walletClient || !publicClient || !ownerAddress) return;
+    if (ownerUsdc <= 0) { setMoveError('Nothing to move.'); return; }
+    setMovingFunds(true);
+    setMoveError('');
+    try {
+      // If burner has no gas, ping the sponsor first so it can pay for trades after.
+      if (veloEth < 0.002) {
+        try {
+          const response = await fetch('/api/sponsor-eth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ burnerAddress: burner.veloAddress }),
+          });
+          const data = await response.json();
+          if (response.ok && data.sponsored && data.txHash) {
+            await publicClient.waitForTransactionReceipt({ hash: data.txHash });
+          }
+          // If sponsor offline, the burner can still receive mUSDC — it just
+          // won't have gas to trade. User can top up ETH separately.
+        } catch { /* sponsor unreachable — keep going */ }
+      }
+
+      // Transfer ALL mUSDC main → burner
+      const amount = parseUnits(ownerUsdc.toFixed(6), 6);
+      const hash = await walletClient.writeContract({
+        address: USDC_BASE_SEPOLIA as `0x${string}`,
+        abi: ERC20_BAL_ABI,
+        functionName: 'transfer',
+        args: [burner.veloAddress, amount],
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      // Balance refetch will fire on next 8s interval, but UX feels snappier
+      // if we close + reopen the modal to force a refresh. For now, just stop
+      // the busy state — the refetchInterval will reconcile.
+    } catch (e: any) {
+      const msg = e?.shortMessage || e?.message || 'Move failed';
+      if (/rejected|denied/i.test(msg)) setMoveError('You cancelled the transfer.');
+      else if (/insufficient/i.test(msg)) setMoveError('Not enough ETH in main wallet for gas.');
+      else setMoveError(msg);
+    } finally {
+      setMovingFunds(false);
+    }
   };
 
   const privateKey = revealed ? exportPrivateKey(ownerAddress) : null;
@@ -230,6 +286,109 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   copied={copiedField === 'velo'}
                   onCopy={() => copy(burner.veloAddress, 'velo')}
                 />
+
+                {/* Move funds to trading wallet — only show if main has USDC */}
+                {ownerUsdc > 0 && (
+                  <div style={{
+                    padding: 14, borderRadius: 14,
+                    background: 'linear-gradient(180deg, oklch(0.68 0.22 295 / 0.10), oklch(0.68 0.22 295 / 0.04))',
+                    border: '1px solid oklch(0.68 0.22 295 / 0.25)',
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ ...F.mono, fontSize: 11, color: 'var(--fg)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
+                          Move to trading wallet
+                        </div>
+                        <div style={{ ...F.sans, fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>
+                          ${ownerUsdc.toFixed(2)} mUSDC in main → trading
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={moveToTradingWallet}
+                      disabled={movingFunds || ownerEth < 0.0005}
+                      style={{
+                        ...F.mono, width: '100%',
+                        padding: '12px 16px', borderRadius: 12,
+                        background: (movingFunds || ownerEth < 0.0005)
+                          ? 'var(--chip-bg)'
+                          : 'linear-gradient(100deg, oklch(0.78 0.20 150), oklch(0.68 0.22 160))',
+                        border: 'none', color: '#fff',
+                        fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+                        textTransform: 'uppercase' as const,
+                        cursor: (movingFunds || ownerEth < 0.0005) ? 'not-allowed' : 'pointer',
+                        opacity: (movingFunds || ownerEth < 0.0005) ? 0.5 : 1,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      }}
+                    >
+                      {movingFunds ? 'Moving…' : `Move $${ownerUsdc.toFixed(2)} mUSDC`}
+                    </button>
+                    {ownerEth < 0.0005 && (
+                      <div style={{ ...F.mono, fontSize: 10, color: 'var(--fg-muted)', textAlign: 'center' as const }}>
+                        Main wallet needs a tiny amount of ETH for gas first.
+                      </div>
+                    )}
+                    {moveError && (
+                      <div style={{ ...F.mono, fontSize: 10, color: 'var(--pnl-down)', textAlign: 'center' as const }}>
+                        {moveError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Send / Bridge / Username action buttons */}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {onOpenSend && veloUsdc > 0 && (
+                    <button
+                      onClick={onOpenSend}
+                      style={{
+                        ...F.mono, flex: 1,
+                        padding: '12px 8px', borderRadius: 12,
+                        background: 'linear-gradient(100deg, oklch(0.68 0.22 295) 0%, oklch(0.70 0.22 340) 100%)',
+                        border: 'none', color: '#fff',
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                        textTransform: 'uppercase' as const, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                        boxShadow: '0 4px 12px -4px oklch(0.68 0.22 295 / 0.4)',
+                      }}
+                    >
+                      <Send size={11} /> Send
+                    </button>
+                  )}
+                  {onOpenBridge && (
+                    <button
+                      onClick={onOpenBridge}
+                      style={{
+                        ...F.mono, flex: 1,
+                        padding: '12px 8px', borderRadius: 12,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid var(--hairline-strong)', color: 'var(--fg)',
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                        textTransform: 'uppercase' as const, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                      }}
+                    >
+                      <ExternalLink size={11} /> Bridge
+                    </button>
+                  )}
+                  {onOpenUsername && (
+                    <button
+                      onClick={onOpenUsername}
+                      style={{
+                        ...F.mono, flex: 1,
+                        padding: '12px 8px', borderRadius: 12,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid var(--hairline-strong)', color: 'var(--fg)',
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                        textTransform: 'uppercase' as const, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                      }}
+                    >
+                      <AtSign size={11} /> Handle
+                    </button>
+                  )}
+                </div>
 
                 {/* Private key section */}
                 <div style={{

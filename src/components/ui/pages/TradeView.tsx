@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity } from 'lucide-react';
+import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2 } from 'lucide-react';
 import { TradingViewChart, TV_INTERVALS, TV_INTERVALS_QUICK, CHART_STYLES, INDICATORS, ChartStyleCode } from '@/components/TradingViewChart';
 import { OrderBook } from '@/components/OrderBook';
 import { Button, Input, formatMoney, formatPrice, formatTime, playSound } from '@/components/ui/shared';
@@ -77,7 +77,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, background: 'oklch(0.78 0.18 150 / 0.1)', border: '1px solid oklch(0.78 0.18 150 / 0.25)', marginBottom: 8 }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pnl-up)', boxShadow: '0 0 6px var(--pnl-up)', display: 'inline-block' }} />
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--pnl-up)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                                Live Orderly Testnet · {ORDERLY_PAIRS.length} pairs
+                                Velo Perps · Base Sepolia · {ORDERLY_PAIRS.length} pairs
                             </span>
                         </div>
                     )}
@@ -673,7 +673,7 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Positions / Orders / History panel
 // ─────────────────────────────────────────────────────────────────────────────
-const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
+const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
     const PER = 5;
     const page = (items: any[], k: string) => {
         const pg = pageState[k];
@@ -866,7 +866,14 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                 </div>
                                             </td>
                                             <td style={{ padding: '4px 9px', textAlign: 'right' }}>
-                                                <button onClick={(e) => { e.stopPropagation(); onClosePosition(p.id); }} style={{ ...S.label, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--pnl-down)', textDecoration: 'underline', fontSize: 9 }}>Close</button>
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                  {onSharePosition && (
+                                                    <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share position" style={{ background: 'rgba(180,110,255,0.1)', border: 'none', cursor: 'pointer', borderRadius: 5, padding: '3px 4px', display: 'inline-flex', color: 'var(--iris-violet)' }}>
+                                                      <Share2 size={10} />
+                                                    </button>
+                                                  )}
+                                                  <button onClick={(e) => { e.stopPropagation(); onClosePosition(p.id); }} style={{ ...S.label, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--pnl-down)', textDecoration: 'underline', fontSize: 9 }}>Close</button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -912,6 +919,11 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                     </div>
                                     <div style={{ display: 'flex', gap: 5 }}>
                                         {!p.onChain && <button onClick={(e) => { e.stopPropagation(); onEditPosition(p); }} style={{ flex: 1, background: 'var(--chip-bg)', border: 'none', padding: '6px 0', borderRadius: 8, cursor: 'pointer', ...S.label, textAlign: 'center' as const, fontSize: 9 }}>Edit TP/SL</button>}
+                                        {onSharePosition && (
+                                          <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share" style={{ padding: '6px 12px', background: 'rgba(180,110,255,0.12)', border: 'none', borderRadius: 8, cursor: 'pointer', color: 'var(--iris-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Share2 size={11} />
+                                          </button>
+                                        )}
                                         <button onClick={(e) => { e.stopPropagation(); onClosePosition(p.id); }} style={{ flex: p.onChain ? undefined : 1, padding: p.onChain ? '6px 16px' : '6px 0', background: 'rgba(255,60,60,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer', ...S.label, color: 'var(--pnl-down)', textAlign: 'center' as const, fontSize: 9, width: p.onChain ? '100%' : undefined }}>Close</button>
                                     </div>
                                 </div>
@@ -983,7 +995,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                           <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>{t.pair} </span>
                                           <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: t.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.side}</span>
                                           {t.onChain && (
-                                            <span title="On-chain order (Orderly)" style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.3)', letterSpacing: '0.05em' }}>⛓ LIVE</span>
+                                            <span title="On-chain order (Velo Perps)" style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.3)', letterSpacing: '0.05em' }}>⛓ LIVE</span>
                                           )}
                                         </div>
                                         <span style={{ ...S.label, fontSize: 9 }}>PnL: <span style={{ color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 700 }}>${formatMoney(t.pnl)}</span></span>
@@ -1173,7 +1185,7 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
 // Main TradeView
 // ─────────────────────────────────────────────────────────────────────────────
 export const TradeView = ({
-    activePair, setActivePair, marketPrices, marketChanges = {}, candles, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
+    activePair, setActivePair, marketPrices, marketChanges = {}, candles, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
     savedChartPrefs, onChartPrefsChange, tradeFocus, autoOpenHistoryId,
     orderlyBalance = 0, orderlyIsReady = false,
     // ── Environment split ─────────────────────────────────────────────────────
@@ -1283,62 +1295,49 @@ export const TradeView = ({
     // initialization") on first render.
     const mergedPositions: Position[] = useMemo(() => {
         if (!isLiveMode) return positions;
-        // In live mode, Orderly is the SINGLE source of truth for any pair it
-        // supports. Even when Orderly hasn't polled yet (orderlyPositions empty),
-        // we filter out local entries on Orderly-supported pairs to avoid the
-        // "two cards for one trade" artefact: the local optimistic entry from
-        // executeTrade and the on-chain entry from the next poll would otherwise
-        // both render. Demo-only pairs (not in ORDERLY_SYMBOL_MAP) are still
-        // sourced from local state so cross-margin sandbox trades keep working.
+
+        // Phase 3+: VeloPerps positions are written into `positions` by the
+        // App-level sync effect with ids prefixed `velo_<tradeId>`. They are
+        // the SINGLE source of truth for on-chain trades. Local optimistic
+        // entries (no velo_ prefix, no onChain flag) for the same pairs would
+        // produce ghost cards and must be filtered out.
+        const veloPositions = (positions as Position[]).filter(
+            p => p.id.startsWith('velo_')
+        );
+        const veloPairs = new Set(veloPositions.map(p => p.pair));
+
+        // Legacy Orderly positions (from the inert orderly hook — should always
+        // be empty post-migration). Kept defensively in case the stub ever
+        // surfaces something.
         const symbolToPair: Record<string, string> = {};
         Object.entries(ORDERLY_SYMBOL_MAP).forEach(([pairId, sym]) => { symbolToPair[sym] = pairId; });
-
-        const onChainPositions: Position[] = orderlyPositions
+        const orderlyOnChain: Position[] = orderlyPositions
             .filter((op: OrderlyPosition) => Math.abs(op.positionQty) > 0)
             .map((op: OrderlyPosition): Position | null => {
                 const pairId = symbolToPair[op.symbol];
-                if (!pairId) return null;
+                if (!pairId || veloPairs.has(pairId)) return null;
                 const qty     = op.positionQty;
                 const side    = qty > 0 ? 'LONG' : 'SHORT';
                 const sizeUSD = Math.abs(qty) * op.averageOpenPrice;
                 const lev     = op.costPosition > 0 ? Math.round(sizeUSD / op.costPosition) : 1;
-                // Try to recover the original local position's metadata
-                // (timestamp, orderlyOrderId, orderlyOrderUrl) so the modal
-                // and history stay continuous across polls.
-                const localMatch = (positions as Position[]).find(
-                    p => p.pair === pairId
-                      && p.side === side
-                      && Math.abs(p.size - sizeUSD) / sizeUSD < 0.05
-                );
                 return {
-                    id:               localMatch?.id || `orderly_${op.symbol}`,
-                    pair:             pairId,
-                    side,
-                    entryPrice:       op.averageOpenPrice,
-                    size:             sizeUSD,
-                    leverage:         Math.max(1, lev),
-                    marginMode:       localMatch?.marginMode || 'ISOLATED',
-                    liquidationPrice: op.estLiqPrice ?? localMatch?.liquidationPrice ?? 0,
-                    timestamp:        localMatch?.timestamp || Date.now(),
-                    pnl:              op.unsettledPnl,
-                    takeProfit:       localMatch?.takeProfit,
-                    stopLoss:         localMatch?.stopLoss,
-                    onChain:          true,
-                    orderlyOrderId:   (localMatch as any)?.orderlyOrderId,
-                    orderlyOrderUrl:  (localMatch as any)?.orderlyOrderUrl,
+                    id: `orderly_${op.symbol}`,
+                    pair: pairId, side, entryPrice: op.averageOpenPrice,
+                    size: sizeUSD, leverage: Math.max(1, lev),
+                    marginMode: 'ISOLATED', liquidationPrice: op.estLiqPrice ?? 0,
+                    timestamp: Date.now(), pnl: op.unsettledPnl, onChain: true,
                 } as any;
             })
             .filter(Boolean) as Position[];
 
-        // For pairs Orderly supports — show ONLY the on-chain version. For pairs
-        // it doesn't support (demo sandbox) — keep the local entry. This is the
-        // line that kills the duplicate-position bug.
-        const orderlySupportedPairs = new Set(Object.keys(ORDERLY_SYMBOL_MAP));
+        // Local non-onchain entries — drop any whose pair has a Velo position
+        // (would render a duplicate card) but keep demo-only positions for
+        // pairs not yet on the contract.
         const localKept = (positions as Position[]).filter(
-            p => !orderlySupportedPairs.has(p.pair)
+            p => !p.id.startsWith('velo_') && !veloPairs.has(p.pair)
         );
-        return [...onChainPositions, ...localKept];
-    }, [isLiveMode, orderlyPositions, positions]);
+        return [...veloPositions, ...orderlyOnChain, ...localKept];
+    }, [positions, orderlyPositions, isLiveMode]);
 
     useEffect(() => {
         const pairChanged = prevPairRef.current !== activePair.id;
@@ -1459,7 +1458,7 @@ export const TradeView = ({
         onOpenPosition(activePair.id, side, parseFloat(sizeAmount), leverage, orderType, price, parseFloat(takeProfit), parseFloat(stopLoss), marginMode);
     };
 
-    const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, handleCancelOrder, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
+    const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, handleCancelOrder, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
 
     // ── Render ────────────────────────────────────────────────────────────────
     const activePairChange = marketChanges[activePair.id];
@@ -1707,7 +1706,7 @@ export const TradeView = ({
                                             setLeverage(v);
                                         }
                                     }} style={{ ...S.display, fontSize: 16, color: 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', cursor: 'pointer' }}>
-                                        {[1, 2, 5, 10, 20].map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
+                                        {[1, 2, 5, 10, 20, 25].map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
                                     </select>
                                 </div>
                             </div>

@@ -1,295 +1,626 @@
-# Velo — SocialFi Perpetual Futures, Live On-Chain
+# Velo
 
-> **Trade real perps. Build a verifiable track record. Copy traders you trust.**
-> Velo pairs a polished trading terminal with a social layer where every PnL number is on-chain, every signal is provable, and every action is auditable on a public ledger.
+**On-chain perpetual futures with a social trading layer.**
 
----
+A polished, full-stack perpetual futures exchange where every trade is a real on-chain transaction, every position is verifiable on a block explorer, and every trader's track record is provable. Underneath the chart, an integrated social graph lets traders post, follow, copy, comment, and climb a transparent leaderboard — making Velo the first product where the trading floor and the trading community are the same room.
 
-## Why Velo Exists
-
-Most "social trading" platforms ask you to trust screenshots. Most DEX terminals are built for power users who already know what TWAP and funding rate mean. Velo bridges both:
-
-- **Verifiable PnL.** Every trade settles through Orderly Network's on-chain order book on Base. The leaderboard is not a marketing rank — it is a derivable function of public state.
-- **A real onboarding ramp.** New users can explore the full terminal in demo mode, then graduate to live trading by connecting a wallet — without rebuilding muscle memory.
-- **Non-custodial by construction.** A per-user "Velo Wallet" (burner key) is generated client-side and bound to the user's primary wallet via EIP-712 signature. The user holds the keys; Velo holds none.
-
-This architecture matters because the trader-discovery problem in DeFi is unsolved: you can read a wallet's history, but you cannot follow it, message it, or copy from it without leaving the dApp. Velo collapses that loop into one surface.
+Live at [velo-trading-terminal.vercel.app](https://velo-trading-terminal.vercel.app).
 
 ---
 
-## Two Environments, One Terminal
+## Table of contents
 
-Velo enforces a strict split between **demo** and **live** modes. The split is determined entirely by registration method — no toggles, no ambiguity.
-
-### Demo Mode (Email / Supabase signup)
-
-- Full trading UI, all 15 pairs visible, simulated $10k starting balance.
-- Browse Markets, Social, Leaderboard tabs as a spectator.
-- Cannot post, comment, like, follow, repost, or copy-trade — every interactive action prompts wallet connection.
-- Cannot appear on the leaderboard — wallet-backed PnL is the leaderboard's sole eligibility criterion.
-- Useful for: product evaluation, judging UX, testing strategies before risking capital.
-
-### Live Mode (Crypto wallet connect)
-
-- Trades only the eight pairs supported by Orderly testnet (BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ — all `/USDC`).
-- All orders route through Orderly Network's matching engine. Fills, positions, balances, and PnL come from on-chain state.
-- Full social privileges: post, comment, like, follow, repost, copy-trade, leaderboard eligibility.
-- Deposit/withdraw flows interact with the Orderly vault on Base Sepolia. Each USDC movement emits an on-chain transaction with a verifiable BaseScan link.
-
-The login screen makes the choice explicit. There is no path from demo to live other than connecting a wallet — and there is no path from live to demo either. This boundary keeps the leaderboard honest.
+- [What Velo is](#what-velo-is)
+- [The product philosophy](#the-product-philosophy)
+- [How trading works end-to-end](#how-trading-works-end-to-end)
+- [The Velo Trading Wallet — silent session signing](#the-velo-trading-wallet--silent-session-signing)
+- [Fees](#fees)
+- [The social layer](#the-social-layer)
+- [Leaderboard](#leaderboard)
+- [Markets page](#markets-page)
+- [Pro tips and quality-of-life features](#pro-tips-and-quality-of-life-features)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Deployed contracts](#deployed-contracts)
+- [Repository layout](#repository-layout)
+- [Running locally](#running-locally)
+- [Vercel environment variables](#vercel-environment-variables)
+- [Supabase setup](#supabase-setup)
+- [Risk model and limitations](#risk-model-and-limitations)
+- [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
-## Core Architecture
+## What Velo is
+
+Velo is a perpetual futures trading platform — meaning a place to take leveraged long or short positions on crypto assets without ever taking delivery of the underlying. You can open a 10× long on Bitcoin, a 5× short on Ethereum, set take-profit and stop-loss levels, watch your PnL move in real time, and close at any point. The contract holds your collateral, settles your profits or losses on close, and charges a small fee per trade.
+
+What makes Velo different is that it's built around a real social product, not around it. Most decentralised exchanges are silent — you trade alone, you log your wins in a private spreadsheet, you brag in Discord with screenshots that nobody can verify. Velo turns each closed position into a shareable, on-chain-provable artefact. You can post a trade card directly to your feed, your followers can comment, the leaderboard ranks traders by realised PnL drawn from on-chain history, and any visitor can click through to BaseScan and verify that the numbers on your profile match the numbers in the blockchain.
+
+The trading wallet (the EOA that signs your perp positions) is also your social identity. The handle you pick — `@alice`, `@stan_trades` — is stored on-chain in a registry contract. Mentions, follows, post likes, and copy-trade subscriptions all key off your wallet address. There is no off-chain identity layer. There is no custody. Your account is your keypair.
+
+## The product philosophy
+
+Three commitments shape every decision:
+
+**Provability.** Every position, every fill, every closed trade has a transaction hash that anyone can paste into a block explorer. We never show numbers we can't back with chain data. The leaderboard reads from on-chain events. Your profile's win rate is computed from your real trade history. Bragging requires receipts and we render those receipts inline.
+
+**Composability.** Wallet, perp engine, USDC, username registry, and (soon) cross-chain bridging are all on-chain primitives. Anyone can integrate against the VeloPerps contract directly. Anyone can fork the frontend. Anyone can read the leaderboard from public RPC. Nothing about Velo is gatekept behind an API key or terms-of-service moat.
+
+**Performance.** Crypto traders are demanding. The first time you trade on Velo, you sign four signatures to bootstrap your account. Every subsequent trade signs locally in your browser with zero MetaMask popups. Position polling refreshes positions, prices and balances every five seconds, with manual refresh on demand. The chart is real TradingView, with timeframes from one minute to one day, drawing tools, and a full set of indicators. The order book is rendered live with sub-second updates.
+
+## How trading works end-to-end
+
+A complete trade has four on-chain phases. The first one happens once per browser per wallet. The last two happen for every trade. Because of how we use a session key (the Velo Trading Wallet), almost no MetaMask popups ever appear.
+
+**Phase 0 — wallet connection.** The user connects MetaMask (or any wagmi-compatible wallet) and switches to Base Sepolia. We auto-prompt the network switch if they're elsewhere.
+
+**Phase 1 — one-shot onboarding.** The user clicks "Get started" once. Behind the scenes:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                       Velo Frontend (React 19)                   │
-│                                                                   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │  Demo path   │  │  Live path   │  │   Shared UI shell    │   │
-│  │  Supabase    │  │  Wagmi +     │  │   Tailwind + custom  │   │
-│  │  $10k sim    │  │  Burner key  │  │   brand system       │   │
-│  └──────┬───────┘  └──────┬───────┘  └──────────────────────┘   │
-│         │                 │                                       │
-└─────────┼─────────────────┼───────────────────────────────────────┘
-          │                 │
-          ▼                 ▼
-   ┌─────────────┐   ┌──────────────────┐
-   │  Supabase   │   │  Orderly Network │
-   │  Postgres   │   │  REST + WS       │  ──→  Base Sepolia (USDC vault)
-   │  + Realtime │   │  ED25519 signed  │
-   └─────────────┘   └──────────────────┘
+1. They sign a deterministic message in MetaMask (gas-free)
+   → we derive a 32-byte private key via keccak256
+   → that key becomes their Velo Trading Wallet (a separate EOA)
+2. We POST /api/sponsor-eth with the trading wallet's address
+   → our sponsor wallet sends 0.005 ETH to the trading wallet
+3. The trading wallet (now funded with gas) calls mint() on the
+   mUSDC contract — silent, signed locally with the burner key
+   → 1,000 mUSDC lands in the trading wallet
 ```
 
-### The "Velo Wallet" pattern
+That's it. One MetaMask signature, zero MetaMask transactions. The trading wallet is funded, derived, and ready to trade. If the sponsor server is offline, the flow falls back to a regular MetaMask `sendTransaction` to fund the burner — same end state, one extra popup.
 
-When a user connects their primary wallet (MetaMask, Rabby, etc.), Velo generates a deterministic ED25519 keypair derived from a one-time EIP-712 signature. This burner is the **trading key**:
+**The Velo Trading Wallet is now your trading account.** All your mUSDC lives there. All trades sign locally with its private key. Your main MetaMask wallet stays cold.
 
-1. **Owner key** (MetaMask / Rabby) — controls deposits, withdrawals, and key registration.
-2. **Trading key** (Velo Wallet, ED25519) — signs every Orderly request: place order, cancel, query positions.
-
-The trading key is stored in the user's localStorage, encrypted only by the browser's same-origin policy. It can place orders but cannot move funds out of the Orderly vault — only the owner key can authorize a withdrawal. If the trading key is ever compromised, the user re-derives a new one from their owner wallet and revokes the old one.
-
-This pattern (popularized by dYdX v3) means users don't need to sign every order in MetaMask — trading feels native — while custody remains in the owner wallet.
-
-### Orderly integration
-
-- **REST API** — `https://testnet-api-evm.orderly.org` for order placement, cancellation, position/balance queries.
-- **WebSocket** — `wss://testnet-ws-evm.orderly.org` for real-time order book updates per symbol.
-- **Symbol mapping** — Velo pairs (`BTC/USD`, `ETH/USD`, …) map to Orderly's `PERP_BTC_USDC` format internally.
-- **Vault contract** — USDC deposits go to Orderly's vault on Base Sepolia. Each deposit emits two transactions: `approve` (USDC) and `depositTo` (vault).
-
-### Supabase layer
-
-Demo users live entirely in Supabase. Their balance, trade history, posts, follows, and likes are managed via Postgres + Realtime subscriptions. Wallet users *also* use Supabase for the social layer (posts, comments, follows, profile data) but their **trading state** is sourced exclusively from Orderly.
-
-Database schema is in `SUPABASE_SCHEMA.sql`. Key tables: `users`, `transactions`, `trade_history`, `positions`, `posts`, `comments`, `follows`, `notifications`. The `transactions` table includes `on_chain`, `tx_hash`, and `withdraw_nonce` columns to record proof-of-payment for live deposits/withdrawals.
-
----
-
-## Feature Surface
-
-### Trading
-
-- Market and Limit orders with adjustable leverage (1×–50× depending on pair).
-- Isolated and Cross margin modes. Cross-pool health indicator on the positions panel.
-- Take-profit and stop-loss orders, attachable at order time or editable on an open position.
-- Real-time liquidation price preview that updates as the user drags the leverage slider.
-- Position details modal showing entry, mark, PnL, ROE, liquidation buffer, margin mode, opened-at, duration, position ID, and (for live trades) Orderly order ID + BaseScan link to the underlying transaction.
-
-### Order book
-
-- Live depth from Orderly's WebSocket stream — bucketing adjusts to price magnitude (1c grid for SOL, 10c for ETH, $1 for BTC, etc.).
-- 7-row depth on desktop, 6 on mobile, with cumulative size bars and color-coded bid/ask.
-- Synthetic fallback when the WebSocket disconnects, so the UI never goes blank.
-
-### Chart
-
-- TradingView lightweight charts with multiple timeframes (1m, 5m, 15m, 1h, 4h, 1d, 1w).
-- Chart styles: candles, area, line, bars.
-- Indicators: SMA, EMA, RSI, MACD, Bollinger Bands.
-- Overlays: entry line, take-profit line, stop-loss line, liquidation line — toggle from the chart toolbar.
-- Price feed currently sources from CoinGecko for klines; the live mark price for Orderly pairs comes from the Orderly WebSocket. Migration to a fully Orderly-sourced chart feed is a near-term roadmap item.
-
-### Social
-
-- Posts can include a trade signal (pair, side, leverage, target). The signal is renderable as a one-tap copy button on the post card.
-- Comments, likes, reposts, follows. Realtime fan-out via Supabase channels.
-- Profile pages with PnL stats, follower count, and trade history.
-- Token pages: `$BTC`, `$ETH`, etc. — aggregate posts mentioning a ticker and surface live price.
-- Mention notifications: typing `@handle` in a post or comment notifies the user.
-
-### Leaderboard
-
-- Sorted by realized PnL across selectable windows (24H, 7D, 30D, ALL).
-- Wallet-only — demo users never appear, and the leaderboard never shows simulated PnL.
-- One-tap follow / copy-trade buttons. Copying creates a mirrored position with proportional sizing.
-
-### Dashboard
-
-- Total equity = Velo Wallet (Orderly) balance + free Supabase balance + locked margin + unrealized PnL.
-- Recent activity feed unifies deposits, withdrawals, opens, closes, pending deposits — every row is clickable for details.
-- Pending deposit pill shows live status (Pending → Settling → Credited) and links directly to BaseScan.
-- Win rate, realized PnL, copying status, and signal stats panels.
-
-### Onboarding
-
-- One modal flow that registers the trading key on Orderly (one signature), sponsors a small ETH dust for gas (server-side relayer), and claims 1,000 testnet USDC from the Orderly faucet.
-- Resumable: closing the modal mid-flow doesn't burn the user's progress; reopening restores state without re-claiming the faucet.
-- The faucet credit is recorded as a `DEPOSIT` transaction with an "Orderly Faucet" provenance link in the dashboard.
-
----
-
-## Project Structure
+**Phase 2 — opening a position.** The user picks a pair, side, collateral, and leverage. Click Buy/Long:
 
 ```
-velo-trading-terminal/
-├── api/                              # Vercel serverless functions
-│   ├── faucet.ts                     # Proxies Orderly testnet USDC faucet
-│   ├── gas-sponsor.ts                # Server-paid gas for new burner wallets
-│   ├── sponsor-status.ts             # Status check for the sponsor relayer
-│   └── usdc-sponsor.ts               # Sponsored USDC top-up
+1. Frontend reads pairTradable + pairFeedId from the contract
+   → if not registered, surface a friendly error before submitting
+2. Frontend fetches the latest price update from Pyth's Hermes endpoint
+3. Trading wallet signs an approve() if no allowance exists yet (silent)
+4. Trading wallet signs openPosition(pairIndex, isLong, collateral_6, leverage, pythUpdateData)
+5. The contract:
+   - Pushes the Pyth update on-chain, paying the update fee from the trader's tx
+   - Reads the fresh mark price
+   - Pulls collateral from the trader's wallet (contract is approved spender)
+   - Charges 0.10% open fee, accruing to feeBalance
+   - Stores the Position struct keyed by tradeId
+   - Emits PositionOpened event
+6. Five-second polling picks up the new position and renders it in the UI
+```
+
+No MetaMask popup. The trader sees the toast and the position appears under the chart within a few seconds with a clickable BaseScan link.
+
+**Phase 3 — closing a position.** Same pattern in reverse. PnL is computed against the fresh oracle price, the 0.10% close fee is deducted from the gross payout, and the net amount returns to the trading wallet.
+
+PnL is settled in mUSDC against the perp pool. Closing in profit pulls from the pool. Closing at a loss returns the remaining collateral to the trader and the loss accrues to the pool.
+
+**Liquidations** happen when a position's unrealised loss exceeds 90% of its collateral. The contract has a public `liquidate(tradeId)` function that anyone can call for a 1% bounty. Velo runs an automated keeper (driven by a GitHub Action every 5 minutes, or any external HTTP scheduler) that scans every open position and triggers liquidations the moment they cross threshold — so the protocol never depends on third-party liquidator bots to stay solvent. The keeper code is in `api/cron-liquidate.ts`.
+
+## Moving funds between wallets
+
+The Velo Trading Wallet is where you trade. Your main wallet is where you keep external funds. Four flows let you shuffle between them:
+
+**Bridge** (cross-chain): use the Bridge button in Settings to move mUSDC between Base Sepolia, Arbitrum Sepolia, Optimism Sepolia, and Ethereum Sepolia. Powered by LayerZero V2 OFT — bidirectional across all four chains, typical delivery 1-3 minutes.
+
+**Move funds** (same chain, main → trading): if you've received mUSDC into your main wallet from a third party (or recovered from an interrupted setup), the Settings panel shows a green "Move $X mUSDC" button that sweeps everything in main → trading in one transaction. Sponsor wallet auto-tops up the burner's gas if needed.
+
+**Withdraw** (trading → main or any 0x): from the Dashboard's Withdraw button. Opens a modal showing your trading-wallet balance, a destination toggle (main wallet / custom 0x address), and a max button. The burner signs the transfer silently — no MetaMask popup. If you try to withdraw more than your idle balance, the modal tells you to close positions to free up collateral. Note: open positions hold their collateral in the VeloPerps contract, not in the trading wallet, so they're not withdrawable until closed.
+
+**Send** (peer-to-peer): the Send modal lets you transfer mUSDC to any `@username` (resolved on-chain via VeloRegistry) or any `0x...` address. Signed silently by your trading wallet — no popup. Useful for tipping a trader you follow or paying someone for off-chain services.
+
+## On-chain username registration
+
+When you set your @handle through the Username modal, this is a **real on-chain transaction** to the VeloRegistry contract at `0x7e510d615a8afDfaa324F790F3E54e520756ECe2`. It's not a Supabase row, it's not a centralized lookup — your handle is bound to your wallet address in Solidity. Anyone can resolve `@yourname` → `0x...` by reading the contract directly, and the Send modal does exactly that when you type someone else's handle.
+
+The on-chain handle equals the handle you signed up with in the auth modal. The Username modal pre-fills the input read-only with your Supabase handle, so you can't claim a different on-chain identity than your in-app identity. Stops the confusing dual-identity bug.
+
+## Shareable trade cards
+
+Every closed position with non-trivial PnL (≥ $0.50) automatically opens a branded share modal. The card is rendered on a 1200×675 canvas (Twitter optimal), with three background styles (obsidian, gradient, hologram), a configurable field-visibility panel (show/hide pair, side, leverage, entry, exit, mark, size, collateral, PnL, trader handle), and unmissable **TESTNET · BASE SEPOLIA** branding.
+
+Two action buttons: **Download PNG** (saves the file locally) and **Share** (uses the Web Share API on mobile for direct posting to Twitter / Instagram / Telegram; falls back to clipboard on desktop). Open positions get a small share icon next to the Close button — clicking it opens the same card with mark price and unrealised PnL.
+
+## The Velo Trading Wallet — silent session signing
+
+This is the architectural choice that makes Velo feel like a regular app instead of a wallet-popup carnival.
+
+A traditional on-chain perp interaction requires a MetaMask popup for every single transaction — approve the collateral, open the position, close the position, modify TP/SL. That's three to five popups per trade. It's exhausting and breaks the flow of trading.
+
+Velo's solution is a per-browser session key derived from a signature. The architecture:
+
+```
+Main Wallet (MetaMask)          Velo Trading Wallet (session key)
+────────────────────────        ────────────────────────────────
+You sign with this once         Signs every trade locally
+Holds your "deposit"            Holds active trading capital
+Funds the trading wallet        Lives in browser localStorage
+Survives clearing localStorage  Re-derives from main signature
+```
+
+The trading wallet is a regular EOA — it has an address, a balance, and a private key. The only difference is that its private key is derived from a signature of your main wallet, not chosen randomly. This means:
+
+- You can recover the trading wallet on a new device by signing the same message
+- You can export the trading wallet's private key to MetaMask, Rabby, or any other wallet
+- Anyone with main-wallet signing access can derive the trading wallet — but the trading wallet's private key never appears in any transaction your main wallet signs
+- The trading wallet only contains funds you explicitly transfer to it; even if it's compromised, your main wallet is safe
+
+In the Settings panel (accessible from the user avatar), you can see both wallet addresses, both ETH and mUSDC balances, and reveal the trading wallet's private key for backup. The Velo Trading Wallet is your "trading account" — it's where you keep working capital. The main wallet is your "savings account" — where you keep the rest. Move funds between them via standard ERC-20 transfers as needed.
+
+## Fees
+
+Velo charges a flat **0.10% (10 basis points) per side**.
+
+- 0.10% on open: deducted from the collateral at the moment the position opens
+- 0.10% on close: deducted from the gross payout at the moment the position closes
+
+That's effectively 0.20% round-trip on the collateral, or 0.02% on a 10× notional. Industry-typical for an oracle-priced perp.
+
+Fees accrue inside the contract's `feeBalance` variable. The contract owner (the protocol's deployer wallet) can withdraw accrued fees. The owner **cannot** seize user collateral, close other people's positions, or modify any trader's position state — these privileges are coded out at the contract level.
+
+There are no hidden fees. There is no spread (the contract uses the Pyth oracle price exactly). There is no withdrawal fee. There is no inactivity fee.
+
+## The social layer
+
+Velo's social product is not a side-feature — it's half the product.
+
+**The Feed.** A real-time Twitter-style feed where traders post text, charts, and trade cards. Posts can include a `$BTC` or `$ETH` ticker tag that auto-links to the markets page. Posts can attach a closed trade — embedded inline as an artefact showing entry, exit, leverage, realised PnL, and a BaseScan link. Comments thread under each post. Likes and reposts work the way you'd expect. Posts are stored in Supabase for fast read access but every embedded trade carries an on-chain transaction hash for verifiability.
+
+**Profiles.** Every wallet address is a profile. Profiles show a bio, an avatar, a banner, follower count, and a stats panel: realised PnL, win rate, average leverage, number of trades. The trade-history table on each profile lists every closed trade with explorer links. A "View on BaseScan" button on each row jumps directly to the closing transaction.
+
+**Follow + Copy-Trade.** You can follow any trader to subscribe to their post feed. You can copy-trade any trader to automatically mirror their position openings — when they open a long with 10% of their account, you open a long with 10% of yours, at the same leverage. Copy-trading currently runs through the Velo frontend (the copier's session wallet executes mirrored trades when they're online). The Velo Vaults V2 design (see Roadmap) moves this entirely on-chain — copiers pool capital into a vault contract that the leader has signing rights over.
+
+**Ticker-Tag Routing.** Mentioning `$BTC` in a post automatically links to that pair's Markets page and the Social tab pre-filters posts about that ticker. The same pattern as how `$GME` works on FinTwit — but the cashtag actually routes to a real, live trading interface.
+
+## Leaderboard
+
+A transparent, public ranking of every Velo trader, sorted by realised PnL. The leaderboard is computed from on-chain trade-history data. There is no way to fake your way onto it — every position counted was a real transaction signed by a real wallet that paid real fees and settled with real PnL.
+
+Each leaderboard entry shows:
+
+- Trader handle (linked to profile)
+- Realised PnL (sortable)
+- Win rate
+- Number of trades
+- Average leverage
+- A "Copy" button for one-click subscription
+
+The top of the leaderboard becomes a default audience. New traders who join Velo and don't yet follow anyone see top-leaderboard traders' posts in their default feed view. As they follow specific traders, their feed personalises. This solves the cold-start problem of any social product: there's always something interesting at the top of your feed because the platform is showing you the best-performing traders by default.
+
+## Markets page
+
+The Markets page is a list of every available trading pair with the data a serious trader wants at a glance:
+
+- Live price (Pyth-driven, updates every few seconds)
+- 24-hour percentage change with green/red colouring
+- 24-hour volume (when available)
+- A spark-line of the last 24h price
+- A watchlist toggle (the star icon)
+- A "Trade" button that jumps to the TradeView with that pair pre-selected
+- A "Social" button that filters the Feed to posts tagged with that ticker
+
+The Markets page is also where the platform's listed-pair coverage is most visible. As Velo lists more pairs on-chain (currently BTC and ETH, with SOL/AVAX/LINK queued), they appear here first.
+
+A watchlist lets you save favourite pairs. Watchlisted pairs are easier to find when switching pairs from inside the TradeView dropdown.
+
+## Pro tips and quality-of-life features
+
+A list of the smaller features that make Velo feel finished:
+
+**Real TradingView chart.** Not a custom chart library — the actual TradingView widget, with their full set of drawing tools, timeframes (1m, 5m, 15m, 1h, 4h, 1D, more), and the indicator library (RSI, MACD, Bollinger Bands, EMA, VWAP, and dozens more). Power users have years of muscle memory for TradingView; we let them use it.
+
+**Order book.** Side-by-side bid/ask depth, rendered live, with mid-price spread visible. The depth panel updates in real time.
+
+**Position card with live PnL.** Each open position shows entry price, mark price, liquidation price (with a red colour-coded margin-risk indicator), PnL in dollar and percentage terms, and a one-click Close button. PnL updates every five seconds with the latest oracle price.
+
+**Position-detail modal.** Click any closed position from the History tab or trade-history table to see a full breakdown: entry, exit, price change percentage, position size, leverage, margin used, margin mode, liquidation price (what it was at), opened-at and closed-at timestamps, duration, and the on-chain trade ID. Plus direct links to BaseScan for the close transaction and the VeloPerps contract.
+
+**Leverage modal with margin-risk preview.** When you change leverage on an existing position, a confirmation modal shows the exact margin delta (how much will be locked or returned), the new liquidation price, and the resulting margin risk colour. This prevents accidental over-leveraging.
+
+**Notification system.** In-app notifications fire when one of your trades closes, when someone follows you, when someone likes your post, when a copy-trader signs up to your stream. Notifications carry deep links — clicking a "your position closed" notification opens the position-detail modal for that specific trade.
+
+**Light and dark mode.** The whole app respects a single theme token system (`var(--bg-base)`, `var(--fg)`, etc.). Light mode is a soft paper palette (#F5F3EE), dark mode is obsidian (#07070A). Both modes share the same iridescent accent palette.
+
+**Wrong-network banner.** If you're connected to the wrong chain, a top banner appears with a one-click switch button using `useSwitchChain` from wagmi.
+
+**Sound effects.** Subtle click and order-open sounds on key actions. Mutable from Settings.
+
+**Mobile responsive.** Trade, Markets, Social, Leaderboard, and Profile all work on mobile. The TradeView reflows to put the order entry panel below the chart on narrow screens.
+
+**Recent activity timeline.** The Dashboard's activity feed shows every action your wallet has taken — opens, closes, deposits, faucet claims, copy-trade subscriptions. Each entry has a "View on BaseScan" link when the underlying action was on-chain.
+
+## Tech stack
+
+**Smart contracts**
+- Solidity 0.8.22 — compiled with Foundry
+- OpenZeppelin Contracts — Ownable, ReentrancyGuard, SafeERC20, ERC20
+- LayerZero V2 OFT — for cross-chain mUSDC transfers across four Sepolia testnets
+- Pyth Network EVM SDK — for the price oracle
+
+**Frontend**
+- React 19 + Vite 6 + TypeScript 5.8
+- wagmi v2 + viem — Ethereum interaction
+- RainbowKit — wallet connection UX
+- TailwindCSS — utility-first styling
+- Lucide icons
+- TradingView widget — real candle chart
+- Recharts — portfolio PnL chart
+- Inter Tight, Instrument Serif, JetBrains Mono — font stack
+
+**Backend / data**
+- Supabase (Postgres + Realtime) — caches profiles, posts, comments, leaderboard, trade history index
+- Pyth Hermes — HTTP gateway for fetching price updates
+
+**Infrastructure**
+- Vercel — frontend hosting, automatic git deploys
+- Base Sepolia — primary chain where VeloPerps lives
+- Arbitrum / Optimism / Ethereum Sepolia — bridge destinations for cross-chain mUSDC
+- WalletConnect Cloud — multi-wallet support
+- PublicNode RPC — reliable testnet RPC endpoints
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Velo frontend                                                          │
+│  React 19 · Vite · wagmi · RainbowKit · TailwindCSS                     │
+│                                                                          │
+│   ┌──────────────────────────────────────────────────────────┐         │
+│   │  Velo Trading Wallet (session key, in localStorage)      │         │
+│   │  Signs all VeloPerps transactions locally — no popups    │         │
+│   └──────────────────────────────────────────────────────────┘         │
+│                                                                          │
+│   useVeloPerpsTrading() ─── 5-second contract polling ─────┐            │
+│                                                              │            │
+│   Social layer (Feed, Profile, Leaderboard) ──── Supabase   │            │
+│                                                              │            │
+└──────────────────────────────────────────────────────────────┼────────────┘
+                                                               │
+                                                               ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │  Base Sepolia (home chain — chain id 84532)             │
+   │                                                          │
+   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+   │  │ VeloPerps    │  │ VeloMockUSDC │  │ VeloRegistry │  │
+   │  │ Oracle-priced│◄─┤ ERC-20 + LZ  │  │ Username →   │  │
+   │  │ perp engine, │  │ V2 OFT,      │  │ address      │  │
+   │  │ Pyth, USDC   │  │ faucet       │  │ resolver     │  │
+   │  └──────┬───────┘  └──────┬───────┘  └──────────────┘  │
+   │         ▼                  │                            │
+   │   ┌──────────────┐         │                            │
+   │   │ Pyth Network │         │                            │
+   │   │ BTC/USD ETH/USD        │                            │
+   │   └──────────────┘         │                            │
+   └─────────────────────────────┼───────────────────────────┘
+                                 │ LayerZero V2 OFT
+                                 │
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+       ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+       │ VeloMockUSDC│    │ VeloMockUSDC│    │ VeloMockUSDC│
+       │ Arb Sepolia │    │ OP Sepolia  │    │ Eth Sepolia │
+       └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+**Where the source of truth lives:**
+
+- Positions, PnL, balances → **the VeloPerps contract** (single authoritative source, polled every 5s)
+- Username ↔ address mapping → **the VeloRegistry contract**
+- Posts, comments, follows, profile metadata → **Supabase** (it's a cache + social database, not a source of truth for financial state)
+- Trade history → **both**: Supabase for fast indexed queries, on-chain events for proof. Every Supabase row carries the transaction hash that produced it.
+
+## Deployed contracts
+
+All source code is verified on the respective block explorers. Click any address to see the source.
+
+| Chain | Contract | Address |
+|---|---|---|
+| Base Sepolia | **VeloPerps** | [`0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163`](https://sepolia.basescan.org/address/0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163) |
+| Base Sepolia | **VeloMockUSDC** | [`0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699`](https://sepolia.basescan.org/address/0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699) |
+| Base Sepolia | **VeloRegistry** | [`0x7e510d615a8afDfaa324F790F3E54e520756ECe2`](https://sepolia.basescan.org/address/0x7e510d615a8afDfaa324F790F3E54e520756ECe2) |
+| Arbitrum Sepolia | VeloMockUSDC | [`0xEC76fD9182ba15ff193FDBc122013FCa18900290`](https://sepolia.arbiscan.io/address/0xEC76fD9182ba15ff193FDBc122013FCa18900290) |
+| Optimism Sepolia | VeloMockUSDC | [`0xEC76fD9182ba15ff193FDBc122013FCa18900290`](https://sepolia-optimism.etherscan.io/address/0xEC76fD9182ba15ff193FDBc122013FCa18900290) |
+| Ethereum Sepolia | VeloMockUSDC | [`0x96d0CF69896FE6b5B031D21967f027d95Eb42e9A`](https://sepolia.etherscan.io/address/0x96d0CF69896FE6b5B031D21967f027d95Eb42e9A) |
+
+All four mUSDC OFT deployments are wired as LayerZero V2 peers — bridges work bidirectionally across every pair of chains.
+
+**Owner of the Base Sepolia contracts:** `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`. This wallet has only three privileges: register new trading pairs, withdraw accrued protocol fees, set LayerZero peers. It explicitly cannot touch user collateral, modify positions, or freeze the protocol.
+
+## Repository layout
+
+```
+contracts/                      Solidity contracts (deployed and verified)
 ├── src/
-│   ├── App.tsx                       # Root — auth, routing, state coordination
-│   ├── components/
-│   │   ├── OrderBook.tsx             # Live + synthetic depth ladder
-│   │   ├── OrderlyOnboardingModal.tsx
-│   │   ├── DepositWithdrawModal.tsx  # Orderly vault deposit + withdraw
-│   │   ├── TradingViewChart.tsx
-│   │   ├── AuthModal.tsx
-│   │   ├── SettingsModal.tsx
-│   │   ├── VeloWalletPanel.tsx
-│   │   └── ui/
-│   │       ├── pages/
-│   │       │   ├── Dashboard.tsx
-│   │       │   ├── TradeView.tsx
-│   │       │   └── MarketsView.tsx
-│   │       └── OrderDetailsModal.tsx # Position / history / transaction details
-│   ├── services/
-│   │   ├── orderlyService.ts         # Orderly REST: keys, orders, balance, positions
-│   │   ├── orderlyOrderbookStream.ts # Orderly WebSocket: order book stream
-│   │   ├── useOrderlyTrading.ts      # React hook coordinating Orderly state
-│   │   ├── burnerOrderly.ts          # Burner wallet ↔ Orderly bridge
-│   │   ├── veloBurnerWallet.ts       # ED25519 burner derivation + storage
-│   │   ├── pendingDeposits.ts        # Pending deposit lifecycle
-│   │   ├── supabaseStore.ts          # Supabase data access layer
-│   │   ├── orderEngine.ts            # Demo-mode trade simulation
-│   │   ├── priceService.ts           # CoinGecko price feed (demo + chart klines)
-│   │   ├── web3Auth.ts               # Wallet-based auth via Supabase
-│   │   └── web3Config.ts             # Wagmi config (Base Sepolia)
-│   ├── styles/
-│   │   ├── velo-brand-system.css     # Brand tokens, typography, motion
-│   │   ├── tokens.css                # Color + spacing scales
-│   │   └── brand.css                 # Component-level brand utilities
-│   └── utils/
-│       └── types.ts                  # Shared TypeScript types + PAIRS / ORDERLY_PAIRS
-├── SUPABASE_SCHEMA.sql               # Postgres schema, RLS policies, RPCs
-├── VELO_WALLET_GUIDE.md              # User-facing onboarding doc
-├── FAUCET_SETUP.md                   # Faucet relayer setup
-└── package.json
+│   ├── VeloPerps.sol               Oracle-priced perp. BTC + ETH at v1.
+│   ├── VeloMockUSDC.sol            ERC-20 + LayerZero V2 OFT + faucet.
+│   ├── VeloRegistry.sol            On-chain username → address registry.
+│   ├── interfaces/IPyth.sol        Minimal Pyth interface subset.
+│   └── libraries/PerpsMath.sol     Pure math: PnL / liquidation / fees.
+├── script/
+│   ├── DeployBaseSepolia.s.sol     Deploy + register pairs.
+│   ├── DeployRemoteUSDC.s.sol      Deploy mUSDC OFT on remote chains.
+│   ├── WirePeers.s.sol             Set LayerZero V2 peer relationships.
+│   └── RegisterPair.s.sol          Register a new trading pair post-deploy.
+├── test/VeloPerps.t.sol            Foundry test suite — all passing.
+├── deployments/                    JSON files with deployed addresses per chain.
+└── foundry.toml
+
+src/                            React frontend
+├── App.tsx                         Top-level shell. Routes, modals, state.
+├── components/
+│   ├── AuthModal.tsx               Account onboarding (handle + email).
+│   ├── VeloWelcomeModal.tsx        First-run trading-wallet setup.
+│   ├── SettingsModal.tsx           Wallet + private-key + network panel.
+│   ├── WalletConnectButton.tsx     Top-right wallet pill.
+│   ├── TradingViewChart.tsx        Real TradingView widget wrapper.
+│   ├── OrderBook.tsx               Live bid/ask depth panel.
+│   ├── PortfolioChart.tsx          Dashboard PnL spark-line.
+│   └── ui/
+│       ├── OrderDetailsModal.tsx   Position / trade detail breakdown.
+│       └── pages/
+│           ├── Dashboard.tsx       Portfolio overview, recent activity.
+│           ├── TradeView.tsx       The trading screen — chart + order form.
+│           └── MarketsView.tsx     Pair list + price grid.
+├── services/
+│   ├── veloPerpsService.ts         VeloPerps contract wrapper.
+│   ├── useVeloPerpsTrading.ts      5s polling hook, auto-burner-aware.
+│   ├── pythService.ts              Pyth Hermes price update fetcher.
+│   ├── veloUsdcService.ts          mUSDC ERC-20 + faucet wrapper.
+│   ├── veloBurnerWallet.ts         Deterministic session-key derivation.
+│   ├── veloBurnerSetup.ts          First-run burner setup orchestration.
+│   ├── usernameService.ts          VeloRegistry resolver.
+│   ├── bridgeService.ts            LayerZero V2 cross-chain transfer.
+│   ├── web3Config.ts               Wagmi 4-chain config.
+│   ├── priceService.ts             Coinbase / Binance feeds for chart candles.
+│   └── supabaseStore.ts            Posts / profiles / cached history.
+└── styles/                         brand.css, tokens.css, v2.css
+
+SUPABASE_SCHEMA.sql                  Base tables for posts, profiles, history.
+SUPABASE_MIGRATION_VELO_PERPS.sql    Adds venue + tx_hash columns.
+README.md                            This file.
 ```
 
----
+## The Admin Panel
 
-## Local Development
+Velo ships with a protocol-owner dashboard at the `Admin` tab in the navigation. The tab is invisible to everyone except the wallet that owns the VeloPerps contract — we read `owner()` from the contract on app load and conditionally include the nav item only when the connected wallet matches.
+
+The Admin Panel surfaces every owner-only state and action that would otherwise require manually running Foundry scripts. Specifically:
+
+- **Pair registry.** Lists all 17 supported pairs (BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL) with their on-chain status. Pairs that aren't registered yet show a one-click **Register** button. Pairs that are registered show **Pause** / **Resume** buttons that flip the contract's `pairTradable` flag. Slots 0–5 are registered at deploy time; slots 6–16 are registered through the Admin Panel.
+- **One-click "Register all pending pairs."** When a fresh contract is deployed, this button registers SOL/AVAX/LINK/DOGE in sequence with their correct Pyth feed IDs.
+- **Fee balance + withdraw.** Shows the contract's accrued `feeBalance` in mUSDC. The **Withdraw to owner** button moves it to the owner wallet (anyone else calling withdrawFees reverts at the Solidity level).
+- **Pool reserves.** Live readout of the contract's mUSDC balance — the pool that pays out winners and absorbs losers.
+- **Contract metadata.** Owner address, mUSDC address, VeloPerps address, all linkable to BaseScan.
+
+Non-owner wallets that try to visit `/admin` see a polite "Owner-only area" message with the owner address truncated for verification.
+
+## The liquidation keeper
+
+A pool-based perp protocol without an automated liquidation bot can go insolvent: underwater positions don't close themselves, losses keep growing, and eventually the trader walks away with more than the pool can pay back. Velo's contract has a public `liquidate(tradeId, pythUpdateData)` function — anyone who calls it on an underwater position (loss ≥ 90% of collateral) earns a 1% bounty on the collateral.
+
+In production, liquidations need to happen within seconds of crossing threshold. We don't want to wait for a third party to notice. So Velo ships its own keeper as a serverless endpoint at `api/cron-liquidate.ts`:
+
+```
+1. Read the contract's nextTradeId counter
+2. Walk every tradeId from 1 to nextTradeId-1
+3. Skip closed/liquidated positions (owner == 0x0)
+4. For each open position, call quoteUnrealisedPnL(tradeId) on the contract
+5. If pnl_6 <= -(collateral * 9000 / 10000), the position is liquidatable
+6. Fetch a fresh Pyth update for the pair's feed
+7. Call liquidate(tradeId, updateData) with enough ETH for the Pyth fee
+8. Bounty (1% of collateral) flows to the sponsor wallet
+```
+
+The keeper uses the same sponsor wallet that funds new users with starter ETH. The liquidation bounties make it self-funding over time: every liquidation tops the sponsor up by 1% of the liquidated collateral.
+
+**Scheduling.** Vercel Hobby plan caps cron frequency at once per day — useless for liquidations — and including a more frequent schedule in `vercel.json` will cause `Deployment failed` (the cron config is validated server-side and blocks the deploy outright). So Velo doesn't ship a Vercel cron. Instead, the keeper is driven externally:
+
+- **Default: GitHub Actions.** `.github/workflows/liquidate.yml` runs every 5 minutes, calling the keeper endpoint via curl. Free on private and public repos. Configure the target deployment URL by adding a repo variable `VELO_DEPLOYMENT_URL` (Settings → Secrets and variables → Actions → Variables).
+- **Faster: cron-job.org or runhooks.app.** For sub-minute liquidation cadence, point a free external scheduler at `https://your-deployment.vercel.app/api/cron-liquidate`. GitHub Actions' 5-minute minimum is fine for testnet but real money would want every 30-60 seconds.
+- **If you upgrade to Vercel Pro:** add the cron block back to `vercel.json` and disable the GitHub Action.
+
+```yaml
+# .github/workflows/liquidate.yml
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+```
+
+The endpoint is GET-callable so any HTTP scheduler can drive it.
+
+## The TP/SL keeper
+
+A second keeper lives at `api/cron-tp-sl.ts`. It reads each open V2 position's trigger values directly from the `VeloPerpsV2` contract (`takeProfit_E18` and `stopLoss_E18` fields on the Position struct), checks each against the current Pyth mark, and calls `closeIfTriggered(tradeId, pythUpdateData)` on the contract for any position whose trigger has fired.
+
+`closeIfTriggered` is permissionless — anyone can call it. The contract verifies on-chain that the mark has actually crossed the trigger, sends the bulk of the payout to the position owner, and pays a small bounty (`KEEPER_BOUNTY_BPS = 25` → 0.25% of the net payout) to whoever called it. This is what makes the keeper self-sustaining: every TP fired earns the keeper a small payment, and the user gets their trigger executed without trusting any off-chain Supabase row.
+
+V1 positions don't have on-chain triggers, so the keeper skips them. Once V2 is deployed and `VITE_VELO_PERPS_V2_ADDRESS` is set, all new positions land on V2 and triggers work end-to-end.
+
+## Protocol stats endpoint
+
+Velo exposes `/api/protocol-stats` — a JSON endpoint that aggregates on-chain events into lifetime totals and daily buckets. This powers the charts in the Admin Panel and is intentionally documented as a stable URL so external monitoring (Datadog, Grafana, custom dashboards) can scrape it directly.
+
+Sample response:
+
+```json
+{
+  "ok": true,
+  "contract": "0x28fE...6163",
+  "generated_at": "2026-05-24T16:38:00.000Z",
+  "lifetime": {
+    "total_volume_usd": 18432.50,
+    "total_open_fees_usd": 18.43,
+    "total_close_fees_usd": 14.27,
+    "total_fees_usd": 32.70,
+    "total_opens": 47,
+    "total_closes": 38,
+    "total_liquidations": 5,
+    "total_liquidation_bounty_usd": 0.83,
+    "currently_open": 4,
+    "total_fee_withdrawals": 1
+  },
+  "daily_buckets": [
+    { "date": "2026-05-22", "volume_usd": 4200, "open_fees_usd": 4.2, "close_fees_usd": 3.1, "opens": 12, "closes": 9, "liquidations": 1 },
+    ...
+  ]
+}
+```
+
+The endpoint walks `PositionOpened`, `PositionClosed`, `PositionLiquidated`, and `FeesWithdrawn` events from contract genesis on each call. CORS is open (`Access-Control-Allow-Origin: *`) so any frontend can consume it. Response is cached at the edge for 30 seconds with 60-second stale-while-revalidate.
+
+For mainnet, this approach (full event scan on every request) won't scale — switch to a subgraph or an incremental indexer. For testnet, it's fine.
+
+## Running locally
+
+### Prerequisites
+
+- Node.js 20+
+- Git
+- Foundry (for the contracts): `curl -L https://foundry.paradigm.xyz | bash && foundryup`
+
+### Frontend
 
 ```bash
-git clone <repo>
+git clone https://github.com/stanisnear/velo-trading-terminal
 cd velo-trading-terminal
 npm install
-cp .env.example .env.local            # fill in keys, see below
-npm run dev                           # Vite dev server on :5173
+cp .env.example .env.local   # then edit with Supabase + WalletConnect keys
+npm run dev
 ```
 
-### Environment variables
+Opens at http://localhost:3000.
 
-```
-# Supabase (required)
-VITE_SUPABASE_URL=https://<project>.supabase.co
-VITE_SUPABASE_ANON_KEY=<anon key>
+### Contracts
 
-# WalletConnect (required for live mode)
-VITE_WALLETCONNECT_PROJECT_ID=<project id>
+```bash
+cd contracts
+forge install foundry-rs/forge-std
+forge install OpenZeppelin/openzeppelin-contracts
+forge install LayerZero-Labs/devtools
+forge install LayerZero-Labs/layerzero-v2
+forge install pyth-network/pyth-sdk-solidity
+forge install GNSPS/solidity-bytes-utils
 
-# Orderly (testnet defaults are baked in; override only if pointing elsewhere)
-VITE_ORDERLY_API=https://testnet-api-evm.orderly.org
-VITE_ORDERLY_WS=wss://testnet-ws-evm.orderly.org
-VITE_ORDERLY_BROKER_ID=woofi_dex
-
-# Server-side relayer (Vercel functions)
-ORDERLY_SPONSOR_PRIVATE_KEY=<hex>     # funds new burner wallets with dust ETH
-SUPABASE_SERVICE_ROLE_KEY=<key>       # used by the faucet endpoint to log credits
+forge test -vvv     # full test suite should pass
 ```
 
-### Database setup
+See `contracts/README.md` for the full deployment walkthrough across all four testnets.
 
-Apply `SUPABASE_SCHEMA.sql` to your Supabase Postgres instance. It creates the tables, row-level-security policies, and the `adjust_balance` RPC used for atomic balance writes.
+## Vercel environment variables
 
----
+Set these in **Vercel → Settings → Environment Variables** for all three environments (Production, Preview, Development):
+
+```bash
+# Supabase (existing — don't change)
+VITE_SUPABASE_URL=https://<your-project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+
+# WalletConnect Cloud — free signup at cloud.walletconnect.com
+VITE_WALLETCONNECT_PROJECT_ID=<your-id>
+
+# Velo contracts on Base Sepolia
+VITE_VELO_PERPS_ADDRESS=0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163
+VITE_VELO_REGISTRY_ADDRESS=0x7e510d615a8afDfaa324F790F3E54e520756ECe2
+VITE_VELO_USDC_BASE=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699
+
+# Server-side gas sponsor (NO VITE_ prefix — never reaches the browser).
+# Used by /api/sponsor-eth and /api/cron-liquidate. Fund this wallet with
+# ~0.5 Base Sepolia ETH and top it up periodically (liquidation bounties
+# refill it organically over time).
+VELO_SPONSOR_PRIVATE_KEY=<0x-prefixed private key of a funded ops wallet>
+
+# Velo mUSDC OFT on remote Sepolias
+VITE_VELO_USDC_ARB=0xEC76fD9182ba15ff193FDBc122013FCa18900290
+VITE_VELO_USDC_OP=0xEC76fD9182ba15ff193FDBc122013FCa18900290
+VITE_VELO_USDC_ETH=0x96d0CF69896FE6b5B031D21967f027d95Eb42e9A
+
+# RPC endpoints (PublicNode — reliable, free, no signup)
+VITE_BASE_SEPOLIA_RPC_URL=https://base-sepolia-rpc.publicnode.com
+VITE_ARB_SEPOLIA_RPC_URL=https://arbitrum-sepolia-rpc.publicnode.com
+VITE_OP_SEPOLIA_RPC_URL=https://optimism-sepolia-rpc.publicnode.com
+VITE_ETH_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+
+# Pyth Hermes (price update feed)
+VITE_PYTH_HERMES_URL=https://hermes.pyth.network
+```
+
+After saving, trigger a redeploy or push any commit. Vite requires the `VITE_` prefix for variables to reach the browser.
+
+## Supabase setup
+
+Velo's social-layer data lives in Supabase. The schema includes:
+
+- `profiles` — user metadata (handle, bio, avatar, banner)
+- `posts` — feed posts with optional ticker tags and trade-card attachments
+- `comments` — threaded under posts
+- `likes` and `reposts` — social interactions
+- `follows` — many-to-many graph
+- `notifications` — in-app notification queue
+- `trade_history` — closed trade index (Supabase mirror of on-chain events)
+- `positions` — open position cache (5s polling target)
+- `copy_trade_subscriptions` — who's copying whom
+
+The base schema is in `SUPABASE_SCHEMA.sql`. Run the migration:
+
+1. Open Supabase dashboard → your project → **SQL Editor**
+2. Paste `SUPABASE_SCHEMA.sql` → Run
+3. Paste `SUPABASE_MIGRATION_VELO_PERPS.sql` → Run (adds `venue`, `velo_trade_id`, `open_tx_hash`, `close_tx_hash` columns for on-chain proof)
+
+Migrations are idempotent — safe to run multiple times.
+
+## Risk model and what's still missing
+
+**This is v1 / testnet / grant-demo grade. The contracts have not been audited.**
+
+The contracts are simple, the keeper works, the social product is real, and a trader can complete a full open/close lifecycle on Base Sepolia with one MetaMask signature. But there's an honest gap between "working testnet demo" and "production perp DEX." Here's the full list of what's not yet built — these are v2 / mainnet items:
+
+**Insurance fund.** If cumulative trader profits exceed pool reserves, the pool can go insolvent. There's no separate vault absorbing losses today. Mainnet seeds an insurance fund from the first ~$50K of accrued fees, capped at 5% of TVL, drawn down when the pool dips below a threshold.
+
+**Funding rate.** Right now mark price equals the Pyth oracle price exactly. There's no mechanism aligning Velo's price with spot when open interest is skewed long or short. Mainnet adds an hourly funding payment between longs and shorts proportional to OI imbalance.
+
+**Take-profit and stop-loss enforcement.** The TradeView UI has TP/SL fields and they save to Supabase, but no on-chain keeper monitors them. A trader can set a $50,000 stop-loss on a BTC long and the position will not actually close at that level. Mainnet needs a TP/SL keeper that scans positions, compares against Pyth prices, and closes them on trigger. Architecturally identical to the liquidation keeper — just runs against TP/SL thresholds instead of liquidation thresholds.
+
+**Limit and stop orders on-chain.** Today every order is a market order against the oracle price. Limit orders are a UI affordance but they don't persist on-chain — they're tracked locally in Supabase and never execute unless the user is online. Mainnet introduces an `OrderBook` contract where limit/stop orders live on-chain and the same keeper network triggers them.
+
+**Open-interest caps per pair.** No per-pair OI limits exist. A whale could open a $10M position on SOL/USD and the contract wouldn't blink. Mainnet sets cap = min(maxOIPercent × poolSize, hardCap).
+
+**Cross-margin / portfolio margining.** Every position is fully isolated. Multiple positions don't net against each other. v2.5 introduces a cross-margin mode where a long BTC and a short ETH partially hedge.
+
+**Dynamic fees / price impact.** All trades pay the flat 0.10% per side. Large trades vs small trades should pay different rates as they move the protocol's net delta further from neutral. Mainnet uses size-tiered fees plus a price-impact term.
+
+**Secondary oracle.** All prices come from Pyth alone. If Pyth feeds drift, glitch, or get manipulated, the protocol settles at the wrong price. Mainnet adds Chainlink as a fallback / sanity check; if the two disagree by more than 1%, the contract pauses pair trading.
+
+**Multisig ownership.** The contract owner is currently a single EOA. Mainnet transfers ownership to a Safe multisig with at least three signers.
+
+**Audit.** The contract code is short (~300 lines for VeloPerps + libraries) but has not been formally reviewed by a third party. An audit is the gating item between v1 and v2.
+
+The grant funds the audit, the insurance fund seed, the TP/SL keeper network, the secondary oracle integration, and the multisig handover.
 
 ## Roadmap
 
-### Trading
+**v1 — testnet, today.** Base Sepolia perps for 17 pairs (BTC, ETH, SOL, AVAX, LINK, DOGE shipped registered at deploy time; NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL ship as one-click registerable through the Admin Panel). LayerZero V2 cross-chain mUSDC (four chains). Social feed, leaderboard, profiles. One-MetaMask-signature onboarding via the Velo Trading Wallet + gas sponsor. Bridge UI, Send-to-@username UI, on-chain username registry (VeloRegistry), automated liquidation keeper, TP/SL keeper scaffolding (dry-run mode pending a contract update to permit keeper-triggered closes), protocol owner Admin Panel with on-chain stats and charts. Trade-history rows attach BaseScan tx hashes for every open and close. Grant submission build.
 
-- ✅ Orderly testnet integration — orders, positions, balance, order book.
-- ✅ Burner-key onboarding with one-signature registration.
-- ✅ Strict demo / live environment split.
-- ⏳ Mainnet migration (Arbitrum or Base mainnet, pending Orderly broker registration).
-- ⏳ Conditional orders (TWAP, trailing stop, scaled entry).
-- ⏳ Funding rate display + historical chart.
-- ⏳ Native chart price feed sourced from Orderly (replacing CoinGecko klines for live pairs).
+**v1.1 — production polish.** TP/SL keeper that actually closes positions on trigger (Vercel cron sibling of the liquidation keeper). Limit and stop orders persisted on-chain in a separate OrderBook contract. Per-pair OI caps enforced at the Solidity level. Copy-trade subscriptions executing trades automatically when leaders open positions (today copy-trade is a follow signal; tomorrow it's a mirrored trade through the copier's session wallet while they're online, then through their Vault contract once Vaults ship).
 
-### Capital movement
+**v2 — mainnet.** Production launch on Base mainnet after a security audit. Real USDC replaces mUSDC. Insurance fund seeded from accrued fees, capped at 5% of TVL. Funding rate mechanism — hourly payments between longs and shorts proportional to open-interest imbalance. Secondary oracle (Chainlink) as a Pyth sanity check. Cross-margin mode for portfolio margining. Multisig ownership (Safe with at least three signers). Dynamic fees scaled by trade size and protocol delta. The Velo Trading Wallet, leaderboard, social product, and Admin Panel carry over unchanged.
 
-- ⏳ LayerZero / CCTP bridge for cross-chain USDC deposits.
-- ⏳ Velo ↔ Velo internal transfers (zero-fee, instant — useful for copy-trade settlement).
-- ⏳ Withdraw flow polish: gas estimation, ETA preview, status toasts.
+**v3 — Velo Vaults.** Pool follower capital into smart-contract-managed vaults. The trader running the vault has signing rights but cannot withdraw — they can only direct trades on behalf of the pool. Vault terms (performance fee, lockup period, max drawdown) are set at deploy time and visible on-chain. Vault performance fees accrue to the trader; copiers pay only for results. This is the infrastructure that makes copy-trade actually accountable: there's no off-chain promise, the rules are in code.
 
-### Social
+**v4 — Token launch.** A Velo governance token issued to:
+- Active early traders — based on cumulative trading volume during the testnet and post-mainnet bootstrap period
+- Profitable traders whose trades have been copied — based on the realised PnL their copiers earned
+- Successful Velo Vaults managers — based on AUM and net realised performance
+- Bots and keepers — based on liquidations executed and orders matched
 
-- ✅ Posts, comments, likes, follows, reposts, copy-trade.
-- ✅ Trade-signal posts with one-tap copy.
-- ✅ Mentions and notifications.
-- ⏳ Group chats / DMs.
-- ⏳ Verified-PnL badges (cryptographic proof tied to a wallet).
-- ⏳ Trader profile widgets embeddable on Twitter / Lens / Farcaster.
+The token's primary utility is **governance** over protocol fees, pair listings, vault standards, treasury allocations, and insurance-fund deployment. Secondary utility is **fee discounts** for stakers. Tertiary utility is **revenue share** to long-term lockers.
 
-### Infrastructure
+The token is explicitly NOT planned for v1, v2, or v3. There is no token presale, no IDO, no airdrop tease. The token is the v4 milestone — issued only when the protocol has proven product-market fit and there's something substantive to govern.
 
-- ⏳ Server-sent events fallback for environments where WebSocket is blocked.
-- ⏳ Sentry / OpenTelemetry tracing on order placement and deposit flows.
-- ⏳ E2E tests (Playwright) covering both environments.
-
----
-
-## Tech Stack
-
-- **Frontend:** React 19, Vite 6, TypeScript 5.8, Tailwind, lightweight-charts.
-- **Wallet:** wagmi v2 + viem, RainbowKit/WalletConnect.
-- **Trading backend:** Orderly Network (testnet) — REST + WebSocket.
-- **Custody:** ED25519 burner key, EIP-712 signature derivation, localStorage persistence.
-- **Data layer:** Supabase (Postgres + Realtime + Auth).
-- **Hosting:** Vercel (frontend + serverless functions).
-- **Chain:** Base Sepolia for testnet vault interactions.
-
----
+**v5 — Multi-venue routing.** Velo Vaults can route trades to any compatible perp venue (Velo Perps, GMX, Uniswap V4 hooks, etc.) depending on best execution. The router earns a share of routed-flow rebates. This is the long-term protocol-as-infrastructure play — making Velo the trading layer for any DeFi product that wants to embed perps without building the engine.
 
 ## License
 
-Proprietary. All rights reserved. Contact the team for licensing inquiries.
-
----
-
-## Acknowledgments
-
-Velo is built on the work of several teams whose tooling makes this possible:
-
-- **Orderly Network** — for the on-chain order book and the perp matching engine.
-- **Base** — for the L2 settlement layer.
-- **Supabase** — for instant Postgres + auth + realtime.
-- **TradingView** — for the lightweight-charts library.
-
----
-
-*Velo — where every position is a public commitment, and every leaderboard rank is mathematically derivable.*
+MIT. See `LICENSE` if present, or assume MIT.

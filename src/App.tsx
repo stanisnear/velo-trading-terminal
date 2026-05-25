@@ -19,8 +19,19 @@ import { OrderBook } from './components/OrderBook';
 import { fetchRealPrices, binancePriceStream, fetchKlines } from './services/priceService';
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
-import { useChainId, useAccount } from 'wagmi';
+import { useChainId, useAccount, usePublicClient } from 'wagmi';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
+import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
+import { VeloBridgeModal } from './components/VeloBridgeModal';
+import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
+import { VeloUsernameModal } from './components/VeloUsernameModal';
+import { VeloSendModal } from './components/VeloSendModal';
+import { VeloWithdrawModal } from './components/VeloWithdrawModal';
+import { VeloShareCard, type ShareCardData } from './components/VeloShareCard';
+import { VeloManagePositionModal } from './components/VeloManagePositionModal';
+import { VeloAdminPanel } from './components/VeloAdminPanel';
+import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
+import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
@@ -783,13 +794,14 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
     );
 };
 
-const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings }: any) => {
+const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
         { id: TabView.MARKETS, icon: BarChart2, label: 'Markets', requiresAuth: false },
         { id: TabView.SOCIAL, icon: Users, label: 'Social', requiresAuth: false },
         { id: TabView.LEADERBOARD, icon: Trophy, label: 'Leaderboard', requiresAuth: false },
+        ...(isContractOwner ? [{ id: TabView.ADMIN, icon: Shield, label: 'Admin', requiresAuth: false }] : []),
     ].filter(item => !item.requiresAuth || user);
     const [avatarPopupOpen, setAvatarPopupOpen] = React.useState(false);
     const avatarBtnRef = React.useRef<HTMLButtonElement>(null);
@@ -896,7 +908,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
         </nav>
     );
 }
-const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower }: any) => {
+const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE,     icon: TrendingUp,      label: 'Trade',     requiresAuth: false },
@@ -904,6 +916,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
         { id: TabView.SOCIAL,    icon: Users,            label: 'Social',    requiresAuth: false },
         { id: TabView.LEADERBOARD, icon: Trophy,         label: 'Leaderboard', requiresAuth: false },
         { id: TabView.PROFILE,   icon: UserCircle,       label: 'Profile',   requiresAuth: true },
+        ...(isContractOwner ? [{ id: TabView.ADMIN, icon: Shield, label: 'Admin', requiresAuth: false }] : []),
     ].filter(item => !item.requiresAuth || user);
 
     const S = {
@@ -3919,6 +3932,14 @@ const App = () => {
     const [isResetPasswordOpen, setResetPasswordOpen] = useState(false);
     const [isOrderlyOnboardingOpen, setOrderlyOnboardingOpen] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
+    const [isVeloWelcomeOpen, setVeloWelcomeOpen] = useState(false);
+    const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
+    const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
+    const [isVeloSendOpen, setVeloSendOpen] = useState(false);
+    const [isVeloWithdrawOpen, setVeloWithdrawOpen] = useState(false);
+    const [managingPosition, setManagingPosition] = useState<Position | null>(null);
+    const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
+    const [shareTradeData, setShareTradeData] = useState<ClosedTradeShareData | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
     const [orderlyDWModal, setOrderlyDWModal] = useState<{ open: boolean; type: 'DEPOSIT' | 'WITHDRAW' }>({ open: false, type: 'DEPOSIT' });
 
@@ -3933,7 +3954,29 @@ const App = () => {
       burnerAddress,
     );
     const chainId = useChainId();
-    const { address: walletAddress } = useAccount();
+    const { address: walletAddress, isConnected: isWalletConnected } = useAccount();
+    const publicClient = usePublicClient();
+
+    // ── Contract owner read ─────────────────────────────────────────────────
+    // Used to gate the ADMIN tab + admin panel. One read on mount, no polling.
+    const [contractOwner, setContractOwner] = useState<string | null>(null);
+    useEffect(() => {
+      if (!publicClient) return;
+      publicClient.readContract({
+        address: VELO_PERPS_ADDRESS,
+        abi: VELO_PERPS_ABI,
+        functionName: 'owner',
+      }).then((o) => setContractOwner(o as string))
+        .catch(() => setContractOwner(null));
+    }, [publicClient]);
+    const isContractOwner = !!walletAddress && !!contractOwner
+      && walletAddress.toLowerCase() === contractOwner.toLowerCase();
+
+    // ── Velo Perps on-chain trading (Phase 1+) ──────────────────────────────
+    // New on-chain trading layer. Runs alongside Orderly during the migration.
+    // `useVeloPerpsTrading` polls VeloPerps every 5s — single source of truth
+    // for any position cards rendered by VeloPerpsPanel.
+    const veloPerpsTrading = useVeloPerpsTrading();
 
     // Restore burner address from localStorage on mount / wallet connect so
     // useOrderlyTrading immediately uses the Velo address instead of MetaMask.
@@ -3947,18 +3990,66 @@ const App = () => {
       }
     }, [walletAddress]);
 
-    // Auto-open onboarding modal once after login if no Velo wallet exists yet.
-    // This is the natural continuation of signup/login — no need to make the
-    // user hunt for a "Deposit" button just to set up their trading wallet.
-    // Guarded by `onboardingDismissed` so closing it doesn't immediately reopen.
+    // ── Velo Welcome onboarding (Phase 3) ─────────────────────────────────
+    // Opens ONLY AFTER account creation completes (i.e. `user` is set). This
+    // ensures the AuthModal "Hello → handle → email" flow runs first, then the
+    // claim flow runs second. Order matters — account first, faucet second.
     useEffect(() => {
-      if (!user || !walletAddress || onboardingDismissed) return;
-      const cached = loadStoredBurner(walletAddress);
-      if (!cached) {
-        // First-time user — show the onboarding flow.
-        setOrderlyOnboardingOpen(true);
-      }
-    }, [user, walletAddress, onboardingDismissed]);
+      if (!user) return;                                          // wait for account
+      if (!isWalletConnected) return;                             // and a wallet
+      if (isLoginOpen) return;                                    // auth still in progress
+      if (veloPerpsTrading.isInitialLoading) return;              // wait until balance read
+      if (isVeloWelcomeOpen) return;                              // already open
+      if (veloPerpsTrading.openPositions.length > 0) return;      // returning trader
+      const should = shouldShowVeloWelcome({
+        isConnected: isWalletConnected,
+        chainId,
+        usdcBalance: veloPerpsTrading.usdcBalance,
+        hasBurner: veloPerpsTrading.usingBurner,
+      });
+      if (should) setVeloWelcomeOpen(true);
+    }, [user, isWalletConnected, isLoginOpen, veloPerpsTrading.isInitialLoading, veloPerpsTrading.usdcBalance, veloPerpsTrading.openPositions.length, veloPerpsTrading.usingBurner, chainId, isVeloWelcomeOpen]);
+
+    // ── VeloPerps → local positions sync (Phase 3) ─────────────────────────
+    // The contract is the source of truth for positions. We translate VeloPosition
+    // (from useVeloPerpsTrading) → the existing Position shape used by Dashboard
+    // and TradeView so the existing UI keeps working without rewriting every row
+    // renderer. Keyed by tradeId so reads are idempotent.
+    //
+    // Pair label translation: VeloPerps uses "BTC-USD" / "ETH-USD", the UI uses
+    // "BTC/USD" / "ETH/USD". Done inline here to keep the existing UI untouched.
+    useEffect(() => {
+      if (!user || !isWalletConnected) return;
+      if (veloPerpsTrading.isInitialLoading) return;
+
+      const onChainPositions: Position[] = veloPerpsTrading.openPositions.map((p) => {
+        const uiPair = p.pair.replace('-', '/'); // BTC-USD → BTC/USD etc.
+        const notional = p.collateralUSDC * p.leverage;
+        return {
+          id: `velo_${p.tradeId.toString()}`,
+          pair: uiPair,
+          side: p.isLong ? 'LONG' : 'SHORT',
+          entryPrice: p.entryPrice,
+          size: notional,
+          leverage: p.leverage,
+          marginMode: 'ISOLATED' as MarginMode,
+          liquidationPrice: p.isLong
+            ? p.entryPrice * (1 - 0.9 / p.leverage)
+            : p.entryPrice * (1 + 0.9 / p.leverage),
+          timestamp: p.openedAt * 1000,
+          onChain: true,
+          // Reuse the orderly fields for tx link surfacing (modal already reads them).
+          orderlyOrderId: undefined,
+          orderlyOrderUrl: p.openTxHash ? `https://sepolia.basescan.org/tx/${p.openTxHash}` : undefined,
+        };
+      });
+
+      setPositions((prev) => {
+        // Keep any non-Velo positions (demo-mode legacy) intact, replace the Velo subset.
+        const nonVelo = prev.filter((p) => !p.id.startsWith('velo_'));
+        return [...nonVelo, ...onChainPositions];
+      });
+    }, [user, isWalletConnected, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
     // Reset the dismiss flag on logout so a different account triggers onboarding again.
     useEffect(() => { if (!user) setOnboardingDismissed(false); }, [user]);
@@ -4014,6 +4105,15 @@ const App = () => {
     const [usersListModal, setUsersListModal] = useState<{ isOpen: boolean, title: string, userIds: string[] }>({ isOpen: false, title: '', userIds: [] });
     const [viewingProfile, setViewingProfile] = useState<any | null>(null);
     const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+    /** Routes the "edit position" intent to the right modal:
+     *  - V2 on-chain position → manage modal (real on-chain TP/SL etc.)
+     *  - Anything else        → legacy demo-only Edit modal (Supabase-stored)
+     */
+    const handleEditPosition = (p: Position | null) => {
+      if (!p) { setEditingPosition(null); setManagingPosition(null); return; }
+      if (p.onChain && p.onChainTradeId) setManagingPosition(p);
+      else setEditingPosition(p);
+    };
     const [activeSocialTicker, setActiveSocialTicker] = useState<string | null>(null);
     const [watchlist, setWatchlist] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem('velo_fav_markets') || '[]'); } catch { return []; }
@@ -4051,9 +4151,9 @@ const App = () => {
     // Pre-conditions: user must have an activated Velo wallet (burnerAddress + keypair).
     const handleClaimTestnetUsdc = useCallback(async () => {
       if (!burnerAddress || !orderly.keypair) {
-        setToast({ message: 'Activate your Velo wallet first.', type: 'INFO' });
-        setOnboardingDismissed(false);
-        setOrderlyOnboardingOpen(true);
+        // Phase 2: route legacy "claim faucet" call paths through the new on-chain
+        // Velo Welcome modal so users hit the working faucet, not the broken Orderly one.
+        setVeloWelcomeOpen(true);
         return;
       }
       if (claimingFaucet) return;
@@ -4202,43 +4302,24 @@ const App = () => {
     // Definitions (industry standard):
     //   • Total Equity   = total value of the trading account
     //                    = Free Balance + Locked Margin + Unrealized PnL
-    //                    = your $1,000 deposit ± your trading PnL.
+    //                    = your mUSDC + your trading PnL.
     //                      It does NOT change when you open a position — it only
     //                      moves on price action (PnL) or new deposits/withdrawals.
     //   • Buying Power   = how much you have available to open new positions
     //                    = Free Balance only.
     //                      Drops by exactly the margin amount when you open.
     //
-    // Critical detail — what each "balance" source actually represents:
-    //
-    //   LIVE MODE (wallet user):
-    //     orderly.orderlyBalance comes from Orderly's `/v1/client/holding`
-    //     endpoint. That field is the TOTAL USDC sitting in the trading
-    //     account — it includes locked margin. So:
-    //       totalEquity  = orderly.orderlyBalance + unrealizedPnL
-    //                      (do NOT add locked margin — already inside holding)
-    //       buyingPower  = orderly.orderlyBalance - totalLockedMargin
-    //                      (subtract margin to get free balance)
-    //
-    //   DEMO MODE (email user):
-    //     user.balance is decremented by margin in executeTrade when the
-    //     position opens. So user.balance is the FREE balance. Then:
-    //       totalEquity  = user.balance + totalLockedMargin + unrealizedPnL
-    //       buyingPower  = user.balance + crossMarginPnl
-    //
-    // The two sources have OPPOSITE semantics for the same word "balance",
-    // which is exactly why we got this wrong twice. The branch below makes
-    // the asymmetry explicit.
+    // Phase 3 — VeloPerps source semantics:
+    //   veloPerpsTrading.usdcBalance is the FREE wallet balance (the contract
+    //   pulls collateral OUT of the wallet on open, so wallet balance never
+    //   includes locked margin). Same semantics as demo mode's user.balance,
+    //   so we can use the single formula below for both wallet and email users.
     const totalEquity = useMemo(() => {
         if (!user) return 0;
         const isLive = !!walletAddress;
-        if (isLive) {
-            // orderly.orderlyBalance is TOTAL (free + locked).
-            return (orderly.orderlyBalance || 0) + totalUnrealizedPnl;
-        }
-        // user.balance is FREE only.
-        return user.balance + totalLockedMargin + totalUnrealizedPnl;
-    }, [user?.balance, walletAddress, orderly.orderlyBalance, totalLockedMargin, totalUnrealizedPnl]);
+        const freeBalance = isLive ? veloPerpsTrading.usdcBalance : user.balance;
+        return freeBalance + totalLockedMargin + totalUnrealizedPnl;
+    }, [user?.balance, walletAddress, veloPerpsTrading.usdcBalance, totalLockedMargin, totalUnrealizedPnl]);
 
     // Cross-margin unrealized — only cross positions lend their gains as
     // additional buying power; isolated positions don't.
@@ -4254,13 +4335,9 @@ const App = () => {
     const buyingPower = useMemo(() => {
         if (!user) return 0;
         const isLive = !!walletAddress;
-        if (isLive) {
-            // Orderly returns total holding; subtract locked margin to get free.
-            return Math.max(0, (orderly.orderlyBalance || 0) - totalLockedMargin) + crossMarginPnl;
-        }
-        // user.balance is already free.
-        return user.balance + crossMarginPnl;
-    }, [user?.balance, walletAddress, orderly.orderlyBalance, totalLockedMargin, crossMarginPnl]);
+        const freeBalance = isLive ? veloPerpsTrading.usdcBalance : user.balance;
+        return freeBalance + crossMarginPnl;
+    }, [user?.balance, walletAddress, veloPerpsTrading.usdcBalance, crossMarginPnl]);
 
     // ── Environment mode split ────────────────────────────────────────────────
     // isLiveMode is determined ENTIRELY by registration/auth method:
@@ -6021,126 +6098,99 @@ const App = () => {
             // below (success, failure, simulation, validation reject).
             const releaseLock = () => { isProcessing.current = false; };
 
-            // ── On-chain route via Orderly when wallet + key are ready ──────
-            // In live mode (wallet user), trades MUST go through Orderly.
-            // Falling back to simulation would create phantom positions that
+            // ── On-chain route via VeloPerps (Phase 3) ────────────────────
+            // In live mode (wallet user), trades go through the VeloPerps contract.
+            // No simulation fallback — that would create phantom positions that
             // vanish on next poll and corrupt the equity display.
             if (isLiveMode) {
-              if (!orderly.keypair) {
-                setToast({ message: 'Velo Wallet not set up. Please complete onboarding.', type: 'ERROR' });
-                setOnboardingDismissed(false);
-                setOrderlyOnboardingOpen(true);
+              // Resolve UI pair (e.g. "BTC/USD") to Velo pair label ("BTC-USD")
+              const veloPair = uiPairToVeloPair(pairId);
+              if (!veloPair) {
+                setToast({ message: `${pairId} is not yet listed on Velo Perps. Available: BTC, ETH, SOL, AVAX, LINK, DOGE.`, type: 'INFO' });
                 releaseLock();
                 return;
               }
-              if (!orderly.isReady || (orderly.orderlyBalance ?? 0) <= 0) {
-                setToast({ message: 'No USDC balance in your Velo Wallet. Please deposit first.', type: 'ERROR' });
+              if (veloPerpsTrading.usdcBalance <= 0) {
+                setToast({ message: 'No mUSDC in your wallet. Claim from the faucet first.', type: 'ERROR' });
+                setVeloWelcomeOpen(true);
                 releaseLock();
                 return;
               }
               if (size <= 0) { releaseLock(); return; }
 
-              placeOrderlyTrade(pairId, side, size, currentPrice).then(receipt => {
-                if (!receipt.success) {
-                  // On-chain order failed — DON'T fall back to simulation.
-                  // Show the error so the user knows their funds are safe and
-                  // can retry. Phantom positions that vanish are worse than no position.
-                  setToast({ message: `Order failed: ${receipt.error || 'unknown error'}`, type: 'ERROR' });
-                  releaseLock();
-                  return;
+              // The TradeView form sends `size` as the notional (collateral × leverage).
+              // VeloPerps wants collateral. Derive it.
+              const collateral = size / leverage;
+              if (collateral < 1) {
+                setToast({ message: 'Minimum collateral is $1. Increase position size.', type: 'ERROR' });
+                releaseLock();
+                return;
+              }
+              if (collateral > veloPerpsTrading.usdcBalance) {
+                setToast({ message: 'Insufficient mUSDC for this collateral. Reduce size or claim more.', type: 'ERROR' });
+                releaseLock();
+                return;
+              }
+
+              veloPerpsTrading.openPosition({
+                pair: veloPair,
+                isLong: side === 'LONG',
+                collateralUSDC: collateral,
+                leverage,
+              }).then((result) => {
+                // The 5s poll inside useVeloPerpsTrading will pick up the new position
+                // and our sync effect will mirror it into local state. We don't call
+                // executeTrade here — that would create a duplicate local-only row
+                // that the sync would never reconcile with the on-chain position.
+
+                // Write the OPEN row to trade history so Recent Activity reflects it.
+                // (Position list is sourced from the contract via the sync effect;
+                // trade history is a separate append-only log of actions taken.)
+                const openHistory: TradeHistoryItem = {
+                    id: `open_velo_${result.tradeId.toString()}`,
+                    pair: pairId,
+                    side,
+                    entryPrice: result.entryPrice,
+                    exitPrice: 0,
+                    size,
+                    pnl: 0,
+                    timestamp: Date.now(),
+                    openedAt: Date.now(),
+                    leverage,
+                    marginMode,
+                    liquidationPrice: side === 'LONG'
+                      ? result.entryPrice * (1 - 0.9 / leverage)
+                      : result.entryPrice * (1 + 0.9 / leverage),
+                    action: 'OPEN',
+                    onChain: true,
+                    orderlyOrderId: undefined,
+                    orderlyOrderUrl: result.explorerUrl,
+                } as any;
+                setUser(prev => prev ? {
+                    ...prev,
+                    tradeHistory: [openHistory, ...prev.tradeHistory],
+                } : prev);
+                if (isSupabaseConfigured() && user) {
+                    insertTradeHistory(user.id, openHistory).catch(() => {});
                 }
-                // Mirror into local position tracker (balance deduction is skipped when
-                // orderly.isReady — see executeTrade — so this is pure position bookkeeping).
-                executeTrade(pairId, side, size, leverage, currentPrice, marginMode, tp, sl);
-                // Stitch on-chain metadata into BOTH the trade history entry AND the
-                // open position itself, so the position-detail modal can show the
-                // Orderly order ID and link straight away (without waiting for the
-                // history close to come through later).
-                if (receipt.orderlyOrderId || receipt.orderlyOrderUrl) {
-                  // Position update — match the most-recent OPEN position on this
-                  // pair+side that doesn't yet have an on-chain stamp.
-                  setPositions(prev => {
-                    const idx = prev.findIndex(
-                      p => p.pair === pairId && p.side === side && !p.onChain
-                    );
-                    if (idx === -1) return prev;
-                    const updated = [...prev];
-                    updated[idx] = {
-                      ...updated[idx],
-                      onChain: true,
-                      orderlyOrderId:  receipt.orderlyOrderId,
-                      orderlyOrderUrl: receipt.orderlyOrderUrl,
-                    } as any;
-                    // Persist to Supabase so a refresh keeps the on-chain stamp.
-                    if (isSupabaseConfigured() && user) {
-                      savePosition(user.id, updated[idx]).catch(() => {});
-                    }
-                    return updated;
-                  });
-                  // Trade history update — same pattern, on the OPEN entry.
-                  setUser(prev => {
-                    if (!prev) return prev;
-                    const idx = prev.tradeHistory.findIndex(
-                      t => t.pair === pairId && t.side === side && t.action === 'OPEN' && !t.onChain
-                    );
-                    if (idx === -1) return prev;
-                    const updated = [...prev.tradeHistory];
-                    updated[idx] = {
-                      ...updated[idx],
-                      onChain: true,
-                      orderlyOrderId: receipt.orderlyOrderId,
-                      orderlyOrderUrl: receipt.orderlyOrderUrl,
-                    };
-                    if (isSupabaseConfigured() && prev.id) {
-                      insertTradeHistory(prev.id, updated[idx]).catch(() => {});
-                    }
-                    return { ...prev, tradeHistory: updated };
-                  });
-                }
-                // Refresh orderly balance a few seconds after fill so equity stays accurate
-                setTimeout(() => { refreshOrderlyBalance().catch(() => {}); }, 5000);
+
+                setToast({
+                  message: `${side} ${pairId.replace('/USD', '')} @ ${leverage}× opened`,
+                  type: 'SUCCESS',
+                });
+                triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `${leverage}× · $${formatMoney(size)} @ $${formatPrice(result.entryPrice)}`);
+                playSound('CLICK');
+                releaseLock();
+              }).catch((e) => {
+                const msg = e?.shortMessage || e?.message || 'Order failed';
+                setToast({ message: `Order failed: ${msg}`, type: 'ERROR' });
                 releaseLock();
               });
               return;
             }
 
             // ── Demo mode (no wallet) — pure simulation ───────────────────────────
-            // (Legacy fallthrough — release lock and run normal simulation.)
             releaseLock();
-            if (orderly.isReady && size > 0) {
-              // (Legacy path for users in transition — should only be hit if isLiveMode
-              // is false but Orderly somehow activated. Kept for safety.)
-              placeOrderlyTrade(pairId, side, size, currentPrice).then(receipt => {
-                if (!receipt.success) {
-                  setToast({ message: `Order failed: ${receipt.error || 'unknown error'}`, type: 'ERROR' });
-                  return;
-                }
-                executeTrade(pairId, side, size, leverage, currentPrice, marginMode, tp, sl);
-                if (receipt.orderlyOrderId || receipt.orderlyOrderUrl) {
-                  setUser(prev => {
-                    if (!prev) return prev;
-                    const idx = prev.tradeHistory.findIndex(
-                      t => t.pair === pairId && t.side === side && t.action === 'OPEN' && !t.onChain
-                    );
-                    if (idx === -1) return prev;
-                    const updated = [...prev.tradeHistory];
-                    updated[idx] = {
-                      ...updated[idx],
-                      onChain: true,
-                      orderlyOrderId: receipt.orderlyOrderId,
-                      orderlyOrderUrl: receipt.orderlyOrderUrl,
-                    };
-                    if (isSupabaseConfigured() && prev.id) {
-                      insertTradeHistory(prev.id, updated[idx]).catch(() => {});
-                    }
-                    return { ...prev, tradeHistory: updated };
-                  });
-                }
-                setTimeout(() => { refreshOrderlyBalance().catch(() => {}); }, 5000);
-              });
-              return;
-            }
-
             executeTrade(pairId, side, size, leverage, currentPrice, marginMode, tp, sl);
         } else {
             // Limit / Stop order — margin is NOT deducted until the order fills.
@@ -6183,35 +6233,36 @@ const App = () => {
         const pnl = (price - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
         // Margin that was locked when opening this position
         const marginReturned = p.size / p.leverage;
-        const isOnChainClose = orderly.isReady && (p as any).onChain;
+        const isOnChainClose = (p as any).onChain && p.id.startsWith('velo_');
 
-        // ── Live (on-chain) close ─────────────────────────────────────────────
-        // Fire opposite-side market on Orderly first. Only insert the close
-        // history row AFTER the receipt — never optimistically. This is what
-        // killed the "two close rows for one trade" bug: the optimistic local
-        // row + the enriched on-chain row both ended up in tradeHistory.
+        // ── Live (on-chain) close via VeloPerps (Phase 3) ─────────────────────
+        // The position id format is `velo_<tradeId>` — extract the tradeId and
+        // call closePosition. The 5s polling loop + sync effect will remove the
+        // position from local state once the close is mined. We optimistically
+        // remove it here for snappier UX; restore on failure.
         if (isOnChainClose) {
-            const closeSide: 'LONG' | 'SHORT' = p.side === 'LONG' ? 'SHORT' : 'LONG';
-            // Optimistic position removal so the UI feels instant; Orderly poll
-            // confirms within ~8s. If the close fails, restore.
+            const tradeIdStr = p.id.slice('velo_'.length);
+            const tradeId = BigInt(tradeIdStr);
+            const veloPair = uiPairToVeloPair(p.pair);
+            if (!veloPair) {
+                setToast({ message: `Unable to close: ${p.pair} not recognised on Velo Perps.`, type: 'ERROR' });
+                processingIds.current.delete(id);
+                return;
+            }
+
+            // Optimistic local removal — sync effect will reconcile from contract.
             setPositions(prev => prev.filter(x => x.id !== id));
             setOpenOrders(prev => prev.filter(o => o.relatedPositionId !== id));
-            placeOrderlyTrade(p.pair, closeSide, p.size, price).then(receipt => {
-                if (!receipt.success) {
-                    setToast({ message: `Close failed on Orderly: ${receipt.error || 'unknown'}`, type: 'ERROR' });
-                    // Restore the position locally — Orderly still has it.
-                    setPositions(prev => prev.some(x => x.id === id) ? prev : [p, ...prev]);
-                    processingIds.current.delete(id);
-                    return;
-                }
+
+            veloPerpsTrading.closePosition(tradeId, veloPair).then((result) => {
                 const enrichedClose: TradeHistoryItem = {
                     id: `close_${id}`,
                     pair: p.pair,
                     side: p.side,
                     entryPrice: p.entryPrice,
-                    exitPrice: price,
+                    exitPrice: result.exitPrice,
                     size: p.size,
-                    pnl,
+                    pnl: result.pnlUSDC,
                     timestamp: Date.now(),
                     openedAt: p.timestamp,
                     leverage: p.leverage,
@@ -6220,10 +6271,9 @@ const App = () => {
                     action: 'CLOSE',
                     copyTraderId: p.copyTraderId,
                     onChain: true,
-                    orderlyOrderId:  receipt.orderlyOrderId,
-                    orderlyOrderUrl: receipt.orderlyOrderUrl,
+                    orderlyOrderId:  undefined,
+                    orderlyOrderUrl: result.explorerUrl,
                 } as any;
-                // Single insert — only after on-chain confirmation.
                 if (isSupabaseConfigured() && user) {
                     insertTradeHistory(user.id, enrichedClose).catch(() => {});
                     ownDeletedPositionIds.current.add(id);
@@ -6236,22 +6286,58 @@ const App = () => {
                     if (prev.tradeHistory.some(h => h.id === enrichedClose.id)) return prev;
                     const newPnlEntry = {
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        value: (orderly.orderlyBalance || 0) + pnl,
+                        value: veloPerpsTrading.usdcBalance + result.pnlUSDC,
                         timestamp: Date.now(),
                     };
                     return {
                         ...prev,
-                        realizedPnL:  prev.realizedPnL + pnl,
+                        realizedPnL:  prev.realizedPnL + result.pnlUSDC,
                         tradeHistory: [enrichedClose, ...prev.tradeHistory],
                         pnlHistory:   [...(prev.pnlHistory || []), newPnlEntry],
                     };
                 });
-                triggerAnim('ORDER_CLOSE', `${p.pair}`, `${p.side === 'LONG' ? 'SELL' : 'BUY'} · $${formatMoney(p.size)} · PnL $${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`);
-                setToast({message:'Position Closed', type:'INFO'});
+                triggerAnim('ORDER_CLOSE', `${p.pair}`, `${p.side === 'LONG' ? 'SELL' : 'BUY'} · $${formatMoney(p.size)} · PnL $${result.pnlUSDC >= 0 ? '+' : ''}${result.pnlUSDC.toFixed(2)}`);
+                setToast({ message: `Position closed · PnL ${result.pnlUSDC >= 0 ? '+' : ''}$${result.pnlUSDC.toFixed(2)}`, type: 'SUCCESS' });
                 playSound('CLOSE');
-                // Refresh Orderly balance so the realised PnL surfaces in equity
-                setTimeout(() => { refreshOrderlyBalance().catch(() => {}); }, 3000);
-                setTimeout(() => { refreshOrderlyBalance().catch(() => {}); }, 8000);
+                processingIds.current.delete(id);
+
+                // Open the share-to-feed prompt
+                setShareTradeData({
+                    pair: p.pair,
+                    side: p.side as 'LONG' | 'SHORT',
+                    leverage: p.leverage,
+                    pnlUSDC: result.pnlUSDC,
+                    entryPrice: p.entryPrice,
+                    exitPrice: result.exitPrice,
+                    collateralUSDC: p.size / p.leverage,
+                    txHash: result.txHash,
+                });
+
+                // Show the share-card PNG modal as well — user can choose to
+                // download / share to socials. Doesn't auto-open if PnL is
+                // negligible (< $0.50) to avoid being noisy.
+                if (Math.abs(result.pnlUSDC) >= 0.5) {
+                    const collateral = p.size / p.leverage;
+                    setShareCardData({
+                        pair: p.pair,
+                        side: p.side as 'LONG' | 'SHORT',
+                        leverage: p.leverage,
+                        entryPrice: p.entryPrice,
+                        closePrice: result.exitPrice,
+                        size: p.size,
+                        collateral,
+                        pnl: result.pnlUSDC,
+                        pnlPct: (result.pnlUSDC / collateral) * 100,
+                        traderHandle: user?.handle,
+                        status: 'CLOSED',
+                    });
+                }
+            }).catch((e) => {
+                const msg = e?.shortMessage || e?.message || 'Close failed';
+                setToast({ message: `Close failed: ${msg}`, type: 'ERROR' });
+                // Restore the position locally — contract still has it. The sync
+                // effect will re-hydrate from the next poll anyway.
+                setPositions(prev => prev.some(x => x.id === id) ? prev : [p, ...prev]);
                 processingIds.current.delete(id);
             });
             return;
@@ -6896,7 +6982,94 @@ const App = () => {
             />
             {/* ── Reset Password Modal ── */}
             {isResetPasswordOpen && <ResetPasswordModal onClose={() => setResetPasswordOpen(false)} onSuccess={() => { setResetPasswordOpen(false); setToast({ message: 'Password updated! Please sign in.', type: 'SUCCESS' }); setLoginOpen(true); }} />}
-            {/* ── Orderly Onboarding Modal ── */}
+            {/* ── Velo Welcome Modal (Phase 2 — replaces Orderly onboarding) ── */}
+            <VeloWelcomeModal
+              isOpen={isVeloWelcomeOpen}
+              onClose={() => setVeloWelcomeOpen(false)}
+              onClaimed={() => {
+                setToast({ message: '1,000 mUSDC claimed', type: 'SUCCESS' });
+              }}
+              onBurnerReady={() => {
+                veloPerpsTrading.reloadBurner();
+                setToast({ message: 'Trading wallet ready — no more popups', type: 'SUCCESS' });
+              }}
+            />
+            {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ── */}
+            <VeloBridgeModal
+              isOpen={isVeloBridgeOpen}
+              onClose={() => setVeloBridgeOpen(false)}
+            />
+            {/* ── Velo Share Trade Modal (post-close share-to-feed prompt) ── */}
+            <VeloShareTradeModal
+              isOpen={!!shareTradeData}
+              trade={shareTradeData}
+              onClose={() => setShareTradeData(null)}
+              onShare={(content, tradeSignal) => {
+                handleCreatePost(content, tradeSignal).catch(() => {});
+              }}
+            />
+            {/* ── Velo Username Modal (on-chain handle claim) ── */}
+            <VeloUsernameModal
+              isOpen={isVeloUsernameOpen}
+              onClose={() => setVeloUsernameOpen(false)}
+              lockedHandle={user?.handle?.replace(/^@/, '').toLowerCase()}
+              onClaimed={(handle) => {
+                setToast({ message: `Claimed @${handle} on-chain`, type: 'SUCCESS' });
+              }}
+            />
+            {/* ── Velo Send Modal (peer-to-peer mUSDC) ── */}
+            <VeloSendModal
+              isOpen={isVeloSendOpen}
+              onClose={() => setVeloSendOpen(false)}
+            />
+            {/* ── Velo Withdraw Modal (trading wallet → main or custom 0x) ── */}
+            <VeloWithdrawModal
+              isOpen={isVeloWithdrawOpen}
+              onClose={() => setVeloWithdrawOpen(false)}
+              onSuccess={(_hash, amount) => {
+                setToast({ message: `Withdrew $${amount.toFixed(2)} mUSDC`, type: 'SUCCESS' });
+              }}
+            />
+            {/* ── Velo Share Card (PNG export) ── */}
+            {shareCardData && (
+              <VeloShareCard
+                isOpen={!!shareCardData}
+                onClose={() => setShareCardData(null)}
+                data={shareCardData}
+              />
+            )}
+            {/* ── Velo Manage Position Modal (V2: add/reduce margin, partial close, TP/SL) ── */}
+            <VeloManagePositionModal
+              isOpen={!!managingPosition}
+              onClose={() => setManagingPosition(null)}
+              position={managingPosition}
+              currentPrice={managingPosition ? (marketPrices[managingPosition.pair] || managingPosition.entryPrice) : 0}
+              actions={{
+                addMargin: async (tradeId, amt) => {
+                  const r = await veloPerpsTrading.addMargin(tradeId, amt);
+                  setToast({ message: `Added $${amt.toFixed(2)} margin`, type: 'SUCCESS' });
+                  return r;
+                },
+                reduceMargin: async (tradeId, amt, pair) => {
+                  const veloPair = (pair.replace('/', '-')) as any;
+                  const r = await veloPerpsTrading.reduceMargin(tradeId, amt, veloPair);
+                  setToast({ message: `Withdrew $${amt.toFixed(2)} margin`, type: 'SUCCESS' });
+                  return r;
+                },
+                partialClose: async (tradeId, fracBps, pair) => {
+                  const veloPair = (pair.replace('/', '-')) as any;
+                  const r = await veloPerpsTrading.partialClose(tradeId, fracBps, veloPair);
+                  setToast({ message: `Closed ${(fracBps / 100).toFixed(0)}% of position`, type: 'SUCCESS' });
+                  return r;
+                },
+                setTriggers: async (tradeId, tp, sl) => {
+                  const r = await veloPerpsTrading.setTriggers(tradeId, tp, sl);
+                  setToast({ message: `Triggers updated on-chain`, type: 'SUCCESS' });
+                  return r;
+                },
+              }}
+            />
+            {/* ── Orderly Onboarding Modal (Phase 3 removes this entirely) ── */}
             <OrderlyOnboardingModal
               isOpen={isOrderlyOnboardingOpen}
               onClose={() => { setOrderlyOnboardingOpen(false); setOnboardingDismissed(true); }}
@@ -6935,6 +7108,9 @@ const App = () => {
             <SettingsModal
               isOpen={isSettingsOpen}
               onClose={() => setSettingsOpen(false)}
+              onOpenBridge={() => { setSettingsOpen(false); setVeloBridgeOpen(true); }}
+              onOpenUsername={() => { setSettingsOpen(false); setVeloUsernameOpen(true); }}
+              onOpenSend={() => { setSettingsOpen(false); setVeloSendOpen(true); }}
             />
             {/* ── Orderly Deposit / Withdraw Modal (post-onboarding) ── */}
             <DepositWithdrawModal
@@ -6969,8 +7145,8 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={() => setLoginOpen(true)} totalEquity={totalEquity} buyingPower={buyingPower}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={() => setLoginOpen(true)} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} onNotificationClick={(n: any) => {
+            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={() => setLoginOpen(true)} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner}/>
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={() => setLoginOpen(true)} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
                     if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
@@ -7067,55 +7243,52 @@ const App = () => {
                 }} totalEquity={totalEquity}/>
             {/* Main content */}
             <main className={`w-full ${activeTab === TabView.TRADE ? '' : 'pt-6 pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
-                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={setEditingPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower}
+                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower}
                   pendingDeposits={pendingDeposits}
-                  onResumeOnboarding={() => { setOnboardingDismissed(false); setOrderlyOnboardingOpen(true); }}
+                  onResumeOnboarding={() => {
+                    if (veloPerpsTrading.usingBurner) setVeloBridgeOpen(true);
+                    else setVeloWelcomeOpen(true);
+                  }}
                   onClaimTestnetUsdc={handleClaimTestnetUsdc}
                   claimingFaucet={claimingFaucet}
-                  onOpenOrderlyOnboarding={() => { setOnboardingDismissed(false); setOrderlyOnboardingOpen(true); }}
+                  onOpenOrderlyOnboarding={() => {
+                    if (veloPerpsTrading.usingBurner) setVeloBridgeOpen(true);
+                    else setVeloWelcomeOpen(true);
+                  }}
                   onOpenDeposit={() => {
-                    // If the user has a Velo wallet, try to restore the keypair from local
-                    // storage first (it may not be in React state yet after a page reload).
-                    // Only fall back to onboarding if no burner wallet exists at all —
-                    // never re-run onboarding (and the faucet) just because React state
-                    // hasn't hydrated yet, which was the source of the double-$1000 bug.
-                    const cachedBurner = walletAddress ? loadStoredBurner(walletAddress) : null;
-                    if (cachedBurner) {
-                      // Restore keypair into state if missing, then open deposit modal.
-                      if (!orderly.keypair) {
-                        import('./services/orderlyService').then(({ getStoredKeypair }) => {
-                          const kp = getStoredKeypair(cachedBurner.veloAddress);
-                          if (kp) { activateOrderly(kp, orderly.orderlyBalance ?? 0); }
-                        });
-                      }
-                      setOrderlyDWModal({ open: true, type: 'DEPOSIT' });
-                    } else {
-                      // Truly first-time user — show onboarding to create wallet + fund.
-                      setOnboardingDismissed(false);
-                      setOrderlyOnboardingOpen(true);
-                    }
+                    // After setup, Deposit means "bridge more funds in from
+                    // other chains." Pre-setup, it means "start onboarding."
+                    if (veloPerpsTrading.usingBurner) setVeloBridgeOpen(true);
+                    else setVeloWelcomeOpen(true);
                   }}
                   onOpenWithdraw={() => {
-                    const cachedBurner = walletAddress ? loadStoredBurner(walletAddress) : null;
-                    if (cachedBurner) {
-                      if (!orderly.keypair) {
-                        import('./services/orderlyService').then(({ getStoredKeypair }) => {
-                          const kp = getStoredKeypair(cachedBurner.veloAddress);
-                          if (kp) { activateOrderly(kp, orderly.orderlyBalance ?? 0); }
-                        });
-                      }
-                      setOrderlyDWModal({ open: true, type: 'WITHDRAW' });
-                    } else {
-                      setToast({ message: 'Set up your Velo wallet first to withdraw.', type: 'INFO' });
-                      setOnboardingDismissed(false);
-                      setOrderlyOnboardingOpen(true);
-                    }
+                    // If burner exists, open the real withdraw modal.
+                    // Otherwise direct them to onboarding.
+                    if (veloPerpsTrading.usingBurner) setVeloWithdrawOpen(true);
+                    else setToast({ message: 'Complete onboarding first to get a trading wallet.', type: 'INFO' });
                   }}
                 />}
                 {activeTab === TabView.TRADE && <>
 
 
-                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => setLoginOpen(true)} onEditPosition={setEditingPosition} appTheme={theme} onTimeframeChange={(tf: ChartTimeframe) => {
+                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => setLoginOpen(true)} onEditPosition={handleEditPosition} onSharePosition={(p: any) => {
+                    const cp = marketPrices[p.pair] || p.entryPrice;
+                    const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                    const collateral = p.size / p.leverage;
+                    setShareCardData({
+                      pair: p.pair,
+                      side: p.side as 'LONG' | 'SHORT',
+                      leverage: p.leverage,
+                      entryPrice: p.entryPrice,
+                      markPrice: cp,
+                      size: p.size,
+                      collateral,
+                      pnl,
+                      pnlPct: (pnl / collateral) * 100,
+                      traderHandle: user?.handle,
+                      status: 'OPEN',
+                    });
+                  }} appTheme={theme} onTimeframeChange={(tf: ChartTimeframe) => {
                     // Fetch real OHLCV candles for the active pair at the new timeframe.
                     fetchKlines(activePair.id, tf).then(klineCandles => {
                         if (klineCandles.length > 0) {
@@ -7129,9 +7302,9 @@ const App = () => {
                     setChartPrefs((prev: any) => ({ ...prev, ...patch }));
                     updatePrefs(patch);
                 }}
-                tradeFocus={tradeFocus} autoOpenHistoryId={autoOpenHistoryId} orderlyBalance={orderly.orderlyBalance} orderlyIsReady={orderly.isReady}
+                tradeFocus={tradeFocus} autoOpenHistoryId={autoOpenHistoryId} orderlyBalance={veloPerpsTrading.usdcBalance} orderlyIsReady={veloPerpsTrading.isReady}
                 isLiveMode={isLiveMode}
-                orderlyPositions={orderly.orderlyPositions || []}
+                orderlyPositions={[]}
                 />
                 </> }
                 {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
@@ -7152,6 +7325,7 @@ const App = () => {
                     setPosts(prev => prev.filter(p => p.id !== id));
                     if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
                 }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
             <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} setSidebarOpen={setSidebarOpen} />
             {/* App-level order details modal — opened from notifications without tab switch */}
