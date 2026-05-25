@@ -22,24 +22,26 @@ import { fetchPriceUpdate, PYTH_FEED_IDS } from './pythService';
 // ── Contract address ──────────────────────────────────────────────────────────
 // Verified deployment on Base Sepolia (chain 84532). Source-verified on BaseScan.
 //
-// V2 routing: if VITE_VELO_PERPS_V2_ADDRESS is set, all NEW positions open on V2.
-// Existing V1 positions still load via VITE_VELO_PERPS_ADDRESS (the V1 address)
-// so anyone who opened pre-V2 can still manage/close them. Frontend reads
-// `version()` on each contract to pick the right ABI surface.
+// V1 is what's live and working. V2 is a future deployment — to switch the
+// frontend to V2, deploy VeloPerpsV2.sol, register pairs on it, seed its pool,
+// then set VITE_VELO_PERPS_V2_ADDRESS in Vercel and redeploy.
+//
+// IMPORTANT: don't put a V2 address here as a hardcoded fallback. A bad
+// fallback breaks every trade with "pairFeedId returned no data" if that
+// address has no code. The env var must be set explicitly to switch.
 export const VELO_PERPS_V1_ADDRESS = (import.meta.env.VITE_VELO_PERPS_ADDRESS ||
   '0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163') as Address;
 
-export const VELO_PERPS_V2_ADDRESS = (import.meta.env.VITE_VELO_PERPS_V2_ADDRESS ||
-  '0x3C7cBCa2C675F1f788148aaD08eceab262298de8') as Address;
+export const VELO_PERPS_V2_ADDRESS = (import.meta.env.VITE_VELO_PERPS_V2_ADDRESS || '') as Address;
 
-/** The contract address new positions are opened against. V2 if deployed, else V1. */
+/** The contract new positions open against. V2 if env var is set, otherwise V1. */
 export const VELO_PERPS_ADDRESS: Address = (VELO_PERPS_V2_ADDRESS && VELO_PERPS_V2_ADDRESS.length === 42)
   ? VELO_PERPS_V2_ADDRESS
   : VELO_PERPS_V1_ADDRESS;
 
 /** True when the frontend is routing to V2. */
-export const IS_V2: boolean = VELO_PERPS_ADDRESS.toLowerCase() === VELO_PERPS_V2_ADDRESS.toLowerCase()
-  && VELO_PERPS_V2_ADDRESS.length === 42;
+export const IS_V2: boolean = VELO_PERPS_V2_ADDRESS.length === 42
+  && VELO_PERPS_ADDRESS.toLowerCase() === VELO_PERPS_V2_ADDRESS.toLowerCase();
 
 export const VELO_USDC_BASE = (import.meta.env.VITE_VELO_USDC_BASE ||
   '0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699') as Address;

@@ -48,9 +48,19 @@ type ResolveState = 'idle' | 'checking' | 'address' | 'username_found' | 'userna
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * Fires once the transfer is confirmed on-chain. Lets the host (App.tsx)
+   * persist a notification row for both the sender and the recipient.
+   */
+  onSuccess?: (info: {
+    txHash: `0x${string}`;
+    recipientAddress: `0x${string}`;
+    recipientHandle?: string;          // present if the recipient is a Velo user
+    amount: number;                    // mUSDC, human-readable
+  }) => void;
 }
 
-export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose }) => {
+export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const { data: mainWalletClient } = useWalletClient();
@@ -165,6 +175,20 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose }) => {
       });
       setTxHash(hash);
       await publicClient.waitForTransactionReceipt({ hash });
+
+      // Tell host so it can fire Supabase notifications for sender + recipient.
+      // resolveState === 'username_found' means recipientInput is an @handle
+      // that matched a Velo user.
+      const recipientHandle = resolveState === 'username_found'
+        ? recipientInput.replace(/^@/, '').toLowerCase()
+        : undefined;
+      onSuccess?.({
+        txHash: hash,
+        recipientAddress: resolvedAddress,
+        recipientHandle,
+        amount: amountNum,
+      });
+
       setStep('DONE');
     } catch (e: any) {
       const msg = e?.shortMessage || e?.message || 'Send failed';

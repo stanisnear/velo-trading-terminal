@@ -99,6 +99,27 @@ export async function fetchUsernameForAddress(
   }
 }
 
+/**
+ * Read the unix timestamp (seconds) when this address can change their handle next.
+ * Returns 0 if never set (i.e. they've never claimed) — the contract storage default.
+ */
+export async function fetchNextChangeAllowed(
+  publicClient: PublicClient,
+  address: Address,
+): Promise<number> {
+  try {
+    const v = await publicClient.readContract({
+      address: VELO_REGISTRY_ADDRESS,
+      abi: VELO_REGISTRY_ABI,
+      functionName: 'nextChangeAllowed',
+      args: [address],
+    }) as bigint;
+    return Number(v);
+  } catch {
+    return 0;
+  }
+}
+
 // ── Writes ────────────────────────────────────────────────────────────────────
 
 /** Claim a username on-chain. Returns tx hash. Reverts if taken / invalid / on cooldown. */

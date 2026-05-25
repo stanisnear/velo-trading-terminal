@@ -256,6 +256,28 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
           throw new Error(`${args.pair} is registered but paused. Contact the protocol owner.`);
         }
 
+        // Pre-flight gas top-up: if the trading wallet is running low (< 0.0015 ETH),
+        // ask the sponsor server to top it up before the trade. Prevents the
+        // "exceeds the balance of the account" cryptic revert.
+        try {
+          const gasBalance = await publicClient.getBalance({ address: traderAddress });
+          const MIN_TRADE_GAS = 1_500_000_000_000_000n; // 0.0015 ETH
+          if (gasBalance < MIN_TRADE_GAS) {
+            try {
+              const resp = await fetch('/api/sponsor-eth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ burnerAddress: traderAddress }),
+              });
+              const data = await resp.json().catch(() => ({}));
+              if (resp.ok && data?.txHash) {
+                await publicClient.waitForTransactionReceipt({ hash: data.txHash });
+              }
+              // Either way, refresh local ETH balance so UI is in sync
+            } catch {/* sponsor down — let downstream gas error surface */}
+          }
+        } catch {/* balance read failed — proceed; viem will surface real revert if any */}
+
         await approveUsdcIfNeeded(
           tradingClient as any,
           publicClient,

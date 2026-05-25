@@ -11,9 +11,10 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
-import { AtSign, CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
+import { AtSign, CheckCircle2, Clock, ExternalLink, Loader2, X } from 'lucide-react';
 import {
   claimUsername, validateUsername, resolveUsername, fetchUsernameForAddress,
+  fetchNextChangeAllowed,
 } from '@/services/usernameService';
 import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { baseScanTxUrl } from '@/services/veloPerpsService';
@@ -70,6 +71,8 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
   const [step, setStep] = useState<Step>('IDLE');
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  /** Unix seconds. 0 = never claimed. > now = on cooldown. */
+  const [nextChangeAt, setNextChangeAt] = useState<number>(0);
 
   // Resolve current handle (if any) when modal opens
   useEffect(() => {
@@ -77,6 +80,10 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
     fetchUsernameForAddress(publicClient, address)
       .then((h) => setCurrentHandle(h))
       .catch(() => setCurrentHandle(null));
+    // Also check the cooldown so the UI can preemptively warn the user
+    fetchNextChangeAllowed(publicClient, address)
+      .then(setNextChangeAt)
+      .catch(() => setNextChangeAt(0));
     // Pre-fill the input with the locked handle so the availability check runs
     if (lockedHandle) setInput(lockedHandle);
   }, [isOpen, address, publicClient, lockedHandle]);
@@ -174,11 +181,35 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
     } catch (e: any) {
       const msg = e?.shortMessage || e?.message || 'Claim failed';
       const rawData: string = e?.data || e?.cause?.data || '';
+      // Real selectors from VeloRegistry.sol (computed via keccak256):
+      //   0x6bc324ad UsernameTaken()
+      //   0xb9db7173 UsernameInvalid()
+      //   0x5a66c00a ChangeCooldownActive(uint256 retryAfter)
+      const isTaken = /UsernameTaken/i.test(msg)
+        || rawData.startsWith('0x6bc324ad') || msg.includes('0x6bc324ad');
+      const isInvalid = /UsernameInvalid/i.test(msg)
+        || rawData.startsWith('0xb9db7173') || msg.includes('0xb9db7173');
+      const isCooldown = /ChangeCooldown/i.test(msg)
+        || rawData.startsWith('0x5a66c00a') || msg.includes('0x5a66c00a');
+      const isGas = /exceeds the balance/i.test(msg)
+        || /gas \* gas/i.test(msg) || /insufficient funds/i.test(msg);
+
       if (/rejected|denied/i.test(msg)) setErrorMsg('You cancelled the signature.');
-      else if (/UsernameTaken/i.test(msg) || rawData.startsWith('0x5a66c00a') || msg.includes('0x5a66c00a')) setErrorMsg('That handle is already taken. Try a different one.');
-      else if (/UsernameInvalid/i.test(msg) || rawData.startsWith('0xab1c6dc0') || msg.includes('0xab1c6dc0')) setErrorMsg('Invalid username. Use 3–16 lowercase letters, numbers, or underscores. Must start with a letter.');
-      else if (/ChangeCooldown/i.test(msg) || rawData.startsWith('0x8bd7cae7') || msg.includes('0x8bd7cae7')) setErrorMsg('You changed your handle recently. There is a 30-day cooldown between changes.');
-      else if (/exceeds the balance/i.test(msg) || /gas \* gas/i.test(msg) || /insufficient funds/i.test(msg)) {
+      else if (isTaken) setErrorMsg('That handle is already taken. Try a different one.');
+      else if (isInvalid) setErrorMsg('Invalid username. Use 3–16 lowercase letters, numbers, or underscores. Must start with a letter.');
+      else if (isCooldown) {
+        // Try to extract the retry-after timestamp from the revert payload
+        let when = '';
+        try {
+          if (rawData.length >= 10 + 64) {
+            const ts = parseInt(rawData.slice(10, 10 + 64), 16);
+            const daysLeft = Math.ceil((ts - Date.now() / 1000) / 86400);
+            if (daysLeft > 0) when = ` Try again in ~${daysLeft} day${daysLeft === 1 ? '' : 's'}.`;
+          }
+        } catch {/* ignore */}
+        setErrorMsg(`You already claimed a handle. There's a 30-day cooldown between changes.${when}`);
+      }
+      else if (isGas) {
         setErrorMsg("Your trading wallet doesn't have any ETH for gas. Open Settings → Move to Trading Wallet first.");
       }
       else setErrorMsg(msg);
@@ -207,65 +238,89 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
     return null;
   };
 
-  const renderIdle = () => (
+  const renderIdle = () => {
+    const nowSec = Date.now() / 1000;
+    const onCooldown = nextChangeAt > 0 && nextChangeAt > nowSec;
+    const daysLeft = onCooldown ? Math.ceil((nextChangeAt - nowSec) / 86400) : 0;
+    const samePersonClaiming = currentHandle && currentHandle.toLowerCase() === input.toLowerCase();
+    // If the user already owns the locked handle, the claim is a no-op
+    const alreadyOwnsRequested = !!currentHandle && lockedHandle === currentHandle.toLowerCase();
+
+    return (
     <div style={{ padding: '24px 24px 24px' }}>
       <h3 style={{ ...S.display, fontSize: 24, color: 'var(--fg)', margin: '0 0 6px' }}>
-        {currentHandle ? 'Already claimed' : 'Claim your @handle on-chain'}
+        {alreadyOwnsRequested ? 'You already own this handle' : currentHandle ? 'Change your @handle' : 'Claim your @handle on-chain'}
       </h3>
-      <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
-        {currentHandle && currentHandle.toLowerCase() === input.toLowerCase()
-          ? `You already own @${currentHandle} on-chain. Nothing else to do.`
-          : lockedHandle
-            ? `Register your Velo handle @${lockedHandle} on-chain so others can send you mUSDC and mention you. Costs gas only.`
-            : 'A unique on-chain handle for your profile. 3–16 characters, lowercase letters, numbers, underscores.'}
+      <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
+        {alreadyOwnsRequested
+          ? `@${currentHandle} is already bound to your wallet on-chain. Nothing to do here.`
+          : samePersonClaiming
+            ? `You already own @${currentHandle} on-chain. Nothing else to do.`
+            : lockedHandle
+              ? `Register your Velo handle @${lockedHandle} on-chain so others can send you mUSDC and mention you. Costs gas only.`
+              : 'A unique on-chain handle for your profile. 3–16 characters, lowercase letters, numbers, underscores.'}
       </p>
+
+      {onCooldown && !alreadyOwnsRequested && (
+        <div style={{
+          marginBottom: 14, padding: '10px 12px', borderRadius: 10,
+          background: 'rgba(255,200,50,0.08)', border: '1px solid rgba(255,200,50,0.25)',
+          display: 'flex', gap: 8, alignItems: 'flex-start',
+        }}>
+          <Clock size={13} style={{ color: 'oklch(0.85 0.15 80)', flexShrink: 0, marginTop: 2 }} />
+          <div style={{ ...S.sans, fontSize: 12, color: 'var(--fg)', lineHeight: 1.4 }}>
+            You claimed <strong style={S.mono}>@{currentHandle}</strong> recently. There's a 30-day cooldown before you can change it again — try again in ~{daysLeft} day{daysLeft === 1 ? '' : 's'}.
+          </div>
+        </div>
+      )}
 
       <div style={{ ...S.label, marginBottom: 6 }}>{lockedHandle ? 'Your handle' : 'New handle'}</div>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '10px 14px', borderRadius: 12,
-        background: lockedHandle ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.03)',
+        background: lockedHandle || onCooldown ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.03)',
         border: '1px solid var(--hairline)',
-        opacity: lockedHandle ? 0.75 : 1,
+        opacity: (lockedHandle || onCooldown) ? 0.6 : 1,
       }}>
         <AtSign size={14} style={{ color: 'var(--fg-muted)' }} />
         <input
           type="text"
           value={input}
           onChange={(e) => {
-            if (lockedHandle) return; // locked
+            if (lockedHandle || onCooldown) return; // locked
             setInput(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''));
           }}
-          readOnly={!!lockedHandle}
+          readOnly={!!lockedHandle || onCooldown}
           placeholder="yourname"
           maxLength={16}
           style={{
             ...S.mono, flex: 1, padding: 0, border: 'none', background: 'transparent',
             color: 'var(--fg)', fontSize: 14, outline: 'none',
-            cursor: lockedHandle ? 'not-allowed' : 'text',
+            cursor: (lockedHandle || onCooldown) ? 'not-allowed' : 'text',
           }}
         />
       </div>
-      {renderAvailability()}
+      {!onCooldown && renderAvailability()}
 
       <button
         onClick={handleClaim}
-        disabled={availability !== 'available'}
+        disabled={availability !== 'available' || onCooldown || alreadyOwnsRequested}
         style={{
           ...S.mono, width: '100%', padding: '14px 0', marginTop: 20, borderRadius: 12, border: 'none',
-          background: availability === 'available'
+          background: (availability === 'available' && !onCooldown && !alreadyOwnsRequested)
             ? 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340))'
             : 'var(--chip-bg)',
           color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
           textTransform: 'uppercase' as const,
-          cursor: availability === 'available' ? 'pointer' : 'not-allowed',
-          opacity: availability === 'available' ? 1 : 0.5,
+          cursor: (availability === 'available' && !onCooldown && !alreadyOwnsRequested) ? 'pointer' : 'not-allowed',
+          opacity: (availability === 'available' && !onCooldown && !alreadyOwnsRequested) ? 1 : 0.5,
         }}
       >
-        {currentHandle ? 'Update on-chain' : 'Claim on-chain'}
+        {alreadyOwnsRequested ? 'Already yours' : onCooldown ? `Cooldown · ~${daysLeft}d left` : currentHandle ? 'Update on-chain' : 'Claim on-chain'}
       </button>
     </div>
   );
+  };
 
   const renderClaiming = () => (
     <div style={{ padding: '40px 24px', textAlign: 'center' as const }}>

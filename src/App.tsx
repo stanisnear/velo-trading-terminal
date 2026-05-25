@@ -7021,6 +7021,29 @@ const App = () => {
             <VeloSendModal
               isOpen={isVeloSendOpen}
               onClose={() => setVeloSendOpen(false)}
+              onSuccess={async ({ txHash, recipientAddress, recipientHandle, amount }) => {
+                // Local toast for the sender
+                const toLabel = recipientHandle ? `@${recipientHandle}` : `${recipientAddress.slice(0, 6)}…${recipientAddress.slice(-4)}`;
+                setToast({ message: `Sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, type: 'SUCCESS' });
+                // Persist a notification row for the sender (their own activity)
+                if (user?.id && isSupabaseConfigured()) {
+                  try {
+                    await createNotification(user.id, 'TRANSFER_SENT', `You sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, txHash);
+                  } catch (e) { console.warn('[velo] sender notif failed', e); }
+                  // If the recipient is a Velo user (we have their handle), look up their userId
+                  // and create a receiver notification too. Without their handle, only an address
+                  // was provided, so we can't link to a Supabase profile.
+                  if (recipientHandle) {
+                    try {
+                      const { data: profile } = await supabase.from('profiles').select('id').eq('handle', recipientHandle).maybeSingle();
+                      if (profile?.id) {
+                        const fromLabel = user.handle ? `@${user.handle.replace(/^@/, '')}` : 'a Velo user';
+                        await createNotification(profile.id, 'TRANSFER_RECEIVED', `${fromLabel} sent you $${amount.toFixed(2)} mUSDC`, txHash);
+                      }
+                    } catch (e) { console.warn('[velo] receiver notif failed', e); }
+                  }
+                }
+              }}
             />
             {/* ── Velo Withdraw Modal (trading wallet → main or custom 0x) ── */}
             <VeloWithdrawModal
