@@ -616,9 +616,15 @@ export async function fetchTransactions(userId: string): Promise<Transaction[]> 
 
 export async function recordTransaction(
   userId: string,
-  type: 'DEPOSIT' | 'WITHDRAW',
+  type: 'DEPOSIT' | 'WITHDRAW' | 'SEND' | 'RECEIVE',
   amount: number,
-  onChainMeta?: { txHash?: string; withdrawNonce?: number; onChain?: boolean },
+  onChainMeta?: {
+    txHash?: string;
+    withdrawNonce?: number;
+    onChain?: boolean;
+    /** For SEND/RECEIVE: the counterparty's address or @handle, displayed in the activity row. */
+    counterparty?: string;
+  },
 ): Promise<void> {
   // Idempotency: if this is a faucet credit (txHash starts with `faucet:`)
   // and we've already recorded one for this user with the SAME txHash, skip.
@@ -647,10 +653,12 @@ export async function recordTransaction(
     on_chain:       onChainMeta?.onChain || false,
     tx_hash:        onChainMeta?.txHash || null,
     withdraw_nonce: onChainMeta?.withdrawNonce ?? null,
+    counterparty:   onChainMeta?.counterparty ?? null,
   };
 
   let { error: txErr } = await supabase.from('transactions').insert(fullPayload);
   if (txErr && (txErr as any).code === '42703') {
+    // Column doesn't exist (counterparty or others) — retry with base payload.
     const retry = await supabase.from('transactions').insert(basePayload);
     txErr = retry.error;
     if (!retry.error) console.warn('[supabase] transactions missing on-chain columns — run migration.');
@@ -667,6 +675,13 @@ export async function recordTransaction(
   // amount to Supabase too produces a $2k equity from a $1k deposit.
   // We only adjust the Supabase balance for DEMO transactions (no on-chain meta).
   if (onChainMeta?.onChain) {
+    return;
+  }
+
+  // SEND/RECEIVE are always on-chain (no demo equivalent), so skip the
+  // legacy balance adjustment entirely. They're recorded only for the
+  // activity feed.
+  if (type === 'SEND' || type === 'RECEIVE') {
     return;
   }
 

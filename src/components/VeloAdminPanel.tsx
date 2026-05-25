@@ -33,6 +33,8 @@ import {
 const VELO_USDC_ABI = [
   { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'mint',      stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  // Owner-only — no cooldown, no cap. Use for seeding pools and admin distributions.
+  { type: 'function', name: 'mintTo',    stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [] },
   { type: 'function', name: 'transfer',  stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
   { type: 'function', name: 'lastFaucetClaim', stateMutability: 'view', inputs: [{ name: '', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'FAUCET_COOLDOWN',  stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
@@ -114,6 +116,9 @@ export const VeloAdminPanel: React.FC = () => {
   const [adminUsdcBalance, setAdminUsdcBalance] = useState(0);
   const [faucetCooldownEnd, setFaucetCooldownEnd] = useState(0);
   const [seedAmount, setSeedAmount] = useState('1000');
+  // Admin mintTo: owner-only, no cooldown. Default target = self.
+  const [adminMintAmount, setAdminMintAmount] = useState('10000');
+  const [adminMintTo, setAdminMintTo] = useState('');
   const [openFeeBps, setOpenFeeBps] = useState(0);
   const [closeFeeBps, setCloseFeeBps] = useState(0);
   const [maxLeverage, setMaxLeverage] = useState(0);
@@ -317,6 +322,38 @@ export const VeloAdminPanel: React.FC = () => {
       await refresh();
     } catch (e: any) {
       setActionError(e?.shortMessage || e?.message || 'Seed failed');
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  /**
+   * Owner-only mint. Bypasses the public faucet cooldown by calling
+   * mintTo(to, amount) on VeloMockUSDC. Useful for seeding pools directly
+   * (mint straight into the pool contract) or topping up the admin wallet
+   * for testing without waiting 6 hours between faucet calls.
+   */
+  const handleAdminMint = async () => {
+    if (!walletClient || !publicClient || !address) return;
+    const amount = parseFloat(adminMintAmount);
+    if (!amount || amount <= 0) { setActionError('Enter a valid amount to mint.'); return; }
+    const target = (adminMintTo.trim() || address) as `0x${string}`;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(target)) { setActionError('Recipient must be a valid 0x address.'); return; }
+    setActionBusy('adminMint');
+    setActionError(null);
+    try {
+      const raw = parseUnits(amount.toFixed(6), 6);
+      const hash = await walletClient.writeContract({
+        address: VELO_USDC_BASE,
+        abi: VELO_USDC_ABI,
+        functionName: 'mintTo',
+        args: [target, raw],
+      });
+      setLastTx({ hash, label: `Admin minted ${amount.toLocaleString()} mUSDC to ${target.slice(0, 6)}…${target.slice(-4)}` });
+      await publicClient.waitForTransactionReceipt({ hash });
+      await refresh();
+    } catch (e: any) {
+      setActionError(e?.shortMessage || e?.message || 'Admin mint failed');
     } finally {
       setActionBusy(null);
     }
@@ -746,6 +783,65 @@ export const VeloAdminPanel: React.FC = () => {
             >
               {actionBusy === 'seed' ? <><Loader2 className="animate-spin" size={11} /> Seeding...</> : 'Seed pool'}
             </button>
+          </div>
+        </div>
+
+        {/* ── Owner-only mintTo — no cooldown ────────────────────────── */}
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px dashed var(--hairline)' }}>
+          <h3 style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 8px', letterSpacing: '0.1em', textTransform: 'uppercase' as const, fontWeight: 700 }}>
+            Admin mint · no cooldown
+          </h3>
+          <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 12px', lineHeight: 1.4 }}>
+            Owner-only path that bypasses the 6-hour faucet cooldown. Leave the recipient blank to mint to yourself, or paste any address (e.g. paste the V2 pool address to seed it directly without a second transfer step).
+          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const }}>
+            <div style={{ position: 'relative' as const, flex: '0 0 160px' }}>
+              <span style={{ position: 'absolute' as const, left: 12, top: '50%', transform: 'translateY(-50%)', ...S.mono, fontSize: 13, color: 'var(--fg-muted)' }}>$</span>
+              <input
+                type="number" value={adminMintAmount} onChange={e => setAdminMintAmount(e.target.value)}
+                min="1" placeholder="10000"
+                style={{
+                  ...S.mono, width: '100%', padding: '12px 12px 12px 24px', borderRadius: 12,
+                  border: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.04)',
+                  color: 'var(--fg)', fontSize: 13, boxSizing: 'border-box' as const, outline: 'none',
+                }}
+              />
+            </div>
+            <input
+              type="text" value={adminMintTo} onChange={e => setAdminMintTo(e.target.value)}
+              placeholder="0x… (blank = mint to yourself)"
+              style={{
+                ...S.mono, flex: 1, minWidth: 240, padding: '12px', borderRadius: 12,
+                border: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.04)',
+                color: 'var(--fg)', fontSize: 11, boxSizing: 'border-box' as const, outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => { setAdminMintTo(VELO_PERPS_V2_ADDRESS); setAdminMintAmount('50000'); }}
+                disabled={!VELO_PERPS_V2_ADDRESS || VELO_PERPS_V2_ADDRESS.length !== 42}
+                title="Pre-fill: 50,000 mUSDC straight into V2 pool"
+                style={{
+                  ...S.mono, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--hairline)',
+                  background: 'rgba(255,255,255,0.02)', color: 'var(--fg-muted)', fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', whiteSpace: 'nowrap' as const,
+                }}>
+                → V2 pool
+              </button>
+              <button
+                onClick={handleAdminMint}
+                disabled={actionBusy !== null || !isOwner}
+                style={{
+                  ...S.mono, padding: '12px 18px', borderRadius: 12, border: 'none',
+                  background: isOwner ? 'linear-gradient(100deg, oklch(0.78 0.20 60), oklch(0.70 0.22 30))' : 'var(--chip-bg)',
+                  color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+                  textTransform: 'uppercase' as const, cursor: actionBusy || !isOwner ? 'not-allowed' : 'pointer',
+                  opacity: isOwner ? 1 : 0.5, whiteSpace: 'nowrap' as const,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                {actionBusy === 'adminMint' ? <><Loader2 className="animate-spin" size={11} /> Minting...</> : 'Mint'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

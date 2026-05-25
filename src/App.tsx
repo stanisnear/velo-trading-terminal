@@ -6314,37 +6314,14 @@ const App = () => {
                 playSound('CLOSE');
                 processingIds.current.delete(id);
 
-                // Open the share-to-feed prompt
-                setShareTradeData({
-                    pair: p.pair,
-                    side: p.side as 'LONG' | 'SHORT',
-                    leverage: p.leverage,
-                    pnlUSDC: result.pnlUSDC,
-                    entryPrice: p.entryPrice,
-                    exitPrice: result.exitPrice,
-                    collateralUSDC: p.size / p.leverage,
-                    txHash: result.txHash,
-                });
+                // Removed auto-popup share-to-feed prompt. Users complained about
+                // too many modals after a close. Share to social via the explicit
+                // share button on history rows.
 
-                // Show the share-card PNG modal as well — user can choose to
-                // download / share to socials. Doesn't auto-open if PnL is
-                // negligible (< $0.50) to avoid being noisy.
-                if (Math.abs(result.pnlUSDC) >= 0.5) {
-                    const collateral = p.size / p.leverage;
-                    setShareCardData({
-                        pair: p.pair,
-                        side: p.side as 'LONG' | 'SHORT',
-                        leverage: p.leverage,
-                        entryPrice: p.entryPrice,
-                        closePrice: result.exitPrice,
-                        size: p.size,
-                        collateral,
-                        pnl: result.pnlUSDC,
-                        pnlPct: (result.pnlUSDC / collateral) * 100,
-                        traderHandle: user?.handle,
-                        status: 'CLOSED',
-                    });
-                }
+                // NOTE: deliberately NOT auto-opening the share-card PNG modal here.
+                // Users found too many modals popping up after a close. The share card
+                // is now only opened by the explicit Share button on the position row
+                // (for open positions) and on the history row (for closed ones).
             }).catch((e) => {
                 const msg = e?.shortMessage || e?.message || 'Close failed';
                 setToast({ message: `Close failed: ${msg}`, type: 'ERROR' });
@@ -7038,22 +7015,22 @@ const App = () => {
                 // Local toast for the sender
                 const toLabel = recipientHandle ? `@${recipientHandle}` : `${recipientAddress.slice(0, 6)}…${recipientAddress.slice(-4)}`;
                 setToast({ message: `Sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, type: 'SUCCESS' });
-                // Persist a notification row for the sender (their own activity)
                 if (user?.id && isSupabaseConfigured()) {
+                  // 1. Notification + activity row for the sender
                   try {
                     await createNotification(user.id, 'TRANSFER_SENT', `You sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, txHash);
-                  } catch (e) { console.warn('[velo] sender notif failed', e); }
-                  // If the recipient is a Velo user (we have their handle), look up their userId
-                  // and create a receiver notification too. Without their handle, only an address
-                  // was provided, so we can't link to a Supabase profile.
+                    await recordTransaction(user.id, 'SEND', amount, { txHash, onChain: true, counterparty: toLabel });
+                  } catch (e) { console.warn('[velo] sender notif/tx failed', e); }
+                  // 2. If the recipient is a Velo user, create receiver-side rows too.
                   if (recipientHandle) {
                     try {
                       const { data: profile } = await supabase.from('profiles').select('id').eq('handle', recipientHandle).maybeSingle();
                       if (profile?.id) {
                         const fromLabel = user.handle ? `@${user.handle.replace(/^@/, '')}` : 'a Velo user';
                         await createNotification(profile.id, 'TRANSFER_RECEIVED', `${fromLabel} sent you $${amount.toFixed(2)} mUSDC`, txHash);
+                        await recordTransaction(profile.id, 'RECEIVE', amount, { txHash, onChain: true, counterparty: fromLabel });
                       }
-                    } catch (e) { console.warn('[velo] receiver notif failed', e); }
+                    } catch (e) { console.warn('[velo] receiver notif/tx failed', e); }
                   }
                 }
               }}
@@ -7062,8 +7039,16 @@ const App = () => {
             <VeloWithdrawModal
               isOpen={isVeloWithdrawOpen}
               onClose={() => setVeloWithdrawOpen(false)}
-              onSuccess={(_hash, amount) => {
+              onSuccess={async (hash, amount) => {
                 setToast({ message: `Withdrew $${amount.toFixed(2)} mUSDC`, type: 'SUCCESS' });
+                // Record the withdrawal in Recent Activity. on-chain meta keeps
+                // it from double-applying to the legacy Supabase balance.
+                if (user?.id && isSupabaseConfigured()) {
+                  try {
+                    await recordTransaction(user.id, 'WITHDRAW', amount, { txHash: hash, onChain: true });
+                    await createNotification(user.id, 'WITHDRAW', `Withdrew $${amount.toFixed(2)} mUSDC to wallet`, hash);
+                  } catch (e) { console.warn('[velo] withdraw tx record failed', e); }
+                }
               }}
             />
             {/* ── Velo Share Card (PNG export) ── */}
@@ -7323,6 +7308,24 @@ const App = () => {
                       pnlPct: (pnl / collateral) * 100,
                       traderHandle: user?.handle,
                       status: 'OPEN',
+                    });
+                  }} onShareHistory={(t: any) => {
+                    // History rows show closed trades. Open the share card with
+                    // close-state data so the user can post their realised PnL.
+                    const collateral = t.size && t.leverage ? t.size / t.leverage : (t.collateralUSDC || 0);
+                    const pnlPct = collateral > 0 ? (t.pnl / collateral) * 100 : 0;
+                    setShareCardData({
+                      pair: t.pair,
+                      side: t.side as 'LONG' | 'SHORT',
+                      leverage: t.leverage,
+                      entryPrice: t.entryPrice,
+                      closePrice: t.exitPrice || t.price,
+                      size: t.size,
+                      collateral,
+                      pnl: t.pnl,
+                      pnlPct,
+                      traderHandle: user?.handle,
+                      status: t.pnl < -collateral * 0.9 ? 'LIQUIDATED' : 'CLOSED',
                     });
                   }} appTheme={theme} onTimeframeChange={(tf: ChartTimeframe) => {
                     // Fetch real OHLCV candles for the active pair at the new timeframe.

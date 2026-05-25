@@ -75,13 +75,15 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
   /** Unix seconds. 0 = never claimed. > now = on cooldown. */
   const [nextChangeAt, setNextChangeAt] = useState<number>(0);
 
-  // Resolve current handle (if any) when modal opens
+  // Resolve current handle (if any) when modal opens. Reads from the main
+  // wallet because main is what signs setUsername() — keeping signer and
+  // reader in sync prevents the "you appear available but contract reverts
+  // with cooldown" mismatch.
   useEffect(() => {
     if (!isOpen || !address || !publicClient) return;
     fetchUsernameForAddress(publicClient, address)
       .then((h) => setCurrentHandle(h))
       .catch(() => setCurrentHandle(null));
-    // Also check the cooldown so the UI can preemptively warn the user
     fetchNextChangeAllowed(publicClient, address)
       .then(setNextChangeAt)
       .catch(() => setNextChangeAt(0));
@@ -139,23 +141,16 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
     setErrorMsg('');
 
     try {
-      // Prefer the burner wallet for signing (silent). Falls back to MetaMask.
-      const burner = loadStoredBurner(address);
-      let signingClient;
-      let signerAddress: `0x${string}`;
-      if (burner) {
-        signingClient = createWalletClient({
-          account: privateKeyToAccount(burner.privateKey),
-          chain: baseSepolia,
-          transport: http(BASE_SEPOLIA_RPC),
-        });
-        signerAddress = burner.veloAddress;
-      } else if (mainWalletClient) {
-        signingClient = mainWalletClient;
-        signerAddress = address;
-      } else {
-        throw new Error('No wallet available');
+      // Username claim ALWAYS signs with the main wallet, not the burner.
+      // The username is the user's identity — it must persist even if the
+      // burner is cleared (localStorage). Binding it to the disposable wallet
+      // would lose the identity on any clear-site-data action. One MetaMask
+      // popup per lifetime is an acceptable trade-off for permanence.
+      if (!mainWalletClient) {
+        throw new Error('Connect your wallet to claim a handle.');
       }
+      const signingClient = mainWalletClient;
+      const signerAddress = address;
 
       // Pre-flight: make sure the signer has gas. Uses the centralized
       // sponsor helper so behaviour matches every other tx in the app.

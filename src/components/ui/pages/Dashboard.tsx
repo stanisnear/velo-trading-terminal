@@ -433,6 +433,8 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                   const isPending = t.kind === 'PENDING_DEPOSIT';
                   const isDeposit = isTx && t.type === 'DEPOSIT';
                   const isWithdraw = isTx && t.type === 'WITHDRAW';
+                  const isSend = isTx && t.type === 'SEND';
+                  const isReceive = isTx && t.type === 'RECEIVE';
 
                   // Pending deposits get their own row treatment — show status,
                   // animated spinner / failure icon, and clickable to see detail modal.
@@ -491,7 +493,9 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                   // Color logic
                   let typeColor = 'var(--fg-muted)';
                   if (isDeposit) typeColor = 'var(--pnl-up)';
+                  else if (isReceive) typeColor = 'var(--pnl-up)';
                   else if (isWithdraw) typeColor = 'var(--iris-amber)';
+                  else if (isSend) typeColor = 'var(--iris-amber)';
                   else if (isOpen) typeColor = 'var(--iris-violet)';
                   else if (isClose) typeColor = t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
 
@@ -499,9 +503,10 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                   let amountStr = '—';
                   let amountColor = 'var(--fg-muted)';
                   if (isTx) {
-                    const sign = isDeposit ? '+' : '-';
+                    const positive = isDeposit || isReceive;
+                    const sign = positive ? '+' : '-';
                     amountStr = `${sign}$${formatMoney(t.amount ?? 0)}`;
-                    amountColor = isDeposit ? 'var(--pnl-up)' : 'var(--pnl-down)';
+                    amountColor = positive ? 'var(--pnl-up)' : 'var(--pnl-down)';
                   } else if (isClose) {
                     amountStr = `${t.pnl >= 0 ? '+' : ''}$${formatMoney(t.pnl)}`;
                     amountColor = t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
@@ -515,6 +520,10 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                   let details = '—';
                   if (isOpen) details = `Open ${t.pair} ${t.side} · ${t.leverage ? `${t.leverage}×` : '—'}`;
                   else if (isClose) details = `Close ${t.pair} ${t.side} · ${t.leverage ? `${t.leverage}×` : '—'}`;
+                  else if (isSend) details = `Sent to ${t.counterparty || 'wallet'}`;
+                  else if (isReceive) details = `Received from ${t.counterparty || 'wallet'}`;
+                  else if (isWithdraw) details = `Withdraw to wallet`;
+                  else if (isDeposit) details = `Deposit`;
 
                   // Click handler
                   const handleClick = () => {

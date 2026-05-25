@@ -673,7 +673,7 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Positions / Orders / History panel
 // ─────────────────────────────────────────────────────────────────────────────
-const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
+const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
     const PER = 5;
     const page = (items: any[], k: string) => {
         const pg = pageState[k];
@@ -953,7 +953,20 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         {o.copyTraderId && <span style={{ ...S.chip, padding: '1px 6px', ...S.mono, fontSize: 9, fontWeight: 700, color: 'var(--iris-violet)', display: 'flex', alignItems: 'center', gap: 2 }}><Copy size={8} /> Copy</span>}
                                         {!o.copyTraderId && <span style={{ ...S.chip, padding: '1px 6px', ...S.mono, fontSize: 9, fontWeight: 700, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 2 }}><User size={8} /> Manual</span>}
                                     </div>
-                                    <span style={{ ...S.label, fontSize: 9 }}>{o.type} {o.side} @ ${formatPrice(o.price)} · {formatTime(o.timestamp)}</span>
+                                    <span style={{ ...S.label, fontSize: 9 }}>{(() => {
+                                        // For TP/SL the order's `side` field stores the CLOSING side
+                                        // (opposite of the open position). Displaying that confuses users —
+                                        // they opened a LONG and see "TAKE_PROFIT SHORT". Find the related
+                                        // position and show its side instead.
+                                        const tp = o.type === 'TAKE_PROFIT';
+                                        const sl = o.type === 'STOP_LOSS';
+                                        if (tp || sl) {
+                                            const related = positions.find((p: any) => p.id === o.relatedPositionId);
+                                            const posSide = related?.side ?? (o.side === 'LONG' ? 'SHORT' : 'LONG');
+                                            return `${tp ? 'TAKE PROFIT' : 'STOP LOSS'} · ${posSide} @ $${formatPrice(o.price)} · ${formatTime(o.timestamp)}`;
+                                        }
+                                        return `${o.type} ${o.side} @ $${formatPrice(o.price)} · ${formatTime(o.timestamp)}`;
+                                    })()}</span>
                                 </div>
                                 <Button variant="danger" onClick={(e: any) => { e.stopPropagation(); handleCancelOrder(o.id); }} className="h-6 px-2 text-[9px]" disabled={!!o.copyTraderId}>Cancel</Button>
                             </div>
@@ -1022,6 +1035,17 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, textDecoration: 'none', padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295 / 0.1)', border: '1px solid oklch(0.68 0.22 295 / 0.25)', letterSpacing: '0.04em' }}>
                                             Tx ↗
                                           </a>
+                                        )}
+                                        {/* Share button for closed positions in history. Lets users
+                                            share their PnL card AFTER they've already closed, instead
+                                            of auto-popping a modal. */}
+                                        {onShareHistory && t.action === 'CLOSE' && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); onShareHistory(t); }}
+                                            title="Share PnL card"
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4, marginLeft: 4, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295 / 0.1)', border: '1px solid oklch(0.68 0.22 295 / 0.25)', cursor: 'pointer', letterSpacing: '0.04em' }}>
+                                            <Share2 size={9} /> Share
+                                          </button>
                                         )}
                                     </div>
                                 </div>
@@ -1185,7 +1209,7 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
 // Main TradeView
 // ─────────────────────────────────────────────────────────────────────────────
 export const TradeView = ({
-    activePair, setActivePair, marketPrices, marketChanges = {}, candles, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
+    activePair, setActivePair, marketPrices, marketChanges = {}, candles, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, onShareHistory, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
     savedChartPrefs, onChartPrefsChange, tradeFocus, autoOpenHistoryId,
     orderlyBalance = 0, orderlyIsReady = false,
     // ── Environment split ─────────────────────────────────────────────────────
@@ -1458,7 +1482,7 @@ export const TradeView = ({
         onOpenPosition(activePair.id, side, parseFloat(sizeAmount), leverage, orderType, price, parseFloat(takeProfit), parseFloat(stopLoss), marginMode);
     };
 
-    const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, handleCancelOrder, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
+    const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
 
     // ── Render ────────────────────────────────────────────────────────────────
     const activePairChange = marketChanges[activePair.id];
