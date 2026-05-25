@@ -85,7 +85,7 @@ contract DeployVeloPerpsV2 is Script {
         // If the deployer is the mUSDC owner, the next line will mint it. Otherwise
         // do a manual transfer before running this script.
         try this.seedPool(perps, deployer) {} catch {
-            console2.log("Pool not seeded — owner needs to send mUSDC to:", address(perps));
+            console2.log("Pool not seeded - owner needs to send mUSDC to:", address(perps));
         }
 
         vm.stopBroadcast();
