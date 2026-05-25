@@ -14,6 +14,7 @@ import { baseSepolia } from 'viem/chains';
 import { AtSign, ArrowRight, CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
 import { resolveUsername, validateUsername } from '@/services/usernameService';
 import { loadStoredBurner } from '@/services/veloBurnerWallet';
+import { ensureBurnerGas } from '@/services/veloGasSponsor';
 import { VELO_USDC_BASE, baseScanTxUrl } from '@/services/veloPerpsService';
 import { fetchUsdcBalance, VELO_USDC_ABI } from '@/services/veloUsdcService';
 
@@ -162,6 +163,12 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
         signingClient = mainWalletClient;
       } else {
         throw new Error('No wallet available to sign.');
+      }
+
+      // Pre-flight: make sure the signer has ETH for gas. If sending from the
+      // burner and it's low, the sponsor tops it up before we transfer.
+      if (burner) {
+        await ensureBurnerGas(publicClient, burner.veloAddress);
       }
 
       const amountWei = parseUnits(amountNum.toFixed(6), 6);

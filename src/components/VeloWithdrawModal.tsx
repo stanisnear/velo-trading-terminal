@@ -23,6 +23,7 @@ import { baseSepolia } from 'viem/chains';
 import { ArrowDownToLine, CheckCircle2, ExternalLink, Loader2, X, Wallet, AlertCircle } from 'lucide-react';
 import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { fetchUsdcBalance, transferUsdc } from '@/services/veloUsdcService';
+import { ensureBurnerGas } from '@/services/veloGasSponsor';
 import { VELO_USDC_BASE, baseScanTxUrl } from '@/services/veloPerpsService';
 
 const BASE_SEPOLIA_RPC =
@@ -89,6 +90,10 @@ export const VeloWithdrawModal: React.FC<Props> = ({ isOpen, onClose, onSuccess 
 
     try {
       setStep('SENDING');
+      // Pre-flight: top up burner gas if low so the transfer doesn't revert
+      // with "exceeds the balance" mid-flow.
+      await ensureBurnerGas(publicClient, burner.veloAddress);
+
       const burnerWalletClient = createWalletClient({
         account: privateKeyToAccount(burner.privateKey),
         chain: baseSepolia,

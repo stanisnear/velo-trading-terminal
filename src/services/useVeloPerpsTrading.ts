@@ -58,6 +58,7 @@ import {
   mintMockUsdc,
 } from './veloUsdcService';
 import { fetchPriceUpdate, PYTH_FEED_IDS } from './pythService';
+import { ensureBurnerGas } from './veloGasSponsor';
 import {
   loadStoredBurner,
   type VeloBurnerWallet,
@@ -256,27 +257,10 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
           throw new Error(`${args.pair} is registered but paused. Contact the protocol owner.`);
         }
 
-        // Pre-flight gas top-up: if the trading wallet is running low (< 0.0015 ETH),
-        // ask the sponsor server to top it up before the trade. Prevents the
-        // "exceeds the balance of the account" cryptic revert.
-        try {
-          const gasBalance = await publicClient.getBalance({ address: traderAddress });
-          const MIN_TRADE_GAS = 1_500_000_000_000_000n; // 0.0015 ETH
-          if (gasBalance < MIN_TRADE_GAS) {
-            try {
-              const resp = await fetch('/api/sponsor-eth', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ burnerAddress: traderAddress }),
-              });
-              const data = await resp.json().catch(() => ({}));
-              if (resp.ok && data?.txHash) {
-                await publicClient.waitForTransactionReceipt({ hash: data.txHash });
-              }
-              // Either way, refresh local ETH balance so UI is in sync
-            } catch {/* sponsor down — let downstream gas error surface */}
-          }
-        } catch {/* balance read failed — proceed; viem will surface real revert if any */}
+        // Pre-flight gas top-up: if the trading wallet is running low, call
+        // the sponsor server. Handled by veloGasSponsor.ensureBurnerGas to keep
+        // all gas-using paths consistent.
+        await ensureBurnerGas(publicClient, traderAddress);
 
         await approveUsdcIfNeeded(
           tradingClient as any,
@@ -306,6 +290,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       setPending(true);
       setLastError(null);
       try {
+        if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const result = await closePositionTx(tradingClient as any, publicClient, tradeId, pair);
         await refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
@@ -317,7 +302,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         setPending(false);
       }
     },
-    [tradingClient, publicClient, refresh],
+    [tradingClient, publicClient, refresh, traderAddress],
   );
 
   // ── V2-only actions ──────────────────────────────────────────────────────
@@ -328,6 +313,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {
+        await ensureBurnerGas(publicClient, traderAddress);
         await approveUsdcIfNeeded(tradingClient as any, publicClient, VELO_USDC_BASE, VELO_PERPS_ADDRESS, traderAddress, amountUSDC);
         const result = await addMarginTx(tradingClient as any, publicClient, tradeId, amountUSDC);
         await refresh();
@@ -346,6 +332,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {
+        if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const feedId = (PYTH_FEED_IDS as any)[pair];
         const { updateData, feeWei } = await fetchPriceUpdate([feedId]);
         const result = await reduceMarginTx(tradingClient as any, publicClient, tradeId, amountUSDC, updateData, feeWei);
@@ -357,7 +344,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         throw e;
       } finally { setPending(false); }
     },
-    [tradingClient, publicClient, refresh],
+    [tradingClient, publicClient, refresh, traderAddress],
   );
 
   const partialClose = useCallback(
@@ -365,6 +352,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {
+        if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const feedId = (PYTH_FEED_IDS as any)[pair];
         const { updateData, feeWei } = await fetchPriceUpdate([feedId]);
         const result = await partialCloseTx(tradingClient as any, publicClient, tradeId, fractionBps, updateData, feeWei);
@@ -376,7 +364,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         throw e;
       } finally { setPending(false); }
     },
-    [tradingClient, publicClient, refresh],
+    [tradingClient, publicClient, refresh, traderAddress],
   );
 
   const setTriggers = useCallback(
@@ -384,6 +372,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {
+        if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const result = await setTriggersTx(tradingClient as any, publicClient, tradeId, takeProfit, stopLoss);
         await refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
@@ -393,7 +382,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         throw e;
       } finally { setPending(false); }
     },
-    [tradingClient, publicClient, refresh],
+    [tradingClient, publicClient, refresh, traderAddress],
   );
 
   return {

@@ -3910,6 +3910,19 @@ const App = () => {
             setAutoOpenHistoryId(null);
         }
     }, [activeTab]);
+
+    // Public posts fetch — runs on first Social tab entry regardless of auth state.
+    // Without this, anonymous visitors (and brand-new accounts that haven't fully
+    // hydrated yet) see an empty feed because the original fetchPosts is gated
+    // behind the session-restore path.
+    useEffect(() => {
+        if (activeTab !== TabView.SOCIAL) return;
+        if (posts.length > 0) return; // don't refetch if already loaded
+        if (!isSupabaseConfigured()) return;
+        fetchPosts(50).then((loaded) => {
+            if (loaded.length > 0) setPosts(loaded);
+        }).catch((e) => console.warn('[velo] public posts fetch failed', e));
+    }, [activeTab, posts.length]);
     // Fetch real candles whenever the active pair changes (covers URL routing + pair selector)
     useEffect(() => {
         const tf = chartPrefs.chartTf || '15m';

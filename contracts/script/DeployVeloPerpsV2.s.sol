@@ -81,23 +81,21 @@ contract DeployVeloPerpsV2 is Script {
         perps.registerPair(15, WLFI_USD,   "WLFI/USD");
         perps.registerPair(16, POL_USD,    "POL/USD");
 
-        // Seed pool. Owner needs to have already minted (or transferred) 100k mUSDC.
-        // If the deployer is the mUSDC owner, the next line will mint it. Otherwise
-        // do a manual transfer before running this script.
-        try this.seedPool(perps, deployer) {} catch {
-            console2.log("Pool not seeded - owner needs to send mUSDC to:", address(perps));
-        }
+        // Note: pool seeding intentionally NOT done here.
+        // Foundry script mode doesn't allow this.seedPool() calls -- it reverts
+        // the whole transaction including contract creation. Seed manually after
+        // deploy with:
+        //   cast send <mUSDC> "transfer(address,uint256)" <perps address> <amount_6dec> ...
 
         vm.stopBroadcast();
 
         console2.log("");
         console2.log("=== Deployment complete ===");
         console2.log("VeloPerpsV2:", address(perps));
-        console2.log("Update VITE_VELO_PERPS_V2_ADDRESS in Vercel.");
-    }
-
-    /// @dev External so the try/catch above can wrap it.
-    function seedPool(VeloPerpsV2 perps, address from) external {
-        IERC20(MUSDC_BASE_SEPOLIA).transferFrom(from, address(perps), 100_000 * 1e6);
+        console2.log("");
+        console2.log("Next steps:");
+        console2.log("  1. Seed pool: cast send <mUSDC> 'transfer(address,uint256)' <V2 address> <amount>");
+        console2.log("  2. Set VITE_VELO_PERPS_V2_ADDRESS in Vercel to the V2 address above");
+        console2.log("  3. Redeploy Vercel");
     }
 }

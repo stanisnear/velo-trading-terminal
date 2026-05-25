@@ -16,6 +16,7 @@ import {
   claimUsername, validateUsername, resolveUsername, fetchUsernameForAddress,
   fetchNextChangeAllowed,
 } from '@/services/usernameService';
+import { ensureBurnerGas } from '@/services/veloGasSponsor';
 import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { baseScanTxUrl } from '@/services/veloPerpsService';
 
@@ -156,22 +157,9 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
         throw new Error('No wallet available');
       }
 
-      // Pre-flight: make sure the signer has gas. If burner is empty, ping
-      // the sponsor before attempting the on-chain write.
-      const signerEth = await publicClient.getBalance({ address: signerAddress }).catch(() => 0n);
-      if (signerEth < 1_000_000_000_000_000n /* 0.001 ETH */) {
-        try {
-          const response = await fetch('/api/sponsor-eth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ burnerAddress: signerAddress }),
-          });
-          const data = await response.json();
-          if (response.ok && data.sponsored && data.txHash) {
-            await publicClient.waitForTransactionReceipt({ hash: data.txHash });
-          }
-        } catch { /* keep going — the tx itself will surface a clearer error if it fails */ }
-      }
+      // Pre-flight: make sure the signer has gas. Uses the centralized
+      // sponsor helper so behaviour matches every other tx in the app.
+      await ensureBurnerGas(publicClient, signerAddress);
 
       const hash = await claimUsername(signingClient as any, normalized);
       setTxHash(hash);
