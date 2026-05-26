@@ -107,27 +107,27 @@ body.dark,
 html.light,
 body.light,
 .light {
-  --bg: #ffffff;
-  --bg-2: #f5f5f8;
-  --bg-3: #ebebf0;
+  --bg: #faf9fd;
+  --bg-2: #f3f1fa;
+  --bg-3: #ebe8f5;
   --fg: #0a0b18;
-  --fg-2: #505060;
-  --fg-3: #9898a8;
-  --hr: rgba(10, 11, 24, 0.08);
-  --hr-2: rgba(10, 11, 24, 0.14);
-  --glass: rgba(255, 255, 255, 0.82);
+  --fg-2: #50506a;
+  --fg-3: #9898b8;
+  --hr: rgba(90, 70, 160, 0.08);
+  --hr-2: rgba(90, 70, 160, 0.14);
+  --glass: rgba(250, 249, 253, 0.82);
   --glass-2: rgba(255, 255, 255, 0.96);
   --gl-edge: rgba(255, 255, 255, 1);
-  --chip: rgba(10, 11, 24, 0.05);
-  --chip-h: rgba(10, 11, 24, 0.09);
+  --chip: rgba(90, 70, 160, 0.055);
+  --chip-h: rgba(90, 70, 160, 0.10);
   --ambient:
-    radial-gradient(80% 60% at 100% 0%, oklch(0.93 0.06 285 / 0.45), transparent 65%),
-    radial-gradient(60% 45% at 0% 100%, oklch(0.94 0.05 245 / 0.35), transparent 60%);
+    radial-gradient(75% 55% at 95% 5%, oklch(0.91 0.07 285 / 0.55), transparent 65%),
+    radial-gradient(55% 40% at 5% 95%, oklch(0.92 0.06 250 / 0.40), transparent 60%);
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.9) inset,
-    0 -1px 0 rgba(10, 11, 24, 0.04) inset,
-    0 4px 24px -4px rgba(10, 11, 24, 0.10),
-    0 1px 2px rgba(10, 11, 24, 0.06);
+    0 1px 0 rgba(255,255,255,0.95) inset,
+    0 -1px 0 rgba(90, 70, 160, 0.05) inset,
+    0 4px 20px -4px rgba(90, 70, 160, 0.12),
+    0 1px 3px rgba(90, 70, 160, 0.06);
   --modal-bg: rgba(255, 255, 255, 0.99);
   --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
   --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
