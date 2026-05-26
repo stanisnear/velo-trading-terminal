@@ -21,7 +21,8 @@
     "uuid": "^11.1.0",
     "viem": "^2.21.0",
     "wagmi": "^2.13.0",
-    "zustand": "^5.0.12"
+    "zustand": "^5.0.12",
+    "buffer": "^6.0.3"
   },
   "devDependencies": {
     "@types/react": "^19.1.4",

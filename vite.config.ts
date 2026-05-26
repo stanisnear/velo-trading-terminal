@@ -11,13 +11,22 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
+        // Existing env passthrough
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        // Node global shims — required by WalletConnect/Reown internals at
+        // build time. Without these, the production bundle throws
+        // "global is not defined" or "Buffer is not defined" when the
+        // WalletConnect QR modal is opened, causing a white screen crash.
+        global: 'globalThis',
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, './src'),
-        }
+          // Provide browser-compatible Buffer to any package that imports it
+          // as a Node built-in (e.g. @walletconnect/* packages).
+          buffer: 'buffer',
+        },
       },
       // Force Vite to pre-bundle viem through esbuild (CJS transform) so its
       // internal ESM circular references are resolved before any app code runs.
@@ -27,6 +36,7 @@ export default defineConfig(({ mode }) => {
       // causes load-order TDZ crashes in production.
       optimizeDeps: {
         include: [
+          'buffer',
           'viem',
           'viem/chains',
           'wagmi',

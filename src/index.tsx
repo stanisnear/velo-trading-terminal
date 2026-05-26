@@ -1,3 +1,5 @@
+// MUST be first — polyfills Buffer/global/process for WalletConnect/Reown
+import './polyfills';
 import './styles/velo-brand-system.css';
 import './styles/tokens.css';
 import './styles/brand.css';
