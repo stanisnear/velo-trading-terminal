@@ -113,7 +113,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const widgetRef = useRef<any>(null);
   const isDark = theme === 'dark';
 
-  const BG = isDark ? '#07070A' : '#F7F5F0';
+  const BG = isDark ? '#07070A' : '#ffffff';
 
   const tvSymbol = TV_SYMBOLS[pairName] || 'COINBASE:BTCUSD';
   const tvInterval = TV_INTERVALS[timeframe] || '15';
@@ -135,7 +135,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     widgetDiv.style.height = '100%';
     containerRef.current.appendChild(widgetDiv);
 
-    const localBG = isDark ? '#07070A' : '#F7F5F0';
+    const localBG = isDark ? '#07070A' : '#ffffff';
     const localBG2 = isDark ? '#0E0E13' : '#EDEAE2';
     const localGRID = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,14,0.06)';
     const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(90,80,64,0.75)';

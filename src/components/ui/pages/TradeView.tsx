@@ -1493,7 +1493,7 @@ export const TradeView = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 82px)', background: 'transparent', overflow: isMobile ? 'auto' : 'hidden', paddingBottom: isMobile ? 80 : 0 }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 84px)', background: 'transparent', overflow: isMobile ? 'auto' : 'hidden', paddingBottom: isMobile ? 80 : 0 }}>
             <PairSelector isOpen={pairOpen} onClose={() => setPairOpen(false)} onSelect={setActivePair} marketPrices={marketPrices} marketChanges={marketChanges} isLiveMode={isLiveMode} />
 
             {/* Order Details Modal — clicked from History row */}

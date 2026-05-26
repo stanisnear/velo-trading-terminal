@@ -712,3 +712,36 @@ For the Recent Activity persistence:
 17. Confirm BOTH rows survive the refresh. Realized PnL on the right card should still show the same number.
 18. If they DON'T survive: a toast should now appear saying "Activity not saved — [hint]". The hint tells you the exact Postgres error code so we know what to fix next.
 19. Switch to another browser tab for 30 seconds, then come back. Confirm Recent Activity rows are still there (the visibility-refetch should have re-pulled them).
+
+### 2026-05-26 — UI Polish: Navbar, Mobile Nav, Light Mode, Double Avatar, TESTNET label
+
+**Changes made:**
+
+1. **Navbar positioned fixed instead of sticky** — Changed `position: sticky` to `position: fixed` + `left: 50%; transform: translateX(-50%)` so the nav truly floats over content and doesn't scroll away or cause layout issues on mobile. Main content now has explicit `paddingTop` set to `84px` (60px nav + 12px top gap + 12px breathing room) for trade view, and `calc(84px + 24px)` for other tabs.
+
+2. **Hamburger menu removed from desktop** — The `<Menu>` button already had `className="md:hidden"` so it only shows on mobile — this was always correct. Confirmed it doesn't appear on desktop. The desktop nav shows the full link bar instead.
+
+3. **Double avatar removed** — The navbar previously rendered TWO separate elements when logged in: a pill (username+avatar) AND a square avatar button. Both had `ref={avatarBtnRef}` which caused the mobile button to overwrite the ref. Fixed by moving the ref to the parent `<div>` wrapper so `ProfileAvatarPopup` positions correctly from either. The pill is now the sole desktop click target; mobile gets a square avatar button. No duplicate.
+
+4. **LIVE → TESTNET** — Replaced the `chip live` pill (which had a green animated dot and said "Live") with a static chip reading "TESTNET" in `var(--fg-2)`. The pulsing green dot implied mainnet which is misleading on Base Sepolia.
+
+5. **Mobile bottom nav touch targets improved** — Added `touchAction: 'manipulation'` and `WebkitTapHighlightColor: 'transparent'` + `WebkitUserSelect: 'none'` / `userSelect: 'none'` and `outline: 'none'` on all bottom nav buttons. Also added `viewport-fit=cover` to the HTML viewport meta so iPhone safe area works correctly.
+
+6. **Light mode toned down** — Reduced ambient gradient opacity and chroma in `tokens.css` light mode so the purple is more pastel (from `oklch(0.82 0.18)` range down to `oklch(0.90 0.10)` range). Background base lightened from `#F2F0FA` to `#F7F6FC`. Glass panels bumped to `rgba(255,255,255,0.72)` / `0.90` for better contrast with the lighter background.
+
+7. **TradingView chart background in light mode set to white** — Changed `BG` from `#F7F5F0` to `#ffffff` so the chart surface matches TradingView's own white background and blends seamlessly. The `mix-blend-mode: multiply` iframe trick still applies; the chart's white background now multiplies cleanly against the pale lavender app background instead of clashing.
+
+8. **TradeView height fixed** — Changed `calc(100vh - 82px)` to `calc(100vh - 84px)` to match the actual fixed-nav offset, preventing a 2px gap at the bottom.
+
+**Files changed:**
+- `src/App.tsx` — navbar position, TESTNET chip, double avatar fix, mobile touch targets
+- `src/components/ui/pages/TradeView.tsx` — height calc fix
+- `src/components/TradingViewChart.tsx` — light mode BG = white
+- `src/styles/tokens.css` — light mode chroma reduction, iOS safe area CSS
+- `index.html` — viewport-fit=cover, lighter light-mode body background
+- `PROJECT_STATUS.md` — this entry
+
+**New gotchas:**
+- The fixed navbar requires ALL page sections to have `paddingTop` (or `marginTop`) of at least 84px. Any new page/tab added to the router must include this offset or content will hide under the nav.
+- `env(safe-area-inset-bottom)` requires `viewport-fit=cover` in the viewport meta. Without it the CSS function resolves to 0 on all devices. Now in place.
+- The `avatarBtnRef` is now on a `<div>`, not a `<button>`. `ProfileAvatarPopup` reads `.getBoundingClientRect()` on whatever element it gets — that works fine on a div. No type cast needed beyond the `as any` already present.

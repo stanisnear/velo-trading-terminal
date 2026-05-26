@@ -822,11 +822,12 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
     return (
         <nav
             style={{
-                position: 'sticky',
+                position: 'fixed',
                 top: 12,
+                left: '50%',
+                transform: 'translateX(-50%)',
                 zIndex: 50,
                 width: 'min(1600px, calc(100% - 24px))',
-                margin: '12px auto 0',
                 padding: '0 14px',
                 height: 60,
                 display: 'grid',
@@ -899,7 +900,9 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifySelf: 'end' }}>
-                <div className="hidden md:flex chip live" style={{ minWidth: 76, justifyContent: 'center' }}>Live</div>
+                <div className="hidden md:flex chip" style={{ minWidth: 76, justifyContent: 'center', gap: 6 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--fg-2)' }}>TESTNET</span>
+                </div>
                 <div style={{ position: 'relative' }}>
                     <button onClick={() => setNotifOpen(!isNotifOpen)} style={{ display: 'grid', placeItems: 'center', width: 36, height: 36, borderRadius: 12, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', position: 'relative', transition: 'all 0.12s' }}
                         onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
@@ -933,20 +936,25 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 </button>
 
                 {user ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 2 }}>
-                        <div className="hidden md:flex" style={{ alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: '1px solid var(--hr)', cursor: 'pointer' }} onClick={() => setActiveTab(TabView.DASHBOARD)}>
+                    <div ref={avatarBtnRef as any} style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 2 }}>
+                        {/* Desktop: pill with name + avatar */}
+                        <button
+                            onClick={() => setAvatarPopupOpen(prev => !prev)}
+                            className="hidden md:flex"
+                            style={{ alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--velo-violet)')}
+                            onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                                 <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{user.username}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}>${formatMoney(totalEquity > 0 ? totalEquity : user.balance)}</span>
                             </div>
                             <img src={user.avatar} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--hr-2)' }} />
-                        </div>
+                        </button>
+                        {/* Mobile: square avatar button */}
                         <button
-                            ref={avatarBtnRef}
+                            className="md:hidden"
                             onClick={() => setAvatarPopupOpen(prev => !prev)}
-                            style={{ width: 36, height: 36, borderRadius: 12, overflow: 'hidden', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, flexShrink: 0, background: 'var(--chip)', padding: 0, cursor: 'pointer', transition: 'border-color 0.15s' }}
-                            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--velo-violet)')}
-                            onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
+                            style={{ width: 36, height: 36, borderRadius: 12, overflow: 'hidden', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, flexShrink: 0, background: 'var(--chip)', padding: 0, cursor: 'pointer', transition: 'border-color 0.15s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}>
                             <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                         </button>
                         {avatarPopupOpen && (
@@ -1125,6 +1133,11 @@ const MobileBottomNav = ({ activeTab, setActiveTab }: any) => {
                                 background: isActive ? 'var(--bg)' : 'transparent',
                                 color: isActive ? 'var(--velo-violet)' : 'var(--fg-3)',
                                 boxShadow: isActive ? '0 1px 0 var(--hr-2) inset, 0 -1px 0 rgba(0,0,0,0.18) inset' : 'none',
+                                touchAction: 'manipulation',
+                                WebkitTapHighlightColor: 'transparent',
+                                userSelect: 'none',
+                                WebkitUserSelect: 'none',
+                                outline: 'none',
                             }}
                         >
                             <item.icon size={18} strokeWidth={isActive ? 2.4 : 2} />
@@ -7570,8 +7583,8 @@ const App = () => {
                         }, 500);
                     }
                 }} totalEquity={totalEquity}/>
-            {/* Main content */}
-            <main className={`w-full ${activeTab === TabView.TRADE ? '' : 'pt-6 pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+            {/* Main content — top offset for fixed navbar (60px height + 12px gap + 12px top = 84px) */}
+            <main className={`w-full ${activeTab === TabView.TRADE ? '' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 84 : 'calc(84px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
