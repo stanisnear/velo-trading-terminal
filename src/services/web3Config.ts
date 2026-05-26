@@ -27,9 +27,18 @@ const OP_RPC   = import.meta.env.VITE_OP_SEPOLIA_RPC_URL
 const ETH_RPC  = import.meta.env.VITE_ETH_SEPOLIA_RPC_URL
   || 'https://ethereum-sepolia-rpc.publicnode.com';
 
+const _wcProjectId: string = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';
+if (!_wcProjectId) {
+  console.error(
+    '[Velo] VITE_WALLETCONNECT_PROJECT_ID is not set. ' +
+    'WalletConnect will not work. Add it to your Vercel environment variables ' +
+    'and trigger a manual redeploy.'
+  );
+}
+
 export const wagmiConfig = getDefaultConfig({
   appName: 'Velo Trading Terminal',
-  projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+  projectId: _wcProjectId,
   // Base Sepolia is FIRST so RainbowKit defaults to it when a wallet first connects.
   chains: [baseSepolia, arbitrumSepolia, optimismSepolia, sepolia],
   transports: {
