@@ -20,7 +20,6 @@ import { fetchRealPrices, binancePriceStream, fetchKlines } from './services/pri
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient } from 'wagmi';
-import { useAppKit } from '@reown/appkit/react';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
 import { VeloBridgeModal } from './components/VeloBridgeModal';
@@ -697,7 +696,7 @@ const UsersListModal = ({ isOpen, onClose, title, userIds, traders, onViewProfil
     );
 };
 // ── Profile Avatar Popup (navbar click) ──────────────────────────────────────
-const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, onOpenWallet, totalEquity, anchorRef }: any) => {
+const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, totalEquity, anchorRef }: any) => {
     const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
     const [copied, setCopied] = React.useState(false);
 
@@ -769,13 +768,20 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
                     </div>
                 )}
 
-                {/* Quick actions */}
+                {/* Quick actions
+                    NOTE: previously had an "Open Wallet" item that opened the
+                    Reown AppKit modal. We removed it because the Reown modal
+                    only knows about the connected MAIN wallet — it has no
+                    concept of the derived burner, where 99% of the user's
+                    mUSDC actually lives. Users would see $0 in Reown even
+                    when their trading wallet held $1,000, then panic. The
+                    Velo Wallet & Settings modal shows BOTH wallets with
+                    correct balances and is the only correct destination. */}
                 <div style={{ padding: '6px 8px' }}>
                     {[
                         { icon: <PlusCircle size={14} />, label: 'Create a Post', onClick: () => { onCreatePost(); onClose(); } },
                         { icon: <UserCircle size={14} />, label: 'View Profile', onClick: () => { onViewProfile(); onClose(); } },
-                        { icon: <Wallet size={14} />, label: 'Open Wallet', onClick: () => { onOpenWallet?.(); onClose(); } },
-                        { icon: <Settings size={14} />, label: 'Settings', onClick: () => { onOpenSettings?.(); onClose(); } },
+                        { icon: <Wallet size={14} />, label: 'Wallet & Settings', onClick: () => { onOpenSettings?.(); onClose(); } },
                     ].map((item, i) => (
                         <button key={i} onClick={item.onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)', textAlign: 'left', letterSpacing: '0.04em', transition: 'background 0.1s' }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'}
@@ -798,7 +804,6 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
 };
 
 const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner }: any) => {
-    const { open: openWalletModal } = useAppKit();
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -902,7 +907,6 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                                 onCreatePost={() => { setActiveTab(TabView.SOCIAL); }}
                                 onOpenSettings={onOpenSettings}
                                 onLogout={handleLogout}
-                                onOpenWallet={() => openWalletModal({ view: 'Account' })}
                             />
                         )}
                     </div>
@@ -7059,9 +7063,38 @@ const App = () => {
               onClaimed={() => {
                 setToast({ message: '1,000 mUSDC claimed', type: 'SUCCESS' });
               }}
-              onBurnerReady={() => {
+              onBurnerReady={async ({ burnerAddress, amount, txHash }) => {
                 veloPerpsTrading.reloadBurner();
                 setToast({ message: 'Trading wallet ready — no more popups', type: 'SUCCESS' });
+                // Persist the burner address on the user's profile (used by audit/recovery).
+                if (user && isSupabaseConfigured()) {
+                  supabase.from('profiles')
+                    .update({ velo_wallet_address: burnerAddress.toLowerCase() })
+                    .eq('id', user.id)
+                    .then(({ error }) => {
+                      if (error && (error as any).code !== '42703') {
+                        console.warn('[velo] failed to persist velo_wallet_address:', error.message);
+                      }
+                    });
+                }
+                // Record the faucet credit as a DEPOSIT row so the dashboard's
+                // Recent Activity reflects the initial $1,000. The `faucet:`
+                // prefix on the txHash key makes recordTransaction idempotent
+                // — re-running setup never produces a second $1,000 row.
+                // Skip when txHash is null (modal short-circuited because the
+                // burner already had a balance from a prior session — that
+                // credit was already recorded then).
+                if (user && isSupabaseConfigured() && txHash && amount > 0) {
+                  const faucetRef = `faucet:${txHash}`;
+                  try {
+                    await recordTransaction(user.id, 'DEPOSIT', amount, { onChain: true, txHash: faucetRef });
+                    await createNotification(user.id, 'DEPOSIT', `Welcome bonus: $${amount.toFixed(2)} mUSDC credited to your trading wallet`, txHash);
+                    const txns = await fetchTransactions(user.id);
+                    setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
+                  } catch (e) {
+                    console.warn('[velo] failed to record faucet deposit:', e);
+                  }
+                }
               }}
             />
             {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ── */}
@@ -7079,8 +7112,14 @@ const App = () => {
                   try {
                     await recordTransaction(user.id, 'DEPOSIT', amount, { txHash, onChain: true });
                     await createNotification(user.id, 'DEPOSIT', `Deposited $${amount.toFixed(2)} mUSDC to trading wallet`, txHash);
+                    const txns = await fetchTransactions(user.id);
+                    setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
                   } catch (e) { console.warn('[velo] deposit tx record failed', e); }
                 }
+                // Force the trading-wallet balance to refresh now instead of
+                // waiting for the next 5s poll — the dashboard's TOTAL EQUITY
+                // visibly jumps the moment the user sees the SUCCESS toast.
+                try { await veloPerpsTrading.refresh(); } catch {}
               }}
             />
             {/* ── Velo Share Trade Modal (post-close share-to-feed prompt) ── */}
@@ -7114,6 +7153,8 @@ const App = () => {
                   try {
                     await createNotification(user.id, 'TRANSFER_SENT', `You sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, txHash);
                     await recordTransaction(user.id, 'SEND', amount, { txHash, onChain: true, counterparty: toLabel });
+                    const txns = await fetchTransactions(user.id);
+                    setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
                   } catch (e) { console.warn('[velo] sender notif/tx failed', e); }
                   // 2. If the recipient is a Velo user, create receiver-side rows too.
                   if (recipientHandle) {
@@ -7127,6 +7168,9 @@ const App = () => {
                     } catch (e) { console.warn('[velo] receiver notif/tx failed', e); }
                   }
                 }
+                // Refresh the burner balance so the dashboard's TOTAL EQUITY
+                // drops by `amount` immediately rather than after the next poll.
+                try { await veloPerpsTrading.refresh(); } catch {}
               }}
             />
             {/* ── Velo Withdraw Modal (trading wallet → main or custom 0x) ── */}
@@ -7141,8 +7185,13 @@ const App = () => {
                   try {
                     await recordTransaction(user.id, 'WITHDRAW', amount, { txHash: hash, onChain: true });
                     await createNotification(user.id, 'WITHDRAW', `Withdrew $${amount.toFixed(2)} mUSDC to wallet`, hash);
+                    const txns = await fetchTransactions(user.id);
+                    setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
                   } catch (e) { console.warn('[velo] withdraw tx record failed', e); }
                 }
+                // Refresh the burner balance so TOTAL EQUITY visibly drops by
+                // the withdrawn amount immediately.
+                try { await veloPerpsTrading.refresh(); } catch {}
               }}
             />
             {/* ── Velo Share Card (PNG export) ── */}

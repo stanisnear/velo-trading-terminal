@@ -535,3 +535,48 @@ When a user connects via Google/Discord/etc., AppKit creates a Reown-managed **e
 - AppKit's `tokens` config only affects the display in the AppKit modal itself — it does NOT affect Velo's own balance reads (`fetchUsdcBalance` via viem). The two are independent.
 - `swaps: false` + `enableCoinbase: false` suppresses the smart account creation. If Reown changes their SDK these options may shift. If two wallets reappear in a future AppKit update, check their changelog for smart account config.
 - The `VeloWithdrawModal` export alias means both `defaultTab="deposit"` and `defaultTab="withdraw"` open the same modal component — any `isVeloWithdrawOpen` state in App.tsx correctly opens the withdraw tab.
+
+### 2026-05-26 — Batch 6: Reown two-wallet fix + broken Funds modal balances + missing faucet activity row
+
+This batch fixes a cluster of issues that all surfaced together when Stan tested the onboarding-to-trade flow end-to-end. The symptoms looked unrelated — Reown wallet shows $0, Funds modal shows $0/$0, Recent Activity is empty after the faucet credit, two wallets in the Reown picker — but they were five separate root causes, each touching a different part of the wallet/balance/activity surface.
+
+**Problems fixed:**
+
+1. **Funds modal (VeloDepositModal) always shows MAIN $0 and TRADING $0** — even when the trading wallet held $1,000. Root cause: `fetchUsdcBalance` has signature `(publicClient, usdcAddress, owner)`. The modal was calling it with two arguments — passing the user's address as the `usdcAddress` parameter — so it was reading "balance of self" from the wrong contract, which always returns 0. VeloSendModal called it correctly (3 args, MAX $1000 visible), VeloDepositModal didn't (Withdraw tab showed $0/$0). Fix: pass `VELO_USDC_BASE` as the second arg in all four call sites. Also added a 6-second polling interval while the modal is open so balances refresh visibly after deposit/withdraw confirmations.
+
+2. **Two wallets in the Reown picker (Smart Account + EOA)** — batch 5's `swaps: false` + `enableCoinbase: false` workaround DOES NOT actually disable AppKit smart accounts. The correct option per Reown's docs (`docs.reown.com/appkit/react/core/options#defaultaccounttypes`) and GitHub issue [reown-com/appkit#4057](https://github.com/reown-com/appkit/issues/4057) is `defaultAccountTypes: { eip155: 'eoa' }`. Added this; kept `swaps: false` and `enableCoinbase: false` as defensive measures (they suppress related UI elements but don't affect smart account creation on their own).
+
+3. **`tokens` config was malformed and silently ignored** — batch 5 wrote `tokens: { [baseSepolia.id]: [{ address: '0x...' }] }`. Reown's actual type is `Record<CaipNetworkId, Token>` — the key must be the CAIP string (`'eip155:84532'`, NOT the numeric chain id) and the value must be a single `Token` object (NOT an array). Wrong shape = AppKit silently doesn't register the token, so mUSDC never appears in the Reown wallet modal regardless of balance. Fixed to use `{ 'eip155:84532': { address: '0x5EFaF…', image: '...' } }`.
+
+4. **Initial faucet credit never recorded in Recent Activity** — the welcome modal mints 1,000 mUSDC directly to the burner, but `onBurnerReady` only refreshed the trading hook and showed a toast. It never called `recordTransaction`. So TOTAL EQUITY showed $1,000 (read from chain, correct) but Recent Activity stayed empty (read from Supabase). The old Orderly onboarding path wired this up; the new Velo path didn't. Fix: extended `onBurnerReady` to forward `{ burnerAddress, amount, txHash }`; App.tsx now records a DEPOSIT with `txHash: 'faucet:<onchain_hash>'`. The existing `faucet:` idempotency guard in `supabaseStore.recordTransaction` prevents duplicate rows on retries.
+
+5. **"Open Wallet" menu item was structurally broken** — the Reown modal only knows about the address from `useAccount()` (the MAIN wallet). After a fresh signup the main wallet is empty because the faucet mints to the BURNER. So clicking "Open Wallet" always shows $0 right after onboarding — looks like a bug, panics the user. The Reown modal cannot show the burner balance because it has no concept of the derived wallet. Fix: removed "Open Wallet" from the avatar menu entirely; renamed "Settings" to "Wallet & Settings" (the Velo Wallet & Settings modal correctly shows both wallets with live balances). The Reown modal is still reachable via the Connect Wallet button in the navbar for disconnect/network-switch needs.
+
+**Bonus: instant balance + activity refresh on every modal success.** The dashboard polls the burner every 5 seconds via `useVeloPerpsTrading`. After a Deposit / Send / Withdraw, that polling lag made the SUCCESS toast feel disconnected from the equity number. Now every success callback in App.tsx calls `veloPerpsTrading.refresh()` + `fetchTransactions(user.id)` immediately, so TOTAL EQUITY and Recent Activity update the moment the toast appears.
+
+**Files changed:**
+- `src/services/web3Config.ts` — added `defaultAccountTypes: { eip155: 'eoa' }`; fixed `tokens` to use CAIP key + single Token object; dropped invalid `walletConnect` feature flag; added comments explaining why each option is there. This is now the canonical Reown config — leave it alone unless Reown ships a breaking SDK change.
+- `src/components/VeloDepositModal.tsx` — fixed 4 broken `fetchUsdcBalance` call sites; added 6s polling while modal is open; refactored balance reads into a single `loadBalances` helper.
+- `src/components/VeloWelcomeModal.tsx` — extended `onBurnerReady` callback signature to forward `{ burnerAddress, amount, txHash }`.
+- `src/App.tsx` — wired the welcome modal callback to write the DEPOSIT row + notification + refetch transactions; added `veloPerpsTrading.refresh()` + `fetchTransactions` to the Deposit / Send / Withdraw success callbacks; dropped "Open Wallet" menu item; renamed "Settings" → "Wallet & Settings"; removed unused `useAppKit` import.
+
+**New gotchas:**
+- The Reown `tokens` config is `Record<CaipNetworkId, Token>` — the key is a CAIP string like `'eip155:84532'`, NOT `baseSepolia.id` (84532) or `'84532'`. The value is a single Token object, NOT an array. Wrong shape = silently ignored. There is NO console warning when this happens.
+- `defaultAccountTypes: { eip155: 'eoa' }` is the ONLY supported way to disable AppKit smart accounts. `swaps: false`, `enableCoinbase: false`, and dropping `email`/`socials` from features do NOT disable smart accounts. If Reown adds a per-feature smart account toggle in the future, check the changelog; until then this is the only lever.
+- `fetchUsdcBalance(publicClient, usdcAddress, owner)` is 3-arg, not 2-arg. Future call sites must pass `VELO_USDC_BASE` explicitly. TypeScript catches this — if you see "Expected 3 arguments, but got 2" anywhere related to fetchUsdcBalance, that's the same class of bug.
+- The Reown wallet modal CANNOT show the burner balance. It is structurally incapable of doing so — the burner is a localStorage-derived key that AppKit has no concept of. Any "wallet" surface the user can access from the Velo UI should go to `SettingsModal`, never to AppKit's modal. Treat AppKit's modal as a connect/network-switch surface only, NOT as a balance/portfolio surface. This is documented in the comment block at the top of `web3Config.ts`.
+- The `Settings` lucide icon is no longer referenced from `App.tsx` after this batch (we use `Wallet` for the renamed menu item). It's still imported because it may be needed elsewhere in the monolith — left alone to avoid risk.
+
+**Supersedes from batch 5:** the gotcha "`swaps: false` + `enableCoinbase: false` suppresses the smart account creation" is WRONG. Those options do not control smart account creation. `defaultAccountTypes: { eip155: 'eoa' }` does.
+
+**Verification:**
+- `npx vite build` passes (44s).
+- `npx tsc --noEmit` error count drops from 86 → 79; the 7 resolved errors are all directly tied to fixes in this batch (4× VeloDepositModal arity, 1× walletConnect feature, 1× tokens key shape, 1× networks readonly cast). No new TS errors introduced.
+
+**Manual test plan for Stan after deploy:**
+1. Clear localStorage + Supabase auth → fresh signup via social or wallet.
+2. Welcome modal → claim faucet → should see Recent Activity row "DEPOSIT $1,000.00 mUSDC" with a "Welcome bonus" notification.
+3. Open Settings → should see Main $0 / Trading $1,000. Reown picker (via Connect Wallet button) should show ONE wallet entry (no Smart Account row).
+4. Open Funds modal (Deposit button on dashboard) → Withdraw tab → should now correctly show MAIN $0 / TRADING $1,000 (this was the broken case). MAX button should fill in $1,000.
+5. Withdraw $500 to main → SUCCESS toast → TOTAL EQUITY should drop to $500 immediately (no 5s lag). Recent Activity should show new WITHDRAW row immediately.
+6. Open Funds modal again → should now show MAIN $500 / TRADING $500 (live polling visible if you wait 6s without closing).

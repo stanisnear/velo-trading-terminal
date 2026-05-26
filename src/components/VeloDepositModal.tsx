@@ -69,6 +69,11 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
 
   const reset = () => { setStep('IDLE'); setErrMsg(''); setTxHash(null); setAmount(''); };
 
+  // Balance reads must go through the mUSDC contract — fetchUsdcBalance signature
+  // is (publicClient, usdcAddress, owner). Earlier builds dropped the contract
+  // argument, which silently read from the wrong address and made both balances
+  // render as $0 forever (visible in the Withdraw tab even with $1000 sitting
+  // in the trading wallet).
   useEffect(() => {
     if (!isOpen) return;
     setTab(defaultTab);
@@ -77,14 +82,30 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
     const burner = loadStoredBurner(mainAddress);
     if (!burner) { setBurnerAddress(null); return; }
     setBurnerAddress(burner.veloAddress);
-    fetchUsdcBalance(publicClient, mainAddress).then(setMainBalance).catch(() => {});
-    fetchUsdcBalance(publicClient, burner.veloAddress).then(setTradingBalance).catch(() => {});
+    void loadBalances(burner.veloAddress);
+    // Re-poll every 6s while the modal is open so deposits/withdraws confirm
+    // visibly without the user closing and reopening.
+    const handle = setInterval(() => loadBalances(burner.veloAddress), 6000);
+    return () => clearInterval(handle);
   }, [isOpen, mainAddress, publicClient]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const loadBalances = async (burnerAddr: `0x${string}`) => {
+    if (!publicClient || !mainAddress) return;
+    try {
+      const [main, trading] = await Promise.all([
+        fetchUsdcBalance(publicClient, VELO_USDC_BASE, mainAddress),
+        fetchUsdcBalance(publicClient, VELO_USDC_BASE, burnerAddr),
+      ]);
+      setMainBalance(main);
+      setTradingBalance(trading);
+    } catch (e) {
+      console.warn('[VeloDepositModal] balance load failed', e);
+    }
+  };
+
   const refreshBalances = () => {
-    if (!publicClient || !mainAddress || !burnerAddress) return;
-    fetchUsdcBalance(publicClient, mainAddress).then(setMainBalance).catch(() => {});
-    fetchUsdcBalance(publicClient, burnerAddress).then(setTradingBalance).catch(() => {});
+    if (!burnerAddress) return;
+    void loadBalances(burnerAddress);
   };
 
   const handleCopy = () => {

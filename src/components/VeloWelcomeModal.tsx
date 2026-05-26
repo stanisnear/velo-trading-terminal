@@ -82,8 +82,19 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onClaimed?: () => void;
-  /** Fires when the burner setup completes (so App can refresh the hook). */
-  onBurnerReady?: () => void;
+  /**
+   * Fires when the burner setup completes (so App can refresh the hook).
+   * If the setup ran a faucet mint, the args carry the credited amount and
+   * the on-chain proof so the host can write a DEPOSIT row to Supabase and
+   * show it in Recent Activity. When the modal short-circuits because the
+   * burner already has a balance, txHash is null and amount is the balance
+   * already on-chain (no new credit to record).
+   */
+  onBurnerReady?: (args: {
+    burnerAddress: `0x${string}`;
+    amount: number;
+    txHash: `0x${string}` | null;
+  }) => void;
 }
 
 export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, onBurnerReady }) => {
@@ -150,12 +161,14 @@ export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, 
             fetchUsdcBalance(publicClient, VELO_USDC_BASE, burnerAddr),
           ]);
           if (bal > 0) {
-            // Burner already has mUSDC — setup is complete, just close
+            // Burner already has mUSDC — setup is complete, just close.
+            // No txHash because nothing was minted in this session; the
+            // host will see txHash:null and skip the duplicate Supabase write.
             setPostClaimBalance(bal);
             setBurnerAddress(burnerAddr);
             setStep('SUCCESS');
             try { localStorage.setItem(STORAGE_KEY_DISMISSED, '1'); } catch {}
-            onBurnerReady?.();
+            onBurnerReady?.({ burnerAddress: burnerAddr, amount: bal, txHash: null });
             return;
           }
           if (cooldown.availableAt > 0 && Date.now() / 1000 < cooldown.availableAt) {
@@ -187,14 +200,23 @@ export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, 
       setBurnerAddress(result.burner.veloAddress);
       setClaimTxHash(result.faucetTxHash);
       // Read the burner's balance so we can show it in the success card
+      let postBalance = 1000;
       try {
         const bal = await fetchUsdcBalance(publicClient, VELO_USDC_BASE, result.burner.veloAddress);
+        postBalance = bal;
         setPostClaimBalance(bal);
       } catch { setPostClaimBalance(1000); /* faucet amount */ }
       setStep('SUCCESS');
       try { localStorage.setItem(STORAGE_KEY_DISMISSED, '1'); } catch {}
       onClaimed?.();
-      onBurnerReady?.();
+      // Forward the faucet credit so App.tsx can write a DEPOSIT row to
+      // Supabase. The Recent Activity feed reads from that table, so without
+      // this call the user's initial $1,000 never shows up in the dashboard.
+      onBurnerReady?.({
+        burnerAddress: result.burner.veloAddress,
+        amount: postBalance,
+        txHash: result.faucetTxHash ?? null,
+      });
     } catch (e: any) {
       handleError(e, 'Trading wallet setup was interrupted.');
     }
