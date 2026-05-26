@@ -27,6 +27,44 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 export const isConfigured = () =>
   SUPABASE_ANON_KEY !== 'YOUR_ANON_KEY_HERE' && SUPABASE_ANON_KEY.startsWith('eyJ');
 
+// ── Persistence error broadcaster ─────────────────────────────────────────────
+// Trade history and transaction inserts run fire-and-forget so trade UX isn't
+// blocked by network latency. The downside is that when those inserts fail
+// (RLS misconfigured, schema not migrated, network blip), the rows show up in
+// the local UI but vanish on next refresh — and the only sign anything went
+// wrong was a console.warn buried in devtools.
+//
+// This event bus surfaces every insert failure so App.tsx can show ONE
+// non-spammy toast per failure category. The actual error is also still
+// logged via console.error so it's grep-able in Vercel logs / Sentry.
+type PersistenceErrorKind = 'TRADE_HISTORY' | 'TRANSACTION' | 'POSITION' | 'PROFILE_SYNC';
+export interface PersistenceError {
+  kind: PersistenceErrorKind;
+  message: string;
+  code?: string;
+  hint?: string;
+}
+type PersistenceErrorListener = (err: PersistenceError) => void;
+const _persistenceListeners = new Set<PersistenceErrorListener>();
+export function onPersistenceError(fn: PersistenceErrorListener) {
+  _persistenceListeners.add(fn);
+  return () => { _persistenceListeners.delete(fn); };
+}
+function reportPersistenceError(err: PersistenceError) {
+  console.error(`[velo:persist:${err.kind}]`, err.message, err.code ? `(code=${err.code})` : '', err.hint ? `→ ${err.hint}` : '');
+  _persistenceListeners.forEach(fn => { try { fn(err); } catch { /* ignore listener errors */ } });
+}
+function hintFromCode(code: string | undefined): string | undefined {
+  switch (code) {
+    case '42501':   return 'Row-Level Security blocked the insert — apply SUPABASE_MIGRATION_RLS_ACTIVITY.sql.';
+    case '42703':   return 'Column does not exist — run the latest Supabase migration.';
+    case '23503':   return 'Foreign key violation — the user_id may not match auth.uid().';
+    case '23505':   return 'Duplicate row — this insert may already exist.';
+    case 'PGRST301':return 'No matching row visible to this auth user — check RLS SELECT policy.';
+    default:        return undefined;
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════════════════════════════════
@@ -594,7 +632,15 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
       }
     }
   }
-  if (error) console.error('[supabase] insertTradeHistory error:', error.message);
+  if (error) {
+    console.error('[supabase] insertTradeHistory error:', error.message);
+    reportPersistenceError({
+      kind: 'TRADE_HISTORY',
+      message: `Trade not saved: ${error.message}`,
+      code: (error as any).code,
+      hint: hintFromCode((error as any).code),
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -665,6 +711,12 @@ export async function recordTransaction(
   }
   if (txErr) {
     console.error('[supabase] recordTransaction insert error:', txErr.message);
+    reportPersistenceError({
+      kind: 'TRANSACTION',
+      message: `Activity row not saved: ${txErr.message}`,
+      code: (txErr as any).code,
+      hint: hintFromCode((txErr as any).code),
+    });
     throw new Error(txErr.message);
   }
 

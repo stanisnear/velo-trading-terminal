@@ -86,6 +86,7 @@ import {
   uploadAvatar,
   uploadBanner,
   supabase,
+  onPersistenceError,
 } from './services/supabaseStore';
 
 
@@ -911,7 +912,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                         )}
                     </div>
                 ) : (
-                    <WalletConnectButton compact={true} onOpenAuthModal={onRequireAuth} />
+                    <WalletConnectButton compact={true} onOpenAuthModal={onRequireAuth} onOpenSettings={onOpenSettings} />
                 )}
             </div>
         </nav>
@@ -3995,6 +3996,45 @@ const App = () => {
     const isContractOwner = !!walletAddress && !!contractOwner
       && walletAddress.toLowerCase() === contractOwner.toLowerCase();
 
+    // ── Persistence-error surfacing (batch 7) ──────────────────────────────
+    // supabaseStore reports any fire-and-forget insert failure (trade rows,
+    // activity rows) through `onPersistenceError`. Without this listener those
+    // failures only show in devtools — the user sees their CLOSE row appear
+    // in Recent Activity, refreshes, and watches it vanish with no clue why.
+    //
+    // We throttle: one toast per kind per 60 seconds. The full error still
+    // goes to console for grep in Vercel logs.
+    useEffect(() => {
+      const lastShown = new Map<string, number>();
+      const unsubscribe = onPersistenceError((err) => {
+        const now = Date.now();
+        const lastTime = lastShown.get(err.kind) || 0;
+        if (now - lastTime < 60_000) return; // throttle
+        lastShown.set(err.kind, now);
+        const label = err.kind === 'TRADE_HISTORY' ? 'Trade history not saved'
+                    : err.kind === 'TRANSACTION'   ? 'Activity not saved'
+                    : err.kind === 'POSITION'      ? 'Position not saved'
+                    : 'Profile sync failed';
+        const detail = err.hint || err.message;
+        setToast({ message: `${label} — ${detail}`, type: 'ERROR' });
+      });
+      return unsubscribe;
+    }, []);
+
+    // ── Activity refetch on tab focus (batch 7) ────────────────────────────
+    // Session restore fetches trade_history + transactions once at mount. If
+    // that initial fetch is racy (RLS still settling) the user sees an empty
+    // Recent Activity table even though rows ARE in the DB. This effect
+    // re-pulls both whenever the tab becomes visible, making the back-to-Velo
+    // experience self-healing.
+    //
+    // Cheap: two LIMIT'd SELECTs, only when the tab is actually being viewed.
+    // Idempotent: setUser merges by replacing the arrays, never appends.
+    //
+    // This is also the long-term fix for "Recent activity disappears on
+    // refresh" — even if the initial promise.all has weird timing, the next
+    // tab focus heals it.
+
     // ── Velo Perps on-chain trading (Phase 1+) ──────────────────────────────
     // New on-chain trading layer. Runs alongside Orderly during the migration.
     // `useVeloPerpsTrading` polls VeloPerps every 5s — single source of truth
@@ -4012,6 +4052,34 @@ const App = () => {
         setBurnerAddress(cached.veloAddress as `0x${string}`);
       }
     }, [walletAddress]);
+
+    // Activity refetch on tab focus — the body of the effect described in the
+    // comment block higher up. Placed here because it needs `user` in scope.
+    useEffect(() => {
+      if (!user?.id || !isSupabaseConfigured()) return;
+      let isMounted = true;
+      const refetch = async () => {
+        try {
+          const [history, txns] = await Promise.all([
+            fetchTradeHistory(user.id),
+            fetchTransactions(user.id),
+          ]);
+          if (!isMounted) return;
+          setUser(prev => prev ? { ...prev, tradeHistory: history, transactionHistory: txns } : prev);
+        } catch (e) {
+          console.warn('[velo] activity refetch failed:', e);
+        }
+      };
+      const onVisible = () => { if (document.visibilityState === 'visible') void refetch(); };
+      document.addEventListener('visibilitychange', onVisible);
+      // Refetch immediately on user change (in case session restore ran
+      // before user was set — e.g. post social-login onboarding).
+      void refetch();
+      return () => {
+        isMounted = false;
+        document.removeEventListener('visibilitychange', onVisible);
+      };
+    }, [user?.id]);
 
     // ── Social login onboarding trigger ────────────────────────────────────
     // When AppKit finishes a social/email login, isWalletConnected flips true
@@ -7097,7 +7165,14 @@ const App = () => {
                 }
               }}
             />
-            {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ── */}
+            {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ──
+                NOTE (batch 7): no longer wired to any UI button. Cross-chain
+                deposits/withdraws now live inside the unified Funds modal
+                (VeloDepositModal) as a network picker. This mount is kept
+                so any future programmatic trigger still works, but in the
+                current UX the user never sees it. Safe to remove if it
+                becomes a maintenance burden — also remove `isVeloBridgeOpen`
+                state and the `VeloBridgeModal` import at top of file. */}
             <VeloBridgeModal
               isOpen={isVeloBridgeOpen}
               onClose={() => setVeloBridgeOpen(false)}
@@ -7272,7 +7347,9 @@ const App = () => {
             <SettingsModal
               isOpen={isSettingsOpen}
               onClose={() => setSettingsOpen(false)}
-              onOpenBridge={() => { setSettingsOpen(false); setVeloBridgeOpen(true); }}
+              // onOpenBridge intentionally not passed (batch 7) — cross-chain
+              // is now a network picker inside the Deposit/Withdraw modal,
+              // not a separate top-level concept.
               onOpenUsername={() => { setSettingsOpen(false); setVeloUsernameOpen(true); }}
               onOpenSend={() => { setSettingsOpen(false); setVeloSendOpen(true); }}
             />
@@ -7426,7 +7503,12 @@ const App = () => {
                     else setVeloWelcomeOpen(true);
                   }}
                   onOpenSend={() => setVeloSendOpen(true)}
-                  onOpenBridge={() => setVeloBridgeOpen(true)}
+                  // onOpenBridge intentionally not passed — the standalone
+                  // "Bridge" button was confusing (users don't think in terms
+                  // of bridges, they think in terms of "deposit from Optimism").
+                  // Cross-chain is now a network picker inside the unified
+                  // Funds modal (VeloDepositModal). See that file's header
+                  // comment for the design rationale.
                   onOpenWithdraw={() => {
                     // If burner exists, open the real withdraw modal.
                     // Otherwise direct them to onboarding.

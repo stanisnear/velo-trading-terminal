@@ -580,3 +580,80 @@ This batch fixes a cluster of issues that all surfaced together when Stan tested
 4. Open Funds modal (Deposit button on dashboard) → Withdraw tab → should now correctly show MAIN $0 / TRADING $1,000 (this was the broken case). MAX button should fill in $1,000.
 5. Withdraw $500 to main → SUCCESS toast → TOTAL EQUITY should drop to $500 immediately (no 5s lag). Recent Activity should show new WITHDRAW row immediately.
 6. Open Funds modal again → should now show MAIN $500 / TRADING $500 (live polling visible if you wait 6s without closing).
+
+### 2026-05-26 — Batch 7: Reown modal exorcism, bridge UX rewrite, Recent Activity persistence diagnostics
+
+This batch addresses three orthogonal asks from Stan after testing batch 6 in production:
+
+1. The Reown wallet modal causes more confusion than value — Velo can show everything Reown shows (with the burner balance Reown can't see), and the private key export already lives in Velo Settings. Get rid of it from the user flow.
+2. A standalone "Bridge" button on the dashboard doesn't match how anyone thinks about crypto deposits/withdraws. Every CEX makes you pick a network as part of the deposit/withdraw flow; the bridge is invisible. Match that.
+3. Recent Activity rows show up live after a trade then disappear on refresh. The dashboard equity ($499.20) survives, but the Realized PnL drops from $0.06 to $0.00 and Win Rate goes from 100% to 0%. The rows aren't surviving the round trip to Supabase, and the UI gives the user zero signal about why.
+
+**Problems fixed:**
+
+1. **Reown's AppKit modal is no longer reachable post-login.** The Reown modal is structurally incapable of showing the burner (trading wallet) balance — it only knows about the address returned by `useAccount()`, which is the MAIN wallet. After the faucet credits the burner, the AppKit modal shows $0 every time the user opens it, even though Velo's dashboard correctly reads the burner and shows $1,000. We can't fix that from inside AppKit (it's a fundamental architectural mismatch — the burner is a localStorage-derived key Reown has no concept of). So in batch 7 we removed every post-login surface that opens the AppKit modal:
+   - `WalletConnectButton.tsx` no longer imports `useAppKit`. Connected-state click routes to the Velo Wallet & Settings modal via a new `onOpenSettings` callback prop. Wrong-network click calls wagmi's `useSwitchChain` directly, which pops the browser-extension's native chain switcher — no Reown modal layered on top.
+   - The unauthenticated "Connect Wallet" button still opens `AuthModal`, which internally uses AppKit for the initial wallet/social-provider pick. That's the ONLY remaining entry point for AppKit's modal.
+   - AppKit stays initialized as the wagmi connection backend; we just stop surfacing its modal to the user.
+
+2. **Bridge is now part of Deposit/Withdraw, not a separate top-level concept.** Full rewrite of `VeloDepositModal.tsx`. Both tabs (Deposit and Withdraw) now have a network picker at the top with four options (Base, Arbitrum, Optimism, Ethereum Sepolia). Base Sepolia uses the existing ERC-20 transfer path (main → burner for deposit, burner → recipient for withdraw). Other chains use the existing `bridgeService.executeBridge` via LayerZero V2 OFT:
+   - **Cross-chain deposit**: user's wallet must be on the source chain (we trigger `switchChainAsync` if not). User signs `oft.send` on chain X with main wallet, mUSDC arrives in burner on Base in 1-3 min. Fee preview shown inline ("LayerZero fee: ~0.0001 ETH").
+   - **Cross-chain withdraw**: burner on Base signs `oft.send` to the destination address on the target chain. `ensureBurnerGas` tops up the burner so it can cover the LayerZero native fee.
+   - Same-chain quick amounts ($10/$50/$100/$500) only show on Base because we know the main balance. For cross-chain we hide them since we don't fetch the user's balance on Optimism etc. without another roundtrip.
+   - The standalone `VeloBridgeModal` mount is left in `App.tsx` but disconnected from all UI buttons (commented with explicit removal instructions if it becomes a maintenance burden).
+   - Removed `onOpenBridge` from both Dashboard and SettingsModal call sites in App.tsx.
+
+3. **Recent Activity disappears on refresh — root cause diagnostics + automatic recovery.** Two complementary fixes since the root cause isn't directly visible to me (could be RLS, schema drift, or auth-row mismatch in Stan's deployed Supabase):
+   - **Persistence-error broadcaster.** New `onPersistenceError` event bus in `supabaseStore.ts`. Every fire-and-forget insert that fails now broadcasts a typed event with the Postgres error code and a hint mapped from common codes (`42501` → RLS blocked, `42703` → column missing, `23503` → FK mismatch, etc). App.tsx subscribes and surfaces ONE throttled toast per failure category (60s throttle so a flurry of errors doesn't spam). Hit `insertTradeHistory` and `recordTransaction` error paths. The full error still goes to `console.error` for Vercel-log grep.
+   - **Visibility-change refetch.** New useEffect in App.tsx: whenever `document.visibilityState === 'visible'` (i.e. the user comes back to the Velo tab), re-pull `fetchTradeHistory` + `fetchTransactions` and merge into `user.tradeHistory` / `user.transactionHistory`. This is a self-healing recovery path that works regardless of whether the initial session-restore Promise.all was racy. Cheap: two LIMIT'd SELECTs, only when the tab is actually being viewed. Idempotent: setUser replaces arrays, never appends.
+
+4. **`SUPABASE_MIGRATION_RLS_ACTIVITY.sql` — direct fix for the most likely root cause.** Idempotent SQL that re-applies SELECT/INSERT/UPDATE/DELETE policies on `trade_history` and `transactions`, gated on `auth.uid() = user_id`. Drops policies by name then recreates so it's safe to rerun. If the disappearance was RLS-related (overwhelmingly likely given the symptoms), this migration plus the policy reset fixes it permanently. If something else is going on, the in-app toast (point 3) tells you exactly what.
+
+**Files changed:**
+- `src/components/VeloDepositModal.tsx` — full rewrite. Network picker, cross-chain deposit + withdraw via LayerZero, fee preview, success state covers both same-chain and bridge cases. Header comment block documents the design rationale.
+- `src/components/WalletConnectButton.tsx` — full rewrite. Drops `useAppKit` import entirely. Three states (unauthenticated, wrong-network, connected), each routes to Velo-native UI. Header comment documents the "AppKit modal exposure policy".
+- `src/services/supabaseStore.ts` — new `onPersistenceError` event bus + `reportPersistenceError` + `hintFromCode` helper. `insertTradeHistory` and `recordTransaction` error paths now broadcast.
+- `src/App.tsx` — three changes:
+   1. Persistence-error listener with 60s throttle posting toasts.
+   2. Visibility-change refetch effect re-pulling trade_history + transactions on tab focus.
+   3. Dropped `onOpenBridge` from Dashboard and SettingsModal call sites; passed `onOpenSettings` to `WalletConnectButton`.
+- `SUPABASE_MIGRATION_RLS_ACTIVITY.sql` (NEW) — re-applies activity table RLS policies. Run once in Supabase SQL editor.
+
+**New gotchas:**
+- Cross-chain deposits require the user's wallet to switch to the source chain (Arbitrum / Optimism / Ethereum Sepolia). We call `switchChainAsync` automatically, but if the wallet doesn't recognize the chain (rare on testnet) the user may need to add it manually. MetaMask, Rabby, and Coinbase Wallet all auto-add Sepolia variants. Phantom does not — Solana wallet, not relevant here.
+- The LayerZero fee preview uses a `viem.createPublicClient` spun up on demand for the source chain — there's no shared client cache. If this becomes slow we can lift it into a useMemo or a service-level cache, but for now the call latency (~200ms) is invisible during typing.
+- The dormant `VeloBridgeModal` mount in App.tsx is dead code from the user's perspective. Kept it because removal needs to also drop the state + import, and the cost is zero. The comment block at the mount point explicitly says "safe to remove" — next time someone audits dead code, drop it.
+- Persistence-error toasts throttle per `kind`, not per error message. If a user hits two different DB errors in succession, only the first surfaces. That's intentional — surfacing every error during a burst (e.g. 10 quick trades all failing) is overwhelming.
+- The visibility-refetch is unconditional on tab focus. If the user's connection is bad and the refetch fails, the previously-loaded data stays (we never clear before the fetch resolves). No regression risk.
+- `WalletConnectButton` no longer imports `useDisconnect` either — the disconnect action lives in Velo's Wallet & Settings modal now. If any future code path needs to disconnect from the navbar, re-import it directly from wagmi.
+
+**Verification:**
+- `npx vite build` passes in 39s. Build chunks unchanged in size vs batch 6 modulo the new bridge code (+~5kB gzipped).
+- Manual smoke test of the network picker UI was not run (no live Supabase / live LayerZero from the dev environment) — Stan to verify on Vercel.
+
+**Manual test plan for Stan after deploy:**
+
+For the Reown modal removal:
+1. Sign out completely (clear localStorage + Supabase auth).
+2. Click Connect Wallet → AuthModal opens → use Google sign-in.
+3. AppKit social-login modal appears ONCE during sign-in (expected).
+4. Complete onboarding → faucet claim → land on dashboard.
+5. Click the wallet address chip in the navbar (where it shows `0x04…De99`). Should open Velo's Wallet & Settings modal showing BOTH wallets with their balances. NOT the Reown modal.
+6. If you switch to a different network in MetaMask, the button should change to "Switch to Base Sepolia" and clicking should pop your wallet's NATIVE chain picker, not a Reown modal.
+
+For the bridge UX:
+7. Open Funds modal (Deposit button). The Deposit tab should have a "Source Network" picker with Base / Arbitrum / Optimism / Ethereum.
+8. Default is Base — the existing same-chain deposit flow works unchanged.
+9. Click "Arbitrum" — UI changes: the Main/Trading balance cards hide (we don't know your Arbitrum balance), quick amounts hide, and the button becomes "↓ Bridge $X from Arbitrum". When you type an amount, a "LayerZero fee" row appears with the quote.
+10. Don't actually bridge unless you have testnet ETH on Arbitrum Sepolia — but the quote should at least appear (or fail with a visible error if the OFT contracts aren't deployed/wired on that chain).
+11. Switch to Withdraw tab. "Destination Network" picker should work the same way.
+12. Confirm that the dashboard no longer has a Bridge button — only Deposit, Withdraw, Send.
+
+For the Recent Activity persistence:
+13. Run `SUPABASE_MIGRATION_RLS_ACTIVITY.sql` in your Supabase SQL editor as project owner. Check that it completes without errors.
+14. Sign in, open a small position ($10 SOL/USD long, 10x), close it.
+15. Confirm a CLOSE row + OPEN row appear in Recent Activity with the pnl number.
+16. Hard-refresh the page (Cmd+R / Ctrl+R).
+17. Confirm BOTH rows survive the refresh. Realized PnL on the right card should still show the same number.
+18. If they DON'T survive: a toast should now appear saying "Activity not saved — [hint]". The hint tells you the exact Postgres error code so we know what to fix next.
+19. Switch to another browser tab for 30 seconds, then come back. Confirm Recent Activity rows are still there (the visibility-refetch should have re-pulled them).

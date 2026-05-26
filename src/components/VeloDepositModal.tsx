@@ -1,32 +1,67 @@
 // VeloDepositModal.tsx
 //
-// Redesigned (batch 5): clean two-tab modal matching Velo's dark aesthetic.
+// Funds modal — handles BOTH same-chain transfers and cross-chain bridges
+// inside a single unified Deposit/Withdraw UX.
 //
-// Tab 1 — Deposit: moves mUSDC from main wallet → trading wallet.
-//   • If main wallet has mUSDC: shows amount input + one-click transfer button.
-//   • Always shows the trading wallet address with a copy button (works for any external source).
+// ────────────────────────────────────────────────────────────────────────────
+// Why this file is bigger than batch 6:
 //
-// Tab 2 — Withdraw: moves mUSDC from trading wallet → main wallet or custom address.
-//   • Silent burner signature, no MetaMask popup needed.
+// Batch 6 had a separate "Bridge" button on the dashboard that opened
+// VeloBridgeModal. Stan flagged that as wrong UX: when you deposit into
+// Coinbase/Binance, you pick a network and they hand you the right address.
+// You never see a separate "bridge" affordance — it's just part of "deposit".
+// Same for withdraw: you pick a destination network and an address.
 //
-// This is NOT a cross-chain bridge — that's VeloBridgeModal.
+// So this modal absorbs the cross-chain flow:
+//   - Deposit tab has a NETWORK picker. Base Sepolia → simple ERC-20 transfer.
+//     Other Sepolias → LayerZero V2 OFT bridge (mUSDC is an OFT, so the
+//     burner address is the same on every chain — we just need to bridge it).
+//   - Withdraw tab has a NETWORK picker. Base Sepolia → simple ERC-20 transfer
+//     from burner. Other Sepolias → LayerZero V2 OFT bridge from burner.
+//
+// The dashboard's Bridge button is gone. VeloBridgeModal still exists in
+// the repo for the wallet panel's advanced view but is no longer reachable
+// from the main user flow.
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Tab 1 — Deposit: moves mUSDC from MAIN wallet → TRADING wallet.
+//   • Base Sepolia (default): simple ERC-20 transferFrom main → burner.
+//   • Other chain: user must be connected to that chain in their wallet,
+//     we call LayerZero OFT send to bridge to the burner on Base. Address
+//     stays the same across chains (it's the same EOA).
+//
+// Tab 2 — Withdraw: moves mUSDC from TRADING wallet → main wallet or custom address.
+//   • Base Sepolia (default): silent burner transfer.
+//   • Other chain: LayerZero OFT send from burner_base → recipient on target chain.
+//
+// In both cases the trading wallet (burner) IS the same address everywhere,
+// so for cross-chain DEPOSITS we tell the user to either send from their
+// existing wallet on that chain (showing the address + QR) OR sign a bridge
+// from their main wallet if they're connected to that chain.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from 'wagmi';
 import {
-  createWalletClient, http, parseUnits, isAddress, type Address,
+  createWalletClient, http, isAddress, type Address,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { baseSepolia } from 'viem/chains';
+import { baseSepolia, arbitrumSepolia, optimismSepolia, sepolia } from 'viem/chains';
 import {
-  X, Copy, Check, ArrowDownToLine, ArrowUpFromLine,
-  ExternalLink, Loader2, AlertCircle, QrCode,
+  X, Copy, Check, ExternalLink, Loader2, AlertCircle, QrCode, ChevronDown,
 } from 'lucide-react';
 import { fetchUsdcBalance, transferUsdc } from '@/services/veloUsdcService';
 import { VELO_USDC_BASE, baseScanAddressUrl, baseScanTxUrl } from '@/services/veloPerpsService';
 import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { ensureBurnerGas } from '@/services/veloGasSponsor';
+import {
+  CHAIN_ID,
+  CHAIN_LABEL,
+  VELO_USDC_ADDRESS,
+  type BridgeChain,
+  quoteBridge,
+  executeBridge,
+} from '@/services/bridgeService';
 
 const BASE_SEPOLIA_RPC =
   import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
@@ -47,14 +82,43 @@ interface Props {
   onSuccess?: (txHash: `0x${string}`, amount: number, type: Tab) => void;
 }
 
+// Chain ordering for the picker. Base Sepolia first because it's the home chain.
+const CHAINS_ORDERED: BridgeChain[] = ['base_sepolia', 'arbitrum_sepolia', 'optimism_sepolia', 'ethereum_sepolia'];
+
+// Map BridgeChain → viem Chain for createWalletClient on cross-chain ops.
+const VIEM_CHAIN_BY_BRIDGE: Record<BridgeChain, any> = {
+  base_sepolia: baseSepolia,
+  arbitrum_sepolia: arbitrumSepolia,
+  optimism_sepolia: optimismSepolia,
+  ethereum_sepolia: sepolia,
+};
+
+// Short labels for the chain pills (less typing on mobile).
+const CHAIN_SHORT: Record<BridgeChain, string> = {
+  base_sepolia:     'Base',
+  arbitrum_sepolia: 'Arbitrum',
+  optimism_sepolia: 'Optimism',
+  ethereum_sepolia: 'Ethereum',
+};
+
+// Color accents per chain (Base = blue, Arbitrum = ice, Optimism = red, Ethereum = grey)
+const CHAIN_ACCENT: Record<BridgeChain, string> = {
+  base_sepolia:     'oklch(0.68 0.18 240)',
+  arbitrum_sepolia: 'oklch(0.78 0.10 220)',
+  optimism_sepolia: 'oklch(0.66 0.22 25)',
+  ethereum_sepolia: 'oklch(0.62 0.04 280)',
+};
+
 export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab = 'deposit', onSuccess }) => {
   const { address: mainAddress } = useAccount();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient();              // Base Sepolia client
   const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
 
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [burnerAddress, setBurnerAddress] = useState<`0x${string}` | null>(null);
-  const [mainBalance, setMainBalance] = useState(0);
+  const [mainBalance, setMainBalance] = useState(0);     // Base Sepolia main balance
   const [tradingBalance, setTradingBalance] = useState(0);
 
   const [amount, setAmount] = useState('');
@@ -63,11 +127,23 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
   const [errMsg, setErrMsg] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // Network pickers — separate for each tab so toggling tabs doesn't blow away
+  // the user's intent on the other tab.
+  const [depositChain, setDepositChain] = useState<BridgeChain>('base_sepolia');
+  const [withdrawChain, setWithdrawChain] = useState<BridgeChain>('base_sepolia');
+
   // Withdraw-specific
   const [withdrawDest, setWithdrawDest] = useState<'main' | 'custom'>('main');
   const [customAddress, setCustomAddress] = useState('');
 
-  const reset = () => { setStep('IDLE'); setErrMsg(''); setTxHash(null); setAmount(''); };
+  // Cross-chain quote for the current amount/chain pair, displayed inline.
+  const [bridgeQuote, setBridgeQuote] = useState<{ nativeFee: bigint } | null>(null);
+  const [quoteError, setQuoteError] = useState<string>('');
+
+  const reset = useCallback(() => {
+    setStep('IDLE'); setErrMsg(''); setTxHash(null); setAmount('');
+    setBridgeQuote(null); setQuoteError('');
+  }, []);
 
   // Balance reads must go through the mUSDC contract — fetchUsdcBalance signature
   // is (publicClient, usdcAddress, owner). Earlier builds dropped the contract
@@ -108,20 +184,65 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
     void loadBalances(burnerAddress);
   };
 
-  const handleCopy = () => {
-    if (!burnerAddress) return;
-    navigator.clipboard.writeText(burnerAddress).catch(() => {});
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const handleDeposit = async () => {
+  // ── Cross-chain quote effect ──────────────────────────────────────────────
+  // When the user picks a non-Base chain and enters an amount, fetch the
+  // LayerZero fee quote so we can display "+ ~0.0001 ETH gas fee" inline.
+  // Pure UX info — the actual quote is also recomputed at execute time.
+  useEffect(() => {
+    const activeChain = tab === 'deposit' ? depositChain : withdrawChain;
+    if (activeChain === 'base_sepolia') { setBridgeQuote(null); setQuoteError(''); return; }
+    if (!publicClient || !burnerAddress || !amount) { setBridgeQuote(null); return; }
+    const parsed = parseFloat(amount);
+    if (!parsed || parsed <= 0) { setBridgeQuote(null); return; }
+    // The source/dest depend on which tab we're on:
+    //   Deposit:  user signs on `activeChain`, delivers to base_sepolia
+    //   Withdraw: burner signs on base_sepolia, delivers to `activeChain`
+    const source = tab === 'deposit' ? activeChain : 'base_sepolia';
+    const dest   = tab === 'deposit' ? 'base_sepolia' : activeChain;
+    const recipient = tab === 'deposit' ? burnerAddress : (withdrawDest === 'main' ? mainAddress : (isAddress(customAddress) ? customAddress as Address : burnerAddress));
+    if (!recipient) return;
+
+    let cancelled = false;
+    setQuoteError('');
+    // Quote requires a publicClient on the SOURCE chain. We have the Base client
+    // from wagmi but need a fresh one for other chains. quoteBridge does a read
+    // call so we can spin up a viem client on the fly.
+    (async () => {
+      try {
+        const { createPublicClient, http: viemHttp } = await import('viem');
+        const sourceChain = VIEM_CHAIN_BY_BRIDGE[source];
+        const client = createPublicClient({ chain: sourceChain, transport: viemHttp() });
+        const q = await quoteBridge(client as any, source, dest, recipient as Address, parsed);
+        if (!cancelled) setBridgeQuote({ nativeFee: q.nativeFee });
+      } catch (e: any) {
+        if (!cancelled) setQuoteError(e?.shortMessage || e?.message || 'Could not quote bridge');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tab, depositChain, withdrawChain, amount, burnerAddress, mainAddress, withdrawDest, customAddress, publicClient]);
+
+  // ── DEPOSIT handlers ──────────────────────────────────────────────────────
+
+  // Same-chain (Base Sepolia) deposit: standard ERC-20 transfer from MAIN → BURNER.
+  const handleDepositBase = async () => {
     if (!walletClient || !publicClient || !burnerAddress || !mainAddress) return;
     const parsed = parseFloat(amount);
     if (!parsed || parsed <= 0) { setErrMsg('Enter an amount'); return; }
     if (parsed > mainBalance) { setErrMsg(`Max available: ${mainBalance.toFixed(2)} mUSDC`); return; }
     setStep('PENDING'); setErrMsg('');
     try {
+      // If wallet is on a non-Base chain, switch first. Otherwise the tx is
+      // submitted to the wrong network and disappears.
+      if (chainId !== 84532) {
+        try { await switchChainAsync({ chainId: 84532 }); }
+        catch { throw new Error('Please switch your wallet to Base Sepolia'); }
+      }
       const hash = await transferUsdc(walletClient as any, VELO_USDC_BASE, burnerAddress, parsed);
       setTxHash(hash);
       await publicClient.waitForTransactionReceipt({ hash });
@@ -138,7 +259,47 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
     }
   };
 
-  const handleWithdraw = async () => {
+  // Cross-chain deposit: user is on chain X, we LayerZero-bridge mUSDC to
+  // the burner address on Base. The OFT contract on chain X is signed by the
+  // user's MAIN wallet — gas paid by main wallet. mUSDC arrives in the burner
+  // on Base after the LayerZero executor delivers (typically 1-3 min testnet).
+  const handleDepositBridge = async () => {
+    if (!walletClient || !mainAddress || !burnerAddress) return;
+    const parsed = parseFloat(amount);
+    if (!parsed || parsed <= 0) { setErrMsg('Enter an amount'); return; }
+    setStep('PENDING'); setErrMsg('');
+    try {
+      const targetChainId = CHAIN_ID[depositChain];
+      if (chainId !== targetChainId) {
+        try { await switchChainAsync({ chainId: targetChainId }); }
+        catch { throw new Error(`Please switch your wallet to ${CHAIN_LABEL[depositChain]}`); }
+      }
+      // Need a viem public client on the source chain for the quoteBridge call
+      // inside executeBridge. Build one on the fly.
+      const { createPublicClient, http: viemHttp } = await import('viem');
+      const sourceChain = VIEM_CHAIN_BY_BRIDGE[depositChain];
+      const sourcePublic = createPublicClient({ chain: sourceChain, transport: viemHttp() });
+      const { txHash: hash } = await executeBridge(walletClient as any, sourcePublic as any, depositChain, 'base_sepolia', burnerAddress, parsed);
+      setTxHash(hash);
+      setStep('SUCCESS');
+      // For bridge, onSuccess is called with the SOURCE-chain hash — the
+      // destination credit happens async via LayerZero executor. The dashboard
+      // polls and will pick up the new burner balance within 5s of arrival.
+      onSuccess?.(hash, parsed, 'deposit');
+    } catch (e: any) {
+      const msg = e?.shortMessage || e?.message || 'Bridge failed';
+      if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
+        setStep('IDLE');
+      } else {
+        setStep('ERROR'); setErrMsg(msg);
+      }
+    }
+  };
+
+  // ── WITHDRAW handlers ─────────────────────────────────────────────────────
+
+  // Same-chain (Base Sepolia) withdraw: silent burner-signed transfer.
+  const handleWithdrawBase = async () => {
     if (!mainAddress || !publicClient) return;
     const burner = loadStoredBurner(mainAddress);
     if (!burner) { setErrMsg('Trading wallet not found'); setStep('ERROR'); return; }
@@ -168,17 +329,61 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
     }
   };
 
+  // Cross-chain withdraw: LayerZero send from BURNER on Base → recipient on target chain.
+  // The burner pays the LayerZero native fee (in ETH) from its Base Sepolia balance.
+  // ensureBurnerGas tops it up if needed.
+  const handleWithdrawBridge = async () => {
+    if (!mainAddress || !publicClient || !burnerAddress) return;
+    const burner = loadStoredBurner(mainAddress);
+    if (!burner) { setErrMsg('Trading wallet not found'); setStep('ERROR'); return; }
+    const parsed = parseFloat(amount);
+    if (!parsed || parsed <= 0) { setErrMsg('Enter an amount'); return; }
+    if (parsed > tradingBalance) { setErrMsg(`Max available: ${tradingBalance.toFixed(2)} mUSDC`); return; }
+    const target: Address | null = withdrawDest === 'main'
+      ? (mainAddress ?? null)
+      : (isAddress(customAddress) ? (customAddress as Address) : null);
+    if (!target) { setErrMsg('Enter a valid address'); return; }
+    setStep('PENDING'); setErrMsg('');
+    try {
+      // Top up burner gas — bridge native fee may be larger than typical sponsorship.
+      await ensureBurnerGas(publicClient, burner.veloAddress);
+      const burnerWalletClient = createWalletClient({
+        account: privateKeyToAccount(burner.privateKey),
+        chain: baseSepolia,
+        transport: http(BASE_SEPOLIA_RPC),
+      });
+      const { txHash: hash } = await executeBridge(burnerWalletClient as any, publicClient as any, 'base_sepolia', withdrawChain, target, parsed);
+      setTxHash(hash);
+      setStep('SUCCESS');
+      onSuccess?.(hash, parsed, 'withdraw');
+      refreshBalances();
+    } catch (e: any) {
+      setStep('ERROR'); setErrMsg(e?.shortMessage || e?.message || 'Bridge withdraw failed');
+    }
+  };
+
+  const handleDeposit  = () => depositChain  === 'base_sepolia' ? handleDepositBase()  : handleDepositBridge();
+  const handleWithdraw = () => withdrawChain === 'base_sepolia' ? handleWithdrawBase() : handleWithdrawBridge();
+
   if (!isOpen) return null;
 
-  const activeBalance = tab === 'deposit' ? mainBalance : tradingBalance;
   const isDeposit = tab === 'deposit';
+  const activeChain = isDeposit ? depositChain : withdrawChain;
+  const setActiveChain = isDeposit ? setDepositChain : setWithdrawChain;
+  const isCrossChain = activeChain !== 'base_sepolia';
+  const activeBalance = isDeposit ? mainBalance : tradingBalance;
+
+  // Format the LayerZero fee for inline display. nativeFee is in wei.
+  const feeDisplay = bridgeQuote
+    ? `~${(Number(bridgeQuote.nativeFee) / 1e18).toFixed(5)} ETH`
+    : null;
 
   return createPortal(
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(16px)' }}
       onClick={onClose}>
       <div
-        style={{ width: '100%', maxWidth: 440, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+        style={{ width: '100%', maxWidth: 460, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Holo top bar */}
@@ -193,7 +398,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', margin: '0 18px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 3, gap: 3, flexShrink: 0 }}>
+        <div style={{ display: 'flex', margin: '0 18px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 3, gap: 3, flexShrink: 0 }}>
           {(['deposit', 'withdraw'] as Tab[]).map(t => (
             <button
               key={t}
@@ -214,19 +419,57 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
         {/* Body */}
         <div style={{ padding: '0 18px 18px', overflowY: 'auto', flex: 1 }}>
 
-          {/* Balance summary */}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-            {[
-              { label: 'Main Wallet', val: mainBalance },
-              { label: 'Trading Wallet', val: tradingBalance },
-            ].map(({ label, val }) => (
-              <div key={label} style={{ flex: 1, padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
-                <div style={S.label}>{label}</div>
-                <div style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)', marginTop: 4 }}>${val.toFixed(2)}</div>
-                <div style={{ ...S.mono, fontSize: 9, color: 'var(--fg-subtle)', marginTop: 2 }}>mUSDC</div>
+          {/* Network picker — appears on BOTH tabs at the top, like every CEX */}
+          {step !== 'SUCCESS' && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={S.label}>{isDeposit ? 'Source Network' : 'Destination Network'}</span>
+                {isCrossChain && (
+                  <span style={{ ...S.mono, fontSize: 9, color: 'var(--iris-violet)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
+                    via LayerZero
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {CHAINS_ORDERED.map(c => {
+                  const isActive = activeChain === c;
+                  return (
+                    <button key={c} onClick={() => { setActiveChain(c); reset(); }}
+                      style={{
+                        ...S.mono,
+                        padding: '8px 0', borderRadius: 10, cursor: 'pointer',
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                        background: isActive ? `${CHAIN_ACCENT[c].replace(')', ' / 0.18)')}` : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${isActive ? CHAIN_ACCENT[c].replace(')', ' / 0.45)') : 'var(--hairline)'}`,
+                        color: isActive ? CHAIN_ACCENT[c] : 'var(--fg-muted)',
+                        transition: 'all 0.15s',
+                      }}>
+                      {CHAIN_SHORT[c]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Balance summary — only the SAME-chain balances on Base. For cross-chain
+              deposits we don't know the user's balance on Optimism etc. without
+              another RPC roundtrip, and it adds noise; skip and let the wallet
+              show its own balance. */}
+          {step !== 'SUCCESS' && !isCrossChain && (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              {[
+                { label: 'Main Wallet', val: mainBalance },
+                { label: 'Trading Wallet', val: tradingBalance },
+              ].map(({ label, val }) => (
+                <div key={label} style={{ flex: 1, padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
+                  <div style={S.label}>{label}</div>
+                  <div style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)', marginTop: 4 }}>${val.toFixed(2)}</div>
+                  <div style={{ ...S.mono, fontSize: 9, color: 'var(--fg-subtle)', marginTop: 2 }}>mUSDC</div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* SUCCESS state */}
           {step === 'SUCCESS' && txHash ? (
@@ -235,14 +478,19 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 <Check size={24} style={{ color: 'var(--pnl-up)' }} />
               </div>
               <div style={{ ...S.display, fontSize: 20, color: 'var(--fg)', marginBottom: 6 }}>
-                {isDeposit ? 'Deposit complete' : 'Withdrawal complete'}
+                {isDeposit
+                  ? (isCrossChain ? 'Bridge initiated' : 'Deposit complete')
+                  : (isCrossChain ? 'Bridge initiated' : 'Withdrawal complete')}
               </div>
-              <div style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', marginBottom: 16 }}>
-                ${parseFloat(amount).toFixed(2)} mUSDC {isDeposit ? 'moved to your trading wallet' : 'sent to destination'}
+              <div style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', marginBottom: 16, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
+                ${parseFloat(amount).toFixed(2)} mUSDC{' '}
+                {isCrossChain
+                  ? `bridging — funds arrive on ${CHAIN_LABEL[isDeposit ? 'base_sepolia' : withdrawChain]} in 1-3 min`
+                  : isDeposit ? 'moved to your trading wallet' : 'sent to destination'}
               </div>
               <a href={baseScanTxUrl(txHash)} target="_blank" rel="noopener noreferrer"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 11, color: 'var(--iris-violet)', textDecoration: 'none', fontWeight: 700, marginBottom: 18, padding: '6px 12px', borderRadius: 8, background: 'rgba(180,110,255,0.12)', border: '1px solid rgba(180,110,255,0.3)' }}>
-                View on BaseScan <ExternalLink size={10} />
+                View source tx <ExternalLink size={10} />
               </a>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={reset} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid var(--hairline)', background: 'transparent', color: 'var(--fg)', ...S.mono, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
@@ -260,7 +508,9 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
               <div style={{ marginBottom: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={S.label}>Amount</span>
-                  <button onClick={() => setAmount(mainBalance.toFixed(2))} style={{ ...S.mono, fontSize: 9, color: 'var(--iris-violet)', background: 'transparent', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>Max</button>
+                  {!isCrossChain && (
+                    <button onClick={() => setAmount(mainBalance.toFixed(2))} style={{ ...S.mono, fontSize: 9, color: 'var(--iris-violet)', background: 'transparent', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>Max</button>
+                  )}
                 </div>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', ...S.mono, fontSize: 14, color: 'var(--fg-muted)' }}>$</span>
@@ -272,15 +522,30 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 </div>
               </div>
 
-              {/* Quick amounts */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-                {[10, 50, 100, 500].map(a => (
-                  <button key={a} onClick={() => setAmount(String(a))} disabled={a > mainBalance || step === 'PENDING'}
-                    style={{ ...S.mono, flex: 1, padding: '7px 0', borderRadius: 8, border: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.03)', color: 'var(--fg-muted)', fontSize: 10, fontWeight: 700, cursor: a > mainBalance ? 'not-allowed' : 'pointer', opacity: a > mainBalance ? 0.35 : 1 }}>
-                    ${a}
-                  </button>
-                ))}
-              </div>
+              {/* Quick amounts only on same-chain Base where we know the balance */}
+              {!isCrossChain && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+                  {[10, 50, 100, 500].map(a => (
+                    <button key={a} onClick={() => setAmount(String(a))} disabled={a > mainBalance || step === 'PENDING'}
+                      style={{ ...S.mono, flex: 1, padding: '7px 0', borderRadius: 8, border: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.03)', color: 'var(--fg-muted)', fontSize: 10, fontWeight: 700, cursor: a > mainBalance ? 'not-allowed' : 'pointer', opacity: a > mainBalance ? 0.35 : 1 }}>
+                      ${a}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Cross-chain fee preview */}
+              {isCrossChain && feeDisplay && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
+                  <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
+                  <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{feeDisplay}</span>
+                </div>
+              )}
+              {isCrossChain && quoteError && (
+                <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginBottom: 12 }}>
+                  Quote unavailable: {quoteError}
+                </div>
+              )}
 
               {errMsg && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', marginBottom: 12, borderRadius: 8, background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.25)' }}>
@@ -291,50 +556,60 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
 
               <button
                 onClick={handleDeposit}
-                disabled={step === 'PENDING' || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > mainBalance}
+                disabled={step === 'PENDING' || !amount || parseFloat(amount) <= 0 || (!isCrossChain && parseFloat(amount) > mainBalance)}
                 style={{
                   width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: 'pointer',
                   background: 'linear-gradient(100deg, oklch(0.78 0.20 295), oklch(0.72 0.24 330))',
                   color: '#fff', ...S.mono, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
                   textTransform: 'uppercase' as const, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  opacity: (step === 'PENDING' || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > mainBalance) ? 0.5 : 1,
+                  opacity: (step === 'PENDING' || !amount || parseFloat(amount) <= 0 || (!isCrossChain && parseFloat(amount) > mainBalance)) ? 0.5 : 1,
                   transition: 'opacity 0.15s',
                 }}>
-                {step === 'PENDING' ? <><Loader2 size={13} className="animate-spin" /> Confirming…</> : <>↓ Deposit ${amount || '0'}</>}
+                {step === 'PENDING'
+                  ? <><Loader2 size={13} className="animate-spin" /> {isCrossChain ? 'Bridging…' : 'Confirming…'}</>
+                  : isCrossChain
+                    ? <>↓ Bridge ${amount || '0'} from {CHAIN_SHORT[depositChain]}</>
+                    : <>↓ Deposit ${amount || '0'}</>}
               </button>
 
-              {/* Divider */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
-                <span style={{ ...S.label, opacity: 0.6 }}>Or send from anywhere</span>
-                <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
-              </div>
-
-              {/* Copy trading wallet address */}
-              {burnerAddress ? (
-                <div style={{ padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <QrCode size={11} /> Trading Wallet Address
+              {/* Divider + receive-address card. Only on Base — for cross-chain
+                  deposits you can't just send tokens to the burner address from
+                  any wallet, because the OFT model means a plain transfer on
+                  Optimism stays on Optimism. The user MUST go through the
+                  bridge button above. */}
+              {!isCrossChain && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
+                    <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
+                    <span style={{ ...S.label, opacity: 0.6 }}>Or send from anywhere</span>
+                    <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
+                  </div>
+                  {burnerAddress ? (
+                    <div style={{ padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <div style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <QrCode size={11} /> Trading Wallet Address
+                        </div>
+                        <a href={baseScanAddressUrl(burnerAddress)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--fg-subtle)', lineHeight: 1 }}>
+                          <ExternalLink size={11} />
+                        </a>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <code style={{ ...S.mono, fontSize: 11, color: 'var(--fg)', wordBreak: 'break-all' as const, flex: 1 }}>{burnerAddress}</code>
+                        <button onClick={() => handleCopy(burnerAddress)} style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--hairline)', background: copied ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)', cursor: 'pointer', color: copied ? 'var(--pnl-up)' : 'var(--fg-muted)', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {copied ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                      </div>
+                      <div style={{ ...S.mono, fontSize: 10, color: 'rgba(255,180,60,0.8)', marginTop: 8 }}>
+                        ⚠ Base Sepolia only · mUSDC only · Sending other assets will be lost
+                      </div>
                     </div>
-                    <a href={baseScanAddressUrl(burnerAddress)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--fg-subtle)', lineHeight: 1 }}>
-                      <ExternalLink size={11} />
-                    </a>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <code style={{ ...S.mono, fontSize: 11, color: 'var(--fg)', wordBreak: 'break-all' as const, flex: 1 }}>{burnerAddress}</code>
-                    <button onClick={handleCopy} style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--hairline)', background: copied ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)', cursor: 'pointer', color: copied ? 'var(--pnl-up)' : 'var(--fg-muted)', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {copied ? <Check size={12} /> : <Copy size={12} />}
-                    </button>
-                  </div>
-                  <div style={{ ...S.mono, fontSize: 10, color: 'rgba(255,180,60,0.8)', marginTop: 8 }}>
-                    ⚠ Base Sepolia only · mUSDC only
-                  </div>
-                </div>
-              ) : (
-                <div style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center' as const }}>
-                  Complete onboarding to get your trading wallet address.
-                </div>
+                  ) : (
+                    <div style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center' as const }}>
+                      Complete onboarding to get your trading wallet address.
+                    </div>
+                  )}
+                </>
               )}
             </>
           ) : (
@@ -358,6 +633,9 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 {withdrawDest === 'main' && mainAddress && (
                   <div style={{ marginTop: 8, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)', ...S.mono, fontSize: 11, color: 'var(--fg)' }}>
                     {mainAddress.slice(0, 8)}…{mainAddress.slice(-6)}
+                    <span style={{ ...S.mono, fontSize: 9, color: 'var(--fg-subtle)', display: 'block', marginTop: 2 }}>
+                      on {CHAIN_LABEL[withdrawChain]}
+                    </span>
                   </div>
                 )}
                 {withdrawDest === 'custom' && (
@@ -385,6 +663,19 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 </div>
               </div>
 
+              {/* Cross-chain fee preview */}
+              {isCrossChain && feeDisplay && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
+                  <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
+                  <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{feeDisplay}</span>
+                </div>
+              )}
+              {isCrossChain && quoteError && (
+                <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginBottom: 12 }}>
+                  Quote unavailable: {quoteError}
+                </div>
+              )}
+
               {errMsg && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', marginBottom: 12, borderRadius: 8, background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.25)' }}>
                   <AlertCircle size={12} style={{ color: 'var(--pnl-down)' }} />
@@ -403,11 +694,17 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                   opacity: (step === 'PENDING' || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > tradingBalance) ? 0.5 : 1,
                   transition: 'opacity 0.15s',
                 }}>
-                {step === 'PENDING' ? <><Loader2 size={13} className="animate-spin" /> Confirming…</> : <>↑ Withdraw ${amount || '0'}</>}
+                {step === 'PENDING'
+                  ? <><Loader2 size={13} className="animate-spin" /> {isCrossChain ? 'Bridging…' : 'Confirming…'}</>
+                  : isCrossChain
+                    ? <>↑ Withdraw ${amount || '0'} to {CHAIN_SHORT[withdrawChain]}</>
+                    : <>↑ Withdraw ${amount || '0'}</>}
               </button>
 
               <p style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', marginTop: 12, textAlign: 'center' as const }}>
-                Silent — no wallet popup required.
+                {isCrossChain
+                  ? `Funds arrive on ${CHAIN_LABEL[withdrawChain]} in 1-3 min via LayerZero.`
+                  : 'Silent — no wallet popup required.'}
               </p>
             </>
           )}
@@ -418,8 +715,8 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
   );
 };
 
-// VeloWithdrawModal is now just an alias that opens the deposit modal on the withdraw tab.
-// This keeps all the old call sites working without changes.
+// VeloWithdrawModal is an alias that opens the deposit modal on the withdraw tab.
+// Keeps all the old call sites working without changes.
 export const VeloWithdrawModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
