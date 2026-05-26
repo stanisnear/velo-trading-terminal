@@ -824,7 +824,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
         <nav
             style={{
                 position: 'fixed',
-                top: 12,
+                top: 'var(--nav-top, 12px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 50,
@@ -842,6 +842,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
                 boxShadow: 'var(--glass-shadow)',
             }}
+            className="navbar-container"
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <button
@@ -913,7 +914,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     {isNotifOpen && (
                         <>
                             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setNotifOpen(false)}/>
-                            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: 320, background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 18, boxShadow: '0 30px 60px rgba(0,0,0,0.45)', zIndex: 50, overflow: 'hidden', backdropFilter: 'blur(24px)' }}>
+                            <div style={{ position: 'fixed', right: 12, top: 80, width: 'min(320px, calc(100vw - 24px))', background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 18, boxShadow: '0 30px 60px rgba(0,0,0,0.45)', zIndex: 9999, overflow: 'hidden', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
                                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--hr)', ...S.label, fontSize: 10 }}>Notifications</div>
                                 <div className="custom-scrollbar" style={{ maxHeight: 320, overflowY: 'auto' }}>
                                     {notifications.length === 0
@@ -1063,7 +1064,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
                                     <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.username}</div>
                                     <div style={{ ...S.label, fontSize: 9, marginTop: 2, color: 'var(--fg-2)' }}>{user.handle}</div>
                                 </div>
-                                <div className="chip live" style={{ paddingInline: 8 }}>Live</div>
+                                <div style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--chip)', border: '1px solid var(--hr)', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-2)' }}>TESTNET</div>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -1791,7 +1792,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick }: { prices: Record<strin
     };
 
     return (
-        <div className="top-tokens-bar" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 12 }}>
+        <div className="top-tokens-bar" style={{ marginBottom: 12 }}>
             {TOP_SOCIAL_PAIRS.map(p => {
                 const price = prices[p.pairId];
                 const chg = changes[p.pairId] ?? 0;
@@ -7586,7 +7587,7 @@ const App = () => {
                     }
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (60px height + 12px gap + 12px top = 84px) */}
-            <main className={`w-full ${activeTab === TabView.TRADE ? '' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 84 : 'calc(84px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 84 : 'calc(84px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {

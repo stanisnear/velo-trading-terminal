@@ -107,29 +107,28 @@ body.dark,
 html.light,
 body.light,
 .light {
-  --bg: #f7f6fc;
-  --bg-2: #f0eef8;
-  --bg-3: #e8e5f4;
+  --bg: #ffffff;
+  --bg-2: #f5f5f8;
+  --bg-3: #ebebf0;
   --fg: #0a0b18;
-  --fg-2: #545564;
-  --fg-3: #9a9aaa;
-  --hr: rgba(10, 11, 24, 0.07);
-  --hr-2: rgba(10, 11, 24, 0.13);
-  --glass: rgba(240, 238, 248, 0.75);
-  --glass-2: rgba(235, 232, 246, 0.92);
-  --gl-edge: rgba(255, 255, 255, 0.95);
+  --fg-2: #505060;
+  --fg-3: #9898a8;
+  --hr: rgba(10, 11, 24, 0.08);
+  --hr-2: rgba(10, 11, 24, 0.14);
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-2: rgba(255, 255, 255, 0.96);
+  --gl-edge: rgba(255, 255, 255, 1);
   --chip: rgba(10, 11, 24, 0.05);
   --chip-h: rgba(10, 11, 24, 0.09);
   --ambient:
-    radial-gradient(90% 70% at 10% 12%, oklch(0.88 0.10 285 / 0.40), transparent 60%),
-    radial-gradient(80% 60% at 88% 8%, oklch(0.90 0.08 245 / 0.35), transparent 65%),
-    radial-gradient(90% 65% at 92% 92%, oklch(0.86 0.09 295 / 0.30), transparent 65%),
-    radial-gradient(70% 55% at 6% 94%, oklch(0.90 0.08 230 / 0.30), transparent 60%);
+    radial-gradient(80% 60% at 100% 0%, oklch(0.93 0.06 285 / 0.45), transparent 65%),
+    radial-gradient(60% 45% at 0% 100%, oklch(0.94 0.05 245 / 0.35), transparent 60%);
   --glass-shadow:
-    0 1px 0 var(--gl-edge) inset,
+    0 1px 0 rgba(255,255,255,0.9) inset,
     0 -1px 0 rgba(10, 11, 24, 0.04) inset,
-    0 22px 40px -24px rgba(10, 11, 24, 0.18);
-  --modal-bg: rgba(255, 255, 255, 0.97);
+    0 4px 24px -4px rgba(10, 11, 24, 0.10),
+    0 1px 2px rgba(10, 11, 24, 0.06);
+  --modal-bg: rgba(255, 255, 255, 0.99);
   --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
   --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
   --podium-bronze-bg: linear-gradient(160deg, rgba(168, 200, 255, 0.22), rgba(236, 233, 246, 0.9));
@@ -230,5 +229,36 @@ select {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* ── Mobile navbar: stick flush to top, no floating gap ─────────────────── */
+@media (max-width: 768px) {
+  .navbar-container {
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    border-radius: 0 0 20px 20px !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+}
+
+/* ── Light mode: chart background matches clean white bg ─────────────────── */
+html.light .tv-lightweight-charts,
+html.light iframe[id*="tradingview"] {
+  background: #ffffff !important;
+}
+
+/* ── Mobile content offset: navbar is 60px flush, not 84px floating ──────── */
+@media (max-width: 768px) {
+  main.velo-main {
+    padding-top: 68px !important;
+  }
+  main.velo-main.trade-view {
+    padding-top: 60px !important;
   }
 }

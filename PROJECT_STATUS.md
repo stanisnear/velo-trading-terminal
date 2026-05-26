@@ -745,3 +745,25 @@ For the Recent Activity persistence:
 - The fixed navbar requires ALL page sections to have `paddingTop` (or `marginTop`) of at least 84px. Any new page/tab added to the router must include this offset or content will hide under the nav.
 - `env(safe-area-inset-bottom)` requires `viewport-fit=cover` in the viewport meta. Without it the CSS function resolves to 0 on all devices. Now in place.
 - The `avatarBtnRef` is now on a `<div>`, not a `<button>`. `ProfileAvatarPopup` reads `.getBoundingClientRect()` on whatever element it gets — that works fine on a div. No type cast needed beyond the `as any` already present.
+
+---
+
+## Patch 3 — May 2025
+
+**Issues fixed:**
+
+1. **TradeView right panel no longer requires scrolling (desktop)** — Reduced order book from 7→5 rows, shrunk container from 34%→28% height, reduced pair header padding from 11px→8px and font sizes (pair name 18→16px, price 22→18px). Tightened order form outer padding from 11px→8px and gap from 9→7. Long/Short buttons reduced from 9px→7px padding. Submit button reduced from 11px→9px padding. Everything now fits on one screen without scrolling.
+
+2. **Light mode completely rethought** — Changed from purple-tinted lavender (`#f7f6fc` base) to clean white (`#ffffff` base, `#f5f5f8` surface, `#ebebf0` inset). Glass panels now use `rgba(255,255,255,0.82/0.96)` for crisp, professional appearance. Ambient gradient is now a very subtle corner wash instead of heavy chroma blobs. Chart backgrounds (`localBG`, `localBG2`) updated to match. Result: looks like a polished fintech product, not a purple art project.
+
+3. **Mobile navbar sticks to top** — Added `.navbar-container` CSS class with a `@media (max-width: 768px)` rule that overrides `top:12px`, `left:50%`, `transform`, and `border-radius` so on iPhone/Android the navbar sits flush to the top of the screen (rounded only at bottom corners). Desktop keeps the floating pill behavior unchanged.
+
+4. **Notification panel fixed on mobile** — Changed from `position:absolute` (clipped by parent overflow) to `position:fixed` with `right:12px, top:80px` and `width: min(320px, calc(100vw - 24px))`. Now renders on top of everything at `zIndex:9999` on all screen sizes. Also added `WebkitBackdropFilter` for iOS Safari.
+
+5. **Mobile sidebar "LIVE" → "TESTNET"** — The chip in the mobile sidebar user card that incorrectly said "Live" now shows "TESTNET" to match the desktop navbar chip.
+
+**Files changed:**
+- `src/App.tsx` — notification panel fix, TESTNET chip in mobile sidebar, navbar class name
+- `src/components/ui/pages/TradeView.tsx` — compact right panel, reduced padding/gaps/font sizes, fewer order book rows
+- `src/components/TradingViewChart.tsx` — light mode chart backgrounds → white/f5f5f8
+- `src/styles/tokens.css` — light mode palette overhaul (white base), mobile navbar CSS, notification z-index

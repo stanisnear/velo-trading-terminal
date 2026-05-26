@@ -1594,11 +1594,11 @@ export const TradeView = ({
             <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', overflow: 'hidden', borderLeft: isMobile ? 'none' : '1px solid var(--hairline)', background: 'var(--bg-base-2)' }}>
 
                 {/* 1 ── Pair header (desktop only) */}
-                <div style={{ flexShrink: 0, padding: '11px 16px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
+                <div style={{ flexShrink: 0, padding: '8px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
                     <button onClick={() => setPairOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
                         <div style={{ textAlign: 'left' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>{activePair.id}</span>
+                                <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{activePair.id}</span>
                                 <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
                                 {isActivePairDemo && (
                                     <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
@@ -1608,15 +1608,15 @@ export const TradeView = ({
                         </div>
                     </button>
                     <div style={{ textAlign: 'right' }}>
-                        <div style={{ ...S.display, fontSize: 22, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
+                        <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
                         <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
                     </div>
                 </div>
 
                 {/* 2 ── Order book */}
-                <div style={{ flexShrink: 0, height: isMobile ? 'auto' : '34%', minHeight: isMobile ? 'auto' : 200, display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)', overflow: 'hidden' }}>
+                <div style={{ flexShrink: 0, height: isMobile ? 'auto' : '28%', minHeight: isMobile ? 'auto' : 170, display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)', overflow: 'hidden' }}>
                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 6 : 7} />
+                        <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 6 : 5} />
                     </div>
                 </div>
 
@@ -1655,7 +1655,7 @@ export const TradeView = ({
                             </div>
                         )}
 
-                        <div style={{ padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 9, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto' }}>
+                        <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 7, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto' }}>
 
                             {/* Margin mode toggle */}
                             <div style={{ display: 'flex', background: 'var(--bg-base-2)', borderRadius: 9, padding: 3 }}>
@@ -1682,7 +1682,7 @@ export const TradeView = ({
                             {/* Long / Short */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                                 {(['LONG', 'SHORT'] as const).map(s => (
-                                    <button key={s} onClick={() => setSide(s)} style={{ padding: '9px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 13, transition: 'all 0.12s', background: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--bg-base-2)', color: side === s ? (s === 'LONG' ? '#0a1a10' : '#fff') : 'var(--fg-subtle)', boxShadow: side === s ? (s === 'LONG' ? '0 3px 16px rgba(62,207,142,0.22)' : '0 3px 16px rgba(255,60,60,0.22)') : 'none' }}>
+                                    <button key={s} onClick={() => setSide(s)} style={{ padding: '7px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.12s', background: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--bg-base-2)', color: side === s ? (s === 'LONG' ? '#0a1a10' : '#fff') : 'var(--fg-subtle)', boxShadow: side === s ? (s === 'LONG' ? '0 3px 16px rgba(62,207,142,0.22)' : '0 3px 16px rgba(255,60,60,0.22)') : 'none' }}>
                                         {s === 'LONG' ? 'Buy / Long' : 'Sell / Short'}
                                     </button>
                                 ))}
@@ -1703,7 +1703,7 @@ export const TradeView = ({
                             </div>
 
                             {/* Cost + Leverage */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-base-2)', borderRadius: 9, padding: '9px 11px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-base-2)', borderRadius: 9, padding: '7px 10px' }}>
                                 <div>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Cost</div>
                                     <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>${formatMoney(cost)}</div>
@@ -1811,7 +1811,7 @@ export const TradeView = ({
 
                             {/* Submit button */}
                             <button onClick={handleSubmit} disabled={parseFloat(sizeAmount) <= 0} style={{
-                                width: '100%', padding: '11px 0', borderRadius: 11, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 13, transition: 'all 0.15s',
+                                width: '100%', padding: '9px 0', borderRadius: 11, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
                                 opacity: parseFloat(sizeAmount) <= 0 ? 0.35 : 1,
                                 background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
                                 color: side === 'LONG' ? '#0a1a10' : '#fff',

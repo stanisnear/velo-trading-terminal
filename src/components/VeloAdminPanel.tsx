@@ -434,7 +434,7 @@ export const VeloAdminPanel: React.FC = () => {
       </div>
 
       {/* Top stats row — current contract state */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 12 }}>
         <StatCard label="Accrued fees" value={`$${feeBalance.toFixed(2)}`} accent={feeBalance > 0} />
         <StatCard label="Pool reserves" value={`$${poolBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}`} />
         <StatCard label="Fee per side" value={`${(openFeeBps / 100).toFixed(2)}%`} />
@@ -442,7 +442,7 @@ export const VeloAdminPanel: React.FC = () => {
       </div>
 
       {/* Lifetime stats row — pulled from /api/protocol-stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
         <StatCard
           label="Lifetime volume"
           value={statsLoading ? '…' : stats ? `$${stats.lifetime.total_volume_usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
