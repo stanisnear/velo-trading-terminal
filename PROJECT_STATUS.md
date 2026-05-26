@@ -390,7 +390,7 @@ Things that have burned previous sessions:
 
 14. **Username claims signed by main wallet, NOT burner** (the persistent identity is on MetaMask, not the disposable trading wallet). Old code did this wrong; fixed in batch 3.
 
-15. **The PROJECT_STATUS.md (this file) is THE source of truth.** Any AI agent picking up work should read this first.
+15. **The PROJECT_STATUS.md (this file) is THE source of truth.** Any AI agent picking up work should read this first. **EVERY AI AGENT MUST UPDATE THIS FILE when making changes — see the "MANDATORY RULE" and "Change log" sections at the bottom.**
 
 ---
 
@@ -439,3 +439,45 @@ If you (the next AI agent) are reading this, the most efficient way to continue 
 7. Update this `PROJECT_STATUS.md` if anything material changed
 
 Treat this file as the contract. If your changes don't match what's documented here, update the doc in the same commit.
+
+---
+
+## ⚠️ MANDATORY RULE FOR ALL AI AGENTS ⚠️
+
+**Every AI agent that makes any change to this project MUST update this file in the same deliverable.** No exceptions. If you change a file, add a section below under "Change log" with:
+- Timestamp (use the date you know or "unknown date" if not available)
+- What changed and why
+- Which files were modified
+- Any new gotchas discovered
+
+If you do NOT update this file, the next agent will have stale context and will undo your work or repeat your mistakes. Treat this file as a living contract, not a static document.
+
+---
+
+## Change log
+
+### 2025-05-26 — Migrated wallet connection from RainbowKit → Reown AppKit
+
+**Why:** RainbowKit's WalletConnect integration has a known Vite bundling issue where clicking WalletConnect triggers an internal crash (white screen). The root cause is unfixable with polyfills — RainbowKit's WalletConnect adapter doesn't bundle cleanly on Vite. Reown AppKit is the official successor product from the same team (WalletConnect rebranded to Reown in Sept 2024) and fixes this by using a web-component-based modal that runs independently of the React bundle.
+
+**Files changed:**
+- `package.json` — removed `@rainbow-me/rainbowkit`, added `@reown/appkit ^1.7.8` and `@reown/appkit-adapter-wagmi ^1.7.8`
+- `vite.config.ts` — added `global: 'globalThis'` define, updated `optimizeDeps` to include appkit packages, removed rainbowkit
+- `src/index.tsx` — removed `RainbowKitProvider` and `darkTheme` imports; provider tree is now `WagmiProvider` → `QueryClientProvider` only. `createAppKit()` runs as a side effect of importing `web3Config.ts`.
+- `src/services/web3Config.ts` — replaced `getDefaultConfig` from rainbowkit with `WagmiAdapter` + `createAppKit` from `@reown/appkit-adapter-wagmi` and `@reown/appkit/react`. Social logins (Google, X, Discord, GitHub) configured in `features.socials`. Dark theme tokens set via `themeVariables`.
+- `src/components/WalletConnectButton.tsx` — replaced `ConnectButton.Custom` render prop with `useAppKit().open()`. Wrong-network view uses `open({ view: 'Networks' })`, connected state uses `open({ view: 'Account' })`.
+- `src/components/AuthModal.tsx` — replaced `ConnectButton` import from rainbowkit with `useAppKit` from `@reown/appkit/react`. The single `HoloButton` now calls `openAppKit()` directly.
+
+**Key architecture note — social login + two-wallet model:**
+When a user connects via Google/Discord/etc., AppKit creates a Reown-managed **embedded wallet** (non-custodial, private key sharded via MPC — Reown never holds the full key). The address returned by `useAccount()` is this embedded wallet address. Velo's two-wallet model still applies:
+- The embedded wallet address acts as the **main wallet** (identity, username registration, deposits/withdrawals)
+- The **burner wallet** is still derived deterministically from the first signature on this address
+- Users can export the embedded wallet private key via AppKit's "Upgrade Wallet" flow and import it into MetaMask
+
+**Reown dashboard settings required:**
+- Project type: **AppKit** (not WalletConnect Modal)
+- Domain allowlist: `velo-trading-terminal.vercel.app` ✓ (already set)
+- Features → Social & Email: **ON** to enable social logins
+- After any env var or dashboard change: manually trigger Vercel redeploy (gotcha #8)
+
+**Env var unchanged:** `VITE_WALLETCONNECT_PROJECT_ID` — same key, same value, same Vercel env var. The Reown projectId is the same as the old WalletConnect projectId.
