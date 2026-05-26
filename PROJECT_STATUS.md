@@ -4,7 +4,7 @@
 >
 > **For NotebookLM / context hand-off:** this is the authoritative state document. Lower-level details live in `README.md` and `MIGRATION_STATUS.md`.
 
-**Last updated:** End of Phase 8 + post-deploy fixes batch 4 (~build #80)
+**Last updated:** May 26, 2026 — End of Phase 8 + VELO v3 rebrand pass
 **Live URL:** https://velo-trading-terminal.vercel.app
 **Repo:** https://github.com/stanisnear/velo-trading-terminal
 **Owner:** Stan (@stanisnear)
@@ -15,6 +15,24 @@
 ## What Velo is
 
 A SocialFi-native perpetual futures trading terminal. Users open leveraged BTC/ETH/SOL/etc. positions priced by Pyth oracles, all settled on-chain via custom Solidity contracts. The "SocialFi" layer means traders have on-chain @handles registered to a registry contract, send mUSDC peer-to-peer by handle, share branded PnL cards (Hyperliquid-style), and post to a social feed.
+
+## VELO v3 rebrand snapshot
+
+The frontend has now been moved onto the VELO v3 visual system from the handoff package: "Editorial Calm, Prismatic Depth." This is a UI and brand rollout, not a product-logic migration.
+
+### What changed in this pass
+
+- Fonts were updated to `Fraunces`, `Geist`, and `Geist Mono`.
+- Global tokens were replaced with the new violet / electric-blue / ice palette and the restrained prism gradient treatment.
+- Shared glass, chip, button, bug, and wordmark primitives were rebuilt around the v3 tokens.
+- The floating app shell navigation and mobile bottom navigation were re-skinned to match the new mockup direction.
+- Dashboard, trade, markets, social, leaderboard, and the share-card surface now inherit the new brand language and mobile-safe spacing.
+- Legacy style entry points (`src/styles/velo-brand-system.css`, `src/styles/v2.css`) were removed from the active frontend path.
+
+### What did not change
+
+- Trading logic, wallet flow, Supabase data shape, contract routing, and all on-chain integrations remain as they were.
+- This pass is safe to reason about as a presentation-layer update unless a later note explicitly says otherwise.
 
 ### Stack at a glance
 

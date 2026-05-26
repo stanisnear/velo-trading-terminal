@@ -6,6 +6,18 @@ A polished, full-stack perpetual futures exchange where every trade is a real on
 
 Live at [velo-trading-terminal.vercel.app](https://velo-trading-terminal.vercel.app).
 
+## VELO v3 brand system
+
+This repo now carries the VELO v3 rebrand direction: editorial calm, prismatic depth, and a tighter terminal-first UI language across desktop and mobile. The current frontend uses:
+
+- `Fraunces` for display moments, equity heroes, and the wordmark
+- `Geist` for product UI copy and controls
+- `Geist Mono` for every price, balance, timestamp, and dense data surface
+- A restrained violet to electric-blue prism reserved for hero CTAs, the app bug, active states, and share-card surfaces
+- Shared glass, chip, nav, and mobile-bottom-bar treatments aligned to the handoff mockups
+
+The visual source of truth for this refresh is the VELO handoff brief and mockups that shipped with the rebrand package. Functionality, wallet flow, and on-chain integrations remain unchanged; the rollout is intentionally a brand and interface pass rather than a protocol refactor.
+
 ---
 
 ## Table of contents
@@ -376,7 +388,7 @@ src/                            React frontend
 │   ├── web3Config.ts               Wagmi 4-chain config.
 │   ├── priceService.ts             Coinbase / Binance feeds for chart candles.
 │   └── supabaseStore.ts            Posts / profiles / cached history.
-└── styles/                         brand.css, tokens.css, v2.css
+└── styles/                         brand.css, tokens.css
 
 SUPABASE_SCHEMA.sql                  Base tables for posts, profiles, history.
 SUPABASE_MIGRATION_VELO_PERPS.sql    Adds venue + tx_hash columns.
