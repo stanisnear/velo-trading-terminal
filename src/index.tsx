@@ -1,16 +1,18 @@
-// MUST be first — polyfills Buffer/global/process for WalletConnect/Reown
-import './polyfills';
 import './styles/velo-brand-system.css';
 import './styles/tokens.css';
 import './styles/brand.css';
-import '@rainbow-me/rainbowkit/styles.css';
+// AppKit styles (replaces @rainbow-me/rainbowkit/styles.css)
+import '@reown/appkit/react';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { wagmiConfig } from './services/web3Config';
 import App from './App';
+
+// web3Config must be imported before App so createAppKit() runs at module
+// evaluation time — before any React tree mounts.
+// (The import above already triggers it via the side-effect.)
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {error: Error | null}> {
   constructor(props: any) {
@@ -49,20 +51,13 @@ const queryClient = new QueryClient();
 const root = document.getElementById('root');
 if (root) {
   ReactDOM.createRoot(root).render(
+    // RainbowKitProvider is gone — AppKit registers itself as a web component.
+    // WagmiProvider + QueryClientProvider are still required.
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          theme={darkTheme({
-            accentColor: 'oklch(0.68 0.22 295)',
-            accentColorForeground: 'white',
-            borderRadius: 'medium',
-            fontStack: 'system',
-          })}
-        >
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
-        </RainbowKitProvider>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </QueryClientProvider>
     </WagmiProvider>
   );

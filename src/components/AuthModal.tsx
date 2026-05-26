@@ -2,7 +2,7 @@
 // Apple-quality onboarding + MetaMask-style wallet UX
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAppKit } from '@reown/appkit/react';
 import { useAccount, useDisconnect, useChainId } from 'wagmi';
 import { isConfigured as isSupabaseConfigured, supabase } from '../services/supabaseStore';
 
@@ -165,6 +165,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
+  const { open: openAppKit } = useAppKit();
 
   useEffect(() => {
     if (disconnectRef) disconnectRef.current = disconnect;
@@ -513,11 +514,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Connect your wallet to sign in or create a Velo account. No email or password needed.
               </p>
               {error && <ErrorBanner message={error} />}
-              <ConnectButton.Custom>
-                {({ openConnectModal, mounted: rbMounted }) => (
-                  <HoloButton onClick={openConnectModal} disabled={!rbMounted}>Connect Wallet</HoloButton>
-                )}
-              </ConnectButton.Custom>
+              <HoloButton onClick={() => openAppKit()}>Connect Wallet</HoloButton>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
                 {['MetaMask', 'WalletConnect', 'Coinbase'].map(w => (
                   <span key={w} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{w}</span>

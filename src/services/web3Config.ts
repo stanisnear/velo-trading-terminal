@@ -1,55 +1,37 @@
 /**
- * web3Config — wagmi + RainbowKit setup for Velo.
+ * web3Config — Reown AppKit + wagmi setup for Velo.
  *
- * Four chains: Base Sepolia (the home chain — where VeloPerps lives) plus
- * Arbitrum / Optimism / Ethereum Sepolia (bridge destinations for mUSDC).
+ * Migrated from RainbowKit → Reown AppKit (the official successor).
+ * AppKit gives us:
+ *   - WalletConnect QR modal that actually works on Vite
+ *   - Social/email logins (Google, X, Discord, etc.) with zero extra code
+ *   - Same wagmi hooks throughout the app — nothing else changes
  *
- * RPC URLs come from Vercel env vars with PublicNode fallbacks. PublicNode is
- * reliable, free, no signup — we use it as the default because the canonical
- * RPCs (sepolia.base.org etc.) are notably flaky.
- *
- * NOTE: The projectId comes from Reown Cloud (cloud.reown.com) — WalletConnect
- * rebranded to Reown in Sept 2024. The project MUST be created as product type
- * "AppKit" (not WalletConnect Modal) and the domain velo-trading-terminal.vercel.app
- * must be on the allowlist. RainbowKit uses the Reown/WalletConnect relay
- * under the hood — same projectId, same env var, just a new dashboard.
+ * wagmi hooks (useAccount, useDisconnect, useChainId, etc.) are unchanged.
+ * The WagmiProvider now uses wagmiAdapter.wagmiConfig instead of the old
+ * getDefaultConfig result.
  */
-import { getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { createAppKit } from '@reown/appkit/react';
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
+import { baseSepolia, arbitrumSepolia, optimismSepolia, sepolia } from '@reown/appkit/networks';
 import { http } from 'wagmi';
-import {
-  baseSepolia,
-  arbitrumSepolia,
-  optimismSepolia,
-  sepolia,
-} from 'wagmi/chains';
 
-// PublicNode defaults — work without signup, reliable enough for testnet UX.
-const BASE_RPC = import.meta.env.VITE_BASE_SEPOLIA_RPC_URL
-  || 'https://base-sepolia-rpc.publicnode.com';
-const ARB_RPC  = import.meta.env.VITE_ARB_SEPOLIA_RPC_URL
-  || 'https://arbitrum-sepolia-rpc.publicnode.com';
-const OP_RPC   = import.meta.env.VITE_OP_SEPOLIA_RPC_URL
-  || 'https://optimism-sepolia-rpc.publicnode.com';
-const ETH_RPC  = import.meta.env.VITE_ETH_SEPOLIA_RPC_URL
-  || 'https://ethereum-sepolia-rpc.publicnode.com';
-
-const _wcProjectId: string = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';
-if (!_wcProjectId) {
-  console.error(
-    '[Velo] VITE_WALLETCONNECT_PROJECT_ID is not set. ' +
-    'WalletConnect/Reown will not work. ' +
-    'Add it to Vercel env vars and trigger a manual redeploy.'
-  );
+const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';
+if (!projectId) {
+  console.error('[Velo] VITE_WALLETCONNECT_PROJECT_ID is not set.');
 }
 
-export const wagmiConfig = getDefaultConfig({
-  appName: 'Velo Trading Terminal',
-  appDescription: 'SocialFi perpetual futures trading on Base Sepolia.',
-  appUrl: 'https://velo-trading-terminal.vercel.app',
-  appIcon: 'https://velo-trading-terminal.vercel.app/favicon.ico',
-  projectId: _wcProjectId,
-  // Base Sepolia is FIRST so RainbowKit defaults to it when a wallet first connects.
-  chains: [baseSepolia, arbitrumSepolia, optimismSepolia, sepolia],
+// PublicNode fallbacks
+const BASE_RPC = import.meta.env.VITE_BASE_SEPOLIA_RPC_URL  || 'https://base-sepolia-rpc.publicnode.com';
+const ARB_RPC  = import.meta.env.VITE_ARB_SEPOLIA_RPC_URL   || 'https://arbitrum-sepolia-rpc.publicnode.com';
+const OP_RPC   = import.meta.env.VITE_OP_SEPOLIA_RPC_URL    || 'https://optimism-sepolia-rpc.publicnode.com';
+const ETH_RPC  = import.meta.env.VITE_ETH_SEPOLIA_RPC_URL   || 'https://ethereum-sepolia-rpc.publicnode.com';
+
+export const networks = [baseSepolia, arbitrumSepolia, optimismSepolia, sepolia] as const;
+
+export const wagmiAdapter = new WagmiAdapter({
+  networks,
+  projectId,
   transports: {
     [baseSepolia.id]:     http(BASE_RPC),
     [arbitrumSepolia.id]: http(ARB_RPC),
@@ -59,5 +41,38 @@ export const wagmiConfig = getDefaultConfig({
   ssr: false,
 });
 
-/** Convenience constant for App.tsx — the chain we expect users to trade on. */
+// createAppKit is called once at module level — outside any React component.
+// The modal it creates is a web component (<appkit-modal>) that mounts itself
+// into the DOM automatically. No provider wrapper needed beyond WagmiProvider.
+createAppKit({
+  adapters: [wagmiAdapter],
+  networks,
+  projectId,
+  metadata: {
+    name: 'Velo Trading Terminal',
+    description: 'SocialFi perpetual futures trading on Base Sepolia.',
+    url: 'https://velo-trading-terminal.vercel.app',
+    icons: ['https://velo-trading-terminal.vercel.app/favicon.ico'],
+  },
+  features: {
+    analytics: true,
+    // Social + email logins — toggle on/off from Reown dashboard without code changes.
+    // When enabled on the dashboard these show automatically. Setting them here
+    // explicitly so behaviour is predictable regardless of dashboard state.
+    email: true,
+    socials: ['google', 'x', 'discord', 'github'],
+    // Keep the standard wallet list (MetaMask, WalletConnect QR, Coinbase, etc.)
+    walletConnect: true,
+  },
+  themeMode: 'dark',
+  themeVariables: {
+    '--w3m-accent': 'oklch(0.68 0.22 295)',
+    '--w3m-border-radius-master': '2px',
+  },
+});
+
+// Convenience re-export — the wagmiConfig is on the adapter, not a standalone object.
+export const wagmiConfig = wagmiAdapter.wagmiConfig;
+
+/** The chain Velo trades on. */
 export const HOME_CHAIN_ID = baseSepolia.id; // 84532
