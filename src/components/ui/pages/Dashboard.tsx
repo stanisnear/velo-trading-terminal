@@ -56,7 +56,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
 
 // Fake deposit/withdraw modal removed — all funds flow through Orderly on-chain
 
-export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet }: any) => {
+export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet }: any) => {
   const [chartPeriod, setChartPeriod] = useState<'1D'|'1W'|'1M'|'1Y'|'ALL'>('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
@@ -232,11 +232,22 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               </div>
             );
           })()}
-          <div style={{ padding: '0 22px 18px', display: 'flex', gap: 10 }}>
-            <button onClick={() => (onOpenDeposit ?? onOpenOrderlyOnboarding)?.() } style={{ flex: 1, padding: '10px', borderRadius: 11, background: 'var(--pnl-up)', border: 'none', ...S.mono, fontSize: 12, fontWeight: 700, color: '#061108', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'opacity 0.15s' }}
+          <div style={{ padding: '0 22px 18px', display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+            <button onClick={() => (onOpenDeposit ?? onOpenOrderlyOnboarding)?.() } style={{ flex: '1 1 110px', padding: '10px', borderRadius: 11, background: 'var(--pnl-up)', border: 'none', ...S.mono, fontSize: 12, fontWeight: 700, color: '#061108', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'opacity 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Deposit</button>
-            <BtnSecondary onClick={() => onOpenWithdraw?.()} style={{ flex: 1, padding: '10px' }}>Withdraw</BtnSecondary>
+            <BtnSecondary onClick={() => onOpenWithdraw?.()} style={{ flex: '1 1 110px', padding: '10px' }}>Withdraw</BtnSecondary>
+            {/* SEND — peer-to-peer mUSDC by @handle or 0x address. Visible at all
+                times because it's a core SocialFi action: pay or tip another user
+                without ever leaving the app. */}
+            {onOpenSend && (
+              <BtnSecondary onClick={() => onOpenSend?.()} style={{ flex: '1 1 110px', padding: '10px' }}>Send</BtnSecondary>
+            )}
+            {/* BRIDGE — cross-chain mUSDC via LayerZero. Less frequent action,
+                lighter visual weight. */}
+            {onOpenBridge && (
+              <BtnSecondary onClick={() => onOpenBridge?.()} style={{ flex: '1 1 110px', padding: '10px', opacity: 0.85 }}>Bridge</BtnSecondary>
+            )}
           </div>
         </div>
 

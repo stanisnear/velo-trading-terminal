@@ -120,20 +120,22 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     ctx.fillStyle = '#ffffff';
     ctx.font = 'italic 700 56px "Instrument Serif", "Times New Roman", serif';
     ctx.textBaseline = 'top';
-    ctx.fillText('Velo', 50, 40);
+    // Bumped x from 50 → 60 so wordmark doesn't visually clip against the
+    // modal's rounded corner when the preview is scaled down on mobile.
+    ctx.fillText('Velo', 60, 44);
     ctx.fillStyle = 'rgba(180, 110, 255, 0.9)';
     ctx.beginPath();
-    ctx.arc(160, 68, 5, 0, Math.PI * 2);
+    ctx.arc(170, 72, 5, 0, Math.PI * 2);
     ctx.fill();
 
     // Tag (top-right) — TESTNET watermark, unmistakable
     ctx.font = '700 16px "JetBrains Mono", monospace';
     ctx.fillStyle = 'rgba(255, 90, 90, 0.95)';
     ctx.textAlign = 'right';
-    ctx.fillText('TESTNET · BASE SEPOLIA', W - 50, 50);
+    ctx.fillText('TESTNET · BASE SEPOLIA', W - 60, 54);
     ctx.font = '500 12px "JetBrains Mono", monospace';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.fillText('velo-trading-terminal.vercel.app', W - 50, 75);
+    ctx.fillText('velo-trading-terminal.vercel.app', W - 60, 80);
     ctx.textAlign = 'left';
 
     // ── Status badge ─────────────────────────────────────────────────────
@@ -144,11 +146,11 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       : data.pnl >= 0 ? '#22c55e' : '#ff5050';
     ctx.font = '700 14px "JetBrains Mono", monospace';
     ctx.fillStyle = badgeColor;
-    ctx.fillText(badge, 50, 150);
+    ctx.fillText(badge, 60, 150);
 
     // ── Pair + side line (huge) ──────────────────────────────────────────
     if (visibleFields.pair || visibleFields.side) {
-      let x = 50;
+      let x = 60;
       const y = 195;
       ctx.textBaseline = 'top';
       if (visibleFields.pair) {
@@ -178,21 +180,20 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       const pnlY = 340;
       ctx.font = '700 16px "JetBrains Mono", monospace';
       ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.fillText(data.status === 'OPEN' ? 'UNREALISED PnL' : 'REALISED PnL', 50, pnlY);
+      ctx.fillText(data.status === 'OPEN' ? 'UNREALISED PnL' : 'REALISED PnL', 60, pnlY);
 
       const pnlStr = (data.pnl >= 0 ? '+' : '') + '$' + Math.abs(data.pnl).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
       ctx.font = 'italic 700 110px "Instrument Serif", "Times New Roman", serif';
       ctx.fillStyle = data.pnl >= 0 ? '#22c55e' : '#ff5050';
-      ctx.fillText(pnlStr, 50, pnlY + 30);
+      ctx.fillText(pnlStr, 60, pnlY + 30);
 
       const pctStr = (data.pnlPct >= 0 ? '+' : '') + data.pnlPct.toFixed(2) + '%';
       ctx.font = '700 36px "JetBrains Mono", monospace';
       ctx.fillStyle = data.pnl >= 0 ? '#22c55e' : '#ff5050';
-      const pnlW = ctx.measureText(pnlStr).width;
       ctx.font = 'italic 700 110px "Instrument Serif", "Times New Roman", serif';
       const pnlTextW = ctx.measureText(pnlStr).width;
       ctx.font = '700 36px "JetBrains Mono", monospace';
-      ctx.fillText(pctStr, 50 + pnlTextW + 24, pnlY + 100);
+      ctx.fillText(pctStr, 60 + pnlTextW + 24, pnlY + 100);
     }
 
     // ── Bottom stat strip ────────────────────────────────────────────────
@@ -204,8 +205,8 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     if (visibleFields.collateral) stats.push({ label: 'COLLATERAL', value: '$' + data.collateral.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
 
     const stripY = 540;
-    const stripX = 50;
-    const stripW = W - 100;
+    const stripX = 60;
+    const stripW = W - 120;
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(stripX, stripY); ctx.lineTo(stripX + stripW, stripY); ctx.stroke();
@@ -227,13 +228,13 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       ctx.fillStyle = 'rgba(180, 110, 255, 0.95)';
       ctx.textBaseline = 'bottom';
       ctx.textAlign = 'left';
-      ctx.fillText(data.traderHandle.startsWith('@') ? data.traderHandle : '@' + data.traderHandle, 50, H - 35);
+      ctx.fillText(data.traderHandle.startsWith('@') ? data.traderHandle : '@' + data.traderHandle, 60, H - 35);
     }
     // Disclaimer
     ctx.font = '500 11px "JetBrains Mono", monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.textAlign = 'right';
-    ctx.fillText('Testnet trade · No real-money risk · Educational only', W - 50, H - 35);
+    ctx.fillText('Testnet trade · No real-money risk · Educational only', W - 60, H - 35);
   };
 
   const handleDownload = () => {

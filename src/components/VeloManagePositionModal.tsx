@@ -235,10 +235,10 @@ export const VeloManagePositionModal: React.FC<Props> = ({ isOpen, onClose, posi
               <div style={{ display: 'flex', justifyContent: 'space-between', ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', marginTop: 2 }}>
                 <span>1%</span><span>50%</span><span>100%</span>
               </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                {[25, 50, 75, 100].map((p) => (
+              <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' as const }}>
+                {[10, 20, 25, 50, 75, 100].map((p) => (
                   <button key={p} onClick={() => setClosePct(p)} disabled={!v2Available} style={{
-                    ...S.mono, flex: 1, padding: '6px 0', borderRadius: 6,
+                    ...S.mono, flex: '1 1 60px', padding: '6px 0', borderRadius: 6,
                     background: closePct === p ? 'oklch(0.68 0.22 295 / 0.18)' : 'rgba(255,255,255,0.03)',
                     border: `1px solid ${closePct === p ? 'oklch(0.68 0.22 295 / 0.4)' : 'var(--hairline)'}`,
                     color: closePct === p ? 'var(--iris-violet)' : 'var(--fg-muted)',
@@ -259,11 +259,47 @@ export const VeloManagePositionModal: React.FC<Props> = ({ isOpen, onClose, posi
                 value={tp} onChange={setTp} disabled={!v2Available} placeholder="0 = no TP"
                 icon={<TrendingUp size={11} style={{ color: 'var(--pnl-up)' }} />}
               />
+              {/* Quick-pick TP at +X% PnL on collateral. The math:
+                  PnL_pct(collateral) = (markΔ / entry) × leverage × sign
+                  → markΔ = (PnL_pct / leverage) × entry × sign
+                  → TP price = entry + markΔ */}
+              <div style={{ ...S.label, marginBottom: 5, marginTop: -4 }}>QUICK · % PnL on collateral</div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' as const }}>
+                {[25, 50, 100, 200, 500].map((pct) => (
+                  <button key={pct} onClick={() => {
+                    const sign = position.side === 'LONG' ? 1 : -1;
+                    const markDelta = (pct / 100 / position.leverage) * position.entryPrice * sign;
+                    const tpPrice = position.entryPrice + markDelta;
+                    setTp(tpPrice.toFixed(4));
+                  }} disabled={!v2Available} style={{
+                    ...S.mono, padding: '5px 10px', borderRadius: 6,
+                    background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
+                    color: 'var(--pnl-up)', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                    cursor: v2Available ? 'pointer' : 'not-allowed', opacity: v2Available ? 1 : 0.5,
+                  }}>+{pct}%</button>
+                ))}
+              </div>
               <Field
                 label={`Stop Loss (${position.side === 'LONG' ? 'below' : 'above'} $${position.entryPrice.toFixed(2)})`}
                 value={sl} onChange={setSl} disabled={!v2Available} placeholder="0 = no SL"
                 icon={<TrendingDown size={11} style={{ color: 'var(--pnl-down)' }} />}
               />
+              <div style={{ ...S.label, marginBottom: 5, marginTop: -4 }}>QUICK · % loss on collateral</div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' as const }}>
+                {[10, 25, 50, 75, 90].map((pct) => (
+                  <button key={pct} onClick={() => {
+                    const sign = position.side === 'LONG' ? 1 : -1;
+                    const markDelta = (pct / 100 / position.leverage) * position.entryPrice * sign;
+                    const slPrice = position.entryPrice - markDelta;
+                    setSl(slPrice.toFixed(4));
+                  }} disabled={!v2Available} style={{
+                    ...S.mono, padding: '5px 10px', borderRadius: 6,
+                    background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.25)',
+                    color: 'var(--pnl-down)', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                    cursor: v2Available ? 'pointer' : 'not-allowed', opacity: v2Available ? 1 : 0.5,
+                  }}>-{pct}%</button>
+                ))}
+              </div>
               <Submit busy={busy} disabled={!v2Available} onClick={() => handle('TRIGGERS')} icon={<Target size={12} />} label="Save triggers" />
             </>
           )}

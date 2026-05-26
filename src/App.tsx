@@ -23,6 +23,7 @@ import { useChainId, useAccount, usePublicClient } from 'wagmi';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
 import { VeloBridgeModal } from './components/VeloBridgeModal';
+import { VeloDepositModal } from './components/VeloDepositModal';
 import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
 import { VeloUsernameModal } from './components/VeloUsernameModal';
 import { VeloSendModal } from './components/VeloSendModal';
@@ -3947,6 +3948,7 @@ const App = () => {
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
     const [isVeloWelcomeOpen, setVeloWelcomeOpen] = useState(false);
     const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
+    const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
     const [isVeloSendOpen, setVeloSendOpen] = useState(false);
     const [isVeloWithdrawOpen, setVeloWithdrawOpen] = useState(false);
@@ -5049,7 +5051,7 @@ const App = () => {
                 setTimeout(() => ownDeletedPositionIds.current.delete(pos.id), 15000);
                 supabaseDeletePosition(pos.id).catch(() => {});
                 deleteOrdersForPosition(pos.id).catch(() => {});
-                insertTradeHistory(user.id, liqHistory).catch(() => {});
+                insertTradeHistory(user.id, liqHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
                 createNotification(user.id, 'LIQUIDATION',
                     `🔴 Liquidated: ${pos.pair} ${pos.side} — -$${formatMoney(marginLost)}`, pos.id)
                     .catch(() => {});
@@ -5929,7 +5931,7 @@ const App = () => {
                     realizedPnL: prev.realizedPnL + pnl,
                     tradeHistory: [closeHistory, ...prev.tradeHistory]
                 } : null);
-                if (isSupabaseConfigured() && user) insertTradeHistory(user.id, closeHistory).catch(() => {});
+                if (isSupabaseConfigured() && user) insertTradeHistory(user.id, closeHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
 
                 triggerAnim('ORDER_CLOSE', `${pairId}`, `${existingPosition.side === 'LONG' ? 'SELL' : 'BUY'} · $${formatMoney(closeSize)} @ $${formatPrice(price)}`);
 
@@ -6145,6 +6147,52 @@ const App = () => {
                 return;
               }
 
+              // ── Merge path: if a V2 on-chain position already exists with the same
+              // pair + side + leverage, ADD collateral to it instead of creating a
+              // new tradeId. This matches Hyperliquid/Binance UX where "buy more"
+              // means "stack into your existing position" rather than "open another
+              // independent one". The user can still see separate positions if they
+              // open at a different leverage (which the modal above intercepts).
+              const sameDirection = existingPosition
+                && existingPosition.side === side
+                && existingPosition.leverage === leverage
+                && (existingPosition as any).onChain
+                && (existingPosition as any).onChainTradeId;
+              if (sameDirection) {
+                const tradeId = BigInt((existingPosition as any).onChainTradeId);
+                veloPerpsTrading.addMargin(tradeId, collateral).then(() => {
+                  setToast({ message: `Added $${collateral.toFixed(2)} margin to ${pairId}`, type: 'SUCCESS' });
+                  triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `+$${formatMoney(collateral)} margin`);
+                  playSound('CLICK');
+                  releaseLock();
+                  // Persist the add as an OPEN-style row so it appears in history
+                  if (user?.id && isSupabaseConfigured()) {
+                    const addHistory: TradeHistoryItem = {
+                      id: `add_velo_${tradeId.toString()}_${Date.now()}`,
+                      pair: pairId,
+                      side,
+                      entryPrice: existingPosition.entryPrice,
+                      exitPrice: 0,
+                      size: collateral * leverage,
+                      pnl: 0,
+                      timestamp: Date.now(),
+                      openedAt: Date.now(),
+                      leverage,
+                      marginMode,
+                      action: 'OPEN',
+                      onChain: true,
+                    } as any;
+                    setUser(prev => prev ? { ...prev, tradeHistory: [addHistory, ...prev.tradeHistory] } : prev);
+                    insertTradeHistory(user.id, addHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
+                  }
+                }).catch((e) => {
+                  const msg = e?.shortMessage || e?.message || 'Add margin failed';
+                  setToast({ message: `Add margin failed: ${msg}`, type: 'ERROR' });
+                  releaseLock();
+                });
+                return;
+              }
+
               veloPerpsTrading.openPosition({
                 pair: veloPair,
                 isLong: side === 'LONG',
@@ -6184,7 +6232,7 @@ const App = () => {
                     tradeHistory: [openHistory, ...prev.tradeHistory],
                 } : prev);
                 if (isSupabaseConfigured() && user) {
-                    insertTradeHistory(user.id, openHistory).catch(() => {});
+                    insertTradeHistory(user.id, openHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
                 }
 
                 setToast({
@@ -6288,7 +6336,7 @@ const App = () => {
                     orderlyOrderUrl: result.explorerUrl,
                 } as any;
                 if (isSupabaseConfigured() && user) {
-                    insertTradeHistory(user.id, enrichedClose).catch(() => {});
+                    insertTradeHistory(user.id, enrichedClose).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
                     ownDeletedPositionIds.current.add(id);
                     setTimeout(() => ownDeletedPositionIds.current.delete(id), 15000);
                     supabaseDeletePosition(id).catch(() => {});
@@ -6365,7 +6413,7 @@ const App = () => {
             setTimeout(() => ownDeletedPositionIds.current.delete(id), 15000);
             supabaseDeletePosition(id).catch(() => {});
             deleteOrdersForPosition(id).catch(() => {});
-            insertTradeHistory(user.id, closeHistory).catch(() => {});
+            insertTradeHistory(user.id, closeHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
         }
 
         triggerAnim('ORDER_CLOSE', `${p.pair}`, `${p.side === 'LONG' ? 'SELL' : 'BUY'} · $${formatMoney(p.size)} · PnL $${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`);
@@ -6494,7 +6542,7 @@ const App = () => {
                     newHist.push(h);
                     if (isSupabaseConfigured()) {
                         supabaseDeletePosition(p.id).catch(() => {});
-                        insertTradeHistory(user.id, h).catch(() => {});
+                        insertTradeHistory(user.id, h).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
                     }
                 });
                 const newCopying = user.copying.filter(c => c !== id);
@@ -6989,6 +7037,23 @@ const App = () => {
               isOpen={isVeloBridgeOpen}
               onClose={() => setVeloBridgeOpen(false)}
             />
+            {/* ── Velo Deposit Modal (main wallet → trading wallet, same chain) ── */}
+            <VeloDepositModal
+              isOpen={isVeloDepositOpen}
+              onClose={() => setVeloDepositOpen(false)}
+              onSuccess={async ({ txHash, amount }) => {
+                setToast({ message: `Deposited $${amount.toFixed(2)} to trading wallet`, type: 'SUCCESS' });
+                if (user?.id && isSupabaseConfigured()) {
+                  try {
+                    // Recorded as DEPOSIT with onChain=true so the legacy balance
+                    // logic doesn't double-credit, and counterparty is null
+                    // (this is your own transfer between your two wallets).
+                    await recordTransaction(user.id, 'DEPOSIT', amount, { txHash, onChain: true });
+                    await createNotification(user.id, 'DEPOSIT', `Deposited $${amount.toFixed(2)} mUSDC to trading wallet`, txHash);
+                  } catch (e) { console.warn('[velo] deposit tx record failed', e); }
+                }
+              }}
+            />
             {/* ── Velo Share Trade Modal (post-close share-to-feed prompt) ── */}
             <VeloShareTradeModal
               isOpen={!!shareTradeData}
@@ -7267,21 +7332,23 @@ const App = () => {
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
-                    if (veloPerpsTrading.usingBurner) setVeloBridgeOpen(true);
+                    if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);
                     else setVeloWelcomeOpen(true);
                   }}
                   onClaimTestnetUsdc={handleClaimTestnetUsdc}
                   claimingFaucet={claimingFaucet}
                   onOpenOrderlyOnboarding={() => {
-                    if (veloPerpsTrading.usingBurner) setVeloBridgeOpen(true);
+                    if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);
                     else setVeloWelcomeOpen(true);
                   }}
                   onOpenDeposit={() => {
-                    // After setup, Deposit means "bridge more funds in from
-                    // other chains." Pre-setup, it means "start onboarding."
-                    if (veloPerpsTrading.usingBurner) setVeloBridgeOpen(true);
+                    // Post-setup: open the proper deposit modal (main → burner).
+                    // Pre-setup: kick the user through the one-time signature first.
+                    if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);
                     else setVeloWelcomeOpen(true);
                   }}
+                  onOpenSend={() => setVeloSendOpen(true)}
+                  onOpenBridge={() => setVeloBridgeOpen(true)}
                   onOpenWithdraw={() => {
                     // If burner exists, open the real withdraw modal.
                     // Otherwise direct them to onboarding.
