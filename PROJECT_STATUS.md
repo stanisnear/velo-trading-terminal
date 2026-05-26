@@ -1,49 +1,58 @@
 # Velo Trading Terminal — Project Status
 
-> Single source of truth for the project's current state, deployed contracts, known issues, recent fixes, and what's left before a funding proposal.
+> **For any AI agent picking this up:** read this entire document before making changes. The "Known traps & gotchas" section at the bottom will save you hours.
 >
-> **Last updated:** Phase 8 + post-deploy fixes (build #78)
-> **Live URL:** https://velo-trading-terminal.vercel.app
-> **Repo:** https://github.com/stanisnear/velo-trading-terminal
-> **Owner:** Stan (@stanisnear)
+> **For NotebookLM / context hand-off:** this is the authoritative state document. Lower-level details live in `README.md` and `MIGRATION_STATUS.md`.
 
-If you're an AI agent picking this up, read this entire document before changing anything. The "Known traps" section in particular will save you hours.
+**Last updated:** End of Phase 8 + post-deploy fixes batch 4 (~build #80)
+**Live URL:** https://velo-trading-terminal.vercel.app
+**Repo:** https://github.com/stanisnear/velo-trading-terminal
+**Owner:** Stan (@stanisnear)
+**Stage:** Testnet on Base Sepolia, pre-funding
 
 ---
 
-## TL;DR
+## What Velo is
 
-Velo is a SocialFi-native perpetual futures trading terminal on Base Sepolia testnet. Users open leveraged BTC/ETH/SOL/etc. positions priced by Pyth oracles, with all trades settled on-chain. The "SocialFi" part means traders have on-chain @handles, can send mUSDC peer-to-peer, share branded trade cards, and post to a social feed.
+A SocialFi-native perpetual futures trading terminal. Users open leveraged BTC/ETH/SOL/etc. positions priced by Pyth oracles, all settled on-chain via custom Solidity contracts. The "SocialFi" layer means traders have on-chain @handles registered to a registry contract, send mUSDC peer-to-peer by handle, share branded PnL cards (Hyperliquid-style), and post to a social feed.
 
 ### Stack at a glance
 
 - **Frontend:** React 19, Vite 6, TypeScript 5.8, wagmi v2, RainbowKit
-- **Backend:** Supabase (auth, social feed, notifications)
-- **On-chain:** Solidity 0.8.22, Foundry, deployed to Base Sepolia
+- **Backend:** Supabase (auth, social feed, notifications, leaderboard)
+- **On-chain:** Solidity 0.8.22, Foundry, Base Sepolia
 - **Oracle:** Pyth Hermes (live price feeds)
 - **Bridging:** LayerZero V2 OFT (mUSDC across 4 testnets)
-- **Hosting:** Vercel (frontend) + GitHub Actions (keepers)
+- **Hosting:** Vercel (frontend), GitHub Actions (keepers)
 
 ---
 
 ## Deployed contracts (Base Sepolia, chain ID 84532)
 
-### V1 — currently live and serving traffic
+### V2 — currently live (primary trading venue)
 
-| Contract | Address | Status |
-|----------|---------|--------|
-| **VeloPerps V1** | `0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163` | Live, 6 pairs registered, ~101k mUSDC pool |
-| **VeloMockUSDC** | `0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699` | Live, ERC-20 + LayerZero OFT |
-| **VeloRegistry** | `0x7e510d615a8afDfaa324F790F3E54e520756ECe2` | Live, on-chain @handles |
-| **Pyth oracle** | `0xA2aa501b19aff244D90cc15a4Cf739D2725B5729` | Pyth's, not ours |
-| **LayerZero Endpoint V2** | `0x6EDCE65403992e310A62460808c4b910D972f10f` | LayerZero's, not ours |
+| Contract | Address |
+|----------|---------|
+| **VeloPerps V2** | `0x8D4b792137252D79FB3Ae953AA619fA57101665f` |
+| **VeloMockUSDC** | `0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699` |
+| **VeloRegistry** | `0x7e510d615a8afDfaa324F790F3E54e520756ECe2` |
+| **Pyth oracle** | `0xA2aa501b19aff244D90cc15a4Cf739D2725B5729` (Pyth's, not ours) |
+| **LayerZero Endpoint V2** | `0x6EDCE65403992e310A62460808c4b910D972f10f` (LZ's, not ours) |
 
-**Owner address (controls all admin functions on V1, mUSDC, Registry):**
-`0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`
+**V2 contract status:** Live, all 17 pairs registered (BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL). `version()` returns 2. Verified via `cast code`. **Pool needs continuous seeding** as users open positions — use the admin panel.
 
-This is the deployer key. Your main MetaMask wallet (`0x4F3e55D85...`) is **not the owner**. To use the admin panel you either need to connect with the deployer key, or call `transferOwnership(0x4F3e55D85...)` on each contract.
+**BaseScan source verification:** NOT YET DONE. The CLI verification fails because BaseScan deprecated Etherscan V1 API. Use the web UI at https://sepolia.basescan.org/verifyContract?a=0x8D4b792137252D79FB3Ae953AA619fA57101665f with Compiler Type "Solidity (Standard-Json-Input)" and upload `contracts/out/VeloPerpsV2.sol/VeloPerpsV2.json`. Constructor args (no 0x prefix):
+```
+0000000000000000000000005efaf3f69b09bc2abf3439bdc0c93bf611026699000000000000000000000000a2aa501b19aff244d90cc15a4cf739d2725b57290000000000000000000000008f8ff5a29760278c7b54d450da57a13cd3fd3a8b
+```
 
-**Pairs registered on V1:** 0=BTC, 1=ETH, 2=SOL, 3=AVAX, 4=LINK, 5=DOGE (the first 6 — pairs 6-16 are NOT registered on V1).
+### V1 — legacy (still on-chain but no new trades routed)
+
+| Contract | Address |
+|----------|---------|
+| **VeloPerps V1** | `0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163` |
+
+V1 has the first 6 pairs registered (BTC/ETH/SOL/AVAX/LINK/DOGE) and ~101k mUSDC pool. The frontend ONLY routes to V2 (when `VITE_VELO_PERPS_V2_ADDRESS` env var is set). V1 is kept on-chain for any historical positions to be closeable.
 
 ### Cross-chain mUSDC OFT (LayerZero V2)
 
@@ -53,190 +62,288 @@ This is the deployer key. Your main MetaMask wallet (`0x4F3e55D85...`) is **not 
 | Optimism Sepolia | `0xEC76fD9182ba15ff193FDBc122013FCa18900290` |
 | Ethereum Sepolia | `0x96d0CF69896FE6b5B031D21967f027d95Eb42e9A` |
 
-### V2 — written, tested, NOT YET DEPLOYED
+### Owner address
 
-`contracts/src/VeloPerpsV2.sol` exists in the repo and passes all 12 forge tests, but **has not been deployed to Base Sepolia**. A previous deploy attempt printed an address (`0x3C7cBCa2C675F1f788148aaD08eceab262298de8`) but the transaction reverted due to a broken `try this.seedPool()` block at the end of the script — that revert rolled back the entire transaction including contract creation. The script has now been fixed (seedPool removed). To actually deploy V2, see the **"Deploy V2 (when ready)"** section below.
+**`0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`** — controls all admin functions on V1, V2, mUSDC, Registry. This is the original deployer key. Stan's main MetaMask wallet (`0x4F3e55D85...`) is NOT the owner. To access the admin panel, either connect with the deployer key OR call `transferOwnership(0x4F3e55D85...)` on each contract.
 
 ---
 
 ## What V2 adds over V1
 
-V1 only has: open position, close position, liquidate. That's it.
+V1 only had: open position, close position, liquidate. V2 adds five real features:
 
-V2 adds five real on-chain features V1 lacks:
+1. **`increaseCollateral(tradeId, amount)`** — add margin to an open position. Lowers effective leverage.
+2. **`decreaseCollateral(tradeId, amount, pythUpdate)`** — withdraw collateral. Enforces max 25× leverage + non-liquidatable post-state.
+3. **`partialClose(tradeId, fractionBps, pythUpdate)`** — close any fraction (1bp to 10000bps). PnL on closed portion is realised immediately.
+4. **`setTriggers(tradeId, takeProfit, stopLoss)`** — write TP/SL prices to contract storage. Pass 0 to clear. Direction enforced on-chain.
+5. **`closeIfTriggered(tradeId, pythUpdate)`** — **permissionless** close. Anyone can call; contract verifies trigger crossed and pays 0.25% keeper bounty. Makes the TP/SL keeper self-funding.
 
-1. **`increaseCollateral(tradeId, amount)`** — add margin to an open position. Reduces liquidation risk, lowers effective leverage. Position size stays the same.
-2. **`decreaseCollateral(tradeId, amount, pythUpdate)`** — withdraw collateral. Contract enforces that effective leverage stays ≤ 25× AND that the position isn't liquidatable at current mark price.
-3. **`partialClose(tradeId, fractionBps, pythUpdate)`** — close any fraction (1bp to 10000bps) of a position. PnL on the closed portion is realised immediately; the rest keeps its entry price.
-4. **`setTriggers(tradeId, takeProfit, stopLoss)`** — write TP/SL prices to the contract storage. Pass 0 to clear either. Direction is enforced on-chain (TP > entry for longs, opposite for shorts).
-5. **`closeIfTriggered(tradeId, pythUpdate)`** — **permissionless** close. Anyone can call it; the contract verifies the trigger has actually been crossed and pays a 0.25% keeper bounty (KEEPER_BOUNTY_BPS) to whoever called it. This is what makes the TP/SL keeper self-funding.
+Plus: `version()` returns 2, `effectiveLeverage(tradeId)` computes leverage from current collateral, `originalNotional_6` stored at open for math consistency after add/reduce.
 
-Plus a few quality-of-life additions: `version()` returns 2 (frontend uses this for routing), `effectiveLeverage(tradeId)` returns the current leverage given the live collateral, and `originalNotional_6` is stored at open so leverage math stays consistent after add/reduce margin.
+All 12 V2 forge tests pass.
 
-### What V2 does NOT add (and the honest reasons)
+### What V2 does NOT add (and why — not bolt-on changes)
 
-- **Cross margin** — different architectural design (shared collateral pool, portfolio equity calc, multi-position liquidation cascade). Will require V3.
-- **On-chain limit orders** — needs a separate OrderBook contract with its own keeper. Currently we have demo-only client-side limit orders that don't persist.
-- **Funding rate** — needs OI tracking + accrual mechanism per pair. v2.5 mainnet feature.
-- **Insurance fund** — needs a separate vault + drawdown logic for ADL events. v2.5.
-
-These are NOT bolt-on changes — pretending otherwise just creates broken code.
+- **Cross margin** — needs shared collateral pool, portfolio equity, multi-position liquidation cascade → V3
+- **On-chain limit orders** — needs separate OrderBook contract + keeper → V3
+- **Funding rate** — needs OI tracking + accrual per pair → v2.5
+- **Insurance fund + ADL** — needs separate vault + drawdown logic → required for any real-money launch
 
 ---
 
 ## Frontend architecture
 
-### Two-wallet model
+### Two-wallet model (critical to understand)
 
-- **Main wallet** (MetaMask) — what the user signs in with. Holds the user's identity, used once to derive the trading wallet, and used to send mUSDC out via the Send modal.
-- **Velo Trading Wallet** (a.k.a. "burner") — derived deterministically from the user's first signature on first login. Private key stored in localStorage. Used to sign every trade silently (no popup per trade). Auto-funded with ETH for gas by the sponsor server.
+- **Main wallet (MetaMask):** User's identity. Holds the @handle registration on-chain (since handles must be persistent). Used to deposit/withdraw/send mUSDC. One signature on first login derives the trading wallet.
+- **Velo Trading Wallet (burner):** Private key stored in localStorage, derived deterministically from the main wallet's first signature. Used to sign EVERY trade silently (no popup per trade). Auto-funded with ETH for gas by the sponsor server.
 
-The two-wallet model is what makes the UX feel like web2 — once the user does the one-time signature, they trade like Hyperliquid: tap → confirm → done, no popups.
+This is what makes the UX feel web2 — one signature on signup, then everything else is silent.
+
+### Username system
+
+- **Claimed by MAIN wallet** (not the burner). This was a bug — fix shipped in batch 3. Username is identity → must survive localStorage clear → must bind to MetaMask, not burner.
+- **30-day cooldown** between changes, enforced on-chain via `nextChangeAllowed[address]` mapping.
+- **Resolution:** `resolve(handle)` returns the address that owns it. When you send to `@alice`, it goes to alice's MAIN wallet.
+
+⚠ **Legacy handles claimed before the fix are bound to BURNER addresses.** Those users need to wait the 30-day cooldown or re-claim from main. For testnet this is acceptable; production will need a migration.
 
 ### Auto-gas sponsorship
 
-The burner wallet starts with no ETH. The `/api/sponsor-eth` Vercel route uses the `VELO_SPONSOR_PRIVATE_KEY` env var to send 0.005 ETH to any burner that's below 0.0015 ETH. This is called automatically before every gas-using action:
+Burner wallet starts empty. `/api/sponsor-eth` (Vercel serverless) uses `VELO_SPONSOR_PRIVATE_KEY` env var to send 0.005 ETH to any burner below 0.0015 ETH. Called automatically before every gas-using action via `src/services/veloGasSponsor.ts` → `ensureBurnerGas(publicClient, burnerAddress)`:
 
-- Open position
-- Close position
-- Add margin / reduce margin / partial close / set triggers (V2-only)
+- Open / close / addMargin / reduceMargin / partialClose / setTriggers
 - Username claim
 - Send mUSDC
 - Withdraw mUSDC
 
-All gas pre-flights now route through `src/services/veloGasSponsor.ts` for consistency. The function `ensureBurnerGas(publicClient, burnerAddress)` is the single entry point.
+### Modals and their purpose
+
+| Modal | Purpose |
+|-------|---------|
+| `VeloWelcomeModal` | One-signature onboarding to derive the burner |
+| `VeloUsernameModal` | Claim/change on-chain @handle. Signs with MAIN wallet. |
+| `VeloDepositModal` | **NEW (batch 4):** Move mUSDC from main → burner (same chain). Has copy-address option for external sends. |
+| `VeloBridgeModal` | Cross-chain mUSDC via LayerZero (Base/Arb/OP/Eth Sepolia) |
+| `VeloSendModal` | Peer-to-peer mUSDC by @handle or 0x. Signed by burner. |
+| `VeloWithdrawModal` | Trading wallet → main wallet or custom 0x |
+| `VeloManagePositionModal` | V2: 4 tabs — Add margin, Reduce, Close %, TP/SL. Includes preset buttons (10/20/25/50/75/100% close, ±25/50/100/200/500% TP, -10/25/50/75/90% SL). |
+| `VeloShareCard` | 1200×675 branded PNG share card. Customizable fields, 3 backgrounds. |
+| `VeloAdminPanel` | Owner-only: register pairs, withdraw fees, mint mUSDC (with no-cooldown `mintTo`), seed pool with one-click "→ V2 pool" shortcut. |
 
 ### File map
 
 ```
 src/
-├─ App.tsx                              ~7350-line monolith, being incrementally decomposed
+├─ App.tsx                              ~7400-line monolith. Partially decomposed.
 ├─ components/
-│  ├─ VeloAdminPanel.tsx                Owner-only panel: register pairs, withdraw fees, mint mUSDC
-│  ├─ VeloBridgeModal.tsx               LayerZero V2 OFT bridge across 4 testnets
-│  ├─ VeloManagePositionModal.tsx       V2: add/reduce margin, partial close, set TP/SL
-│  ├─ VeloSendModal.tsx                 Peer-to-peer mUSDC by @handle or 0x
-│  ├─ VeloShareCard.tsx                 Branded PNG share card (1200×675) for closed/open positions
-│  ├─ VeloUsernameModal.tsx             @handle claim with on-chain cooldown awareness
+│  ├─ VeloAdminPanel.tsx                Owner panel (mintTo, seed, register pairs, fees)
+│  ├─ VeloBridgeModal.tsx               LayerZero V2 OFT cross-chain
+│  ├─ VeloDepositModal.tsx              Main → burner deposit (NEW batch 4)
+│  ├─ VeloManagePositionModal.tsx       V2 4-tab modal with preset buttons
+│  ├─ VeloSendModal.tsx                 Peer-to-peer mUSDC
+│  ├─ VeloShareCard.tsx                 1200×675 PNG share card
+│  ├─ VeloUsernameModal.tsx             @handle claim via MAIN wallet
 │  ├─ VeloWelcomeModal.tsx              One-signature onboarding
-│  └─ VeloWithdrawModal.tsx             Trading wallet → main wallet / custom 0x
+│  └─ VeloWithdrawModal.tsx             Trading wallet → main / custom 0x
 ├─ services/
-│  ├─ veloGasSponsor.ts                 Centralized gas pre-flight
-│  ├─ veloPerpsService.ts               V1/V2 dual address routing, ABI, openPosition, closePosition, etc.
-│  ├─ useVeloPerpsTrading.ts            React hook wrapping all on-chain actions
+│  ├─ veloGasSponsor.ts                 NEW: centralized gas pre-flight
+│  ├─ veloPerpsService.ts               V1/V2 routing, ABI, helpers
+│  ├─ useVeloPerpsTrading.ts            React hook for trade actions
 │  ├─ veloBurnerWallet.ts               Burner derive + persist
-│  ├─ veloBurnerSetup.ts                Burner state machine for onboarding
-│  ├─ veloUsdcService.ts                ERC-20 helpers (transfer, approve, mint)
-│  ├─ pythService.ts                    Hermes price update fetching
+│  ├─ veloBurnerSetup.ts                Burner state machine
+│  ├─ veloUsdcService.ts                ERC-20 helpers
+│  ├─ pythService.ts                    Hermes price update fetch
 │  ├─ usernameService.ts                Registry reads/writes
 │  ├─ bridgeService.ts                  LayerZero quote + bridge
-│  └─ supabaseStore.ts                  Social feed, notifications, leaderboard, profiles
-├─ api/                                 Vercel serverless functions
+│  └─ supabaseStore.ts                  Social feed, notifications, leaderboard
+├─ api/                                 Vercel serverless
 │  ├─ sponsor-eth.ts                    Gas sponsor (POST { burnerAddress })
-│  ├─ cron-liquidate.ts                 Liquidation keeper (every 5m via GitHub Actions)
-│  ├─ cron-tp-sl.ts                     TP/SL keeper for V2 (waits for V2 deploy)
+│  ├─ cron-liquidate.ts                 Liquidation keeper (every 5m)
+│  ├─ cron-tp-sl.ts                     TP/SL keeper for V2
 │  └─ protocol-stats.ts                 JSON stats for admin dashboard
 contracts/
 ├─ src/
-│  ├─ VeloPerps.sol                     V1 (deployed)
-│  ├─ VeloPerpsV2.sol                   V2 (tested, NOT deployed)
-│  ├─ VeloMockUSDC.sol                  Testnet ERC-20 + LayerZero OFT
-│  ├─ VeloRegistry.sol                  On-chain @handles, 30-day change cooldown
-│  └─ libraries/PerpsMath.sol           PnL math, Pyth normalisation
-├─ test/                                Foundry tests (V1 + V2)
-└─ script/                              Deploy scripts for all 4 chains
+│  ├─ VeloPerps.sol                     V1 (legacy)
+│  ├─ VeloPerpsV2.sol                   V2 (LIVE)
+│  ├─ VeloMockUSDC.sol                  ERC-20 + LayerZero OFT, has mint() and mintTo()
+│  ├─ VeloRegistry.sol                  On-chain @handles, 30-day cooldown
+│  └─ libraries/PerpsMath.sol           PnL math, Pyth normalization
+├─ test/
+│  ├─ VeloPerps.t.sol
+│  └─ VeloPerpsV2.t.sol                 12 tests, all passing
+├─ script/
+│  ├─ DeployVeloPerpsV2.s.sol           NO seedPool() block (broke previous deploys)
+│  └─ ...
+└─ deployments/                          JSON files per chain with addresses
 ```
 
 ---
 
 ## Vercel environment variables
 
-These need to be set in **Vercel project → Settings → Environment Variables** for production:
-
-| Variable | Required? | Current value | Purpose |
-|----------|-----------|---------------|---------|
-| `VITE_VELO_PERPS_ADDRESS` | Optional | unset (defaults to V1) | Override the V1 contract address |
-| `VITE_VELO_PERPS_V2_ADDRESS` | Optional | **MUST be UNSET or empty** until V2 is actually deployed | Routes trades to V2 when set to a valid 42-char address |
-| `VITE_VELO_USDC_BASE` | Optional | unset (defaults to live mUSDC) | Override mUSDC address |
-| `VITE_BASE_SEPOLIA_RPC_URL` | Recommended | (any working RPC) | Override the public RPC |
-| `VITE_PYTH_HERMES_URL` | Optional | defaults to `https://hermes.pyth.network` | Pyth Hermes endpoint |
-| `VITE_SUPABASE_URL` | **Required** | your Supabase project URL | Database connection |
-| `VITE_SUPABASE_ANON_KEY` | **Required** | your Supabase anon key | Database auth |
-| `VELO_SPONSOR_PRIVATE_KEY` | **Required** | the sponsor wallet private key | Server-side, used by `/api/sponsor-eth` to top up burners |
-
-### ⚠️ CRITICAL: about `VITE_VELO_PERPS_V2_ADDRESS`
-
-A previous Claude conversation set this to `0x3C7cBCa2C675F1f788148aaD08eceab262298de8` thinking V2 was deployed. **That address has no contract on Base Sepolia** (verified via `cast code` returning `0x`). With that env var set, the frontend routes every trade to a non-existent contract → `pairFeedId returned no data ("0x")` error.
-
-**Make sure this env var is unset or empty in Vercel until V2 is actually deployed.** Without it, the frontend correctly falls back to V1 which is fully functional.
+| Variable | Required | Current value | Purpose |
+|----------|----------|---------------|---------|
+| `VITE_VELO_PERPS_V2_ADDRESS` | **YES** | `0x8D4b792137252D79FB3Ae953AA619fA57101665f` | Routes trades to V2 |
+| `VITE_VELO_PERPS_ADDRESS` | Optional | unset (defaults to V1) | Override V1 |
+| `VITE_VELO_USDC_BASE` | Optional | unset (defaults to live mUSDC) | Override mUSDC |
+| `VITE_BASE_SEPOLIA_RPC_URL` | Recommended | (any working RPC) | Public RPC override |
+| `VITE_PYTH_HERMES_URL` | Optional | `https://hermes.pyth.network` | Pyth endpoint |
+| `VITE_SUPABASE_URL` | **YES** | Stan's Supabase project URL | DB connection |
+| `VITE_SUPABASE_ANON_KEY` | **YES** | Stan's Supabase anon key | DB auth |
+| `VELO_SPONSOR_PRIVATE_KEY` | **YES** | Sponsor wallet private key | Server-side gas sponsorship |
 
 ---
 
-## Known issues and recent fixes
+## Supabase database
 
-### Issue: Username claim showed cryptic `0x5a66c00a` hex error
+**Project:** `btgfoekgvyvdflzjfehz.supabase.co`
 
-**Root cause:** A previous code change incorrectly mapped selector `0x5a66c00a` to `UsernameTaken()`. The real selector for UsernameTaken is `0x6bc324ad`. `0x5a66c00a` is actually `ChangeCooldownActive(uint256)` — meaning the user already claimed a handle and there's a 30-day cooldown.
+**Critical migrations to have applied:**
+1. `SUPABASE_SCHEMA.sql` — base schema (profiles, posts, likes, reposts, comments, follows, open_orders, trade_history, transactions, notifications, copy_relationships, leaderboard_snapshots)
+2. `SUPABASE_MIGRATION_VELO_PERPS.sql` — adds tx_hash and on_chain columns
+3. `SUPABASE_MIGRATION_TRIGGERS.sql` — adds take_profit/stop_loss columns to open_orders
+4. `SUPABASE_MIGRATION_BUILD79.sql` — adds leverage/margin_mode/liquidation_price/opened_at columns
+5. `SUPABASE_MIGRATION_TX_COUNTERPARTY.sql` — **NEW (batch 3):** adds counterparty column for SEND/RECEIVE rows
 
-**Fix shipped:** All three registry error selectors now correctly mapped. The modal also reads `nextChangeAllowed(address)` from the registry on open, shows a yellow banner "You claimed @xyz recently. Try again in ~N days", and disables the claim button while on cooldown.
+**RLS policies are critical.** If social posts don't show for new users, run:
+```sql
+DROP POLICY IF EXISTS "Public read posts" ON public.posts;
+CREATE POLICY "Public read posts" ON public.posts FOR SELECT USING (true);
+-- Same for likes, reposts, comments, profiles
+```
 
-### Issue: Order failed with `pairFeedId returned no data ("0x")`
-
-**Root cause:** Frontend was routing to the phantom V2 address (see CRITICAL note above).
-
-**Fix shipped:** Removed the hardcoded V2 fallback in `veloPerpsService.ts`. The frontend now only routes to V2 if `VITE_VELO_PERPS_V2_ADDRESS` is explicitly set to a valid 42-character address. Default fallback is V1.
-
-**User action required:** Remove `VITE_VELO_PERPS_V2_ADDRESS` from Vercel env vars OR set it to empty string, then redeploy.
-
-### Issue: Admin tab not appearing despite being "logged in as admin"
-
-**Root cause:** The user's main MetaMask wallet (`0x4F3e55D85...`) is NOT the contract owner. The contract owner is `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b` (the original deployer key). The admin tab correctly hides for non-owners.
-
-**Fix path (pick one):**
-- Connect MetaMask with the deployer private key (testnet, so acceptable)
-- OR run `cast send <contract> "transferOwnership(address)" 0x4F3e55D85... --rpc-url ... --private-key <deployer>` on V1, mUSDC, and Registry to move admin rights to the main wallet
-
-### Issue: Trading wallet runs out of ETH for gas
-
-**Root cause:** Only `openPosition` had pre-flight gas top-up. Every other tx (username claim, send, close, V2 actions) hit "exceeds the balance" cryptic reverts when the burner ran out.
-
-**Fix shipped:** New module `src/services/veloGasSponsor.ts` with `ensureBurnerGas()` helper. Now called by:
-- `useVeloPerpsTrading.openPosition`
-- `useVeloPerpsTrading.closePosition`
-- `useVeloPerpsTrading.addMargin / reduceMargin / partialClose / setTriggers` (V2-only)
-- `VeloUsernameModal.handleClaim`
-- `VeloSendModal.handleSend`
-- `VeloWithdrawModal.handleWithdraw`
-
-### Issue: Social posts not visible to new users
-
-**Root cause:** Posts were only fetched inside the logged-in session restore block, so anonymous browsers and brand-new accounts saw an empty feed.
-
-**Fix shipped:** Added a public post-fetch effect that runs when the Social tab opens, regardless of auth state, if posts haven't been loaded yet.
-
-**Possible second cause:** Supabase RLS policies on the `posts` table. The schema in `SUPABASE_SCHEMA.sql` says `FOR SELECT USING (true)` which is public read. If your live Supabase has stricter policies, re-run lines 90-96 of `SUPABASE_SCHEMA.sql` in the Supabase SQL editor. Symptom: a brand-new user logs in, sees nothing, but the same posts appear when an existing author logs in (RLS scoped to author).
-
-### Issue: Send/receive notifications missing
-
-**Root cause:** `VeloSendModal` had no callback path to write notification rows.
-
-**Fix shipped:** Modal now exposes an `onSuccess({txHash, recipientAddress, recipientHandle, amount})` callback. `App.tsx` wires it to (1) toast the sender, (2) write a `TRANSFER_SENT` row to the sender's `notifications` table, (3) if the recipient is a Velo @user, look up their profile.id and write a `TRANSFER_RECEIVED` row. Realtime subscription on the notifications table makes both appear instantly.
+The schema enables RLS on every table; if a write fails silently and trade history disappears on refresh, RLS is the first thing to check (`auth.uid() = user_id` is the policy for trade_history and open_orders).
 
 ---
 
-## Deploy V2 (when ready)
+## Known issues and ALL recent fixes
 
-The V2 contract is written, tested, and the deploy script is now fixed. To actually deploy:
+### Critical bugs fixed across the last 4 sessions
+
+| Issue | Root cause | Fix |
+|-------|------------|-----|
+| Username claim showed cryptic `0x5a66c00a` error | Selector mismapped — `0x5a66c00a` is `ChangeCooldownActive(uint256)`, not `UsernameTaken` | Mapped all 3 registry selectors correctly; modal reads `nextChangeAllowed` on open and shows yellow cooldown banner |
+| Username bound to burner instead of main | Modal read from main but burner signed → mismatch on cooldown check | Now always signs with main wallet (one MetaMask popup per claim) |
+| `pairFeedId returned no data ("0x")` on every trade | Phantom V2 fallback address `0x3C7c...` had no contract | Removed phantom fallback; only routes to V2 when env var is a valid 42-char address |
+| V2 deploy "succeeded" but no bytecode | `try this.seedPool() {}` in script reverted the whole tx | Removed seedPool from deploy script |
+| Burner ran out of ETH mid-trade | Only `openPosition` had gas pre-flight | New `veloGasSponsor.ts` module called from every gas-using action |
+| Social posts invisible to new users | Posts only fetched inside session-restore block | Added public post-fetch effect on Social tab entry |
+| `TAKE_PROFIT SHORT` shown for a LONG TP order | Order's `side` field stores the CLOSING direction (correct semantics, confusing UX) | Render now shows position side ("TAKE PROFIT · LONG") |
+| Two share modals popped up after close | Auto-open of both share-card PNG and share-to-feed | Removed both auto-popups; user invokes via Share button on history/position rows |
+| Recent Activity missing sends/withdraws | Only DEPOSIT/WITHDRAW handled by `recordTransaction` | Extended to SEND/RECEIVE with `counterparty` field; wired into Send/Withdraw success callbacks |
+| "Deposit" opened "Bridge mUSDC" modal | Bridge was overloaded as deposit | New `VeloDepositModal` with main→burner one-click + copy-address option |
+| Dashboard missing SEND button | Send was only in Settings modal | Added Send + Bridge buttons to Dashboard action row |
+| Same pair+side+lev opened a new position instead of stacking | No merge logic in open path | If existing V2 position matches, route to `addMargin(tradeId)` instead of creating new tradeId |
+| Share card wordmark clipped on left | 50px margin was too tight against rounded modal corner on mobile | Bumped to 60px |
+| TP/SL required absolute prices (hard to compute) | No % shortcuts | Quick-pick buttons: TP +25/50/100/200/500%, SL -10/25/50/75/90% (PnL on collateral) |
+| Partial close limited to 25/50/75/100 presets | Coarse | Added 10% and 20% to the row |
+| Orders disappear on refresh | Silent `.catch(() => {})` swallowed insert errors | Changed to `console.warn` so errors surface in devtools |
+
+### Issues still unresolved / diagnostic needed
+
+- **Orders disappearing on refresh** — likely Supabase RLS or column mismatch. After deploying the latest batch, open browser devtools console and try a trade. The `console.warn` will show the real Supabase error. Most likely fix: verify the user is fully authenticated to Supabase (not just wallet-connected) and run the migrations listed above.
+- **BaseScan source verification** — must be done via the web UI (see top of doc). CLI fails because BaseScan deprecated Etherscan V1 API.
+- **Admin tab not visible for main wallet** — Stan's main wallet is not the contract owner. Either connect with deployer key OR transfer ownership.
+
+---
+
+## What's left before a funding proposal
+
+### Critical (must-have for any pitch)
+
+- [ ] **Verify VeloPerpsV2 source on BaseScan** via the web UI
+- [ ] **Run all pending Supabase migrations** including `SUPABASE_MIGRATION_TX_COUNTERPARTY.sql`
+- [ ] **Re-apply the RLS public-read SQL** for posts/likes/reposts/comments/profiles
+- [ ] **Transfer V2 + mUSDC + Registry ownership** to Stan's main wallet so admin panel works without juggling keys
+- [ ] **End-to-end smoke test on production:** create a fresh account → claim a handle → deposit via the new modal → open a trade → manage it (add margin / partial close / TP/SL) → close → share the card. All without dev tools open.
+- [ ] **Mobile UX pass on iPhone Safari** — screenshots show iOS is the primary use case
+- [ ] **Seed V2 pool to a respectable level** (currently 0 mUSDC). Use admin panel "→ V2 pool" shortcut.
+
+### Quality-of-life (strongly desired)
+
+- [ ] Admin panel **V2 awareness** — show pool reserves, version, active pairs
+- [ ] **Liquidity dashboard** publicly visible — TVL, biggest trades, leaderboard
+- [ ] **Onboarding tutorial** — 3-step coach mark explaining the dual-wallet model
+- [ ] **Position health indicators** — color-coded liquidation distance
+- [ ] **Funding rate display** (even faked, marked as "v2.5") — investors expect this
+
+### Architecture (multi-week)
+
+- [ ] **Cross margin V3 contract** — shared collateral pool, portfolio equity
+- [ ] **OrderBook contract** for real on-chain limit/stop orders
+- [ ] **Insurance fund + ADL** — required for any real-money launch
+- [ ] **Multisig ownership transfer** — single-key admin doesn't pass DD
+- [ ] **Smart contract audit** — Code4rena, Sherlock, or boutique firm
+
+### Polish for the deck
+
+- [ ] Architecture diagram (burner ↔ MetaMask ↔ contracts ↔ keepers ↔ Pyth)
+- [ ] 60-second demo video — sign up → claim handle → trade → share to Twitter
+- [ ] Roadmap slide — v1 (now), v2 (deployed), v3 (cross margin), mainnet (audited)
+- [ ] Pricing model — Velo earns 0.1% open + 0.1% close fees. Project on assumed volume.
+
+---
+
+## Useful cast commands
+
+```bash
+export RPC=https://base-sepolia-rpc.publicnode.com
+export V2=0x8D4b792137252D79FB3Ae953AA619fA57101665f
+export V1=0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163
+export MUSDC=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699
+export REGISTRY=0x7e510d615a8afDfaa324F790F3E54e520756ECe2
+export OWNER=0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b
+export PYTH=0xA2aa501b19aff244D90cc15a4Cf739D2725B5729
+
+# V2 pool balance
+cast call $MUSDC "balanceOf(address)(uint256)" $V2 --rpc-url $RPC
+
+# Confirm V2 is live + version
+cast call $V2 "version()(uint16)" --rpc-url $RPC
+
+# Pair feed ID (returns 32-byte hash or all zeros if unregistered)
+cast call $V2 "pairFeedId(uint16)(bytes32)" 0 --rpc-url $RPC
+
+# Owner check
+cast call $V2 "owner()(address)" --rpc-url $RPC
+
+# Username resolve (lowercase handle, no @)
+cast call $REGISTRY "resolve(string)(address)" "stan" --rpc-url $RPC
+
+# What handle does this address own?
+cast call $REGISTRY "usernameOf(address)(string)" 0x... --rpc-url $RPC
+
+# When can this address next change handle? (unix seconds, 0 = never claimed)
+cast call $REGISTRY "nextChangeAllowed(address)(uint256)" $OWNER --rpc-url $RPC
+
+# Public faucet mint (6-hour cooldown)
+cast send $MUSDC "mint()" --rpc-url $RPC --private-key $PRIVATE_KEY
+
+# Owner-only mint (no cooldown)
+cast send $MUSDC "mintTo(address,uint256)" <to> <amount_6dec> \
+  --rpc-url $RPC --private-key $PRIVATE_KEY
+
+# Transfer mUSDC anywhere
+cast send $MUSDC "transfer(address,uint256)" <to> <amount_6dec> \
+  --rpc-url $RPC --private-key $PRIVATE_KEY
+
+# Transfer ownership (irreversible!)
+cast send $V2 "transferOwnership(address)" <newOwner> \
+  --rpc-url $RPC --private-key $PRIVATE_KEY
+```
+
+---
+
+## Deploy V2 (already done — for reference if you ever need to redeploy)
 
 ```bash
 cd ~/Downloads/velo/contracts
 source .env  # loads PRIVATE_KEY and BASE_SEPOLIA_RPC_URL
 
-# Run all 12 V2 tests first to confirm nothing's broken
 forge test --match-path "test/VeloPerpsV2.t.sol" -v
 # Expect: 12 passed; 0 failed
 
-# Deploy
 forge script script/DeployVeloPerpsV2.s.sol \
   --rpc-url $BASE_SEPOLIA_RPC_URL \
   --broadcast \
@@ -244,144 +351,91 @@ forge script script/DeployVeloPerpsV2.s.sol \
   --private-key $PRIVATE_KEY
 
 # Note the "VeloPerpsV2:" address printed at the end. Save it.
+# Then seed the pool manually (the script no longer does it).
 ```
 
-The script registers all 17 pairs in one batch. It does NOT seed the pool because Foundry script mode can't do `address(this).seedPool()` (that's what broke the previous deploy). Seed manually:
-
-```bash
-# Send mUSDC from deployer to the new V2 contract
-cast send 0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699 \
-  "transfer(address,uint256)" \
-  <V2_ADDRESS> <amount_with_6_decimals> \
-  --rpc-url $BASE_SEPOLIA_RPC_URL \
-  --private-key $PRIVATE_KEY
-```
-
-Then in Vercel:
-1. Settings → Environment Variables
-2. Set `VITE_VELO_PERPS_V2_ADDRESS = <V2_ADDRESS>`
-3. Deployments → Redeploy
-
-The frontend auto-routes to V2 on the next page load.
+The verify step at the end will fail with the V1 API deprecation error — that's fine, do the web UI verification separately. The contract IS deployed.
 
 ---
 
-## What's left before a funding proposal
-
-Below is a prioritised list of what would make this a credible v1 launch.
-
-### Critical (must-have for any pitch)
-
-- [ ] **Deploy V2 properly** (see above) so add margin / reduce / partial close / on-chain TP/SL all work
-- [ ] **Run the supabase RLS fix** (lines 49-141 of `SUPABASE_SCHEMA.sql`) on the live database
-- [ ] **Transfer V1 + mUSDC + Registry ownership** to the main wallet so the admin panel works without juggling keys
-- [ ] **End-to-end smoke test on production:** create a fresh account, claim a handle, deposit, open a trade, close it, share the card, send mUSDC to another @user, all without dev tools open
-- [ ] **Mobile UX pass** — verify the manage modal, share card, and send modal all work on iPhone Safari (screenshot evidence shows iOS is the primary use case)
-
-### Quality-of-life (strongly desired)
-
-- [ ] Admin panel **V2 awareness** — show the V2 address, version, pool reserves, and a "Mint to faucet" button so admins can seed without `cast`
-- [ ] **Liquidity dashboard** publicly visible — current TVL, biggest trades, leaderboard wins (great for a pitch deck)
-- [ ] **Onboarding tutorial** — a 3-step coach mark explaining the dual-wallet model (the #1 thing users get confused by)
-- [ ] **Position health indicators** — color-coded liquidation distance in the open positions table
-- [ ] **Funding rate display** (even faked for now, marked as "v2.5") — investors expect to see it
-
-### Architecture (multi-week)
-
-- [ ] **Cross margin V3 contract** — shared collateral pool, portfolio equity
-- [ ] **OrderBook contract** for real on-chain limit/stop orders
-- [ ] **Insurance fund + ADL** — required for any real-money launch
-- [ ] **Multisig ownership transfer** — single-key admin doesn't pass any due diligence
-- [ ] **Smart contract audit** — Code4rena, Sherlock, or one of the boutique firms
-
-### Polish for the deck
-
-- [ ] One-page architecture diagram showing burner ↔ MetaMask ↔ contracts ↔ keepers ↔ Pyth
-- [ ] Demo video (60 seconds) — sign up, claim handle, open trade, share card to Twitter
-- [ ] Roadmap slide showing v1 (now), v2 (V2 deployed), v3 (cross margin), mainnet (audited)
-- [ ] Pricing model — Velo earns 0.1% open + 0.1% close fees. Project these on assumed volume
-
----
-
-## Useful cast commands
-
-Quick reference for interacting with deployed contracts:
-
-```bash
-# Set in your shell once
-export RPC=https://base-sepolia-rpc.publicnode.com
-export V1=0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163
-export MUSDC=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699
-export REGISTRY=0x7e510d615a8afDfaa324F790F3E54e520756ECe2
-export OWNER=0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b
-
-# Check V1 pool balance (in 6-decimal mUSDC; divide by 1e6)
-cast call $MUSDC "balanceOf(address)(uint256)" $V1 --rpc-url $RPC
-
-# Check pair registration on V1 (returns 32-byte feed ID or all zeros)
-cast call $V1 "pairFeedId(uint16)(bytes32)" 0 --rpc-url $RPC
-
-# Check who owns V1 (should be the deployer wallet)
-cast call $V1 "owner()(address)" --rpc-url $RPC
-
-# Check accumulated fees on V1
-cast call $V1 "feeBalance()(uint256)" --rpc-url $RPC
-
-# Resolve an @handle to an address
-cast call $REGISTRY "resolve(string)(address)" "stan" --rpc-url $RPC
-
-# Look up someone's handle
-cast call $REGISTRY "usernameOf(address)(string)" 0x... --rpc-url $RPC
-
-# Check when an address can next change their handle (unix seconds, 0 = never claimed)
-cast call $REGISTRY "nextChangeAllowed(address)(uint256)" $OWNER --rpc-url $RPC
-
-# Mint 1000 mUSDC from the faucet to whatever wallet called it (6-hour cooldown)
-cast send $MUSDC "mint()" --rpc-url $RPC --private-key $PRIVATE_KEY
-
-# Send mUSDC anywhere
-cast send $MUSDC "transfer(address,uint256)" <to> <amount_6dec> \
-  --rpc-url $RPC --private-key $PRIVATE_KEY
-
-# Transfer V1 ownership (one-way!)
-cast send $V1 "transferOwnership(address)" <newOwner> \
-  --rpc-url $RPC --private-key $PRIVATE_KEY
-```
-
----
-
-## Known traps
+## Known traps & gotchas
 
 Things that have burned previous sessions:
 
-1. **Pyth feed IDs are chain-independent.** All 17 are listed in `DeployVeloPerpsV2.s.sol`. Don't try to "look them up per chain" — they're the same hash everywhere.
+1. **Pyth feed IDs are chain-independent.** All 17 are in `DeployVeloPerpsV2.s.sol`. Same hash everywhere.
 
-2. **VeloMockUSDC inherits from LayerZero's OFT.** When running `forge test` you must install LayerZero deps OR use `--match-path "test/VeloPerpsV2.t.sol"` to skip mUSDC compilation. Without LayerZero deps installed, you'll see "Source `lib/devtools/packages/oft-evm/contracts/OFT.sol` not found".
+2. **VeloMockUSDC inherits from LayerZero's OFT.** Running `forge test` requires LayerZero deps installed OR use `--match-path "test/VeloPerpsV2.t.sol"` to skip mUSDC compilation. Otherwise: "Source `lib/devtools/packages/oft-evm/contracts/OFT.sol` not found".
 
-3. **Foundry script mode forbids `this.method()` calls.** Don't put `try this.seedPool() {} catch {}` blocks in scripts — Foundry reverts the entire tx including contract creation. The previous V2 deploy failed because of this.
+3. **Foundry script mode forbids `this.method()` calls.** Don't put `try this.seedPool() {} catch {}` in scripts — Foundry reverts the entire tx including contract creation. The previous V2 deploy failed because of this.
 
-4. **Solidity 0.8.22 throws an unsigned arithmetic error on `int256` subtraction.** Be careful in PerpsMath when mixing signed/unsigned types.
+4. **The burner wallet keys are stored in localStorage.** If a user clears site data, their burner is lost. Funds in the burner are recoverable via the displayed mnemonic but tradeIds are not transferable.
 
-5. **The burner wallet keys are stored in localStorage.** If a user clears site data, their burner is lost forever — funds in the burner are recoverable via the displayed mnemonic but trades are not.
+5. **Supabase RLS is enforced on new tables by default.** If you add a table and forget the SELECT policy, no client can read it. Symptom: app works for the author but is empty for everyone else.
 
-6. **Supabase RLS is enforced by default on new tables.** If you add a table and forget the SELECT policy, no client can read it. Symptom: app appears to work for the author but is empty for everyone else.
+6. **The TP/SL keeper costs the sponsor wallet 0.001 ETH per Pyth update.** Budget accordingly.
 
-7. **The TP/SL keeper costs the sponsor wallet 0.001 ETH per Pyth update.** Multiply by frequency × pairs to budget gas.
+7. **`forge install --no-commit` is no longer a valid flag** in newer Foundry. Use `forge install <repo>` without the flag.
 
-8. **`forge install --no-commit` is no longer a valid flag in newer Foundry.** Use `forge install <repo>` and it will commit if the repo is a git repo, or just clone if not.
+8. **Vercel doesn't auto-redeploy on env var change alone.** You must manually trigger a redeploy from the Deployments tab.
 
-9. **Network blocked downloads in dev sandboxes.** `forge install` calling github can fail behind corporate proxies. Foundry has a `--no-git` option in newer versions, OR clone manually into `contracts/lib/`.
+9. **`source ../.env` vs `source .env`** — depends where the .env actually lives. Stan's lives at `~/Downloads/velo/contracts/.env`, so `cd contracts && source .env`.
 
-10. **Vercel doesn't redeploy on env var change alone.** Setting an env var requires manually triggering a redeploy from the Deployments tab.
+10. **`forge verify-contract` CLI fails on BaseScan** because Etherscan V1 API is deprecated. Use the BaseScan web UI for source verification.
+
+11. **Multi-line `forge` commands with backslashes can collapse in macOS Terminal.** Stray spaces between arguments cause "odd number of digits" errors in `cast abi-encode`. Easier to run as single-line.
+
+12. **The user (Stan) prefers no bullet points in chat replies** (lists are fine in code/docs). Direct, technically precise communication. Apple-keynote design aesthetic — Instrument Serif display, JetBrains Mono code, Inter Tight body.
+
+13. **The README explicitly should NOT compare Velo to dYdX or Hyperliquid** — those are scale references for internal discussion only, not marketing positioning.
+
+14. **Username claims signed by main wallet, NOT burner** (the persistent identity is on MetaMask, not the disposable trading wallet). Old code did this wrong; fixed in batch 3.
+
+15. **The PROJECT_STATUS.md (this file) is THE source of truth.** Any AI agent picking up work should read this first.
 
 ---
 
-## Contact / handoff
+## Hand-off checklist for a new AI session
+
+When opening a fresh conversation, paste in:
+1. This `PROJECT_STATUS.md` (full file)
+2. The latest repo zip
+3. A short message: "Here's the Velo project. Read PROJECT_STATUS.md first. [Then describe what you want next.]"
+
+If using NotebookLM:
+1. Upload this file as a source
+2. Optionally upload `README.md` and `MIGRATION_STATUS.md` for cross-reference
+3. Ask: "Summarize the current state of the Velo project and the top 3 things blocking a funding proposal."
+
+---
+
+## Communication style preferences (Stan)
+
+- No bullet points in conversational chat replies (use prose). Lists are fine in code and docs.
+- Direct and technically precise. Push back when something is wrong instead of agreeing reflexively.
+- Apple/Hyperliquid/Aevo design aesthetic. OKLCH color tokens, glass morphism, Instrument Serif display font, JetBrains Mono code font.
+- Iterative deploy-and-report workflow: Stan deploys to Vercel, observes real errors, reports back. Fixes should come as complete updated zips, not partial patches.
+- GitHub web editor exclusively until recently — Stan now clones locally but still prefers zips of complete files over targeted patches.
+- Build verification discipline expected: run `npx tsc --noEmit` and `npx vite build` before packaging any deliverable.
+- Each decision evaluated against shippability for one developer + grant narrative coherence.
+
+---
+
+## Contact / handoff details
 
 - **GitHub:** stanisnear/velo-trading-terminal
-- **Vercel project name:** (whatever Stan's account uses)
+- **Vercel project:** linked to that repo, auto-deploys on push to main
 - **Supabase project:** `btgfoekgvyvdflzjfehz.supabase.co`
-- **Owner private key:** in Stan's local `.env` (NOT committed)
-- **Sponsor private key:** set as Vercel env var `VELO_SPONSOR_PRIVATE_KEY`
+- **Owner private key:** in Stan's local `.env` at `~/Downloads/velo/contracts/.env` (NOT committed)
+- **Sponsor private key:** Vercel env var `VELO_SPONSOR_PRIVATE_KEY`
+- **Etherscan/BaseScan API key:** Stan's personal key. Used for foundry verification and may need rotation.
 
-If you're an AI agent and need a context document for NotebookLM or similar, **this file is intended for that purpose**. It's authoritative as of the date at the top. Lower-level details live in `README.md` and `MIGRATION_STATUS.md`.
+If you (the next AI agent) are reading this, the most efficient way to continue Stan's work is to:
+1. Ask which feature/bug they want to tackle
+2. Read the relevant section in this file
+3. Use the file map to locate the right files
+4. Make minimal, surgical changes
+5. Verify build cleanly (`npx vite build`)
+6. Ship as a complete repo zip via `present_files`
+7. Update this `PROJECT_STATUS.md` if anything material changed
+
+Treat this file as the contract. If your changes don't match what's documented here, update the doc in the same commit.
