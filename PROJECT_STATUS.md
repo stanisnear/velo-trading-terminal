@@ -481,3 +481,13 @@ When a user connects via Google/Discord/etc., AppKit creates a Reown-managed **e
 - After any env var or dashboard change: manually trigger Vercel redeploy (gotcha #8)
 
 **Env var unchanged:** `VITE_WALLETCONNECT_PROJECT_ID` — same key, same value, same Vercel env var. The Reown projectId is the same as the old WalletConnect projectId.
+
+### 2025-05-26 — Fixed AppKit modal rendering behind AuthModal
+
+**Problem:** Clicking "Connect Wallet" in AuthModal appeared to do nothing. AppKit modal was opening but rendering behind AuthModal's `z-index: 9999` overlay.
+
+**Files changed:**
+- `src/components/AuthModal.tsx` — added `useAppKitState` hook to detect AppKit modal open/close state. "Connect Wallet" now calls `handleOpenWallet()` which fades AuthModal out (`setVisible(false)`) before opening AppKit. If user cancels AppKit without connecting, AuthModal fades back in.
+- `src/index.tsx` — injects a `<style>` tag at startup forcing `w3m-modal` and `wcm-modal` web components to `z-index: 99999` so AppKit always renders above all Velo modals.
+
+**New gotcha:** AppKit's modal is a web component (`<w3m-modal>`) injected at `document.body` level. Its default z-index is lower than custom modals using `z-index: 9999`. Always ensure the style override in `index.tsx` is present when using AppKit alongside custom modal stacks.

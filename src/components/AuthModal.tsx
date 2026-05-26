@@ -2,7 +2,7 @@
 // Apple-quality onboarding + MetaMask-style wallet UX
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useAppKit } from '@reown/appkit/react';
+import { useAppKit, useAppKitState } from '@reown/appkit/react';
 import { useAccount, useDisconnect, useChainId } from 'wagmi';
 import { isConfigured as isSupabaseConfigured, supabase } from '../services/supabaseStore';
 
@@ -166,6 +166,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
   const { open: openAppKit } = useAppKit();
+  const { open: appKitModalOpen } = useAppKitState();
+
+  // When AppKit modal closes without a wallet connecting (user cancelled),
+  // restore AuthModal visibility so they can try again.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!appKitModalOpen && step === 'connect' && !isConnected) {
+      setVisible(true);
+    }
+  }, [appKitModalOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleOpenWallet = () => {
+    // Hide AuthModal backdrop so AppKit renders on a clear screen, not behind it.
+    setVisible(false);
+    setTimeout(() => openAppKit(), 50);
+  };
 
   useEffect(() => {
     if (disconnectRef) disconnectRef.current = disconnect;
@@ -514,7 +530,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Connect your wallet to sign in or create a Velo account. No email or password needed.
               </p>
               {error && <ErrorBanner message={error} />}
-              <HoloButton onClick={() => openAppKit()}>Connect Wallet</HoloButton>
+              <HoloButton onClick={handleOpenWallet}>Connect Wallet</HoloButton>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
                 {['MetaMask', 'WalletConnect', 'Coinbase'].map(w => (
                   <span key={w} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{w}</span>

@@ -10,6 +10,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from './services/web3Config';
 import App from './App';
 
+// Force AppKit modal web component above all Velo modals (which sit at z-index 9999).
+// AppKit renders <w3m-modal> as a top-level web component; without this it can
+// render behind custom modals on some browsers.
+const appKitStyle = document.createElement('style');
+appKitStyle.textContent = `
+  w3m-modal, wcm-modal {
+    z-index: 99999 !important;
+  }
+`;
+document.head.appendChild(appKitStyle);
+
 // web3Config must be imported before App so createAppKit() runs at module
 // evaluation time — before any React tree mounts.
 // (The import above already triggers it via the side-effect.)
