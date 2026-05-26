@@ -56,7 +56,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
 
 // Fake deposit/withdraw modal removed — all funds flow through Orderly on-chain
 
-export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet }: any) => {
+export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark' }: any) => {
   const [chartPeriod, setChartPeriod] = useState<'1D'|'1W'|'1M'|'1Y'|'ALL'>('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
@@ -209,7 +209,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
             )}
           </div>
           <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: 160 }}>
-            <PortfolioChart data={getChartData()} theme={'dark'} />
+            <PortfolioChart data={getChartData()} theme={theme} />
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user

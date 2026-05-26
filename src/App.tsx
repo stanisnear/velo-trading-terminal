@@ -2276,7 +2276,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
     const descShort = description.length > 220 ? description.slice(0, 220).trimEnd() + '…' : description;
 
     return (
-        <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto' }} className="animate-fade-in">
+        <div style={{ width: "100%", maxWidth: 1600, margin: "0 auto", paddingBottom: "max(80px, calc(env(safe-area-inset-bottom, 0px) + 80px))" }} className="animate-fade-in">
             {/* Back button */}
             <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 14, padding: 0 }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg)'}
@@ -7588,7 +7588,7 @@ const App = () => {
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (60px height + 12px gap + 12px top = 84px) */}
             <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 84 : 'calc(84px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
-                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower}
+                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
                     if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);

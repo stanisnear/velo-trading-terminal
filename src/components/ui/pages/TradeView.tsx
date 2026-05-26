@@ -1843,7 +1843,7 @@ export const TradeView = ({
 
             {/* ── Mobile-only: Positions panel below order form ── */}
             {isMobile && (
-                <div style={{ borderTop: '1px solid var(--hairline)' }}>
+                <div style={{ borderTop: '1px solid var(--hairline)', minHeight: 180, maxHeight: 400 }}>
                     <PositionsPanel {...panelProps} />
                 </div>
             )}

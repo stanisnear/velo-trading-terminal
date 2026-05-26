@@ -196,9 +196,10 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
         }
         @media (max-width: 420px) {
           .mk-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
-          .mk-row { grid-template-columns: 24px 1fr 70px 64px; padding: 11px 10px; gap: 6px; }
-          .mk-hdr { grid-template-columns: 24px 1fr 70px 64px; padding: 8px 10px; gap: 6px; }
+          .mk-row { grid-template-columns: 26px 1fr 68px 60px 56px; padding: 11px 8px; gap: 4px; }
+          .mk-hdr { grid-template-columns: 26px 1fr 68px 60px 56px; padding: 8px 8px; gap: 4px; }
           .mk-col-vol { display: none !important; }
+          .mk-col-change { display: none !important; }
         }
         .mk-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-bottom: 14px; }
         .mk-cats::-webkit-scrollbar { display: none; }
@@ -270,7 +271,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           <div/>
           <button onClick={() => handleSort('name')} style={thBtn('left','name')}>Market<SortInd col="name"/></button>
           <button onClick={() => handleSort('price')} style={thBtn('right','price')}>Price<SortInd col="price"/></button>
-          <button onClick={() => handleSort('change')} style={thBtn('right','change')}>24h<SortInd col="change"/></button>
+          <button onClick={() => handleSort('change')} className="mk-col-change" style={thBtn('right','change')}>24h<SortInd col="change"/></button>
           <button onClick={() => handleSort('volume')} className="mk-hide" style={thBtn('right','volume')}>Volume<SortInd col="volume"/></button>
           <div className="mk-spark" style={{ ...S.label, textAlign: 'center' }}>7D</div>
           <div style={{ ...S.label, textAlign: 'right' }}>Trade</div>
@@ -323,7 +324,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
               </div>
 
               {/* Change */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
+              <div className="mk-col-change" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
                 {up
                   ? <ArrowUpRight size={11} style={{ color: 'var(--pnl-up)', flexShrink: 0 }} />
                   : <ArrowDownRight size={11} style={{ color: 'var(--pnl-down)', flexShrink: 0 }} />}

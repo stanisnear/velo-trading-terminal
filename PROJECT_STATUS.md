@@ -767,3 +767,33 @@ For the Recent Activity persistence:
 - `src/components/ui/pages/TradeView.tsx` — compact right panel, reduced padding/gaps/font sizes, fewer order book rows
 - `src/components/TradingViewChart.tsx` — light mode chart backgrounds → white/f5f5f8
 - `src/styles/tokens.css` — light mode palette overhaul (white base), mobile navbar CSS, notification z-index
+
+### 2026-05-27 — Mobile UI fixes + light mode chart theming
+
+**Problems fixed:**
+
+1. **PortfolioChart hardcoded `theme={'dark'}` in Dashboard** — The portfolio chart always rendered with dark colors regardless of the active theme. In light mode the chart background appeared stark white against the purple-tinted panel. Fixed by adding `theme` to Dashboard's props (defaulting to `'dark'`), and passing `theme={theme}` from App.tsx's Dashboard render call. The PortfolioChart component already handled both themes correctly — it just never received the right value.
+
+2. **Markets mobile — Trade button cut off on small screens** — At ≤420px the grid template was `24px 1fr 70px 64px` (4 columns) but the DOM had 5 visible items (star, name, price, change, trade), causing the Trade button to overflow outside the grid into the left gutter. Fixed by:
+   - Adding a new `mk-col-change` CSS class to the change column in both the header and each row.
+   - At ≤420px: switching to `26px 1fr 68px 60px 56px` (5 columns) and hiding `mk-col-change` instead of making the grid 4-wide. This keeps Trade visible as column 4 and leaves column 5 empty — clean layout at all widths.
+
+3. **Trade view mobile — massive empty space below submit button** — The mobile positions panel (`PositionsPanel`) had `flex: 1` with no height bound. In the mobile column layout (height: auto) this caused the panel to stretch and fill remaining viewport space with a black void. Fixed by adding `minHeight: 180` and `maxHeight: 400` to the mobile positions panel wrapper div.
+
+4. **Admin panel — horizontal overflow on mobile** — The contract metadata "V2: add/reduce margin... ROUTING TO V2" row used `display: flex; justify-content: space-between` in a single line that overflowed on narrow screens. Fixed with `flexWrap: 'wrap'` and `gap: 8` so the ROUTING label drops below on mobile. Also added `overflowX: 'hidden'` to the admin panel outer container and a `velo-admin-wrap` class wired to a `@media (max-width: 768px)` rule in `tokens.css`.
+
+5. **Token page — bottom nav overlapping content + grid not stacking** — The `token-page-grid` had hardcoded `gridTemplateColumns: '1fr 340px'` with no responsive override, so on mobile it created a two-column layout that overflowed horizontally. Added a `@media (max-width: 680px)` rule in `tokens.css` that forces `token-page-grid` to single column. Also added `paddingBottom: max(80px, env(safe-area-inset-bottom) + 80px)` to the TokenPage outer div so content never hides under the mobile bottom nav.
+
+**Files changed:**
+- `src/components/ui/pages/Dashboard.tsx` — added `theme` prop, passed to PortfolioChart
+- `src/components/ui/pages/MarketsView.tsx` — `mk-col-change` class on change columns; 5-col grid at 420px hiding change
+- `src/components/ui/pages/TradeView.tsx` — mobile positions panel wrapper gets `minHeight: 180, maxHeight: 400`
+- `src/components/VeloAdminPanel.tsx` — `velo-admin-wrap` class, `overflowX: hidden`, metadata row `flexWrap: wrap`
+- `src/styles/tokens.css` — responsive rules for `token-page-grid`, `velo-admin-wrap`, `mk-col-change`
+- `src/App.tsx` — `theme={theme}` prop on Dashboard render; TokenPage outer div gets `paddingBottom` for nav clearance
+- `PROJECT_STATUS.md` — this entry
+
+**New gotchas:**
+- `mk-col-change` must be present on BOTH the header `<button>` and the row `<div>` for the 420px layout to be consistent. If a new column is added between price and trade, the grid template columns count at each breakpoint must be updated to match.
+- The PortfolioChart theme fix only works because the chart already handles both themes internally (transparent bg, conditional text/crosshair colors). If future chart theming needs change, the logic is in `src/components/PortfolioChart.tsx` in the `colors` object and crosshair config.
+- `maxHeight: 400` on the mobile positions panel is a pragmatic cap. If users have many positions and complain about clipping, add `overflowY: auto` to the wrapper (it currently clips). The panel already has its own internal scroll via `custom-scrollbar`.

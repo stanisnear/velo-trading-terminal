@@ -396,3 +396,25 @@ html.light iframe[id*="tradingview"] {
     display: none !important;
   }
 }
+
+/* ── Token page grid: stack to single column on mobile ────────────────────── */
+@media (max-width: 680px) {
+  .token-page-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Admin panel: prevent horizontal overflow on mobile ───────────────────── */
+@media (max-width: 768px) {
+  .velo-admin-wrap {
+    padding: 16px 12px !important;
+    overflow-x: hidden !important;
+  }
+}
+
+/* ── Markets: hide change col on tiny screens ─────────────────────────────── */
+@media (max-width: 420px) {
+  .mk-col-change {
+    display: none !important;
+  }
+}

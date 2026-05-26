@@ -411,7 +411,7 @@ export const VeloAdminPanel: React.FC = () => {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
+    <div className="velo-admin-wrap" style={{ maxWidth: 1100, margin: '0 auto', padding: 24, overflowX: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 24 }}>
         <div>
           <h1 style={{ ...S.display, fontSize: 40, color: 'var(--fg)', margin: 0 }}>Protocol Admin</h1>
@@ -857,7 +857,7 @@ export const VeloAdminPanel: React.FC = () => {
         <MetadataRow label="mUSDC" value={VELO_USDC_BASE} link={baseScanAddressUrl(VELO_USDC_BASE)} />
         <MetadataRow label="Owner" value={contractOwner || '-'} />
         <MetadataRow label="Connected" value={address || '-'} />
-        <div style={{ marginTop: 12, padding: '10px 0', borderTop: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ marginTop: 12, padding: '10px 0', borderTop: '1px solid var(--hairline)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)' }}>V2: add/reduce margin, partial close, on-chain TP/SL, 0.25% keeper bounty</span>
           {IS_V2 && <span style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-up)', fontWeight: 700 }}>ROUTING TO V2</span>}
         </div>
