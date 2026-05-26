@@ -33,14 +33,15 @@ export interface TradeHistoryItem {
 
 export interface Transaction {
   id: string;
-  type: 'DEPOSIT' | 'WITHDRAW';
+  type: 'DEPOSIT' | 'WITHDRAW' | 'SEND' | 'RECEIVE';
   amount: number;
   timestamp: number;
-  status: 'COMPLETED' | 'PENDING';
+  status: 'COMPLETED' | 'PENDING' | 'FAILED';
   // ── On-chain (Orderly testnet / Base Sepolia) metadata ─────────────────
   onChain?: boolean;            // true = real on-chain tx (not simulated)
   txHash?: string;              // Base Sepolia tx hash
   withdrawNonce?: number;       // Orderly withdraw nonce (for withdrawals)
+  counterparty?: string;        // SEND / RECEIVE counterpart label
 }
 
 export interface OpenOrder {

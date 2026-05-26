@@ -7140,7 +7140,7 @@ const App = () => {
                     .update({ velo_wallet_address: burnerAddress.toLowerCase() })
                     .eq('id', user.id)
                     .then(({ error }) => {
-                      if (error && (error as any).code !== '42703') {
+                      if (error && !['42703', 'PGRST204'].includes((error as any).code)) {
                         console.warn('[velo] failed to persist velo_wallet_address:', error.message);
                       }
                     });
@@ -7325,7 +7325,7 @@ const App = () => {
                     .update({ velo_wallet_address: burner.veloAddress.toLowerCase() })
                     .eq('id', user.id)
                     .then(({ error }) => {
-                      if (error && (error as any).code !== '42703') {
+                      if (error && !['42703', 'PGRST204'].includes((error as any).code)) {
                         console.warn('[velo] failed to persist velo_wallet_address:', error.message);
                       }
                     });

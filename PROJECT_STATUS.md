@@ -204,7 +204,7 @@ contracts/
 2. `SUPABASE_MIGRATION_VELO_PERPS.sql` — adds tx_hash and on_chain columns
 3. `SUPABASE_MIGRATION_TRIGGERS.sql` — adds take_profit/stop_loss columns to open_orders
 4. `SUPABASE_MIGRATION_BUILD79.sql` — adds leverage/margin_mode/liquidation_price/opened_at columns
-5. `SUPABASE_MIGRATION_TX_COUNTERPARTY.sql` — **NEW (batch 3):** adds counterparty column for SEND/RECEIVE rows
+5. `SUPABASE_MIGRATION_TX_COUNTERPARTY.sql` — **NEW (batch 3, expanded batch 8):** adds `counterparty`, widens `transactions.type` to include SEND/RECEIVE, and reloads the PostgREST schema cache
 
 **RLS policies are critical.** If social posts don't show for new users, run:
 ```sql
@@ -242,7 +242,7 @@ The schema enables RLS on every table; if a write fails silently and trade histo
 
 ### Issues still unresolved / diagnostic needed
 
-- **Orders disappearing on refresh** — likely Supabase RLS or column mismatch. After deploying the latest batch, open browser devtools console and try a trade. The `console.warn` will show the real Supabase error. Most likely fix: verify the user is fully authenticated to Supabase (not just wallet-connected) and run the migrations listed above.
+- **If activity/history still disappear after refresh even after batch 8** — the most likely culprit is a Supabase project that missed `SUPABASE_MIGRATION_BUILD79.sql` or still has a stale PostgREST schema cache. Re-run `SUPABASE_MIGRATION_BUILD79.sql` and `SUPABASE_MIGRATION_TX_COUNTERPARTY.sql`. The frontend now treats `PGRST204` the same way as `42703`, so missing enriched columns should degrade to legacy inserts instead of dropping rows entirely.
 - **BaseScan source verification** — must be done via the web UI (see top of doc). CLI fails because BaseScan deprecated Etherscan V1 API.
 - **Admin tab not visible for main wallet** — Stan's main wallet is not the contract owner. Either connect with deployer key OR transfer ownership.
 
@@ -455,6 +455,43 @@ If you do NOT update this file, the next agent will have stale context and will 
 ---
 
 ## Change log
+
+### 2026-05-26 — Batch 8: Supabase schema-cache compatibility for disappearing history/activity/orders
+
+**Problem:** On Vercel, on-chain trades and activity rows appeared live, then vanished after refresh. Devtools showed `PGRST204` / "Could not find the 'on_chain' column of 'trade_history' in the schema cache", but the compatibility fallback in `supabaseStore.ts` only retried on raw Postgres `42703` (`undefined_column`). Result: optimistic UI rows existed in memory, the DB insert failed, and refresh reloaded an empty history/activity feed. There was a second schema drift too: `transactions.type` in `SUPABASE_SCHEMA.sql` still only allowed `DEPOSIT/WITHDRAW` even though the app records `SEND/RECEIVE`.
+
+**What changed:**
+
+1. **`PGRST204` now falls through to the same legacy retry path as `42703`.** Added `isMissingColumnError()` in `src/services/supabaseStore.ts` and wired it into every schema-compat write/read fallback:
+   - `fetchAllProfiles()` now retries the legacy column set if `wallet_address` / `auth_method` are missing from the live schema cache.
+   - `savePosition()` and `saveOpenOrder()` now retry without enriched columns on `PGRST204`, not just `42703`.
+   - `insertTradeHistory()` now correctly degrades from full on-chain payload → enriched payload → legacy payload when PostgREST is stale, so CLOSE/OPEN rows still persist and survive refresh even if `on_chain` / `tx_hash` haven't propagated yet.
+   - `recordTransaction()` now does the same for activity rows, so DEPOSIT/WITHDRAW rows survive stale schema caches instead of disappearing on refresh.
+
+2. **`fetchTransactions()` now maps `counterparty` back into the app model.** Before this batch, SEND/RECEIVE detail labels only existed in live in-memory rows; after refresh the row lost its counterparty label because the mapper dropped the column. The dashboard would still show the row, but with generic "wallet" text.
+
+3. **`Transaction` TS type now matches reality.** `src/utils/types.ts` now allows `SEND` / `RECEIVE`, `FAILED`, and `counterparty`. This brings the type surface back in sync with the dashboard renderer and Supabase row shape.
+
+4. **Base schema + migration files now match the runtime code.**
+   - `SUPABASE_SCHEMA.sql` now allows `transactions.type IN ('DEPOSIT','WITHDRAW','SEND','RECEIVE')` and includes the `counterparty` column in both the table definition and the idempotent ALTER block.
+   - `SUPABASE_MIGRATION_TX_COUNTERPARTY.sql` now also widens the `transactions_type_check` constraint and sends `NOTIFY pgrst, 'reload schema';` so the REST API sees the new shape immediately.
+   - `SUPABASE_MIGRATION_BUILD79.sql` now also ends with `NOTIFY pgrst, 'reload schema';` because the original bug was literally a stale schema cache on `trade_history.on_chain`.
+
+5. **Profile burner-address persistence now ignores `PGRST204` as a non-fatal missing-column/cache case.** `src/App.tsx` already ignored `42703` for `velo_wallet_address`; batch 8 extends that to `PGRST204` so welcome-flow logging stays clean on partially-migrated projects.
+
+**Files changed:**
+- `src/services/supabaseStore.ts`
+- `src/utils/types.ts`
+- `src/App.tsx`
+- `SUPABASE_SCHEMA.sql`
+- `SUPABASE_MIGRATION_BUILD79.sql`
+- `SUPABASE_MIGRATION_TX_COUNTERPARTY.sql`
+- `PROJECT_STATUS.md`
+
+**New gotchas:**
+- `PGRST204` is not the same thing as Postgres `42703`, but for frontend fallback logic it should be treated the same way: "the column you tried to use is not currently available through the REST API". If you only check `42703`, Supabase inserts will still fail on a stale schema cache.
+- `NOTIFY pgrst, 'reload schema';` is worth putting at the end of any Supabase migration that adds columns the frontend writes immediately. Without it, the SQL migration can succeed and the JS client can still throw `PGRST204` until the cache refreshes.
+- `transactions.type` must include `SEND/RECEIVE` in the database constraint as well as in TypeScript. Updating only the column list or only the TS type creates a half-migrated state where the UI thinks a row should exist but the DB rejects it.
 
 ### 2025-05-26 — Migrated wallet connection from RainbowKit → Reown AppKit
 

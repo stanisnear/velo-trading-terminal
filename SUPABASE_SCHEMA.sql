@@ -270,7 +270,7 @@ CREATE POLICY "Own trade history" ON public.trade_history FOR ALL USING (auth.ui
 CREATE TABLE IF NOT EXISTS public.transactions (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  type           TEXT NOT NULL CHECK (type IN ('DEPOSIT','WITHDRAW')),
+  type           TEXT NOT NULL CHECK (type IN ('DEPOSIT','WITHDRAW','SEND','RECEIVE')),
   amount         NUMERIC NOT NULL,
   status         TEXT DEFAULT 'COMPLETED' CHECK (status IN ('PENDING','COMPLETED','FAILED')),
   -- On-chain provenance (build 79+).
@@ -281,12 +281,14 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   on_chain       BOOLEAN DEFAULT FALSE,
   tx_hash        TEXT,
   withdraw_nonce BIGINT,
+  counterparty   TEXT,
   created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 -- Idempotent migrations
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS on_chain       BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS tx_hash        TEXT;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS withdraw_nonce BIGINT;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS counterparty   TEXT;
 
 -- Relax status check to allow PENDING (in-flight on-chain ops).
 ALTER TABLE public.transactions DROP CONSTRAINT IF EXISTS transactions_status_check;

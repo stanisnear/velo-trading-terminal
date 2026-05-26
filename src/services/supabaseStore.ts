@@ -58,11 +58,20 @@ function hintFromCode(code: string | undefined): string | undefined {
   switch (code) {
     case '42501':   return 'Row-Level Security blocked the insert — apply SUPABASE_MIGRATION_RLS_ACTIVITY.sql.';
     case '42703':   return 'Column does not exist — run the latest Supabase migration.';
+    case 'PGRST204':return 'PostgREST schema cache is stale or the column is missing — re-run the migration and reload the schema cache.';
     case '23503':   return 'Foreign key violation — the user_id may not match auth.uid().';
     case '23505':   return 'Duplicate row — this insert may already exist.';
+    case '23514':   return 'A CHECK constraint rejected the row — run the latest Supabase migration.';
     case 'PGRST301':return 'No matching row visible to this auth user — check RLS SELECT policy.';
     default:        return undefined;
   }
+}
+
+function isMissingColumnError(error: { code?: string; message?: string; details?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === '42703' || error.code === 'PGRST204') return true;
+  const details = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+  return details.includes('schema cache') && details.includes('column');
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -143,7 +152,7 @@ export async function fetchAllProfiles(limit = 50) {
     .order('pnl_total', { ascending: false })
     .limit(limit);
   // If the DB hasn't been migrated yet, fall back to the legacy column set.
-  if (error && (error as any).code === '42703') {
+  if (isMissingColumnError(error as any)) {
     const retry = await supabase
       .from('profiles')
       .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, created_at')
@@ -151,7 +160,7 @@ export async function fetchAllProfiles(limit = 50) {
       .limit(limit);
     data = retry.data;
     error = retry.error;
-    if (!retry.error) console.warn('[supabase] profiles missing wallet_address column — run SUPABASE_MIGRATION_BUILD79.sql for leaderboard filtering.');
+    if (!retry.error) console.warn('[supabase] profiles missing wallet-address/auth-method columns in schema cache — run SUPABASE_MIGRATION_BUILD79.sql and reload PostgREST schema.');
   }
   return { data, error };
 }
@@ -454,8 +463,9 @@ export async function savePosition(userId: string, pos: Position): Promise<strin
     .select('id')
     .single();
 
-  // 42703 = undefined_column — fall back to legacy columns if migration hasn't run
-  if (error && (error as any).code === '42703') {
+  // Missing-column/schema-cache errors mean the DB is older than the frontend
+  // or PostgREST hasn't noticed a fresh migration yet. Retry with the legacy payload.
+  if (isMissingColumnError(error as any)) {
     const retry = await supabase
       .from('positions')
       .upsert(baseRow, { onConflict: isDbUuid ? 'id' : undefined })
@@ -530,7 +540,7 @@ export async function saveOpenOrder(userId: string, order: OpenOrder): Promise<s
     .upsert(enrichedRow, { onConflict: isDbUuid ? 'id' : undefined })
     .select('id')
     .single();
-  if (error && (error as any).code === '42703') {
+  if (isMissingColumnError(error as any)) {
     const retry = await supabase
       .from('open_orders')
       .upsert(baseRow, { onConflict: isDbUuid ? 'id' : undefined })
@@ -586,8 +596,9 @@ export async function fetchTradeHistory(userId: string, limit = 100): Promise<Tr
 export async function insertTradeHistory(userId: string, trade: TradeHistoryItem) {
   // Three-tier fallback:
   //   1. Try with enriched + on-chain columns
-  //   2. If undefined_column (schema not migrated) — retry with enriched only
-  //   3. If still undefined_column — retry with base legacy only
+  //   2. If the on-chain columns are missing OR PostgREST still has a stale
+  //      schema cache — retry with enriched only
+  //   3. If the enriched columns are also missing — retry with base legacy only
   // This way users never lose history even on stale databases.
   const basePayload: Record<string, any> = {
     user_id:        userId,
@@ -617,13 +628,13 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
 
   let { error } = await supabase.from('trade_history').insert(onChainPayload);
 
-  if (error && (error as any).code === '42703') {
+  if (isMissingColumnError(error as any)) {
     // Missing on-chain columns — retry with enriched only
     const r2 = await supabase.from('trade_history').insert(enrichedPayload);
     error = r2.error;
     if (!r2.error) {
-      console.warn('[supabase] trade_history missing on-chain columns — run migration to persist Orderly order info.');
-    } else if ((r2.error as any).code === '42703') {
+      console.warn('[supabase] trade_history missing on-chain columns in schema/cache — run the latest migration to persist explorer metadata.');
+    } else if (isMissingColumnError(r2.error as any)) {
       // Missing enriched columns too — last-ditch legacy insert
       const r3 = await supabase.from('trade_history').insert(basePayload);
       error = r3.error;
@@ -657,6 +668,7 @@ export async function fetchTransactions(userId: string): Promise<Transaction[]> 
     onChain:       r.on_chain || false,
     txHash:        r.tx_hash || undefined,
     withdrawNonce: r.withdraw_nonce != null ? Number(r.withdraw_nonce) : undefined,
+    counterparty:  r.counterparty || undefined,
   }));
 }
 
@@ -703,11 +715,11 @@ export async function recordTransaction(
   };
 
   let { error: txErr } = await supabase.from('transactions').insert(fullPayload);
-  if (txErr && (txErr as any).code === '42703') {
+  if (isMissingColumnError(txErr as any)) {
     // Column doesn't exist (counterparty or others) — retry with base payload.
     const retry = await supabase.from('transactions').insert(basePayload);
     txErr = retry.error;
-    if (!retry.error) console.warn('[supabase] transactions missing on-chain columns — run migration.');
+    if (!retry.error) console.warn('[supabase] transactions missing enriched columns in schema/cache — run the latest migration.');
   }
   if (txErr) {
     console.error('[supabase] recordTransaction insert error:', txErr.message);

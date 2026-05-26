@@ -130,6 +130,10 @@ END $$;
 ALTER TABLE public.transactions  REPLICA IDENTITY FULL;
 ALTER TABLE public.trade_history REPLICA IDENTITY FULL;
 
+-- Supabase/PostgREST reads through a schema cache. Reload it so newly-added
+-- columns like on_chain/tx_hash are immediately usable by the REST API.
+NOTIFY pgrst, 'reload schema';
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Verification queries — run these after the migration to confirm the new
 -- columns exist. Each should return at least one row.
