@@ -56,15 +56,25 @@ createAppKit({
   },
   features: {
     analytics: true,
-    // Social + email logins — toggle on/off from Reown dashboard without code changes.
-    // When enabled on the dashboard these show automatically. Setting them here
-    // explicitly so behaviour is predictable regardless of dashboard state.
     email: true,
     socials: ['google', 'x', 'discord', 'github'],
-    // Keep the standard wallet list (MetaMask, WalletConnect QR, Coinbase, etc.)
     walletConnect: true,
-    // Disable buy/onramp — this is testnet, no real-money purchasing.
+    // Disable buy/onramp — testnet only, no real-money purchasing.
     onramp: false,
+    // Disable smart accounts — we don't use ERC-4337, and it causes
+    // AppKit to show TWO wallet entries (smart account + EOA), which is confusing.
+    swaps: false,
+  },
+  // Disable Coinbase smart wallet injection — another source of double wallet
+  enableCoinbase: false,
+  // Register mUSDC so AppKit shows the correct token balance in the wallet modal.
+  tokens: {
+    [baseSepolia.id]: [
+      {
+        address: '0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699' as `0x${string}`,
+        image: 'https://velo-trading-terminal.vercel.app/favicon.ico',
+      },
+    ],
   },
   themeMode: 'dark',
   themeVariables: {

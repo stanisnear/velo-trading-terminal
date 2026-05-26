@@ -510,3 +510,28 @@ When a user connects via Google/Discord/etc., AppKit creates a Reown-managed **e
 - `src/App.tsx` — imported `useAppKit` from `@reown/appkit/react`; added `socialLoginHandledRef` + `useEffect` social login trigger before the Velo Welcome onboarding block; `Navbar` now calls `useAppKit()` for its own `openWalletModal`; `ProfileAvatarPopup` has new `onOpenWallet` prop and "Open Wallet" menu item
 
 **New gotcha:** `embeddedWalletInfo` from `useAppKitAccount` is typed loosely — accessing `.user?.email` requires a cast to `any` (`(embeddedWalletInfo as any)?.user?.email`) because the AppKit type definition doesn't expose the nested user shape in the installed version. This will likely clean up in a future AppKit release.
+
+### 2025-05-26 — Batch 5: session restore, double-wallet, deposit/withdraw redesign
+
+**Problems fixed:**
+
+1. **Login modal pops up on every refresh** — `socialLoginHandledRef` effect fires as soon as `isWalletConnected` becomes true, which happens before Supabase's async `INITIAL_SESSION` restore completes. `user` is null during that window so the effect incorrectly opened the login modal for already-authenticated users. Fix: added `authChecked` to the effect's dependency array and added an early return if `!authChecked`. The modal now only opens after Supabase confirms there's no active session.
+
+2. **Two wallets showing in AppKit modal** — AppKit's social login creates a Pimlico ERC-4337 Smart Account on top of the embedded wallet (0x4D…ACTIVE + 0x13…), confusing users. Fix: added `swaps: false` and `enableCoinbase: false` to `createAppKit` config — these are the options that trigger the smart account layer. The wallet list now shows only the single embedded wallet.
+
+3. **AppKit wallet shows $0 / no mUSDC tokens** — AppKit's built-in token display doesn't know about Velo's custom mUSDC contract. Fix: added a `tokens` array to `createAppKit` config registering `0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699` on `baseSepolia.id`. AppKit will now display the mUSDC balance in the wallet modal.
+
+4. **Deposit/Withdraw modals redesigned** — Old modals had "Option A / Option B" complexity that confused users who had mUSDC in their main wallet but the modal showed $0. New design: single tabbed modal (`↓ Deposit` / `↑ Withdraw`) that replaces both `VeloDepositModal` and `VeloWithdrawModal`. Features: clean balance cards for both wallets at the top, amount input with quick amounts, one deposit button, a copy-address section below a divider for sending from anywhere. Withdraw tab: destination picker (Main Wallet / Custom Address) + amount + silent burner signature. `VeloWithdrawModal.tsx` is now a thin re-export alias so App.tsx imports don't need to change.
+
+5. **App.tsx deposit callsite signature updated** — Old: `onSuccess={({ txHash, amount }) => ...}`. New: `onSuccess={(txHash, amount) => ...}` to match the revised component prop type.
+
+**Files changed:**
+- `src/services/web3Config.ts` — added `swaps: false`, `enableCoinbase: false`, `tokens` array with mUSDC address
+- `src/App.tsx` — gated `socialLoginHandledRef` effect on `authChecked`; updated `VeloDepositModal` call site signature
+- `src/components/VeloDepositModal.tsx` — full rewrite as tabbed Deposit+Withdraw modal
+- `src/components/VeloWithdrawModal.tsx` — replaced with thin re-export alias pointing at VeloDepositModal
+
+**New gotchas:**
+- AppKit's `tokens` config only affects the display in the AppKit modal itself — it does NOT affect Velo's own balance reads (`fetchUsdcBalance` via viem). The two are independent.
+- `swaps: false` + `enableCoinbase: false` suppresses the smart account creation. If Reown changes their SDK these options may shift. If two wallets reappear in a future AppKit update, check their changelog for smart account config.
+- The `VeloWithdrawModal` export alias means both `defaultTab="deposit"` and `defaultTab="withdraw"` open the same modal component — any `isVeloWithdrawOpen` state in App.tsx correctly opens the withdraw tab.

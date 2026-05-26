@@ -4014,12 +4014,18 @@ const App = () => {
     // but isLoginOpen is false (AppKit handled the login without the user
     // explicitly opening AuthModal). If there's no user yet, open AuthModal
     // so the splash → name → email onboarding flow runs automatically.
+    //
+    // IMPORTANT: gate on authChecked — on a refresh the wallet reconnects
+    // immediately while Supabase session restore is still async. Without this
+    // guard, a returning logged-in user would see the login modal pop up on
+    // every refresh (user is null during the async restore window).
     const socialLoginHandledRef = useRef(false);
     useEffect(() => {
       if (!isWalletConnected || !walletAddress) {
         socialLoginHandledRef.current = false; // reset on disconnect
         return;
       }
+      if (!authChecked) return;    // wait for Supabase session restore to complete
       if (user) return;            // already authenticated
       if (isLoginOpen) return;     // AuthModal already open
       if (socialLoginHandledRef.current) return; // already triggered
@@ -4029,7 +4035,7 @@ const App = () => {
         socialLoginHandledRef.current = false;
         setLoginOpen(true);
       }, 400);
-    }, [isWalletConnected, walletAddress, user, isLoginOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Velo Welcome onboarding (Phase 3) ─────────────────────────────────
     // Opens ONLY AFTER account creation completes (i.e. `user` is set). This
@@ -7067,13 +7073,10 @@ const App = () => {
             <VeloDepositModal
               isOpen={isVeloDepositOpen}
               onClose={() => setVeloDepositOpen(false)}
-              onSuccess={async ({ txHash, amount }) => {
+              onSuccess={async (txHash, amount) => {
                 setToast({ message: `Deposited $${amount.toFixed(2)} to trading wallet`, type: 'SUCCESS' });
                 if (user?.id && isSupabaseConfigured()) {
                   try {
-                    // Recorded as DEPOSIT with onChain=true so the legacy balance
-                    // logic doesn't double-credit, and counterparty is null
-                    // (this is your own transfer between your two wallets).
                     await recordTransaction(user.id, 'DEPOSIT', amount, { txHash, onChain: true });
                     await createNotification(user.id, 'DEPOSIT', `Deposited $${amount.toFixed(2)} mUSDC to trading wallet`, txHash);
                   } catch (e) { console.warn('[velo] deposit tx record failed', e); }
