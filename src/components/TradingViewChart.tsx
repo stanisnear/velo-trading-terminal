@@ -135,10 +135,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     widgetDiv.style.height = '100%';
     containerRef.current.appendChild(widgetDiv);
 
-    const localBG = isDark ? '#07070A' : '#ffffff';
-    const localBG2 = isDark ? '#0E0E13' : '#EDEAE2';
+    const localBG = isDark ? '#07070A' : '#f0eef8';
+    const localBG2 = isDark ? '#0E0E13' : '#e8e5f4';
     const localGRID = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,14,0.06)';
-    const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(90,80,64,0.75)';
+    const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(84,85,100,0.75)';
 
     // Clear cached TradingView settings that would override our theme overrides
     try {

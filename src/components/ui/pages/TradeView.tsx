@@ -1479,7 +1479,18 @@ export const TradeView = ({
         if (!price) return;
         if (Date.now() - (window as any)._lastTradeTime < 1000) return;
         (window as any)._lastTradeTime = Date.now();
-        onOpenPosition(activePair.id, side, parseFloat(sizeAmount), leverage, orderType, price, parseFloat(takeProfit), parseFloat(stopLoss), marginMode);
+
+        // Validate TP/SL: must be valid numbers on correct side
+        const tpVal = takeProfit ? parseFloat(takeProfit) : NaN;
+        const slVal = stopLoss ? parseFloat(stopLoss) : NaN;
+        if (takeProfit && (isNaN(tpVal) || tpVal <= 0)) return; // reject non-numeric TP
+        if (stopLoss && (isNaN(slVal) || slVal <= 0)) return;   // reject non-numeric SL
+        if (!isNaN(tpVal) && side === 'LONG' && tpVal <= price) return;
+        if (!isNaN(tpVal) && side === 'SHORT' && tpVal >= price) return;
+        if (!isNaN(slVal) && side === 'LONG' && slVal >= price) return;
+        if (!isNaN(slVal) && side === 'SHORT' && slVal <= price) return;
+
+        onOpenPosition(activePair.id, side, parseFloat(sizeAmount), leverage, orderType, price, isNaN(tpVal) ? undefined : tpVal, isNaN(slVal) ? undefined : slVal, marginMode);
     };
 
     const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
@@ -1735,10 +1746,49 @@ export const TradeView = ({
                                 </div>
                             </div>
 
-                            {/* TP / SL */}
+                            {/* TP / SL — numeric only, validated against side */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                                <Input label="TP" placeholder="Optional" value={takeProfit} onChange={(e: any) => setTakeProfit(e.target.value)} className="text-xs py-1" />
-                                <Input label="SL" placeholder="Optional" value={stopLoss} onChange={(e: any) => setStopLoss(e.target.value)} className="text-xs py-1" />
+                                <Input
+                                    label="TP"
+                                    placeholder="Price"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0}
+                                    step="any"
+                                    value={takeProfit}
+                                    onChange={(e: any) => {
+                                        const v = e.target.value;
+                                        // Allow empty, digits, and decimals only
+                                        if (v === '' || /^\d*\.?\d*$/.test(v)) setTakeProfit(v);
+                                    }}
+                                    error={
+                                        takeProfit && !isNaN(parseFloat(takeProfit)) && currentPrice > 0 ? (
+                                            (side === 'LONG' && parseFloat(takeProfit) <= currentPrice) ? 'TP must be above current price' :
+                                            (side === 'SHORT' && parseFloat(takeProfit) >= currentPrice) ? 'TP must be below current price' : undefined
+                                        ) : undefined
+                                    }
+                                    className="text-xs py-1"
+                                />
+                                <Input
+                                    label="SL"
+                                    placeholder="Price"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0}
+                                    step="any"
+                                    value={stopLoss}
+                                    onChange={(e: any) => {
+                                        const v = e.target.value;
+                                        if (v === '' || /^\d*\.?\d*$/.test(v)) setStopLoss(v);
+                                    }}
+                                    error={
+                                        stopLoss && !isNaN(parseFloat(stopLoss)) && currentPrice > 0 ? (
+                                            (side === 'LONG' && parseFloat(stopLoss) >= currentPrice) ? 'SL must be below current price' :
+                                            (side === 'SHORT' && parseFloat(stopLoss) <= currentPrice) ? 'SL must be above current price' : undefined
+                                        ) : undefined
+                                    }
+                                    className="text-xs py-1"
+                                />
                             </div>
 
                             {/* Summary rows */}

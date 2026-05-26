@@ -697,7 +697,7 @@ const UsersListModal = ({ isOpen, onClose, title, userIds, traders, onViewProfil
     );
 };
 // ── Profile Avatar Popup (navbar click) ──────────────────────────────────────
-const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, totalEquity, anchorRef }: any) => {
+const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, onNavigateDashboard, totalEquity, anchorRef }: any) => {
     const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
     const [copied, setCopied] = React.useState(false);
 
@@ -780,6 +780,7 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
                     correct balances and is the only correct destination. */}
                 <div style={{ padding: '6px 8px' }}>
                     {[
+                        { icon: <LayoutDashboard size={14} />, label: 'Dashboard', onClick: () => { onNavigateDashboard?.(); onClose(); } },
                         { icon: <PlusCircle size={14} />, label: 'Create a Post', onClick: () => { onCreatePost(); onClose(); } },
                         { icon: <UserCircle size={14} />, label: 'View Profile', onClick: () => { onViewProfile(); onClose(); } },
                         { icon: <Wallet size={14} />, label: 'Wallet & Settings', onClick: () => { onOpenSettings?.(); onClose(); } },
@@ -964,6 +965,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                                 anchorRef={avatarBtnRef}
                                 onClose={() => setAvatarPopupOpen(false)}
                                 onViewProfile={() => setActiveTab(TabView.PROFILE)}
+                                onNavigateDashboard={() => setActiveTab(TabView.DASHBOARD)}
                                 onCreatePost={() => { setActiveTab(TabView.SOCIAL); }}
                                 onOpenSettings={onOpenSettings}
                                 onLogout={handleLogout}
@@ -1112,7 +1114,7 @@ const MobileBottomNav = ({ activeTab, setActiveTab }: any) => {
         { id: TabView.LEADERBOARD, icon: Trophy, label: 'Lead' },
     ];
     return (
-        <div className="md:hidden fixed bottom-3 left-3 right-3 z-[60] pb-safe">
+        <div className="md:hidden fixed left-3 right-3 z-[60]" style={{ bottom: 'max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px))' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, padding: 8, borderRadius: 22, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(28px) saturate(1.3)', WebkitBackdropFilter: 'blur(28px) saturate(1.3)' }}>
                 {items.map((item) => {
                     const isActive = activeTab === item.id;
