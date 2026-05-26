@@ -463,7 +463,7 @@ export const VeloAdminPanel: React.FC = () => {
 
       {/* Charts — volume and fees over time */}
       {stats && stats.daily_buckets.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 24 }}>
           <ChartCard title="Daily volume" icon={<TrendingUp size={13} style={{ color: 'var(--iris-violet)' }} />}>
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={stats.daily_buckets}>
@@ -720,7 +720,7 @@ export const VeloAdminPanel: React.FC = () => {
           The pool pays out winning trades. Keep it funded or closes revert with InsufficientPool.
           Faucet mints 1,000 mUSDC per call (6-hour cooldown, 10k cap per wallet).
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 20 }}>
           <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
             <div style={S.label}>Pool reserves</div>
             <div style={{ ...S.display, fontSize: 28, color: poolBalance < 500 ? 'var(--pnl-down)' : 'var(--pnl-up)', marginTop: 6 }}>

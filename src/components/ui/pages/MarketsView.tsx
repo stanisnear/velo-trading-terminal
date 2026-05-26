@@ -194,6 +194,12 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           .mk-hide { display: none !important; }
           .mk-spark { display: none !important; }
         }
+        @media (max-width: 420px) {
+          .mk-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+          .mk-row { grid-template-columns: 24px 1fr 70px 64px; padding: 11px 10px; gap: 6px; }
+          .mk-hdr { grid-template-columns: 24px 1fr 70px 64px; padding: 8px 10px; gap: 6px; }
+          .mk-col-vol { display: none !important; }
+        }
         .mk-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-bottom: 14px; }
         .mk-cats::-webkit-scrollbar { display: none; }
       `}</style>

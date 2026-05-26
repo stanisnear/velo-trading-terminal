@@ -1209,7 +1209,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pnl-up)', display: 'inline-block', boxShadow: '0 0 6px var(--pnl-up)' }} />
                     <span style={{ ...S_LB.label, fontSize: 11, color: 'var(--fg-subtle)' }}>{period} · ALL PAIRS</span>
                 </div>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--fg)', lineHeight: 1, margin: '0 0 12px' }}>
+                <h1 className="lb-hero-title" style={{ fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--fg)', lineHeight: 1, margin: '0 0 12px' }}>
                     Top <em style={{ fontStyle: 'italic' }}>Traders</em>
                 </h1>
                 <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Copy the most profitable strategies on Velo.</p>
@@ -3434,18 +3434,18 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
     return (
         <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 20, backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', overflow: 'hidden', marginBottom: 24 }}>
             {/* Banner */}
-            <div style={{ height: 160, width: '100%', position: 'relative', background: profile.banner ? '#000' : 'var(--holo-linear)', backgroundSize: '220% 100%', animation: profile.banner ? 'none' : 'holoSlide 14s linear infinite' }}>
+            <div className="velo-profile-banner" style={{ height: 160, width: '100%', position: 'relative', background: profile.banner ? '#000' : 'var(--holo-linear)', backgroundSize: '220% 100%', animation: profile.banner ? 'none' : 'holoSlide 14s linear infinite' }}>
                 {profile.banner && <img src={profile.banner} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""/>}
                 {/* Soft vignette for contrast with the avatar */}
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,0.25) 100%)', pointerEvents: 'none' }}/>
             </div>
-            <div style={{ padding: '0 24px 24px', position: 'relative' }}>
+            <div className="velo-profile-inner" style={{ padding: '0 24px 24px', position: 'relative' }}>
                 {/* Avatar + actions row */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: -40, marginBottom: 16 }}>
-                    <div style={{ width: 88, height: 88, borderRadius: '50%', border: '4px solid var(--bg-base)', overflow: 'hidden', background: 'var(--chip-bg)', boxShadow: '0 12px 30px -12px rgba(0,0,0,0.3)' }}>
+                    <div className="velo-profile-avatar" style={{ width: 88, height: 88, borderRadius: '50%', border: '4px solid var(--bg-base)', overflow: 'hidden', background: 'var(--chip-bg)', boxShadow: '0 12px 30px -12px rgba(0,0,0,0.3)' }}>
                         <img src={profile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""/>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                    <div className="velo-profile-actions" style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
                         {isOwn ? (
                             <button onClick={onEdit}
                                 style={{ ...pillBtn, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', color: 'var(--fg)' }}
@@ -3470,7 +3470,7 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
                 {/* Name + handle */}
                 <div style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                        <h2 style={{ ...S.display, fontSize: 32, color: 'var(--fg)', margin: 0, lineHeight: 1.1 }}>{profile.username}</h2>
+                        <h2 className="velo-profile-username" style={{ ...S.display, fontSize: 32, color: 'var(--fg)', margin: 0, lineHeight: 1.1 }}>{profile.username}</h2>
                         {profile.veloRewards > 10000 && <Sparkles size={18} style={{ color: 'var(--iris-amber)' }} fill="currentColor"/>}
                         <VerifiedBadge userId={profile.id} size={16}/>
                     </div>
@@ -3481,7 +3481,7 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-muted)', lineHeight: 1.55, maxWidth: 620, margin: '0 0 18px' }}>{profile.bio}</p>
                 )}
                 {/* Stats row */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, paddingTop: 14, borderTop: '1px solid var(--hairline)' }}>
+                <div className="velo-profile-stats" style={{ display: 'flex', flexWrap: 'wrap', gap: 24, paddingTop: 14, borderTop: '1px solid var(--hairline)' }}>
                     <button onClick={() => showUsersModal("Followers", profile.followers, onViewProfile)}
                         style={{ display: 'flex', alignItems: 'baseline', gap: 6, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}>
                         <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>{profile.followers.length}</span>
@@ -3537,7 +3537,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
         <div className="animate-fade-in" style={{ maxWidth: 880, margin: '0 auto', paddingBottom: 80 }}>
             <EditProfileModal isOpen={isEditOpen} onClose={() => setEditOpen(false)} user={user} onSave={handleUpdateProfile} onDeleteAccount={onDeleteAccount}/>
             <ProfileHeader profile={user} isOwn={true} onEdit={() => setEditOpen(true)} showUsersModal={showUsersModal} onViewProfile={onViewProfile} stats={stats}/>
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--hairline)', marginBottom: 20 }}>
+            <div className="velo-profile-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--hairline)', marginBottom: 20, overflowX: 'auto' }}>
                 {(['POSTS','REPOSTS','TRADES'] as const).map(t => (
                     <button key={t} onClick={() => setActiveTab(t)} style={tabBtn(t)}>{t}</button>
                 ))}
@@ -3631,7 +3631,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                 onCopy={() => user ? handleCopyTrade(trader.id) : onRequireAuth()}
                 isCopying={isCopying}
                 showUsersModal={showUsersModal} onViewProfile={onViewProfile} stats={stats}/>
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--hairline)', marginBottom: 20 }}>
+            <div className="velo-profile-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--hairline)', marginBottom: 20, overflowX: 'auto' }}>
                 {(['POSTS','REPOSTS','TRADES'] as const).map(t => (
                     <button key={t} onClick={() => setActiveTab(t)} style={tabBtn(t)}>{t}</button>
                 ))}

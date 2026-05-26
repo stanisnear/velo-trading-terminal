@@ -262,3 +262,137 @@ html.light iframe[id*="tradingview"] {
     padding-top: 60px !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — all pages iPhone/Android
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Leaderboard ─────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Hero title */
+  .lb-hero-title {
+    font-size: clamp(36px, 10vw, 56px) !important;
+    margin-bottom: 8px !important;
+  }
+  .lb-view > div:first-child {
+    margin-bottom: 24px !important;
+  }
+  /* Podium cards — single column on very small screens */
+  .lb-podium {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+  /* Leaderboard table — shrink font + padding */
+  .lb-view table {
+    font-size: 11px !important;
+  }
+  .lb-view table td,
+  .lb-view table th {
+    padding: 8px 8px !important;
+  }
+}
+
+/* ── Profile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Profile header: smaller banner */
+  .velo-profile-banner {
+    height: 110px !important;
+  }
+  /* Profile header: smaller avatar */
+  .velo-profile-avatar {
+    width: 68px !important;
+    height: 68px !important;
+    margin-top: -34px !important;
+  }
+  /* Profile header inner padding */
+  .velo-profile-inner {
+    padding: 0 16px 16px !important;
+  }
+  /* Profile username */
+  .velo-profile-username {
+    font-size: 22px !important;
+  }
+  /* Profile tab buttons */
+  .velo-profile-tabs button {
+    padding: 10px 14px !important;
+    font-size: 10px !important;
+  }
+  /* Profile stats row */
+  .velo-profile-stats {
+    gap: 16px !important;
+    flex-wrap: wrap !important;
+    padding-top: 10px !important;
+  }
+  /* Profile actions row */
+  .velo-profile-actions {
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+  .velo-profile-actions button {
+    padding: 6px 12px !important;
+    font-size: 10px !important;
+  }
+}
+
+/* ── Dashboard ───────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Quick stats 2-col → 1-col when too tight */
+  .dash-quick-stats {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  /* Portfolio chart area — shorter on mobile */
+  .dash-portfolio-chart {
+    min-height: 120px !important;
+  }
+  /* Deposit/withdraw buttons — stack more naturally */
+  .dash-action-btns {
+    flex-wrap: wrap !important;
+  }
+  /* Dashboard panel inner padding */
+  .dash-panel-inner {
+    padding: 14px 16px 0 !important;
+  }
+}
+
+/* ── Social/Token page ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Token page header: smaller title */
+  .token-hero-title {
+    font-size: clamp(22px, 7vw, 32px) !important;
+  }
+  /* Post card inner padding */
+  .velo-post-card {
+    padding: 12px 14px !important;
+  }
+  /* Comment input area */
+  .velo-comment-input {
+    padding: 10px 12px !important;
+  }
+}
+
+/* ── Global: prevent horizontal overflow on all pages ────────────────────── */
+@media (max-width: 768px) {
+  /* Any glass panel that has min-width bigger than screen */
+  .animate-fade-in {
+    overflow-x: hidden;
+  }
+  /* Tables: allow horizontal scroll rather than overflow clipping */
+  .lb-view .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Reduce all panel padding on mobile */
+  .velo-panel-md {
+    padding: 12px 14px !important;
+  }
+}
+
+/* ── Markets table: hide less important columns on mobile ────────────────── */
+@media (max-width: 480px) {
+  .mk-col-vol,
+  .mk-col-oi,
+  .mk-col-7d {
+    display: none !important;
+  }
+}

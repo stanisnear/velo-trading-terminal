@@ -186,7 +186,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       <div className="dash-grid-main">
         {/* Portfolio card */}
         <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: 320 }}>
-          <div style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
+          <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
               <p style={{ ...S.label, marginBottom: 5 }}>Total Equity</p>
               <p style={{ ...S.display, fontSize: 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}>${formatMoney(equity)}</p>
@@ -208,7 +208,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               </div>
             )}
           </div>
-          <div style={{ flex: 1, padding: '8px 0', minHeight: 160 }}>
+          <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: 160 }}>
             <PortfolioChart data={getChartData()} theme={'dark'} />
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
@@ -232,7 +232,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               </div>
             );
           })()}
-          <div style={{ padding: '0 22px 18px', display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+          <div className="dash-action-btns" style={{ padding: '0 22px 18px', display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
             <button onClick={() => (onOpenDeposit ?? onOpenOrderlyOnboarding)?.() } style={{ flex: '1 1 110px', padding: '10px', borderRadius: 11, background: 'var(--pnl-up)', border: 'none', ...S.mono, fontSize: 12, fontWeight: 700, color: '#061108', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'opacity 0.15s' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Deposit</button>
