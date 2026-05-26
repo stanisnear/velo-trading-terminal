@@ -1,223 +1,221 @@
-/* VELO Brand Tokens — Light & Dark modes share accents; surfaces differ. */
+/* VELO v3 — Editorial calm, prismatic depth */
 
 :root {
-  /* ── Typography ─────────────────────────────────────────────── */
-  --font-display: "Instrument Serif", "Cormorant Garamond", ui-serif, Georgia, serif;
-  --font-sans: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: "Fraunces", "Editorial New", "Tiempos Headline", ui-serif, Georgia, serif;
+  --font-sans: "Geist", "Sohne", "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-mono: "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
 
-  /* ── Iridescent palette (oklch, fixed chroma 0.18, lightness 0.72) ─ */
-  --iris-violet: oklch(0.68 0.22 295);
-  --iris-magenta: oklch(0.70 0.22 340);
-  --iris-coral: oklch(0.74 0.18 30);
-  --iris-amber: oklch(0.82 0.16 75);
-  --iris-lime: oklch(0.84 0.18 130);
-  --iris-cyan: oklch(0.80 0.14 205);
-  --iris-blue: oklch(0.68 0.18 250);
+  --velo-blue: oklch(0.62 0.22 268);
+  --velo-blue-deep: oklch(0.42 0.24 270);
+  --velo-blue-ice: oklch(0.88 0.10 250);
+  --velo-violet: oklch(0.55 0.24 295);
+  --velo-mauve: oklch(0.72 0.16 320);
+  --velo-bone: #f4f1e8;
+  --velo-paper: #f2f0fa;
+  --velo-ink: #0a0b18;
+  --velo-obsidian: #050608;
 
-  /* semantic */
-  --pnl-up: oklch(0.78 0.18 150);
+  --pnl-up: oklch(0.80 0.18 152);
   --pnl-down: oklch(0.66 0.22 25);
 
-  /* Signature gradient */
-  --holo: conic-gradient(
-    from 210deg at 50% 50%,
-    var(--iris-violet),
-    var(--iris-magenta),
-    var(--iris-coral),
-    var(--iris-amber),
-    var(--iris-lime),
-    var(--iris-cyan),
-    var(--iris-blue),
-    var(--iris-violet)
+  --prism: linear-gradient(
+    135deg,
+    oklch(0.55 0.24 295) 0%,
+    oklch(0.62 0.22 268) 35%,
+    oklch(0.78 0.16 230) 65%,
+    oklch(0.88 0.10 250) 100%
   );
-  --holo-linear: linear-gradient(
-    100deg,
-    var(--iris-violet) 0%,
-    var(--iris-magenta) 22%,
-    var(--iris-coral) 42%,
-    var(--iris-amber) 58%,
-    var(--iris-lime) 74%,
-    var(--iris-cyan) 90%,
-    var(--iris-blue) 100%
+  --prism-vivid: linear-gradient(
+    135deg,
+    oklch(0.45 0.26 295) 0%,
+    oklch(0.55 0.24 285) 25%,
+    oklch(0.62 0.22 268) 50%,
+    oklch(0.72 0.18 235) 75%,
+    oklch(0.85 0.12 230) 100%
   );
 
-  /* ── Radii & shadows ─────────────────────────────────────────── */
   --r-xs: 6px;
   --r-sm: 10px;
   --r-md: 14px;
   --r-lg: 20px;
   --r-xl: 28px;
-  --r-2xl: 36px;
 }
 
-/* ── Light mode (soft paper) ──────────────────────────────────── */
-.mode-light,
-html.light,
-.light {
-  --bg-base: #F7F5F0;
-  --bg-base-2: #EDEAE2;
-  --bg-base-3: #E4E1D8;
-  --fg: #0B0B0E;
-  --fg-muted: #5A5A63;
-  --fg-subtle: #9A9AA4;
-  --hairline: rgba(10, 10, 14, 0.08);
-  --hairline-strong: rgba(10, 10, 14, 0.14);
-
-  --glass-bg: rgba(255, 255, 255, 0.58);
-  --glass-bg-strong: rgba(255, 255, 255, 0.78);
-  --glass-border: rgba(255, 255, 255, 0.9);
-  --glass-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 -1px 0 rgba(10, 10, 14, 0.04) inset,
-    0 18px 40px -20px rgba(10, 10, 14, 0.25),
-    0 2px 6px rgba(10, 10, 14, 0.05);
-
-  --chip-bg: rgba(10, 10, 14, 0.04);
-  --chip-bg-hover: rgba(10, 10, 14, 0.08);
-  /* Modal uses fully opaque surface so text is always legible in light mode */
-  --modal-bg: #FFFFFF;
-
-  /* Podium card backgrounds — light mode: warm paper tones */
-  --podium-gold-bg: linear-gradient(160deg, oklch(0.94 0.04 75), oklch(0.90 0.03 75));
-  --podium-silver-bg: linear-gradient(160deg, oklch(0.92 0.01 270), oklch(0.88 0.01 270));
-  --podium-bronze-bg: linear-gradient(160deg, oklch(0.92 0.03 50), oklch(0.88 0.02 40));
-
-  /* Podium text colors — light mode: deeper tones for contrast */
-  --podium-gold-text: oklch(0.45 0.12 75);
-  --podium-silver-text: oklch(0.40 0.04 270);
-  --podium-bronze-text: oklch(0.42 0.10 50);
-
-  /* Podium borders — light mode */
-  --podium-gold-border: 1px solid oklch(0.70 0.15 75 / 0.35);
-  --podium-silver-border: 1px solid oklch(0.55 0.04 270 / 0.25);
-  --podium-bronze-border: 1px solid oklch(0.55 0.10 50 / 0.28);
-
-  /* Stats panel inside podium cards */
-  --podium-stats-bg: rgba(10, 10, 14, 0.06);
-  --podium-stats-border: rgba(10, 10, 14, 0.08);
-
-  /* Podium button hover */
-  --podium-btn-hover-bg: rgba(10, 10, 14, 0.08);
-
-  /* Ambient holographic wash behind content */
-  --ambient:
-    radial-gradient(at 12% 8%, oklch(0.88 0.10 295 / 0.55) 0px, transparent 40%),
-    radial-gradient(at 88% 4%, oklch(0.90 0.08 205 / 0.55) 0px, transparent 45%),
-    radial-gradient(at 92% 92%, oklch(0.90 0.09 130 / 0.55) 0px, transparent 45%),
-    radial-gradient(at 4% 96%, oklch(0.90 0.10 340 / 0.50) 0px, transparent 45%);
-}
-
-/* ── Dark mode (obsidian) ─────────────────────────────────────── */
-.mode-dark,
+:root,
 html.dark,
+body.dark,
 .dark {
-  --bg-base: #07070A;
-  --bg-base-2: #0E0E13;
-  --bg-base-3: #15151C;
-  --fg: #F4F4F7;
-  --fg-muted: #9A9AA4;
-  --fg-subtle: #56565F;
-  --hairline: rgba(255, 255, 255, 0.06);
-  --hairline-strong: rgba(255, 255, 255, 0.12);
-
-  --glass-bg: rgba(22, 22, 28, 0.55);
-  --glass-bg-strong: rgba(22, 22, 28, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.4) inset,
-    0 30px 60px -24px rgba(0, 0, 0, 0.7),
-    0 2px 6px rgba(0, 0, 0, 0.3);
-
-  --chip-bg: rgba(255, 255, 255, 0.05);
-  --chip-bg-hover: rgba(255, 255, 255, 0.10);
-  /* Modal in dark mode keeps glass feel */
-  --modal-bg: rgba(18, 18, 24, 0.96);
-
-  /* Podium card backgrounds — dark mode: deep obsidian tones */
-  --podium-gold-bg: linear-gradient(160deg, oklch(0.22 0.04 75 / 1.0), oklch(0.14 0.03 75 / 1.0));
-  --podium-silver-bg: linear-gradient(160deg, oklch(0.20 0.01 270 / 1.0), oklch(0.13 0.01 270 / 1.0));
-  --podium-bronze-bg: linear-gradient(160deg, oklch(0.20 0.03 50 / 1.0), oklch(0.13 0.02 40 / 1.0));
-
-  /* Podium text colors — dark mode: bright metallic accents */
-  --podium-gold-text: oklch(0.78 0.16 75);
-  --podium-silver-text: oklch(0.72 0.04 270);
-  --podium-bronze-text: oklch(0.68 0.12 50);
-
-  /* Podium borders — dark mode */
-  --podium-gold-border: 1px solid oklch(0.70 0.15 75 / 0.35);
-  --podium-silver-border: 1px solid oklch(0.60 0.04 270 / 0.25);
-  --podium-bronze-border: 1px solid oklch(0.60 0.10 50 / 0.28);
-
-  /* Stats panel inside podium cards */
-  --podium-stats-bg: rgba(0, 0, 0, 0.25);
-  --podium-stats-border: rgba(255, 255, 255, 0.06);
-
-  /* Podium button hover */
-  --podium-btn-hover-bg: rgba(255, 255, 255, 0.07);
-
+  --bg: #050608;
+  --bg-2: #0b0d12;
+  --bg-3: #12141b;
+  --fg: #ecedf1;
+  --fg-2: #8e919b;
+  --fg-3: #4a4d57;
+  --hr: rgba(255, 255, 255, 0.06);
+  --hr-2: rgba(255, 255, 255, 0.12);
+  --glass: rgba(20, 22, 30, 0.55);
+  --glass-2: rgba(20, 22, 30, 0.82);
+  --gl-edge: rgba(255, 255, 255, 0.08);
+  --chip: rgba(255, 255, 255, 0.05);
+  --chip-h: rgba(255, 255, 255, 0.1);
   --ambient:
-    radial-gradient(at 12% 8%, oklch(0.55 0.22 295 / 0.35) 0px, transparent 40%),
-    radial-gradient(at 88% 4%, oklch(0.55 0.18 205 / 0.30) 0px, transparent 45%),
-    radial-gradient(at 92% 92%, oklch(0.60 0.18 130 / 0.25) 0px, transparent 45%),
-    radial-gradient(at 4% 96%, oklch(0.55 0.22 340 / 0.30) 0px, transparent 45%);
+    radial-gradient(80% 60% at 12% 18%, oklch(0.45 0.26 285 / 0.32), transparent 60%),
+    radial-gradient(70% 50% at 88% 12%, oklch(0.55 0.20 245 / 0.22), transparent 65%),
+    radial-gradient(80% 55% at 90% 88%, oklch(0.40 0.22 295 / 0.25), transparent 65%),
+    radial-gradient(60% 45% at 8% 92%, oklch(0.55 0.18 230 / 0.18), transparent 60%);
+  --glass-shadow:
+    0 1px 0 var(--gl-edge) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.12) inset,
+    0 24px 48px -24px rgba(0, 0, 0, 0.5);
+  --modal-bg: rgba(18, 20, 28, 0.96);
+  --podium-gold-bg: linear-gradient(160deg, rgba(42, 23, 68, 0.9), rgba(26, 16, 48, 0.95));
+  --podium-silver-bg: linear-gradient(160deg, rgba(19, 21, 30, 0.92), rgba(12, 14, 20, 0.98));
+  --podium-bronze-bg: linear-gradient(160deg, rgba(18, 22, 34, 0.92), rgba(10, 13, 20, 0.98));
+  --podium-gold-text: var(--velo-blue-ice);
+  --podium-silver-text: #c8ccd8;
+  --podium-bronze-text: #9fd3ff;
+  --podium-gold-border: 1px solid oklch(0.55 0.24 295 / 0.45);
+  --podium-silver-border: 1px solid rgba(255, 255, 255, 0.12);
+  --podium-bronze-border: 1px solid rgba(123, 169, 217, 0.28);
+  --podium-stats-bg: rgba(255, 255, 255, 0.035);
+  --podium-stats-border: rgba(255, 255, 255, 0.06);
+  --podium-btn-hover-bg: rgba(255, 255, 255, 0.05);
+
+  --bg-base: var(--bg);
+  --bg-base-2: var(--bg-2);
+  --bg-base-3: var(--bg-3);
+  --fg-muted: var(--fg-2);
+  --fg-subtle: var(--fg-3);
+  --hairline: var(--hr);
+  --hairline-strong: var(--hr-2);
+  --glass-bg: var(--glass);
+  --glass-bg-strong: var(--glass-2);
+  --glass-border: var(--hr-2);
+  --chip-bg: var(--chip);
+  --chip-bg-hover: var(--chip-h);
+  --iris-violet: var(--velo-violet);
+  --iris-magenta: var(--velo-mauve);
+  --iris-coral: var(--pnl-down);
+  --iris-amber: oklch(0.76 0.14 84);
+  --iris-lime: var(--pnl-up);
+  --iris-cyan: var(--velo-blue-ice);
+  --iris-blue: var(--velo-blue);
+  --holo: var(--prism);
+  --holo-linear: var(--prism-vivid);
 }
 
-/* ── Glass primitives ─────────────────────────────────────────── */
-.glass {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border-radius: var(--r-lg);
-}
-.glass-strong {
-  background: var(--glass-bg-strong);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(32px) saturate(1.5);
-  -webkit-backdrop-filter: blur(32px) saturate(1.5);
-  border-radius: var(--r-lg);
-}
-.hairline { border: 1px solid var(--hairline); }
+html.light,
+body.light,
+.light {
+  --bg: #f2f0fa;
+  --bg-2: #ece9f6;
+  --bg-3: #e0dcef;
+  --fg: #0a0b18;
+  --fg-2: #545564;
+  --fg-3: #9a9aaa;
+  --hr: rgba(10, 11, 24, 0.07);
+  --hr-2: rgba(10, 11, 24, 0.13);
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-2: rgba(255, 255, 255, 0.82);
+  --gl-edge: rgba(255, 255, 255, 0.95);
+  --chip: rgba(10, 11, 24, 0.05);
+  --chip-h: rgba(10, 11, 24, 0.09);
+  --ambient:
+    radial-gradient(90% 70% at 10% 12%, oklch(0.82 0.18 285 / 0.55), transparent 60%),
+    radial-gradient(80% 60% at 88% 8%, oklch(0.86 0.14 245 / 0.5), transparent 65%),
+    radial-gradient(90% 65% at 92% 92%, oklch(0.80 0.16 295 / 0.45), transparent 65%),
+    radial-gradient(70% 55% at 6% 94%, oklch(0.86 0.14 230 / 0.45), transparent 60%);
+  --glass-shadow:
+    0 1px 0 var(--gl-edge) inset,
+    0 -1px 0 rgba(10, 11, 24, 0.04) inset,
+    0 22px 40px -24px rgba(10, 11, 24, 0.18);
+  --modal-bg: rgba(255, 255, 255, 0.97);
+  --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
+  --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
+  --podium-bronze-bg: linear-gradient(160deg, rgba(168, 200, 255, 0.22), rgba(236, 233, 246, 0.9));
+  --podium-gold-text: var(--velo-violet);
+  --podium-silver-text: #4f5564;
+  --podium-bronze-text: #2e4d79;
+  --podium-gold-border: 1px solid rgba(123, 60, 232, 0.24);
+  --podium-silver-border: 1px solid rgba(10, 11, 24, 0.08);
+  --podium-bronze-border: 1px solid rgba(59, 91, 255, 0.14);
+  --podium-stats-bg: rgba(10, 11, 24, 0.04);
+  --podium-stats-border: rgba(10, 11, 24, 0.06);
+  --podium-btn-hover-bg: rgba(10, 11, 24, 0.04);
 
-/* Holographic text clip */
-.holo-text {
-  background: var(--holo-linear);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  background-size: 200% 100%;
-  animation: holoSlide 9s linear infinite;
-}
-@keyframes holoSlide {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
+  --bg-base: var(--bg);
+  --bg-base-2: var(--bg-2);
+  --bg-base-3: var(--bg-3);
+  --fg-muted: var(--fg-2);
+  --fg-subtle: var(--fg-3);
+  --hairline: var(--hr);
+  --hairline-strong: var(--hr-2);
+  --glass-bg: var(--glass);
+  --glass-bg-strong: var(--glass-2);
+  --glass-border: var(--hr-2);
+  --chip-bg: var(--chip);
+  --chip-bg-hover: var(--chip-h);
+  --iris-violet: var(--velo-violet);
+  --iris-magenta: var(--velo-mauve);
+  --iris-coral: var(--pnl-down);
+  --iris-amber: oklch(0.76 0.14 84);
+  --iris-lime: var(--pnl-up);
+  --iris-cyan: var(--velo-blue-ice);
+  --iris-blue: var(--velo-blue);
+  --holo: var(--prism);
+  --holo-linear: var(--prism-vivid);
 }
 
-/* Holographic foil surface (for badges/pills) */
-.holo-foil {
-  background:
-    linear-gradient(115deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 40%),
-    var(--holo-linear);
-  background-size: 100% 100%, 200% 100%;
-  animation: holoSlide 9s linear infinite;
-  color: #0B0B0E;
+* {
+  box-sizing: border-box;
 }
 
-/* Ticker-style numeric alignment */
-.tnum { font-feature-settings: "tnum" 1, "ss01" 1; font-variant-numeric: tabular-nums; }
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
 
-/* Reset */
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-sans);
   color: var(--fg);
-  background: var(--bg-base);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

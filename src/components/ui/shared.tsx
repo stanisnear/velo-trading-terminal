@@ -54,27 +54,60 @@ export const calculateStats = (tradeHistory: any[]) => {
 // --- Glass Card (liquid glass panel) ---
 export const GlassCard = ({ children, className = '', onClick }: { children: React.ReactNode, className?: string, onClick?: (e: any) => void }) => (
     <div onClick={onClick}
-        className={`glass-panel rounded-[20px] p-5 transition-all duration-300
-        text-gray-900 dark:text-white
-        ${onClick ? 'cursor-pointer hover:border-white/20 dark:hover:border-white/15' : ''}
-        ${className}`}>
+        className={`glass-panel rounded-[22px] p-5 transition-all duration-200
+        ${onClick ? 'cursor-pointer hover:-translate-y-[1px]' : ''}
+        ${className}`}
+        style={{ color: 'var(--fg)' }}>
         {children}
     </div>
 );
 
 // --- Button (brand-aligned) ---
-export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false }: any) => {
-    const base = "px-5 py-2.5 rounded-[14px] font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed";
-    const variants: Record<string, string> = {
-        primary: "bg-[var(--iris-violet)] hover:brightness-110 text-white shadow-lg shadow-purple-500/20",
-        secondary: "bg-[var(--chip-bg)] text-[var(--fg)] hover:bg-[var(--chip-bg-hover)] border border-[var(--hairline-strong)]",
-        danger: "bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/10",
-        success: "bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/20",
-        ghost: "bg-transparent text-[var(--fg-muted)] hover:text-white hover:bg-white/5",
+export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false, style }: any) => {
+    const base = "px-5 py-2.5 rounded-[14px] font-medium text-sm transition-all duration-150 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed border";
+    const variantStyles: Record<string, React.CSSProperties> = {
+        primary: {
+            background: 'var(--prism-vivid)',
+            backgroundSize: '200% 100%',
+            animation: 'prismSlide 14s linear infinite',
+            color: 'var(--velo-bone)',
+            borderColor: 'transparent',
+        },
+        secondary: {
+            background: 'var(--chip)',
+            color: 'var(--fg)',
+            borderColor: 'var(--hr-2)',
+        },
+        danger: {
+            background: 'color-mix(in oklab, var(--pnl-down) 14%, transparent)',
+            color: 'var(--pnl-down)',
+            borderColor: 'color-mix(in oklab, var(--pnl-down) 32%, transparent)',
+        },
+        success: {
+            background: 'var(--pnl-up)',
+            color: '#0a1b06',
+            borderColor: 'transparent',
+        },
+        long: {
+            background: 'var(--pnl-up)',
+            color: '#0a1b06',
+            borderColor: 'transparent',
+        },
+        short: {
+            background: 'var(--pnl-down)',
+            color: '#ffffff',
+            borderColor: 'transparent',
+        },
+        ghost: {
+            background: 'transparent',
+            color: 'var(--fg-2)',
+            borderColor: 'transparent',
+        },
     };
     return (
         <button onClick={(e) => { playSound('CLICK'); onClick && onClick(e); }} disabled={disabled || isLoading}
-            className={`${base} ${variants[variant] || variants.primary} ${className}`}>
+            className={`${base} ${className}`}
+            style={{ ...(variantStyles[variant] || variantStyles.primary), ...style }}>
             {isLoading ? <RefreshCw className="animate-spin" size={16} /> : children}
         </button>
     );
@@ -84,11 +117,11 @@ export const Button = ({ children, onClick, variant = 'primary', className = '',
 export const Input = ({ label, rightLabel, error, className = '', ...props }: any) => (
     <div className="w-full group">
         <div className="flex justify-between mb-1 ml-1">
-            {label && <label className={`block text-[10px] font-semibold uppercase tracking-wider font-mono transition-colors ${error ? 'text-red-400' : 'text-[var(--fg-muted)] group-focus-within:text-[var(--iris-violet)]'}`}>{label}</label>}
-            {rightLabel && <span className="text-[10px] text-[var(--fg-subtle)]">{rightLabel}</span>}
+            {label && <label className="block text-[10px] font-semibold uppercase font-mono transition-colors" style={{ letterSpacing: '0.18em', color: error ? 'var(--pnl-down)' : 'var(--fg-2)' }}>{label}</label>}
+            {rightLabel && <span className="text-[10px]" style={{ color: 'var(--fg-3)' }}>{rightLabel}</span>}
         </div>
-        <input className={`w-full px-4 py-2 rounded-[12px] glass-input text-white placeholder-[var(--fg-subtle)] font-mono font-medium text-sm ${error ? 'border-red-500' : ''} ${className}`} {...props} />
-        {error && <p className="text-[10px] text-red-400 mt-1 ml-1 font-semibold">{error}</p>}
+        <input className={`w-full px-4 py-2 rounded-[12px] glass-input font-mono font-medium text-sm ${className}`} style={{ borderColor: error ? 'var(--pnl-down)' : undefined, color: 'var(--fg)' }} {...props} />
+        {error && <p className="text-[10px] mt-1 ml-1 font-semibold" style={{ color: 'var(--pnl-down)' }}>{error}</p>}
     </div>
 );
 
@@ -100,15 +133,15 @@ export const ToastNotification = ({ message, type, onClose }: { message: string,
         return () => clearTimeout(timer);
     }, []);
     const icons: Record<string, React.ReactNode> = {
-        SUCCESS: <CheckCircle size={20} className="text-emerald-400" />,
-        ERROR: <AlertCircle size={20} className="text-red-400" />,
-        INFO: <Info size={20} className="text-[var(--iris-cyan)]" />,
+        SUCCESS: <CheckCircle size={20} style={{ color: 'var(--pnl-up)' }} />,
+        ERROR: <AlertCircle size={20} style={{ color: 'var(--pnl-down)' }} />,
+        INFO: <Info size={20} style={{ color: 'var(--velo-blue-ice)' }} />,
     };
     return (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-auto pointer-events-none">
             <div className="glass-panel px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce-in pointer-events-auto">
                 <div className="shrink-0">{icons[type]}</div>
-                <span className="text-sm font-semibold text-white whitespace-nowrap">{message}</span>
+                <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--fg)' }}>{message}</span>
             </div>
         </div>
     );
@@ -119,7 +152,7 @@ export const VerifiedBadge = ({ userId, size = 16 }: { userId: string, size?: nu
     if (!isVerifiedUser(userId)) return null;
     return (
         <span title="Verified" className="inline-flex items-center justify-center rounded-full shrink-0"
-            style={{ width: size + 2, height: size + 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }}>
+            style={{ width: size + 2, height: size + 2, background: 'var(--prism-vivid)', backgroundSize: '200% 100%', animation: 'prismSlide 14s linear infinite' }}>
             <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none" stroke="#0B0B0E" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
             </svg>
@@ -127,9 +160,45 @@ export const VerifiedBadge = ({ userId, size = 16 }: { userId: string, size?: nu
     );
 };
 
-// --- Velo Logo Bug (holographic squircle with italic V) ---
-export const VeloLogoBug = ({ size = 32 }: { size?: number }) => (
-    <div className="velo-logo-bug" style={{ width: size, height: size }}>
-        <span className="relative z-10 text-[#0B0B0E] font-display italic leading-none" style={{ fontSize: size * 0.6, letterSpacing: '-0.06em' }}>V</span>
+export const Bug = ({ size = 32 }: { size?: number }) => (
+    <div className="bug" style={{ width: size, height: size }}>
+        <span className="gl" style={{ fontSize: size * 0.6 }}>V</span>
     </div>
 );
+
+export const Wordmark = ({ size = 22, className = '' }: { size?: number, className?: string }) => (
+    <span className={`wordmark ${className}`} style={{ fontSize: size }}>Velo</span>
+);
+
+export const Ico3D = ({ size = 40, tone = 'violet', children }: { size?: number, tone?: 'violet' | 'blue' | 'ice' | 'up' | 'down', children: React.ReactNode }) => {
+    const backgrounds: Record<string, string> = {
+        violet: 'linear-gradient(160deg, oklch(0.66 0.24 295), oklch(0.34 0.22 285))',
+        blue: 'linear-gradient(160deg, oklch(0.74 0.18 245), oklch(0.44 0.20 268))',
+        ice: 'linear-gradient(160deg, oklch(0.92 0.06 245), oklch(0.68 0.12 240))',
+        up: 'linear-gradient(160deg, oklch(0.88 0.16 152), oklch(0.56 0.18 152))',
+        down: 'linear-gradient(160deg, oklch(0.78 0.20 25), oklch(0.52 0.22 25))',
+    };
+    return (
+        <div
+            style={{
+                width: size,
+                height: size,
+                borderRadius: Math.round(size * 0.3),
+                display: 'grid',
+                placeItems: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                color: tone === 'ice' ? '#0A0B12' : '#fff',
+                background: backgrounds[tone],
+                boxShadow: '0 18px 40px -14px rgba(0,0,0,0.4)',
+            }}
+        >
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 80% at 30% 10%, rgba(255,255,255,0.55), transparent 55%)' }} />
+            <div style={{ position: 'absolute', inset: 1, borderRadius: Math.round(size * 0.3) - 1, boxShadow: '0 1px 0 rgba(255,255,255,0.4) inset, 0 -1px 0 rgba(0,0,0,0.25) inset' }} />
+            <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
+        </div>
+    );
+};
+
+// Backwards-compatible export used elsewhere in the app.
+export const VeloLogoBug = Bug;

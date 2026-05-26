@@ -88,54 +88,89 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     const H = canvas.height;
 
     // ── Background ───────────────────────────────────────────────────────
-    ctx.fillStyle = '#0a0a0a';
+    ctx.fillStyle = '#050608';
     ctx.fillRect(0, 0, W, H);
 
     if (bgStyle === 'gradient') {
       const grad = ctx.createLinearGradient(0, 0, W, H);
-      grad.addColorStop(0, '#1a0533');
-      grad.addColorStop(0.5, '#0a0a0a');
-      grad.addColorStop(1, '#33051a');
+      grad.addColorStop(0, '#7B3CE8');
+      grad.addColorStop(0.45, '#3B5BFF');
+      grad.addColorStop(1, '#0B1020');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
     } else if (bgStyle === 'hologram') {
-      // Iris/violet/coral wash
-      const grad = ctx.createRadialGradient(W * 0.7, H * 0.3, 0, W * 0.7, H * 0.3, W * 0.8);
-      grad.addColorStop(0, 'rgba(180, 110, 255, 0.35)');
-      grad.addColorStop(0.5, 'rgba(255, 90, 160, 0.15)');
-      grad.addColorStop(1, 'rgba(10, 10, 10, 0)');
-      ctx.fillStyle = '#0a0a0a';
+      const grad = ctx.createRadialGradient(W * 0.74, H * 0.22, 0, W * 0.74, H * 0.22, W * 0.85);
+      grad.addColorStop(0, 'rgba(123, 60, 232, 0.34)');
+      grad.addColorStop(0.45, 'rgba(59, 91, 255, 0.16)');
+      grad.addColorStop(1, 'rgba(5, 6, 8, 0)');
+      ctx.fillStyle = '#080a10';
       ctx.fillRect(0, 0, W, H);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
     }
 
+    const ambientLeft = ctx.createRadialGradient(140, 120, 0, 140, 120, 460);
+    ambientLeft.addColorStop(0, 'rgba(123, 60, 232, 0.18)');
+    ambientLeft.addColorStop(1, 'rgba(123, 60, 232, 0)');
+    ctx.fillStyle = ambientLeft;
+    ctx.fillRect(0, 0, W, H);
+
+    const ambientRight = ctx.createRadialGradient(W - 120, H - 100, 0, W - 120, H - 100, 420);
+    ambientRight.addColorStop(0, 'rgba(59, 91, 255, 0.14)');
+    ambientRight.addColorStop(1, 'rgba(59, 91, 255, 0)');
+    ctx.fillStyle = ambientRight;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = 'rgba(168, 200, 255, 0.06)';
+    ctx.fillRect(W * 0.62, 0, 2, H);
+    ctx.fillRect(W * 0.78, 0, 1, H);
+
     // Subtle grid texture
-    ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.018)';
     ctx.lineWidth = 1;
     for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
     for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
-    // ── Velo wordmark (top-left) ─────────────────────────────────────────
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'italic 700 56px "Instrument Serif", "Times New Roman", serif';
-    ctx.textBaseline = 'top';
-    // Bumped x from 50 → 60 so wordmark doesn't visually clip against the
-    // modal's rounded corner when the preview is scaled down on mobile.
-    ctx.fillText('Velo', 60, 44);
-    ctx.fillStyle = 'rgba(180, 110, 255, 0.9)';
+    // ── Bug + wordmark (top-left) ────────────────────────────────────────
+    const bugGrad = ctx.createLinearGradient(50, 42, 110, 102);
+    bugGrad.addColorStop(0, '#7B3CE8');
+    bugGrad.addColorStop(0.55, '#3B5BFF');
+    bugGrad.addColorStop(1, '#2744B8');
+    ctx.fillStyle = bugGrad;
     ctx.beginPath();
-    ctx.arc(170, 72, 5, 0, Math.PI * 2);
+    (ctx as any).roundRect(56, 46, 44, 44, 14);
     ctx.fill();
+    const bugHighlight = ctx.createRadialGradient(68, 52, 0, 68, 52, 36);
+    bugHighlight.addColorStop(0, 'rgba(255,255,255,0.4)');
+    bugHighlight.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = bugHighlight;
+    ctx.beginPath();
+    (ctx as any).roundRect(56, 46, 44, 44, 14);
+    ctx.fill();
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = 'italic 400 26px "Fraunces", "Times New Roman", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('V', 78, 69);
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#F4F1E8';
+    ctx.font = 'italic 400 54px "Fraunces", "Times New Roman", serif';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Velo', 118, 42);
+    ctx.fillStyle = 'rgba(236,237,241,0.42)';
+    ctx.font = '600 12px "Geist Mono", monospace';
+    ctx.fillText('PERPETUALS · SOCIAL LAYER', 120, 98);
 
     // Tag (top-right) — TESTNET watermark, unmistakable
-    ctx.font = '700 16px "JetBrains Mono", monospace';
-    ctx.fillStyle = 'rgba(255, 90, 90, 0.95)';
+    ctx.font = '700 14px "Geist Mono", monospace';
+    ctx.fillStyle = '#E26F4C';
     ctx.textAlign = 'right';
-    ctx.fillText('TESTNET · BASE SEPOLIA', W - 60, 54);
-    ctx.font = '500 12px "JetBrains Mono", monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.fillText('velo-trading-terminal.vercel.app', W - 60, 80);
+    ctx.fillText('TESTNET · BASE SEPOLIA', W - 58, 56);
+    ctx.font = '500 12px "Geist Mono", monospace';
+    ctx.fillStyle = 'rgba(236, 237, 241, 0.42)';
+    ctx.fillText('Provable. Social. On-chain.', W - 58, 82);
     ctx.textAlign = 'left';
 
     // ── Status badge ─────────────────────────────────────────────────────
@@ -144,7 +179,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       : 'OPEN POSITION';
     const badgeColor = data.status === 'LIQUIDATED' ? '#ff5050'
       : data.pnl >= 0 ? '#22c55e' : '#ff5050';
-    ctx.font = '700 14px "JetBrains Mono", monospace';
+    ctx.font = '700 12px "Geist Mono", monospace';
     ctx.fillStyle = badgeColor;
     ctx.fillText(badge, 60, 150);
 
@@ -154,23 +189,23 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       const y = 195;
       ctx.textBaseline = 'top';
       if (visibleFields.pair) {
-        ctx.font = 'italic 700 92px "Instrument Serif", "Times New Roman", serif';
-        ctx.fillStyle = '#ffffff';
+        ctx.font = 'italic 400 88px "Fraunces", "Times New Roman", serif';
+        ctx.fillStyle = '#F4F1E8';
         ctx.fillText(data.pair, x, y);
         x += ctx.measureText(data.pair).width + 28;
       }
       if (visibleFields.side) {
-        ctx.font = '700 32px "JetBrains Mono", monospace';
+        ctx.font = '700 28px "Geist Mono", monospace';
         ctx.fillStyle = data.side === 'LONG' ? '#22c55e' : '#ff5050';
         ctx.fillText(data.side, x, y + 30);
         if (visibleFields.leverage) {
           x += ctx.measureText(data.side).width + 16;
-          ctx.fillStyle = 'rgba(255,255,255,0.5)';
+          ctx.fillStyle = 'rgba(236,237,241,0.42)';
           ctx.fillText(`${data.leverage}×`, x, y + 30);
         }
       } else if (visibleFields.leverage) {
-        ctx.font = '700 32px "JetBrains Mono", monospace';
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '700 28px "Geist Mono", monospace';
+        ctx.fillStyle = 'rgba(236,237,241,0.42)';
         ctx.fillText(`${data.leverage}×`, x, y + 30);
       }
     }
@@ -178,22 +213,22 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     // ── PnL hero ─────────────────────────────────────────────────────────
     if (visibleFields.pnl) {
       const pnlY = 340;
-      ctx.font = '700 16px "JetBrains Mono", monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '700 12px "Geist Mono", monospace';
+      ctx.fillStyle = 'rgba(236,237,241,0.42)';
       ctx.fillText(data.status === 'OPEN' ? 'UNREALISED PnL' : 'REALISED PnL', 60, pnlY);
 
       const pnlStr = (data.pnl >= 0 ? '+' : '') + '$' + Math.abs(data.pnl).toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
-      ctx.font = 'italic 700 110px "Instrument Serif", "Times New Roman", serif';
+      ctx.font = 'italic 400 108px "Fraunces", "Times New Roman", serif';
       ctx.fillStyle = data.pnl >= 0 ? '#22c55e' : '#ff5050';
       ctx.fillText(pnlStr, 60, pnlY + 30);
 
       const pctStr = (data.pnlPct >= 0 ? '+' : '') + data.pnlPct.toFixed(2) + '%';
-      ctx.font = '700 36px "JetBrains Mono", monospace';
+      ctx.font = '700 30px "Geist Mono", monospace';
       ctx.fillStyle = data.pnl >= 0 ? '#22c55e' : '#ff5050';
-      ctx.font = 'italic 700 110px "Instrument Serif", "Times New Roman", serif';
+      ctx.font = 'italic 400 108px "Fraunces", "Times New Roman", serif';
       const pnlTextW = ctx.measureText(pnlStr).width;
-      ctx.font = '700 36px "JetBrains Mono", monospace';
-      ctx.fillText(pctStr, 60 + pnlTextW + 24, pnlY + 100);
+      ctx.font = '700 30px "Geist Mono", monospace';
+      ctx.fillText(pctStr, 60 + pnlTextW + 24, pnlY + 94);
     }
 
     // ── Bottom stat strip ────────────────────────────────────────────────
@@ -204,37 +239,39 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     if (visibleFields.size) stats.push({ label: 'SIZE', value: '$' + data.size.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
     if (visibleFields.collateral) stats.push({ label: 'COLLATERAL', value: '$' + data.collateral.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
 
-    const stripY = 540;
+    const stripY = 532;
     const stripX = 60;
     const stripW = W - 120;
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(stripX, stripY); ctx.lineTo(stripX + stripW, stripY); ctx.stroke();
-
     const colW = stripW / Math.max(stats.length, 1);
     stats.forEach((s, i) => {
       const cx = stripX + colW * i;
-      ctx.font = '700 12px "JetBrains Mono", monospace';
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      ctx.fillText(s.label, cx, stripY + 18);
-      ctx.font = '700 22px "JetBrains Mono", monospace';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(s.value, cx, stripY + 38);
+      ctx.fillStyle = 'rgba(20,22,30,0.55)';
+      ctx.beginPath();
+      (ctx as any).roundRect(cx, stripY, colW - 12, 78, 16);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.stroke();
+      ctx.font = '700 11px "Geist Mono", monospace';
+      ctx.fillStyle = 'rgba(236,237,241,0.42)';
+      ctx.fillText(s.label, cx + 16, stripY + 18);
+      ctx.font = '700 22px "Geist Mono", monospace';
+      ctx.fillStyle = '#F4F1E8';
+      ctx.fillText(s.value, cx + 16, stripY + 44);
     });
 
     // ── Handle footer ────────────────────────────────────────────────────
     if (visibleFields.handle && data.traderHandle) {
-      ctx.font = '700 16px "JetBrains Mono", monospace';
-      ctx.fillStyle = 'rgba(180, 110, 255, 0.95)';
+      ctx.font = '700 14px "Geist Mono", monospace';
+      ctx.fillStyle = '#A8C8FF';
       ctx.textBaseline = 'bottom';
       ctx.textAlign = 'left';
       ctx.fillText(data.traderHandle.startsWith('@') ? data.traderHandle : '@' + data.traderHandle, 60, H - 35);
     }
     // Disclaimer
-    ctx.font = '500 11px "JetBrains Mono", monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '500 11px "Geist Mono", monospace';
+    ctx.fillStyle = 'rgba(236,237,241,0.3)';
     ctx.textAlign = 'right';
-    ctx.fillText('Testnet trade · No real-money risk · Educational only', W - 60, H - 35);
+    ctx.fillText('Prismatic share card · Testnet only · Educational use', W - 60, H - 35);
   };
 
   const handleDownload = () => {
@@ -301,7 +338,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--hairline)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Share2 size={14} style={{ color: 'var(--iris-violet)' }} />
+            <Share2 size={14} style={{ color: 'var(--velo-violet)' }} />
             <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>
               Share trade card
             </span>
@@ -324,7 +361,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
         <div style={{ padding: 14, borderTop: '1px solid var(--hairline)' }}>
           <button
             onClick={() => setTweakOpen((p) => !p)}
-            style={{ ...S.mono, width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: tweakOpen ? 12 : 0 }}>
+            style={{ ...S.mono, width: '100%', padding: '8px 12px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: tweakOpen ? 12 : 0 }}>
             <Settings size={11} /> {tweakOpen ? 'Hide customization' : 'Customize'}
           </button>
 

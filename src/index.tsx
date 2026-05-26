@@ -1,4 +1,3 @@
-import './styles/velo-brand-system.css';
 import './styles/tokens.css';
 import './styles/brand.css';
 // AppKit styles (replaces @rainbow-me/rainbowkit/styles.css)

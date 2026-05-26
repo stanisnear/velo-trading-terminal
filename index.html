@@ -3,41 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VELO | SocialFi Exchange</title>
-    <meta name="description" content="VELO — Social perpetual futures trading. Copy top traders, share signals, and trade 15+ crypto pairs with up to 50× leverage." />
+    <title>VELO | Editorial Social Perps</title>
+    <meta name="description" content="VELO — editorial on-chain perpetual futures with social conviction, copy trading, and a prismatic trading terminal for 15+ markets." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://velo.trade/" />
-    <meta name="theme-color" content="#07070A" />
+    <meta name="theme-color" content="#050608" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://velo.trade/" />
-    <meta property="og:title" content="VELO | SocialFi Exchange" />
-    <meta property="og:description" content="Copy top traders, share signals, and trade 15+ crypto pairs with up to 50× leverage on VELO." />
+    <meta property="og:title" content="VELO | Editorial Social Perps" />
+    <meta property="og:description" content="Trade on-chain perps with prismatic depth, copy conviction, and share provable signals on VELO." />
     <meta property="og:image" content="https://velo.trade/og-image.png" />
     <meta property="og:site_name" content="VELO" />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@veloexchange" />
-    <meta name="twitter:title" content="VELO | SocialFi Exchange" />
-    <meta name="twitter:description" content="Copy top traders, share signals, and trade 15+ crypto pairs with up to 50× leverage on VELO." />
+    <meta name="twitter:title" content="VELO | Editorial Social Perps" />
+    <meta name="twitter:description" content="Trade on-chain perps with prismatic depth, copy conviction, and share provable signals on VELO." />
     <meta name="twitter:image" content="https://velo.trade/og-image.png" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%237c3aed' rx='24' width='100' height='100'/><text x='50' y='68' font-size='50' fill='white' text-anchor='middle' font-weight='400' font-style='italic' font-family='serif'>V</text></svg>" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%237B3CE8'/><stop offset='35%' stop-color='%233B5BFF'/><stop offset='100%' stop-color='%23A8C8FF'/></linearGradient></defs><rect fill='url(%23g)' rx='28' width='100' height='100'/><text x='50' y='66' font-size='50' fill='%23F4F1E8' text-anchor='middle' font-weight='400' font-style='italic' font-family='Fraunces,serif'>V</text></svg>" />
     <script>
       (function() {
         const canvas = document.createElement('canvas');
         canvas.width = 64; canvas.height = 64;
         const ctx = canvas.getContext('2d');
-        let hue = 0;
         const stops = [
-          [0,   270], // violet
-          [0.2, 320], // magenta
-          [0.4, 25],  // coral
-          [0.6, 60],  // amber
-          [0.75,125], // lime
-          [0.9, 200], // cyan
-          [1.0, 250], // blue
+          [0, '#7B3CE8'],
+          [0.35, '#3B5BFF'],
+          [0.7, '#7BA9D9'],
+          [1, '#A8C8FF'],
         ];
         function draw() {
           ctx.clearRect(0, 0, 64, 64);
@@ -53,9 +49,8 @@
           ctx.save(); ctx.clip();
           // Animated gradient
           const grad = ctx.createLinearGradient(0, 0, 64, 64);
-          stops.forEach(([pos, baseHue]) => {
-            const h = ((baseHue + hue) % 360 + 360) % 360;
-            grad.addColorStop(pos, `hsl(${h}, 85%, 62%)`);
+          stops.forEach(([pos, color]) => {
+            grad.addColorStop(pos, color);
           });
           ctx.fillStyle = grad;
           ctx.fillRect(0, 0, 64, 64);
@@ -67,8 +62,8 @@
           ctx.fillRect(0, 0, 64, 64);
           ctx.restore();
           // V letter
-          ctx.fillStyle = 'rgba(8,8,12,0.88)';
-          ctx.font = 'italic 400 38px "Instrument Serif", Georgia, serif';
+          ctx.fillStyle = '#F4F1E8';
+          ctx.font = 'italic 400 38px "Fraunces", Georgia, serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText('V', 32, 35);
@@ -77,7 +72,7 @@
           if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
           link.href = canvas.toDataURL('image/png');
         }
-        function tick() { hue = (hue + 0.4) % 360; draw(); requestAnimationFrame(tick); }
+        function tick() { draw(); }
         // Wait for fonts if possible
         if (document.fonts && document.fonts.ready) {
           document.fonts.ready.then(tick);
@@ -88,7 +83,7 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -96,14 +91,14 @@
         theme: {
           extend: {
             fontFamily: {
-              display: ['"Instrument Serif"', 'ui-serif', 'Georgia', 'serif'],
-              sans: ['"Inter Tight"', '"Inter"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-              mono: ['"JetBrains Mono"', 'ui-monospace', '"SF Mono"', 'Menlo', 'monospace'],
+              display: ['"Fraunces"', 'ui-serif', 'Georgia', 'serif'],
+              sans: ['"Geist"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+              mono: ['"Geist Mono"', 'ui-monospace', '"SF Mono"', 'Menlo', 'monospace'],
             },
             colors: {
-              velo: { bg: '#07070A', bg2: '#0E0E13', surface: '#121218', fg: '#F4F4F7', muted: '#9A9AA4', subtle: '#56565F' },
-              iris: { violet: '#8b5cf6', magenta: '#d946ef', coral: '#f97316', amber: '#eab308', lime: '#84cc16', cyan: '#22d3ee', blue: '#6366f1' },
-              pnl: { up: '#4ade80', down: '#f87171' },
+              velo: { bg: '#050608', bg2: '#0B0D12', surface: '#12141B', fg: '#ECEDF1', muted: '#8E919B', subtle: '#4A4D57' },
+              iris: { violet: '#7B3CE8', magenta: '#B47BEA', coral: '#E26F4C', amber: '#D6B26B', lime: '#7AE599', cyan: '#A8C8FF', blue: '#3B5BFF' },
+              pnl: { up: '#7AE599', down: '#E26F4C' },
               glass: { light: 'rgba(255,255,255,0.58)', dark: 'rgba(22,22,28,0.55)', border: 'rgba(255,255,255,0.08)' },
             },
             animation: {
@@ -130,24 +125,24 @@
     </script>
     <style>
       :root {
-        --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-        --font-sans: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-        --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-        --iris-violet: oklch(0.68 0.22 295); --iris-magenta: oklch(0.70 0.22 340);
-        --iris-coral: oklch(0.74 0.18 30); --iris-amber: oklch(0.82 0.16 75);
-        --iris-lime: oklch(0.84 0.18 130); --iris-cyan: oklch(0.80 0.14 205);
-        --iris-blue: oklch(0.68 0.18 250);
-        --pnl-up: oklch(0.78 0.18 150); --pnl-down: oklch(0.66 0.22 25);
-        --holo-linear: linear-gradient(100deg, var(--iris-violet) 0%, var(--iris-magenta) 22%, var(--iris-coral) 42%, var(--iris-amber) 58%, var(--iris-lime) 74%, var(--iris-cyan) 90%, var(--iris-blue) 100%);
+        --font-display: "Fraunces", ui-serif, Georgia, serif;
+        --font-sans: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+        --iris-violet: #7B3CE8; --iris-magenta: #B47BEA;
+        --iris-coral: #E26F4C; --iris-amber: #D6B26B;
+        --iris-lime: #7AE599; --iris-cyan: #A8C8FF;
+        --iris-blue: #3B5BFF;
+        --pnl-up: #7AE599; --pnl-down: #E26F4C;
+        --holo-linear: linear-gradient(135deg, #7B3CE8 0%, #3B5BFF 50%, #A8C8FF 100%);
         --hairline: rgba(255,255,255,0.06); --hairline-strong: rgba(255,255,255,0.12);
-        --glass-bg: rgba(22,22,28,0.55); --glass-bg-strong: rgba(22,22,28,0.82);
+        --glass-bg: rgba(20,22,30,0.55); --glass-bg-strong: rgba(20,22,30,0.82);
         --glass-border: rgba(255,255,255,0.08);
       }
       html.light { --hairline: rgba(10,10,14,0.08); --hairline-strong: rgba(10,10,14,0.14); --glass-bg: rgba(255,255,255,0.58); --glass-bg-strong: rgba(255,255,255,0.78); --glass-border: rgba(255,255,255,0.9); }
 
       body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; background-attachment: fixed; }
-      html.dark body { background-color: #07070A; background-image: radial-gradient(at 12% 8%, oklch(0.55 0.22 295 / 0.18) 0px, transparent 40%), radial-gradient(at 88% 4%, oklch(0.55 0.18 205 / 0.14) 0px, transparent 45%), radial-gradient(at 92% 92%, oklch(0.60 0.18 130 / 0.12) 0px, transparent 45%), radial-gradient(at 4% 96%, oklch(0.55 0.22 340 / 0.14) 0px, transparent 45%); }
-      html.light body { background-color: #F5F3EE; background-image: radial-gradient(at 12% 8%, oklch(0.88 0.10 295 / 0.45) 0px, transparent 40%), radial-gradient(at 88% 4%, oklch(0.90 0.08 205 / 0.45) 0px, transparent 45%), radial-gradient(at 92% 92%, oklch(0.90 0.09 130 / 0.45) 0px, transparent 45%), radial-gradient(at 4% 96%, oklch(0.90 0.10 340 / 0.40) 0px, transparent 45%); }
+      html.dark body { background-color: #050608; background-image: radial-gradient(at 12% 18%, oklch(0.45 0.26 285 / 0.22) 0px, transparent 42%), radial-gradient(at 88% 12%, oklch(0.55 0.20 245 / 0.18) 0px, transparent 48%), radial-gradient(at 90% 88%, oklch(0.40 0.22 295 / 0.18) 0px, transparent 48%), radial-gradient(at 8% 92%, oklch(0.55 0.18 230 / 0.12) 0px, transparent 42%); }
+      html.light body { background-color: #F2F0FA; background-image: radial-gradient(at 10% 12%, oklch(0.82 0.18 285 / 0.48) 0px, transparent 42%), radial-gradient(at 88% 8%, oklch(0.86 0.14 245 / 0.42) 0px, transparent 46%), radial-gradient(at 92% 92%, oklch(0.80 0.16 295 / 0.38) 0px, transparent 46%), radial-gradient(at 6% 94%, oklch(0.86 0.14 230 / 0.34) 0px, transparent 42%); }
 
       .glass-panel { background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 -1px 0 rgba(0,0,0,0.2) inset, 0 24px 48px -20px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15); position: relative; }
       html.light .glass-panel { box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 -1px 0 rgba(10,10,14,0.04) inset, 0 18px 40px -20px rgba(10,10,14,0.2), 0 2px 6px rgba(10,10,14,0.05); }
