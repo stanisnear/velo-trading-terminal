@@ -418,3 +418,13 @@ html.light iframe[id*="tradingview"] {
     display: none !important;
   }
 }
+
+/* ── Admin panel pair rows: hide feed ID on narrow screens ─────────────────── */
+@media (max-width: 540px) {
+  .admin-feed-id {
+    display: none !important;
+  }
+  .velo-admin-wrap {
+    padding: 16px 12px !important;
+  }
+}

@@ -610,16 +610,16 @@ export const VeloAdminPanel: React.FC = () => {
               background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                <span style={{ ...S.label, color: 'var(--fg-muted)', minWidth: 24 }}>#{p.index}</span>
-                <span style={{ ...S.display, fontSize: 18, color: 'var(--fg)', minWidth: 110 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                <span style={{ ...S.label, color: 'var(--fg-muted)', minWidth: 24, flexShrink: 0 }}>#{p.index}</span>
+                <span style={{ ...S.display, fontSize: 18, color: 'var(--fg)', minWidth: 90, flexShrink: 0 }}>
                   {p.label.replace('-', '/')}
                 </span>
-                <code style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)' }}>
+                <code className="admin-feed-id" style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                   {p.expectedFeedId.slice(0, 10)}…{p.expectedFeedId.slice(-8)}
                 </code>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 {p.registered ? (
                   <>
                     <span style={{

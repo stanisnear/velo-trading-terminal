@@ -1563,7 +1563,7 @@ export const TradeView = ({
                 />
 
                 {/* Chart — on mobile use a fixed tall height so it fills the screen properly */}
-                <div style={{ flex: isMobile ? 'none' : 1, height: isMobile ? '60vw' : undefined, minHeight: isMobile ? 280 : 0, maxHeight: isMobile ? 420 : undefined, overflow: 'hidden', background: 'var(--bg-base)', borderBottom: '1px solid var(--hairline)', position: 'relative' }}>
+                <div style={{ flex: isMobile ? 'none' : 1, height: isMobile ? '60vw' : undefined, minHeight: isMobile ? 280 : 0, maxHeight: isMobile ? 420 : undefined, overflow: 'hidden', background: 'var(--bg-base-2)', borderBottom: '1px solid var(--hairline)', position: 'relative' }}>
                     <TradingViewChart
                         initialData={candles[activePair.id] || []}
                         theme={appTheme || 'dark'}

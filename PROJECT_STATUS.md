@@ -797,3 +797,20 @@ For the Recent Activity persistence:
 - `mk-col-change` must be present on BOTH the header `<button>` and the row `<div>` for the 420px layout to be consistent. If a new column is added between price and trade, the grid template columns count at each breakpoint must be updated to match.
 - The PortfolioChart theme fix only works because the chart already handles both themes internally (transparent bg, conditional text/crosshair colors). If future chart theming needs change, the logic is in `src/components/PortfolioChart.tsx` in the `colors` object and crosshair config.
 - `maxHeight: 400` on the mobile positions panel is a pragmatic cap. If users have many positions and complain about clipping, add `overflowY: auto` to the wrapper (it currently clips). The panel already has its own internal scroll via `custom-scrollbar`.
+
+### 2026-05-27 — Patch 2: Light mode chart bg, Markets Trade button overflow, Admin pair row overflow
+
+**Problems fixed:**
+
+1. **TradingView chart white background in light mode** — `localBG` was `#faf9fd` but the app's panel/surface color (`--bg-base-2`) is `#f3f1fa`. Updated `localBG` to `#f3f1fa` and `localBG2` to `#ebe8f5` so the TradingView widget's background blends seamlessly with the surrounding panel. Also changed TradeView chart wrapper from `var(--bg-base)` to `var(--bg-base-2)` so the container bg matches the chart interior.
+
+2. **Markets mobile Trade button clipping** — Root cause was `overflow: hidden` on the table container (`borderRadius: 16`) which visually clipped Trade buttons that fit within the grid but were near the edge. Changed to `overflow: clip` (respects border-radius without clipping positioned children). Also widened the Trade column from 60px → 76px at 680px breakpoint and added responsive `.mk-trade-btn` padding reduction (11px→8px→6px) for tight screens.
+
+3. **Admin panel Trading pairs row horizontal overflow** — The feed ID `<code>` element had no `minWidth: 0` or overflow constraint, causing it to push the PAUSE button off screen on narrow viewports. Fixed by adding `minWidth: 0`, `overflow: hidden`, `textOverflow: ellipsis` to the code element, reducing pair label `minWidth` from 110px to 90px, adding `flexShrink: 0` to critical items, and changing the actions gap from 10px to 8px. Also added `admin-feed-id` CSS class that hides below 540px entirely.
+
+**Files changed:**
+- `src/components/TradingViewChart.tsx` — light mode `localBG/localBG2` updated to match app surface
+- `src/components/ui/pages/TradeView.tsx` — chart wrapper bg changed to `var(--bg-base-2)`
+- `src/components/ui/pages/MarketsView.tsx` — `overflow: clip`, wider Trade column, responsive button sizing
+- `src/components/VeloAdminPanel.tsx` — feed ID overflow constraints, flexShrink fixes
+- `src/styles/tokens.css` — `admin-feed-id` hide at 540px

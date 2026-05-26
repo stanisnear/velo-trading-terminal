@@ -189,17 +189,19 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
         .mk-spark { display: block; }
         @media (max-width: 680px) {
           .mk-stats { grid-template-columns: 1fr 1fr; }
-          .mk-row { grid-template-columns: 26px 1fr 78px 72px 60px; padding: 12px 12px; }
-          .mk-hdr { grid-template-columns: 26px 1fr 78px 72px 60px; }
+          .mk-row { grid-template-columns: 26px 1fr 80px 68px 76px; padding: 12px 12px; }
+          .mk-hdr { grid-template-columns: 26px 1fr 80px 68px 76px; }
           .mk-hide { display: none !important; }
           .mk-spark { display: none !important; }
+          .mk-trade-btn { padding: 5px 8px !important; font-size: 10px !important; }
         }
         @media (max-width: 420px) {
           .mk-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
-          .mk-row { grid-template-columns: 26px 1fr 68px 60px 56px; padding: 11px 8px; gap: 4px; }
-          .mk-hdr { grid-template-columns: 26px 1fr 68px 60px 56px; padding: 8px 8px; gap: 4px; }
+          .mk-row { grid-template-columns: 26px 1fr 72px 72px; padding: 11px 10px; gap: 6px; }
+          .mk-hdr { grid-template-columns: 26px 1fr 72px 72px; padding: 8px 10px; gap: 6px; }
           .mk-col-vol { display: none !important; }
           .mk-col-change { display: none !important; }
+          .mk-trade-btn { padding: 5px 6px !important; font-size: 9px !important; }
         }
         .mk-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-bottom: 14px; }
         .mk-cats::-webkit-scrollbar { display: none; }
@@ -264,7 +266,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
       </div>
 
       {/* Table */}
-      <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(24px)', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(24px)', overflow: 'clip' }}>
 
         {/* Header */}
         <div className="mk-hdr">
@@ -346,7 +348,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
               </div>
 
               {/* Trade button */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div className="mk-trade-col" style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button
                   className="mk-trade-btn"
                   onClick={e => { e.stopPropagation(); const po = PAIRS.find(p => p.id === pair.id); if (po) onNavigateToTrade(po); }}

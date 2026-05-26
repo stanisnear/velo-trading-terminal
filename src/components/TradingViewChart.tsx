@@ -135,8 +135,8 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     widgetDiv.style.height = '100%';
     containerRef.current.appendChild(widgetDiv);
 
-    const localBG = isDark ? '#07070A' : '#faf9fd';
-    const localBG2 = isDark ? '#0E0E13' : '#f3f1fa';
+    const localBG = isDark ? '#07070A' : '#f3f1fa';
+    const localBG2 = isDark ? '#0E0E13' : '#ebe8f5';
     const localGRID = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,14,0.06)';
     const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(84,85,100,0.75)';
 
