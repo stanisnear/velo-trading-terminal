@@ -20,6 +20,7 @@ import { fetchRealPrices, binancePriceStream, fetchKlines } from './services/pri
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient } from 'wagmi';
+import { useAppKit } from '@reown/appkit/react';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
 import { VeloBridgeModal } from './components/VeloBridgeModal';
@@ -696,7 +697,7 @@ const UsersListModal = ({ isOpen, onClose, title, userIds, traders, onViewProfil
     );
 };
 // ── Profile Avatar Popup (navbar click) ──────────────────────────────────────
-const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, totalEquity, anchorRef }: any) => {
+const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, onOpenWallet, totalEquity, anchorRef }: any) => {
     const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
     const [copied, setCopied] = React.useState(false);
 
@@ -773,7 +774,8 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
                     {[
                         { icon: <PlusCircle size={14} />, label: 'Create a Post', onClick: () => { onCreatePost(); onClose(); } },
                         { icon: <UserCircle size={14} />, label: 'View Profile', onClick: () => { onViewProfile(); onClose(); } },
-                        { icon: <Settings size={14} />, label: 'Wallet & Settings', onClick: () => { onOpenSettings?.(); onClose(); } },
+                        { icon: <Wallet size={14} />, label: 'Open Wallet', onClick: () => { onOpenWallet?.(); onClose(); } },
+                        { icon: <Settings size={14} />, label: 'Settings', onClick: () => { onOpenSettings?.(); onClose(); } },
                     ].map((item, i) => (
                         <button key={i} onClick={item.onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)', textAlign: 'left', letterSpacing: '0.04em', transition: 'background 0.1s' }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'}
@@ -796,6 +798,7 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
 };
 
 const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner }: any) => {
+    const { open: openWalletModal } = useAppKit();
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -899,6 +902,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                                 onCreatePost={() => { setActiveTab(TabView.SOCIAL); }}
                                 onOpenSettings={onOpenSettings}
                                 onLogout={handleLogout}
+                                onOpenWallet={() => openWalletModal({ view: 'Account' })}
                             />
                         )}
                     </div>
@@ -4004,6 +4008,28 @@ const App = () => {
         setBurnerAddress(cached.veloAddress as `0x${string}`);
       }
     }, [walletAddress]);
+
+    // ── Social login onboarding trigger ────────────────────────────────────
+    // When AppKit finishes a social/email login, isWalletConnected flips true
+    // but isLoginOpen is false (AppKit handled the login without the user
+    // explicitly opening AuthModal). If there's no user yet, open AuthModal
+    // so the splash → name → email onboarding flow runs automatically.
+    const socialLoginHandledRef = useRef(false);
+    useEffect(() => {
+      if (!isWalletConnected || !walletAddress) {
+        socialLoginHandledRef.current = false; // reset on disconnect
+        return;
+      }
+      if (user) return;            // already authenticated
+      if (isLoginOpen) return;     // AuthModal already open
+      if (socialLoginHandledRef.current) return; // already triggered
+      socialLoginHandledRef.current = true;
+      // Small delay so AppKit modal fully closes before AuthModal opens
+      setTimeout(() => {
+        socialLoginHandledRef.current = false;
+        setLoginOpen(true);
+      }, 400);
+    }, [isWalletConnected, walletAddress, user, isLoginOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Velo Welcome onboarding (Phase 3) ─────────────────────────────────
     // Opens ONLY AFTER account creation completes (i.e. `user` is set). This

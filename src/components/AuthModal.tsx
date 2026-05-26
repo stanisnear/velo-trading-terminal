@@ -2,7 +2,7 @@
 // Apple-quality onboarding + MetaMask-style wallet UX
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useAppKit, useAppKitState } from '@reown/appkit/react';
+import { useAppKit, useAppKitState, useAppKitAccount } from '@reown/appkit/react';
 import { useAccount, useDisconnect, useChainId } from 'wagmi';
 import { isConfigured as isSupabaseConfigured, supabase } from '../services/supabaseStore';
 
@@ -167,6 +167,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const chainId = useChainId();
   const { open: openAppKit } = useAppKit();
   const { open: appKitModalOpen } = useAppKitState();
+  // embeddedWalletInfo is populated after social/email login — gives us the
+  // user's real email so we can pre-fill the optional email step.
+  const { embeddedWalletInfo } = useAppKitAccount();
+  const socialEmail: string = (embeddedWalletInfo as any)?.user?.email ?? '';
 
   // When AppKit modal closes without a wallet connecting (user cancelled),
   // restore AuthModal visibility so they can try again.
@@ -337,6 +341,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           if (existing) { setFieldError('Username already taken — choose another'); return; }
         }
       }
+      // Pre-fill with social provider email if the field is still empty
+      if (!email && socialEmail) setEmail(socialEmail);
       setFieldError(''); setStep('email'); return;
     }
     if (step === 'email') {

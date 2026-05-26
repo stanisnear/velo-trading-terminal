@@ -63,6 +63,8 @@ createAppKit({
     socials: ['google', 'x', 'discord', 'github'],
     // Keep the standard wallet list (MetaMask, WalletConnect QR, Coinbase, etc.)
     walletConnect: true,
+    // Disable buy/onramp — this is testnet, no real-money purchasing.
+    onramp: false,
   },
   themeMode: 'dark',
   themeVariables: {

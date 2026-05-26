@@ -491,3 +491,22 @@ When a user connects via Google/Discord/etc., AppKit creates a Reown-managed **e
 - `src/index.tsx` — injects a `<style>` tag at startup forcing `w3m-modal` and `wcm-modal` web components to `z-index: 99999` so AppKit always renders above all Velo modals.
 
 **New gotcha:** AppKit's modal is a web component (`<w3m-modal>`) injected at `document.body` level. Its default z-index is lower than custom modals using `z-index: 9999`. Always ensure the style override in `index.tsx` is present when using AppKit alongside custom modal stacks.
+
+### 2025-05-26 — Social login onboarding, email pre-fill, wallet popup, buy crypto removal
+
+**Problem set fixed in this session:**
+
+1. **Social login onboarding not appearing** — After signing in via Google/Discord/etc., AppKit closes its modal and `isConnected` flips `true`, but `isLoginOpen` is `false` (the user never explicitly opened `AuthModal`). The existing wallet-connect effect in `AuthModal.tsx` guards on `if (!isOpen) return`, so it never fired. Fixed by adding a new `useEffect` in `App.tsx` that watches `isWalletConnected` + `walletAddress`: if a wallet connects while `user` is null and `isLoginOpen` is false, it calls `setLoginOpen(true)` after a 400ms delay (so AppKit's modal fully closes first). A `socialLoginHandledRef` prevents re-firing.
+
+2. **Email pre-fill from social login** — When the onboarding reaches the email step, the user had to type their Google email manually. Fixed by importing `useAppKitAccount` in `AuthModal.tsx` and reading `embeddedWalletInfo.user.email`. When `advance()` transitions from `step === 'name'` to `step === 'email'`, if the email field is empty and `socialEmail` is non-empty, it calls `setEmail(socialEmail)` before the step transition.
+
+3. **"Buy Crypto" button in AppKit wallet modal** — Unwanted on testnet. Fixed by adding `onramp: false` to the `features` object in `web3Config.ts`.
+
+4. **Header username menu — added "Open Wallet" option** — Clicking the username in the navbar opened `ProfileAvatarPopup` but had no way to open the AppKit wallet modal. Added an "Open Wallet" menu item (Wallet icon) that calls `openWalletModal({ view: 'Account' })`. The `Navbar` component now calls `useAppKit()` directly (it's a standalone React component at module level, so hook calls are legal). The `ProfileAvatarPopup` receives a new `onOpenWallet` prop. The "Wallet & Settings" option was renamed to "Settings" for clarity.
+
+**Files changed:**
+- `src/services/web3Config.ts` — added `onramp: false` to `features`
+- `src/components/AuthModal.tsx` — imported `useAppKitAccount`; added `embeddedWalletInfo` + `socialEmail` derived values; pre-fill email on name→email step transition
+- `src/App.tsx` — imported `useAppKit` from `@reown/appkit/react`; added `socialLoginHandledRef` + `useEffect` social login trigger before the Velo Welcome onboarding block; `Navbar` now calls `useAppKit()` for its own `openWalletModal`; `ProfileAvatarPopup` has new `onOpenWallet` prop and "Open Wallet" menu item
+
+**New gotcha:** `embeddedWalletInfo` from `useAppKitAccount` is typed loosely — accessing `.user?.email` requires a cast to `any` (`(embeddedWalletInfo as any)?.user?.email`) because the AppKit type definition doesn't expose the nested user shape in the installed version. This will likely clean up in a future AppKit release.
