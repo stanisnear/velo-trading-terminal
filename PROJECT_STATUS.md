@@ -1060,6 +1060,60 @@ This batch is light cleanup work after the heavier batch 7 architectural changes
 5. Check Vercel deploy preview's network tab on first load: should see separate `appkit-*.js`, `viem-*.js`, `wagmi-*.js`, `walletconnect-*.js`, `supabase-*.js`, `charts-*.js`, `icons-*.js`, and `index-*.js` chunks instead of one monolithic bundle.
 6. Push a one-character whitespace change to App.tsx, deploy, refresh. The `index-*.js` chunk hash should change; the `appkit-*.js` and `viem-*.js` chunk hashes should NOT change (browser cache hit).
 
+### 2026-05-27 — Build 82: Remove fake on-chain features, real liquidation math, Supabase V3 migration
+
+**Context:** After completing the V3 full-wiring pass (Build 80), a plain-English audit of which features are genuinely on-chain vs misleading UI was requested. This build removes or corrects every feature that was either using fake/derived data or referencing the old Orderly order-book model that is no longer connected.
+
+**What was removed (fake / not real on-chain):**
+
+1. **Funding Rate chart overlay** — The "Funding Rate" toggle in the chart overlay bar has been removed. The V3 contract has a `fundingIndex` mapping but no `accrueFunding` keeper function is deployed or called; no funding payment ever flows between longs and shorts in the current build. Showing a toggle for it implied something was happening that wasn't. The toggle is gone from the overlay bar and `funding` is removed from the default `overlays` state in TradeView.
+
+2. **Fake CROSS "Buffer" column** — The positions table Buffer column previously showed a "shared pool health" percentage for CROSS positions. This was computed from the Orderly balance (if connected), the total cross notional, and some invented pool PnL math. None of this matched what the V3 contract actually tracks. The CROSS buffer now uses the same formula as ISOLATED: `|(markPrice − liqPrice)| / markPrice × 100`. This is the real on-chain metric — how far the current price is from forced liquidation.
+
+3. **Fake CROSS liq price cell** — The liq price column for CROSS positions previously used a `crossPoolPerNotional` heuristic invented from the same fake pool-health model. Now uses the computed liq price: if `p.liquidationPrice > 0` (set from on-chain sync), that value is used directly; otherwise it's computed from the V3 formula `entry × (1 ± 0.9 / leverage)` (matching the 9000 BPS threshold in the contract). The "POOL" badge that appeared on CROSS buffer cells is also removed — it implied the buffer reflected something about the shared pool, which it didn't.
+
+**What was added (Supabase V3 migration):**
+
+`SUPABASE_MIGRATION_V3.sql` — run this once in the Supabase SQL editor:
+- Adds `on_chain_order_id BIGINT` to `open_orders`. This is the contract's `orderId` returned by `placeConditionalOrder`. Without it, there's no way to match a Supabase row to its on-chain order for cancellation or status sync. Previously, the on-chain `orderId` was shown in a toast but never persisted.
+- Adds `tx_hash TEXT` to `open_orders`. Stores the placement transaction hash so users can click through to BaseScan.
+- Ensures `margin_mode` column exists with a CHECK constraint that accepts both `'ISOLATED'` and `'CROSS'`. Previous migration only set the column, not the constraint.
+- Adds an index on `on_chain_order_id` for fast lookup during order-status sync.
+- Issues `NOTIFY pgrst, 'reload schema'` so PostgREST picks up new columns immediately.
+
+**Plain-English summary of what IS real on-chain in V3 right now:**
+
+| Feature | On-chain? | Notes |
+|---------|-----------|-------|
+| Open position (isolated) | ✅ | Collateral sent to contract, position recorded on-chain |
+| Open position (cross) | ✅ | Uses cross ledger inside contract |
+| Deposit to cross ledger | ✅ | `depositCross` function |
+| Withdraw from cross ledger | ✅ | `withdrawCross` function |
+| TP / SL triggers | ✅ | Set on-chain, keeper calls `closeIfTriggered` |
+| Liquidation | ✅ | Keeper (or anyone) calls `liquidate` when health < 10% |
+| LIMIT / STOP conditional orders | ✅ | `placeConditionalOrder` + keeper `executeConditionalOrder` |
+| Buffer / liq price display | ✅ | Now computed from real contract formula |
+| Funding rate | ❌ | Not implemented in deployed V3. No keeper accrues it. No UI toggle. |
+| Insurance fund | ❌ | No separate fund. Protocol fees accumulate in `feeBalance`. Losses capped at collateral. |
+| Funding Rate chart overlay | ❌ removed | Was showing nothing; now hidden entirely |
+
+**Files changed:**
+- `src/TradeView.tsx` — Funding Rate overlay toggle removed; CROSS buffer + liq price now use real per-position math; fake pool-health variables deleted; "POOL" badge removed from buffer cell.
+- `SUPABASE_MIGRATION_V3.sql` — new file (run in Supabase SQL editor).
+- `PROJECT_STATUS.md` — this entry.
+
+**What Stan needs to do after this deploy:**
+1. Run `SUPABASE_MIGRATION_V3.sql` in the Supabase SQL editor (Project → SQL Editor → New query → paste → Run).
+2. Verify Vercel has `VITE_VELO_PERPS_V3_ADDRESS=0x3780e858B76027E6D6cB0c74E863f712a0F0E27E` set (from Build 80 instructions).
+3. Redeploy. No code changes to App.tsx needed for this build — only TradeView.tsx changed.
+4. After deploy: open a CROSS position, check the Buffer column shows a real percentage (not "POOL" badge), and the liq price shows a real price (not "—").
+
+**New gotchas:**
+- The `on_chain_order_id` column is nullable. Old rows (off-chain orders, or orders placed before this migration) will have `NULL` there — that's correct and expected. Code that cancels on-chain orders should check `on_chain_order_id IS NOT NULL` before trying to call the V3 `cancelConditionalOrder` function.
+- Funding rate display may be requested again by investors. The correct path is: (a) deploy a keeper that reads `fundingIndex` from V3, computes the annualised rate, and stores it in Supabase; (b) read from Supabase in the UI. Do NOT show a fake static number. It's better to not show it than to mislead.
+- The computed liq price formula (`entry × (1 ± 0.9 / leverage)`) matches the V3 contract's `LIQUIDATION_THRESHOLD_BPS = 9000` constant. If this constant is ever changed in a future contract version, the formula must be updated too. Check `contracts/VeloPerpsV3.sol` if liq prices look wrong after a contract upgrade.
+- If a CROSS position has `p.liquidationPrice > 0` from on-chain sync, that value takes precedence over the formula. The formula is only a fallback for positions synced from the old V2 path (which didn't populate `liquidationPrice` for cross). Over time, all positions will have the real value and the formula fallback becomes irrelevant.
+
 ### 2026-05-27 — Build 81: Close modal, TP/SL improvements, price source label
 
 **Problems fixed (from user-reported issues on production):**
