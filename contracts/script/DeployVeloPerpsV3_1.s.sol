@@ -8,7 +8,7 @@ import {IPythV2} from "../src/interfaces/IPythV2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract DeployVeloPerpsV3_1 is Script {
-    // Same addresses as V3 — same chain, same USDC, same Pyth contract
+    // Same addresses as V3 - same chain, same USDC, same Pyth contract
     address constant PYTH_BASE_SEPOLIA = 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729;
     address constant MUSDC_BASE_SEPOLIA = 0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699;
 
@@ -67,7 +67,7 @@ contract DeployVeloPerpsV3_1 is Script {
         console2.log("");
         console2.log("=== V3.1 deployment complete ===");
         console2.log("VeloPerpsV3_1:", address(perps));
-        console2.log("KEY CHANGE: uses parsePriceFeedUpdates — price read from VAA blob,");
+        console2.log("KEY CHANGE: uses parsePriceFeedUpdates - price read from VAA blob,");
         console2.log("not from on-chain cache. Corrupt entry price bug eliminated.");
         console2.log("");
         console2.log("Next:");

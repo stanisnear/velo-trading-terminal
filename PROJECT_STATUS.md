@@ -217,7 +217,8 @@ contracts/
 
 | Variable | Required | Current value | Purpose |
 |----------|----------|---------------|---------|
-| `VITE_VELO_PERPS_V2_ADDRESS` | **YES** | `0x8D4b792137252D79FB3Ae953AA619fA57101665f` | Routes trades to V2 |
+| `VITE_VELO_PERPS_V3_ADDRESS` | **YES** | `0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907` | Routes trades to V3.1 (active) |
+| `VITE_VELO_PERPS_V2_ADDRESS` | legacy | `0x8D4b792137252D79FB3Ae953AA619fA57101665f` | Keep set for legacy position reads |
 | `VITE_VELO_PERPS_ADDRESS` | Optional | unset (defaults to V1) | Override V1 |
 | `VITE_VELO_USDC_BASE` | Optional | unset (defaults to live mUSDC) | Override mUSDC |
 | `VITE_BASE_SEPOLIA_RPC_URL` | Recommended | (any working RPC) | Public RPC override |
@@ -323,6 +324,8 @@ The schema enables RLS on every table; if a write fails silently and trade histo
 
 ```bash
 export RPC=https://base-sepolia-rpc.publicnode.com
+export V3_1=0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907
+export V3=0x3780e858B76027E6D6cB0c74E863f712a0F0E27E
 export V2=0x8D4b792137252D79FB3Ae953AA619fA57101665f
 export V1=0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163
 export MUSDC=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699
@@ -495,6 +498,57 @@ If you do NOT update this file, the next agent will have stale context and will 
 ---
 
 ## Change log
+
+### 2026-05-28 — V3.1 deployment: oracle corrupt entry price fix
+
+**Root cause fixed:** The V3 contract used `PYTH.updatePriceFeeds(updateData)` then `PYTH.getPriceNoOlderThan(feedId, 60)` to read the oracle price when opening positions. On Base Sepolia testnet, `updatePriceFeeds` silently no-ops if the incoming VAA's `publishTime` is not strictly newer than what is already cached on-chain. When that happens the contract falls through to read the stale/cold cache, which can hold a near-zero sentinel value — producing `entryPrice_E18 ≈ 10000` (`$0.000001`). No frontend fix is possible for this; it required a contract change.
+
+**V3.1 fix:** Replaced `_pushPythUpdate() + _readPrice()` with `_extractPrice()` which calls `PYTH.parsePriceFeedUpdates()`. This function reads the price directly from the VAA blob passed in the transaction — it completely bypasses the on-chain cache. The price stored as `entryPrice_E18` is now always the price in the data you submitted, regardless of cache staleness.
+
+**Files changed:**
+- `contracts/src/VeloPerpsV3_1.sol` — new contract, identical to V3 except `_extractPrice` replaces `_pushPythUpdate + _readPrice` throughout all trading paths. The `quoteUnrealisedPnL` view function still uses `getPriceNoOlderThan` (read-only, no trade execution risk).
+- `contracts/src/interfaces/IPythV2.sol` — adds `parsePriceFeedUpdates` to the Pyth interface.
+- `contracts/src/libraries/PerpsMath.sol` — unchanged functionally; em-dash comments fixed for Solidity ASCII compliance.
+- `contracts/script/DeployVeloPerpsV3_1.s.sol` — deploy + register all 17 pairs in one script.
+- `contracts/deployments/base_sepolia.json` — updated with V3.1 address.
+- `PROJECT_STATUS.md` — this entry.
+
+**Deployed contract:** `0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907` on Base Sepolia (chain 84532).
+
+**Action items:**
+1. Update Vercel: `VITE_VELO_PERPS_V3_ADDRESS=0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907` → trigger redeploy.
+2. Transfer mUSDC pool from V3 to V3.1 (see cast commands below).
+3. Verify V3.1 on BaseScan via Standard JSON Input (same process as V3).
+
+**Transfer pool from V3 → V3.1 (owner wallet required):**
+```bash
+export RPC=https://base-sepolia-rpc.publicnode.com
+export V3=0x3780e858B76027E6D6cB0c74E863f712a0F0E27E
+export V3_1=0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907
+export MUSDC=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699
+export OWNER=0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b
+
+# Check current V3 pool balance
+cast call $MUSDC "balanceOf(address)(uint256)" $V3 --rpc-url $RPC
+
+# Withdraw protocol fees from V3 to owner first (clears feeBalance)
+cast send $V3 "withdrawFees()" --rpc-url $RPC --private-key $PRIVATE_KEY
+
+# Check pool balance again (net of fees)
+cast call $MUSDC "balanceOf(address)(uint256)" $V3 --rpc-url $RPC
+
+# Transfer the remaining pool to V3.1
+# Replace <AMOUNT> with the balance from above
+cast send $MUSDC "transfer(address,uint256)" $V3_1 <AMOUNT> --rpc-url $RPC --private-key $PRIVATE_KEY
+
+# Verify V3.1 pool received it
+cast call $MUSDC "balanceOf(address)(uint256)" $V3_1 --rpc-url $RPC
+```
+
+**New gotchas:**
+- `parsePriceFeedUpdates` requires a fee (same as `updatePriceFeeds`) — the fee path in the service is unchanged and already sends the correct fee.
+- V3 and V3.1 have identical ABIs from the frontend's perspective. Switching the env var is the only required change.
+- Any positions still open on V3 must be closed against V3's address directly. The frontend should keep V3 readable for position history even after switching to V3.1 as the active contract.
 
 ### 2026-05-27 — V3 full wiring: cross margin, conditional orders, TP/SL keepers, cross account modal
 

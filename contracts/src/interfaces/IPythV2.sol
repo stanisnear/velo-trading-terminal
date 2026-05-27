@@ -37,7 +37,7 @@ interface IPythV2 {
     function getPriceNoOlderThan(bytes32 id, uint age) external view returns (Price memory);
 
     /**
-     * @notice Parse price feeds directly from the VAA blob — does NOT update the cache.
+     * @notice Parse price feeds directly from the VAA blob - does NOT update the cache.
      *         Returns the price embedded in the blob regardless of what's in cache.
      *         Caller pays getUpdateFee(updateData) in msg.value.
      *

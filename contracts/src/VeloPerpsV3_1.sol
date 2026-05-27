@@ -606,7 +606,7 @@ contract VeloPerpsV3_1 is Ownable, ReentrancyGuard {
         Position memory p = positions[tradeId];
         if (p.owner == address(0)) return (0, 0);
 
-        IPyth.Price memory pp = PYTH.getPriceNoOlderThan(pairFeedId[p.pairIndex], PYTH_MAX_AGE_SECONDS);
+        IPythV2.Price memory pp = PYTH.getPriceNoOlderThan(pairFeedId[p.pairIndex], PYTH_MAX_AGE_SECONDS);
         markPrice_E18 = PerpsMath.normalisePythPrice(pp.price, pp.expo);
         pnl_6 = PerpsMath.computePnL(p.collateralUSDC_6, p.leverage, p.entryPrice_E18, markPrice_E18, p.isLong);
     }
@@ -770,7 +770,7 @@ contract VeloPerpsV3_1 is Ownable, ReentrancyGuard {
 
     /**
      * @notice Extract the price for `feedId` directly from the VAA blob.
-     *         Uses parsePriceFeedUpdates — does NOT depend on the on-chain cache.
+     *         Uses parsePriceFeedUpdates - does NOT depend on the on-chain cache.
      *         This is the V3.1 fix: updatePriceFeeds() silently no-ops when the
      *         incoming publishTime <= cached publishTime on testnet, causing
      *         _readPrice() to return a stale near-zero value.  parsePriceFeedUpdates()

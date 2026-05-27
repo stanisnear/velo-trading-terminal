@@ -9,7 +9,7 @@ pragma solidity ^0.8.22;
  * Decimal conventions used throughout VeloPerps:
  *   USDC                       6 decimals (matches Circle USDC everywhere)
  *   Pyth price                 int64 with int32 expo (typically -8 for crypto)
- *   Internal price (PRICE_E18) 18-decimal fixed point — what we store / reason about
+ *   Internal price (PRICE_E18) 18-decimal fixed point - what we store / reason about
  *   Leverage                   integer 1..MAX_LEVERAGE (no fractional leverage in v1)
  *   Basis points               1 bp = 1/10000
  *
@@ -44,7 +44,7 @@ library PerpsMath {
     /**
      * @notice Unrealised PnL of a position, in signed 1e6 USDC.
      * @dev    pnl = collateral * leverage * (mark - entry) / entry, sign-flipped for shorts.
-     *         Massive headroom for sane values — collateral 1e12 * lev 25 fits easily in uint256.
+     *         Massive headroom for sane values - collateral 1e12 * lev 25 fits easily in uint256.
      */
     function computePnL(
         uint256 collateralUSDC_6,
