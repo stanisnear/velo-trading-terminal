@@ -1640,20 +1640,6 @@ export const TradeView = ({
                         )}
 
                         <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : (orderType === 'MARKET' ? 10 : 6), justifyContent: isMobile ? undefined : 'space-between', opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
-</div>
-                                        {crossTotalBalance > 0 && crossTotalBalance !== crossFreeBalance && (
-                                            <div style={{ ...S.label, fontSize: 8, color: 'var(--fg-subtle)' }}>
-                                                ${crossTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => onOpenCrossAccount(crossFreeBalance === 0 ? 'DEPOSIT' : 'WITHDRAW')}
-                                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid oklch(0.68 0.22 295/0.35)', background: 'oklch(0.68 0.22 295/0.12)', color: 'var(--iris-violet)', cursor: 'pointer', ...S.label, fontSize: 9 }}>
-                                        {crossFreeBalance === 0 ? 'Deposit →' : 'Manage'}
-                                    </button>
-                                </div>
-                            )}
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
