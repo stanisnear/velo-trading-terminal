@@ -1657,7 +1657,7 @@ export const TradeView = ({
                             </div>
                         )}
 
-                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : 5, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: 1, minHeight: 0 }}>
+                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : 5, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto' }}>
 
                             {/* Margin mode toggle */}
                             <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 12, padding: 3, border: '1px solid var(--hairline)' }}>
@@ -1848,7 +1848,7 @@ export const TradeView = ({
                                 background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
                                 color: side === 'LONG' ? '#0a1a10' : '#fff',
                                 boxShadow: side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
-                                marginTop: 'auto',
+                                marginTop: 0,
                             }}>
                                 {user ? (
                                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
