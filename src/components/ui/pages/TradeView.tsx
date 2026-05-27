@@ -1639,7 +1639,7 @@ export const TradeView = ({
                             </div>
                         )}
 
-                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : (orderType === 'MARKET' ? 10 : 6), justifyContent: isMobile ? undefined : 'space-between', opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
+                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : 8, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>

@@ -15,6 +15,7 @@ const S = {
 };
 
 type Tab = 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS';
+type SuccessKind = 'close' | 'triggers' | 'add' | 'reduce';
 
 interface Actions {
   addMargin:    (tradeId: bigint, amountUSDC: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
@@ -24,16 +25,17 @@ interface Actions {
 }
 
 interface Props {
-  isOpen:       boolean;
-  onClose:      () => void;
-  position:     Position | null;
-  currentPrice: number;
-  actions:      Actions;
-  initialTab?:  Tab;
+  isOpen:         boolean;
+  onClose:        () => void;
+  position:       Position | null;
+  currentPrice:   number;
+  userBalance?:   number;
+  actions:        Actions;
+  initialTab?:    Tab;
 }
 
 export const VeloManagePositionModal: React.FC<Props> = ({
-  isOpen, onClose, position, currentPrice, actions, initialTab,
+  isOpen, onClose, position, currentPrice, userBalance = 0, actions, initialTab,
 }) => {
   const [tab,          setTab]          = useState<Tab>(initialTab || 'PARTIAL');
   const [busy,         setBusy]         = useState(false);
@@ -45,9 +47,8 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   const [tp,           setTp]           = useState('');
   const [sl,           setSl]           = useState('');
   const [closing,      setClosing]      = useState(false);
-  const [success,      setSuccess]      = useState<{ txHash: `0x${string}`; pct: number } | null>(null);
+  const [success,      setSuccess]      = useState<{ txHash: `0x${string}`; kind: SuccessKind; pct?: number; amount?: number } | null>(null);
 
-  // Smooth animated dismiss — fades + slides down, then fires onClose
   const dismiss = React.useCallback((delay = 0) => {
     setTimeout(() => {
       setClosing(true);
@@ -66,20 +67,31 @@ export const VeloManagePositionModal: React.FC<Props> = ({
     }
   }, [isOpen, position, initialTab]);
 
-  // Stay mounted while closing so the exit animation can play
   if (!isOpen && !closing) return null;
   if (!position) return null;
 
-  const collateral = position.size / position.leverage;
-  // Guard: corrupt entry price (near-zero) means PnL would be nonsense — show N/A instead
-  const entryValid = position.entryPrice > 0.0001;
-  const pnl = entryValid
+  const collateral  = position.size / position.leverage;
+  const entryValid  = position.entryPrice > 0.0001;
+  const pnl         = entryValid
     ? (currentPrice - position.entryPrice) * (position.side === 'LONG' ? 1 : -1) * (position.size / position.entryPrice)
     : 0;
-  const pnlPct = entryValid && collateral > 0 ? (pnl / collateral) * 100 : 0;
-  const tradeId = position.onChainTradeId ? BigInt(position.onChainTradeId) : 0n;
-  const isV1 = !position.onChain || tradeId === 0n;
-  const ok = IS_V2 && !isV1;
+  const pnlPct      = entryValid && collateral > 0 ? (pnl / collateral) * 100 : 0;
+  const tradeId     = position.onChainTradeId ? BigInt(position.onChainTradeId) : 0n;
+  const isV1        = !position.onChain || tradeId === 0n;
+  const ok          = IS_V2 && !isV1;
+
+  // TP/SL expected PnL previews
+  const tpNum = parseFloat(tp) || 0;
+  const slNum = parseFloat(sl) || 0;
+  const sizeInUnits = entryValid ? position.size / position.entryPrice : 0;
+  const tpPnl = tpNum > 0 && entryValid
+    ? (tpNum - position.entryPrice) * (position.side === 'LONG' ? 1 : -1) * sizeInUnits
+    : null;
+  const slPnl = slNum > 0 && entryValid
+    ? (slNum - position.entryPrice) * (position.side === 'LONG' ? 1 : -1) * sizeInUnits
+    : null;
+  const tpPct = tpPnl !== null && collateral > 0 ? (tpPnl / collateral) * 100 : null;
+  const slPct = slPnl !== null && collateral > 0 ? (slPnl / collateral) * 100 : null;
 
   const handle = async (kind: Tab) => {
     setBusy(true); setError(''); setLastTx(null);
@@ -89,31 +101,37 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         const amt = parseFloat(addAmount);
         if (!(amt > 0)) throw new Error('Enter an amount');
         res = await actions.addMargin(tradeId, amt);
+        setLastTx(res.txHash);
+        setSuccess({ txHash: res.txHash, kind: 'add', amount: amt });
+        dismiss(2600);
       } else if (kind === 'REDUCE') {
         const amt = parseFloat(reduceAmount);
         if (!(amt > 0)) throw new Error('Enter an amount');
         if (amt >= collateral) throw new Error('Cannot withdraw all collateral — use Close instead');
         res = await actions.reduceMargin(tradeId, amt, position.pair);
+        setLastTx(res.txHash);
+        setSuccess({ txHash: res.txHash, kind: 'reduce', amount: amt });
+        dismiss(2600);
       } else if (kind === 'PARTIAL') {
         if (closePct <= 0 || closePct > 100) throw new Error('Invalid %');
         res = await actions.partialClose(tradeId, Math.round(closePct * 100), position.pair);
+        setLastTx(res.txHash);
+        setSuccess({ txHash: res.txHash, kind: 'close', pct: closePct });
+        dismiss(2800);
       } else {
-        const tpNum = parseFloat(tp) || 0;
-        const slNum = parseFloat(sl) || 0;
+        const tpV = parseFloat(tp) || 0;
+        const slV = parseFloat(sl) || 0;
         if (position.side === 'LONG') {
-          if (tpNum && tpNum <= position.entryPrice) throw new Error('TP must be above entry for a long');
-          if (slNum && slNum >= position.entryPrice) throw new Error('SL must be below entry for a long');
+          if (tpV && tpV <= position.entryPrice) throw new Error('TP must be above entry for a long');
+          if (slV && slV >= position.entryPrice) throw new Error('SL must be below entry for a long');
         } else {
-          if (tpNum && tpNum >= position.entryPrice) throw new Error('TP must be below entry for a short');
-          if (slNum && slNum <= position.entryPrice) throw new Error('SL must be above entry for a short');
+          if (tpV && tpV >= position.entryPrice) throw new Error('TP must be below entry for a short');
+          if (slV && slV <= position.entryPrice) throw new Error('SL must be above entry for a short');
         }
-        res = await actions.setTriggers(tradeId, tpNum, slNum);
-      }
-      setLastTx(res.txHash);
-      const isFullClose = (kind === 'PARTIAL' && closePct >= 100);
-      if (isFullClose) {
-        setSuccess({ txHash: res.txHash, pct: closePct });
-        dismiss(2800); // show success screen, then animate out
+        res = await actions.setTriggers(tradeId, tpV, slV);
+        setLastTx(res.txHash);
+        setSuccess({ txHash: res.txHash, kind: 'triggers' });
+        dismiss(2600);
       }
     } catch (e: any) {
       setError(e?.shortMessage || e?.message || 'Action failed');
@@ -129,6 +147,27 @@ export const VeloManagePositionModal: React.FC<Props> = ({
     { id: 'REDUCE',   icon: <Minus size={13} />,      label: 'Reduce' },
   ];
 
+  const successTitle = () => {
+    if (!success) return '';
+    if (success.kind === 'close') return success.pct === 100 ? 'Position Closed' : `${success.pct}% Closed`;
+    if (success.kind === 'triggers') return 'Triggers Saved';
+    if (success.kind === 'add') return `+$${(success.amount || 0).toFixed(2)} Added`;
+    return `$${(success.amount || 0).toFixed(2)} Withdrawn`;
+  };
+  const successSub = () => {
+    if (!success) return '';
+    if (success.kind === 'close') return `${position.pair} · ${position.side} · ${position.leverage}×`;
+    if (success.kind === 'triggers') return 'On-chain triggers updated';
+    if (success.kind === 'add') return 'Collateral added · liquidation risk lowered';
+    return 'Collateral withdrawn to trading wallet';
+  };
+  const successColor = () => {
+    if (!success) return 'oklch(0.78 0.18 150)';
+    if (success.kind === 'close' && pnl < 0) return 'oklch(0.65 0.22 15)';
+    if (success.kind === 'reduce') return 'oklch(0.68 0.22 295)';
+    return 'oklch(0.78 0.18 150)';
+  };
+
   return (
     <>
       <style>{`
@@ -138,6 +177,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         @keyframes velo-bg-out    { from { opacity:1 } to { opacity:0 } }
         @keyframes velo-check-pop { from { opacity:0; transform:scale(0.5) } to { opacity:1; transform:scale(1) } }
         @keyframes velo-check-draw { from { stroke-dashoffset:28 } to { stroke-dashoffset:0 } }
+        @keyframes velo-pnl-in { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:translateY(0) } }
       `}</style>
       <div
         onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
@@ -161,78 +201,64 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           WebkitBackdropFilter: 'blur(40px)',
           overflow: 'hidden',
           animation: closing ? 'velo-modal-out 0.35s cubic-bezier(0.4,0,1,1) forwards' : 'velo-modal-in 0.25s cubic-bezier(0,0,0.2,1) forwards',
-      }}>
+        }}>
 
         {/* gradient top accent */}
         <div style={{
           height: 2,
-          background: 'linear-gradient(90deg, oklch(0.68 0.22 295), oklch(0.72 0.20 240), oklch(0.68 0.22 295))',
+          background: position.side === 'LONG'
+            ? 'linear-gradient(90deg, oklch(0.78 0.18 150), oklch(0.68 0.22 295), oklch(0.72 0.20 240))'
+            : 'linear-gradient(90deg, oklch(0.65 0.22 15), oklch(0.68 0.22 295), oklch(0.72 0.20 240))',
         }} />
 
-        {/* ── SUCCESS SCREEN ── replaces body on full close confirm */}
+        {/* SUCCESS SCREEN */}
         {success ? (
           <div style={{
             padding: '40px 28px 36px',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
             animation: 'velo-modal-in 0.3s cubic-bezier(0,0,0.2,1) forwards',
           }}>
-            {/* big animated checkmark */}
             <div style={{
               width: 72, height: 72, borderRadius: '50%',
-              background: 'oklch(0.78 0.18 150 / 0.12)',
-              border: '1.5px solid oklch(0.78 0.18 150 / 0.4)',
+              background: `color-mix(in oklch, ${successColor()} 12%, transparent)`,
+              border: `1.5px solid color-mix(in oklch, ${successColor()} 40%, transparent)`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               marginBottom: 20,
               animation: 'velo-check-pop 0.4s cubic-bezier(0.175,0.885,0.32,1.275) 0.1s both',
             }}>
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <path d="M8 16.5l5.5 5.5 10.5-11" stroke="oklch(0.78 0.18 150)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                <path d="M8 16.5l5.5 5.5 10.5-11" stroke={successColor()} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                   style={{ strokeDasharray: 28, strokeDashoffset: 0, animation: 'velo-check-draw 0.35s ease 0.3s both' }} />
               </svg>
             </div>
-            <div style={{
-              fontFamily: 'var(--font-display)', fontStyle: 'italic',
-              fontSize: 26, letterSpacing: '-0.02em', color: 'var(--fg)',
-              marginBottom: 6,
-            }}>
-              {success.pct === 100 ? 'Position Closed' : `${success.pct}% Closed`}
+            <div style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginBottom: 6 }}>
+              {successTitle()}
             </div>
-            <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-muted)',
-              marginBottom: 28,
-            }}>
-              {position.pair} · {position.side} · {position.leverage}×
+            <div style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', marginBottom: 28, textAlign: 'center' }}>
+              {successSub()}
             </div>
             <a
               href={`https://sepolia.basescan.org/tx/${success.txHash}`}
               target="_blank" rel="noopener noreferrer"
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
-                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                ...S.mono, fontSize: 11, fontWeight: 700,
                 letterSpacing: '0.06em', textTransform: 'uppercase',
                 color: 'oklch(0.68 0.22 295)',
                 padding: '10px 20px', borderRadius: 12,
                 background: 'oklch(0.68 0.22 295 / 0.08)',
                 border: '1px solid oklch(0.68 0.22 295 / 0.25)',
                 textDecoration: 'none',
-                transition: 'background 0.15s',
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-              View on BaseScan
+              <ExternalLink size={12} /> View on BaseScan
             </a>
-            <div style={{
-              marginTop: 20, fontFamily: 'var(--font-mono)', fontSize: 11,
-              color: 'var(--fg-subtle)', opacity: 0.6,
-            }}>
+            <div style={{ marginTop: 20, ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', opacity: 0.6 }}>
               Closing…
             </div>
           </div>
         ) : (
         <>
-
         {/* Header */}
         <div style={{ padding: '18px 20px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
@@ -261,15 +287,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
               </span>
             </div>
           </div>
-          <button
-            onClick={() => dismiss()}
-            style={{
-              background: 'var(--chip-bg)', border: '1px solid var(--hairline)',
-              borderRadius: 10, padding: '6px 7px', cursor: 'pointer',
-              color: 'var(--fg-muted)', display: 'flex', alignItems: 'center',
-              marginTop: 2,
-            }}
-          >
+          <button onClick={() => dismiss()} style={{ background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 10, padding: '6px 7px', cursor: 'pointer', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', marginTop: 2 }}>
             <X size={14} />
           </button>
         </div>
@@ -287,10 +305,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         {/* Tab pills */}
         <div style={{ padding: '0 16px 14px', display: 'flex', gap: 6 }}>
           {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              disabled={!ok && t.id !== 'PARTIAL'}
+            <button key={t.id} onClick={() => setTab(t.id)} disabled={!ok && t.id !== 'PARTIAL'}
               style={{
                 flex: 1, display: 'flex', flexDirection: 'column' as const,
                 alignItems: 'center', gap: 4, padding: '8px 4px',
@@ -313,12 +328,8 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         {/* Body */}
         <div style={{ padding: '0 16px 20px' }}>
 
-          {lastTx && (
-            <div style={{
-              marginBottom: 14, padding: '10px 14px', borderRadius: 14,
-              background: 'oklch(0.78 0.18 150 / 0.08)', border: '1px solid oklch(0.78 0.18 150 / 0.25)',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
+          {lastTx && !success && (
+            <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 14, background: 'oklch(0.78 0.18 150 / 0.08)', border: '1px solid oklch(0.78 0.18 150 / 0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ ...S.mono, fontSize: 11, color: 'var(--pnl-up)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <CheckCircle2 size={13} /> Confirmed on-chain
               </span>
@@ -330,11 +341,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           )}
 
           {error && (
-            <div style={{
-              marginBottom: 12, padding: '10px 14px', borderRadius: 12,
-              background: 'oklch(0.65 0.22 15 / 0.06)', border: '1px solid oklch(0.65 0.22 15 / 0.2)',
-              ...S.mono, fontSize: 11, color: 'var(--pnl-down)',
-            }}>
+            <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 12, background: 'oklch(0.65 0.22 15 / 0.06)', border: '1px solid oklch(0.65 0.22 15 / 0.2)', ...S.mono, fontSize: 11, color: 'var(--pnl-down)' }}>
               {error}
             </div>
           )}
@@ -362,11 +369,8 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                   }}>{p}%</button>
                 ))}
               </div>
-              <div style={{
-                padding: '10px 14px', borderRadius: 12, marginBottom: 14,
-                background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}>
+              {/* Est PnL row */}
+              <div style={{ padding: '10px 14px', borderRadius: 12, marginBottom: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ ...S.label }}>Est. PnL on close</span>
                 <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: entryValid ? (pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--fg-subtle)' }}>
                   {entryValid
@@ -397,11 +401,22 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                   )}
                 </div>
               )}
+
+              {/* TP input + preview */}
               <div style={{ marginBottom: 10 }}>
                 <div style={{ ...S.label, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <TrendingUp size={10} style={{ color: 'var(--pnl-up)' }} /> Take profit
                 </div>
                 <PriceInput value={tp} onChange={setTp} placeholder="Price — 0 to clear" disabled={!ok} accent="green" />
+                {tpPnl !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', marginTop: 6, borderRadius: 10, background: 'oklch(0.78 0.18 150 / 0.06)', border: '1px solid oklch(0.78 0.18 150 / 0.2)', animation: 'velo-pnl-in 0.2s ease' }}>
+                    <span style={{ ...S.label, fontSize: 9 }}>Expected profit</span>
+                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: tpPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
+                      {tpPnl >= 0 ? '+' : ''}${Math.abs(tpPnl).toFixed(2)}
+                      <span style={{ fontSize: 10, opacity: 0.7 }}> ({tpPct !== null ? (tpPct >= 0 ? '+' : '') + tpPct.toFixed(1) : '—'}%)</span>
+                    </span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
                   {[25, 50, 100, 200, 500].map((pct) => (
                     <button key={pct} onClick={() => {
@@ -411,11 +426,22 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                   ))}
                 </div>
               </div>
+
+              {/* SL input + preview */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ ...S.label, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                   <TrendingDown size={10} style={{ color: 'var(--pnl-down)' }} /> Stop loss
                 </div>
                 <PriceInput value={sl} onChange={setSl} placeholder="Price — 0 to clear" disabled={!ok} accent="red" />
+                {slPnl !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', marginTop: 6, borderRadius: 10, background: 'oklch(0.65 0.22 15 / 0.06)', border: '1px solid oklch(0.65 0.22 15 / 0.2)', animation: 'velo-pnl-in 0.2s ease' }}>
+                    <span style={{ ...S.label, fontSize: 9 }}>Max loss</span>
+                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: slPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
+                      {slPnl >= 0 ? '+' : '-'}${Math.abs(slPnl).toFixed(2)}
+                      <span style={{ fontSize: 10, opacity: 0.7 }}> ({slPct !== null ? (slPct >= 0 ? '+' : '') + slPct.toFixed(1) : '—'}%)</span>
+                    </span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
                   {[10, 25, 50, 75, 90].map((pct) => (
                     <button key={pct} onClick={() => {
@@ -432,11 +458,31 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           {/* ADD MARGIN */}
           {tab === 'ADD' && (
             <>
-              <div style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', marginBottom: 14, lineHeight: 1.5 }}>
-                More collateral → lower liquidation risk, same position size.
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)', marginBottom: 12 }}>
+                <span style={{ ...S.label, fontSize: 9 }}>Trading wallet</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--pnl-up)' }}>${userBalance.toFixed(2)} available</span>
+                  <button onClick={() => setAddAmount(userBalance.toFixed(2))} disabled={!ok || userBalance <= 0} style={{ ...S.mono, fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'oklch(0.68 0.22 295 / 0.12)', color: 'var(--iris-violet)' }}>MAX</button>
+                </div>
               </div>
               <div style={{ ...S.label, marginBottom: 6 }}>Amount (mUSDC)</div>
               <PriceInput value={addAmount} onChange={setAddAmount} placeholder="0.00" disabled={!ok} accent="violet" />
+              <div style={{ display: 'flex', gap: 5, marginTop: 8, marginBottom: 2 }}>
+                {[10, 25, 50, 100].map(amt => (
+                  <button key={amt} onClick={() => setAddAmount(String(Math.min(amt, userBalance)))} disabled={!ok || userBalance < amt} style={{ flex: 1, padding: '6px 0', borderRadius: 9, border: 'none', cursor: userBalance >= amt ? 'pointer' : 'not-allowed', ...S.mono, fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 0 1px var(--hairline) inset', color: userBalance >= amt ? 'var(--fg-muted)' : 'var(--fg-subtle)', opacity: userBalance >= amt ? 1 : 0.4 }}>${amt}</button>
+                ))}
+              </div>
+              {parseFloat(addAmount) > 0 && entryValid && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', marginTop: 8, borderRadius: 10, background: 'oklch(0.68 0.22 295 / 0.06)', border: '1px solid oklch(0.68 0.22 295 / 0.18)', animation: 'velo-pnl-in 0.2s ease' }}>
+                  <span style={{ ...S.label, fontSize: 9 }}>New collateral</span>
+                  <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--iris-violet)' }}>
+                    ${(collateral + (parseFloat(addAmount) || 0)).toFixed(2)}
+                    <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--fg-subtle)', marginLeft: 4 }}>
+                      (was ${collateral.toFixed(2)})
+                    </span>
+                  </span>
+                </div>
+              )}
               <ActionBtn busy={busy} disabled={!ok || !(parseFloat(addAmount) > 0)} onClick={() => handle('ADD')}
                 label={`Add $${(parseFloat(addAmount) || 0).toFixed(2)}`} />
             </>
@@ -445,26 +491,49 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           {/* REDUCE MARGIN */}
           {tab === 'REDUCE' && (
             <>
-              <div style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', marginBottom: 14, lineHeight: 1.5 }}>
-                Withdraw collateral from this position. Max ${collateral.toFixed(2)}.
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)', marginBottom: 12 }}>
+                <span style={{ ...S.label, fontSize: 9 }}>Current collateral</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>${collateral.toFixed(2)}</span>
+                  <button onClick={() => {
+                    const maxWithdraw = Math.max(0, collateral - 1);
+                    setReduceAmount(maxWithdraw.toFixed(2));
+                  }} disabled={!ok || collateral <= 1} style={{ ...S.mono, fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'oklch(0.68 0.22 295 / 0.12)', color: 'var(--iris-violet)' }}>MAX</button>
+                </div>
               </div>
               <div style={{ ...S.label, marginBottom: 6 }}>Amount (mUSDC)</div>
               <PriceInput value={reduceAmount} onChange={setReduceAmount} placeholder="0.00" disabled={!ok} accent="violet" />
+              <div style={{ display: 'flex', gap: 5, marginTop: 8, marginBottom: 2 }}>
+                {[25, 50, 75].map(pct => {
+                  const amt = (collateral * pct / 100);
+                  return (
+                    <button key={pct} onClick={() => setReduceAmount(amt.toFixed(2))} disabled={!ok} style={{ flex: 1, padding: '6px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 0 1px var(--hairline) inset', color: 'var(--fg-muted)' }}>{pct}%</button>
+                  );
+                })}
+                <button onClick={() => setReduceAmount(Math.max(0, collateral - 1).toFixed(2))} disabled={!ok} style={{ flex: 1, padding: '6px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 0 1px var(--hairline) inset', color: 'var(--fg-muted)' }}>MAX</button>
+              </div>
+              {parseFloat(reduceAmount) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', marginTop: 8, borderRadius: 10, background: 'oklch(0.68 0.22 295 / 0.06)', border: '1px solid oklch(0.68 0.22 295 / 0.18)', animation: 'velo-pnl-in 0.2s ease' }}>
+                  <span style={{ ...S.label, fontSize: 9 }}>Remaining collateral</span>
+                  <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: (collateral - (parseFloat(reduceAmount) || 0)) < 5 ? 'var(--pnl-down)' : 'var(--iris-violet)' }}>
+                    ${Math.max(0, collateral - (parseFloat(reduceAmount) || 0)).toFixed(2)}
+                  </span>
+                </div>
+              )}
               <ActionBtn busy={busy} disabled={!ok || !(parseFloat(reduceAmount) > 0)} onClick={() => handle('REDUCE')}
                 label={`Withdraw $${(parseFloat(reduceAmount) || 0).toFixed(2)}`} />
             </>
           )}
 
         </div>
-        </>)}{/* end success ? ... : <> */}
+        </>)}
       </div>
     </div>
     </>
   );
 };
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
+// helpers
 const chipStyle = (color: 'green' | 'red'): React.CSSProperties => ({
   flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
   fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
@@ -502,8 +571,7 @@ const PriceInput: React.FC<{
 const ActionBtn: React.FC<{
   busy: boolean; disabled: boolean; onClick: () => void; label: string; danger?: boolean;
 }> = ({ busy, disabled, onClick, label, danger }) => (
-  <button
-    onClick={onClick} disabled={busy || disabled}
+  <button onClick={onClick} disabled={busy || disabled}
     style={{
       width: '100%', padding: '13px 0', borderRadius: 16, border: 'none', marginTop: 14,
       fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700,
