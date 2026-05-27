@@ -499,7 +499,7 @@ const OverlayToggle = ({ label, color, checked, onChange }: { label: string; col
 // Chart toolbar (desktop)
 // ─────────────────────────────────────────────────────────────────────────────
 const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, chartStyle, setChartStyle, showInd, setShowInd, showCandle, setShowCandle, indRef, candleRef, onPairClick, onIndicatorConfig, overlays, onOverlayToggle, showOverlays, setShowOverlays, overlaysRef, isMobile }: any) => (
-    <div style={{ flexShrink: 0, padding: isMobile ? '5px 10px' : '7px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-base-2)', borderBottom: '1px solid var(--hairline)', position: 'relative', zIndex: 40, overflow: 'visible', flexWrap: isMobile ? 'wrap' as const : 'nowrap' as const, gap: isMobile ? 6 : 0 }}>
+    <div style={{ flexShrink: 0, padding: isMobile ? '5px 10px' : '7px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', borderBottom: '1px solid var(--hairline)', position: 'relative', zIndex: 40, overflow: 'visible', flexWrap: isMobile ? 'wrap' as const : 'nowrap' as const, gap: isMobile ? 6 : 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexWrap: 'nowrap' }}>
             {/* Pair selector — desktop only (mobile has its own header) */}
             {!isMobile && (
@@ -703,18 +703,18 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
     );
 
     return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: 'var(--bg-base-2)' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: 'transparent' }}>
             {!user && (
                 <div style={{
                     position: 'absolute', inset: 0, zIndex: 30,
-                    background: 'var(--bg-base-2)',
+                    background: 'var(--glass-bg)',
                     backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                 }}>
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 8,
                         padding: '8px 14px', borderRadius: 10,
-                        background: 'var(--bg-base-2)',
+                        background: 'var(--glass-bg-strong)',
                         border: '1px solid var(--hairline-strong)',
                         boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
                     }}>
@@ -747,7 +747,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                     {/* Desktop table */}
                     <table className="hidden md:table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', whiteSpace: 'nowrap' as const, display: isMobile ? 'none' : 'table' }}>
                         <thead>
-                            <tr style={{ ...S.label, fontSize: 9, position: 'sticky', top: 0, background: 'var(--bg-base-2)', zIndex: 2 }}>
+                            <tr style={{ ...S.label, fontSize: 9, position: 'sticky', top: 0, background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', zIndex: 2 }}>
                                 {[
                                     { h: 'Pair',      tip: 'Trading pair — the asset you are long or short against USD' },
                                     { h: 'Side',      tip: 'Direction of your position: LONG profits when price rises, SHORT profits when price falls' },
@@ -1504,7 +1504,7 @@ export const TradeView = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 84px)', background: 'transparent', overflow: isMobile ? 'auto' : 'hidden', paddingBottom: isMobile ? 80 : 0 }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 84px)', background: 'transparent', overflow: isMobile ? 'auto' : 'hidden', paddingBottom: isMobile ? 80 : 0, gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
             <PairSelector isOpen={pairOpen} onClose={() => setPairOpen(false)} onSelect={setActivePair} marketPrices={marketPrices} marketChanges={marketChanges} isLiveMode={isLiveMode} />
 
             {/* Order Details Modal — clicked from History row */}
@@ -1535,7 +1535,7 @@ export const TradeView = ({
             )}
 
             {/* Mobile pair header */}
-            <div style={{ padding: '8px 12px', background: 'var(--bg-base-2)', borderBottom: '1px solid var(--hairline)', display: isMobile ? 'flex' : 'none', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '10px 14px', background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid var(--hairline)', display: isMobile ? 'flex' : 'none', alignItems: 'center', justifyContent: 'space-between' }}>
                 <button onClick={() => setPairOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer' }}>
                     <span style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>{activePair.id}</span>
                     <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
@@ -1547,7 +1547,7 @@ export const TradeView = ({
             </div>
 
             {/* ── Left: chart + positions ── */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: isMobile ? 'auto' : '100%', overflow: isMobile ? 'visible' : 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: isMobile ? 'auto' : '100%', overflow: isMobile ? 'visible' : 'hidden', borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
                 <ChartToolbar
                     activePair={activePair} tf={tf} setTf={handleTfChange}
                     indicators={indicators} toggleIndicator={toggleIndicator}
@@ -1563,7 +1563,7 @@ export const TradeView = ({
                 />
 
                 {/* Chart — on mobile use a fixed tall height so it fills the screen properly */}
-                <div style={{ flex: isMobile ? 'none' : 1, height: isMobile ? '60vw' : undefined, minHeight: isMobile ? 280 : 0, maxHeight: isMobile ? 420 : undefined, overflow: 'hidden', background: 'var(--bg-base-2)', borderBottom: '1px solid var(--hairline)', position: 'relative' }}>
+                <div style={{ flex: isMobile ? 'none' : 1, height: isMobile ? '60vw' : undefined, minHeight: isMobile ? 280 : 0, maxHeight: isMobile ? 420 : undefined, overflow: 'hidden', background: 'transparent', borderBottom: '1px solid var(--hairline)', position: 'relative' }}>
                     <TradingViewChart
                         initialData={candles[activePair.id] || []}
                         theme={appTheme || 'dark'}
@@ -1591,7 +1591,7 @@ export const TradeView = ({
             </div>
 
             {/* ── Right: pair info + order book + order form ── */}
-            <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', overflow: 'hidden', borderLeft: isMobile ? 'none' : '1px solid var(--hairline)', background: 'var(--bg-base-2)' }}>
+            <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', overflow: 'hidden', borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
 
                 {/* 1 ── Pair header (desktop only) */}
                 <div style={{ flexShrink: 0, padding: '8px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
@@ -1628,7 +1628,7 @@ export const TradeView = ({
                         {!user && (
                             <div style={{
                                 position: isMobile ? 'relative' : 'absolute', inset: 0, zIndex: 30,
-                                background: 'var(--bg-base-2)',
+                                background: 'var(--glass-bg)',
                                 backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                                 justifyContent: 'center', gap: 12,
@@ -1658,7 +1658,7 @@ export const TradeView = ({
                         <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 7, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto' }}>
 
                             {/* Margin mode toggle */}
-                            <div style={{ display: 'flex', background: 'var(--bg-base-2)', borderRadius: 9, padding: 3 }}>
+                            <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 12, padding: 3, border: '1px solid var(--hairline)' }}>
                                 {(['ISOLATED', 'CROSS'] as const).map(m => (
                                     <button key={m} onClick={() => {
                                         if (hasExistPos) { setToast({ message: 'Close existing position first', type: 'ERROR' }); playSound('ERROR'); }
@@ -1682,7 +1682,7 @@ export const TradeView = ({
                             {/* Long / Short */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                                 {(['LONG', 'SHORT'] as const).map(s => (
-                                    <button key={s} onClick={() => setSide(s)} style={{ padding: '7px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.12s', background: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--bg-base-2)', color: side === s ? (s === 'LONG' ? '#0a1a10' : '#fff') : 'var(--fg-subtle)', boxShadow: side === s ? (s === 'LONG' ? '0 3px 16px rgba(62,207,142,0.22)' : '0 3px 16px rgba(255,60,60,0.22)') : 'none' }}>
+                                    <button key={s} onClick={() => setSide(s)} style={{ padding: '8px 0', borderRadius: 12, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.12s', background: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--chip-bg)', color: side === s ? (s === 'LONG' ? '#0a1a10' : '#fff') : 'var(--fg-subtle)', boxShadow: side === s ? (s === 'LONG' ? '0 3px 16px rgba(62,207,142,0.22)' : '0 3px 16px rgba(255,60,60,0.22)') : 'none' }}>
                                         {s === 'LONG' ? 'Buy / Long' : 'Sell / Short'}
                                     </button>
                                 ))}
@@ -1703,7 +1703,7 @@ export const TradeView = ({
                             </div>
 
                             {/* Cost + Leverage */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-base-2)', borderRadius: 9, padding: '7px 10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--chip-bg)', borderRadius: 12, padding: '8px 12px', border: '1px solid var(--hairline)' }}>
                                 <div>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Cost</div>
                                     <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>${formatMoney(cost)}</div>
@@ -1811,7 +1811,7 @@ export const TradeView = ({
 
                             {/* Submit button */}
                             <button onClick={handleSubmit} disabled={parseFloat(sizeAmount) <= 0} style={{
-                                width: '100%', padding: '9px 0', borderRadius: 11, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
+                                width: '100%', padding: '11px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
                                 opacity: parseFloat(sizeAmount) <= 0 ? 0.35 : 1,
                                 background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
                                 color: side === 'LONG' ? '#0a1a10' : '#fff',

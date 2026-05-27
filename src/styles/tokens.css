@@ -465,3 +465,163 @@ html.light iframe[id*="tradingview"] {
     padding: 16px 12px !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   VELO MOBILE — Comprehensive responsive polish
+   Matches the "Velo on iPhone" mockup direction: thumb-first, condensed equity
+   hero, one-tap copy, clean glass surfaces, generous tap targets.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base mobile resets ───────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Prevent any content from overflowing the viewport horizontally */
+  body, #root {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Every glass panel gets consistent horizontal padding on mobile */
+  .animate-fade-in > * {
+    max-width: 100%;
+  }
+
+  /* Tables: always scrollable, never clip */
+  table {
+    min-width: 0 !important;
+  }
+
+  /* Modals: full-width with safe insets */
+  [role="dialog"], .velo-modal {
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+
+/* ── Trade view: glass panels, thumb-friendly ─────────────────────────────── */
+@media (max-width: 768px) {
+  /* Chart fills the screen properly, no clipping */
+  .trade-view .tv-container {
+    border-radius: 0 !important;
+  }
+
+  /* Order form: more breathing room for thumbs */
+  .trade-view .order-form-inner {
+    padding: 12px 14px !important;
+    gap: 9px !important;
+  }
+
+  /* Positions / orders panel on mobile: comfortable rows */
+  .trade-view .positions-row td {
+    padding: 10px 12px !important;
+  }
+}
+
+/* ── Dashboard mobile ─────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Tighten the equity hero on small screens */
+  .dash-panel-inner {
+    padding: 14px 14px 0 !important;
+  }
+
+  /* Activity table: stack to readable on narrow */
+  .dash-activity-table td,
+  .dash-activity-table th {
+    padding: 8px 10px !important;
+    font-size: 10px !important;
+  }
+
+  /* Positions table: tighter on mobile */
+  .dash-positions-table td,
+  .dash-positions-table th {
+    padding: 7px 10px !important;
+    font-size: 10px !important;
+  }
+
+  /* Hide less critical columns on very narrow screens */
+  .dash-col-hide-mobile {
+    display: none !important;
+  }
+}
+
+/* ── Markets / Leaderboard: cleaner rows ──────────────────────────────────── */
+@media (max-width: 640px) {
+  .mk-row {
+    padding: 11px 12px !important;
+  }
+
+  .lb-row td {
+    padding: 9px 10px !important;
+    font-size: 10px !important;
+  }
+}
+
+/* ── Social feed: comfortable card spacing ────────────────────────────────── */
+@media (max-width: 640px) {
+  .velo-post-card {
+    padding: 12px 13px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Feed tabs (Latest / Trending / Following) */
+  .feed-tab-bar {
+    padding: 0 12px !important;
+  }
+}
+
+/* ── Profile page: stacked avatar + stats ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .velo-profile-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .velo-profile-stats {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+}
+
+/* ── Global tap target: minimum 44px height for all interactive elements ──── */
+@media (max-width: 768px) {
+  button:not([style*="height"]):not(.velo-range):not(.no-tap-target) {
+    min-height: 36px;
+  }
+
+  /* But not icon-only buttons or tiny badges */
+  button[style*="width: 26px"],
+  button[style*="width: 28px"],
+  button[style*="width: 30px"],
+  button[style*="width: 32px"] {
+    min-height: unset !important;
+  }
+}
+
+/* ── Safe area insets for notched/dynamic island phones ───────────────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  @media (max-width: 768px) {
+    .pb-safe {
+      padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    }
+  }
+}
+
+/* ── Typography scale-down on very small screens ──────────────────────────── */
+@media (max-width: 380px) {
+  /* Equity hero */
+  .dash-equity-hero {
+    font-size: 28px !important;
+  }
+
+  /* Token page price */
+  .token-price-hero {
+    font-size: 18px !important;
+  }
+}
+
+/* ── Trade view desktop: rounded glass layout ─────────────────────────────── */
+@media (min-width: 769px) {
+  /* The two panels inside the trade view layout get a shared bottom rounding */
+  .trade-view main {
+    gap: 10px;
+    padding: 0 10px 10px;
+  }
+}

@@ -189,7 +189,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
               <p style={{ ...S.label, marginBottom: 5 }}>Total Equity</p>
-              <p style={{ ...S.display, fontSize: 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}>${formatMoney(equity)}</p>
+              <p className="dash-equity-hero" style={{ ...S.display, fontSize: 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}>${formatMoney(equity)}</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
                   {totalPnl >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
@@ -337,7 +337,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: positions.length > 0 ? 'oklch(0.68 0.22 295/0.15)' : 'var(--chip-bg)', border: `1px solid ${positions.length > 0 ? 'oklch(0.68 0.22 295/0.3)' : 'var(--hairline-strong)'}`, color: positions.length > 0 ? 'var(--iris-violet)' : 'var(--fg-muted)' }}>{positions.length} Open</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>
+          <table className="dash-positions-table" style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--hairline)' }}>
                 {['Source','Pair','Side','Size','Entry','Mark','TP / SL','PnL',''].map((h,i) => (
@@ -400,7 +400,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Recent Activity</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>
+          <table className="dash-activity-table" style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--hairline)' }}>
                 {['Type','Details','Amount / PnL','Time'].map((h,i) => (
