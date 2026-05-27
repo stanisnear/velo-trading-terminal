@@ -22,6 +22,7 @@ import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient } from 'wagmi';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
+import { VeloBridgeModal } from './components/VeloBridgeModal';
 import { VeloDepositModal } from './components/VeloDepositModal';
 import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
 import { VeloUsernameModal } from './components/VeloUsernameModal';
@@ -2054,7 +2055,7 @@ const TokenInteractiveChart = ({
     const activeData = mode === 'PRICE' ? priceDataForTf : (mcapDataMap[timeframe] || []);
     const loading = activeData.length < 2 || (mode === 'MCAP' && mcapLoading && (mcapDataMap[timeframe] || []).length < 2);
 
-    const w = 800, h = 200;
+    const w = 800, h = 280;
     const pad = { top: 20, right: 16, bottom: 36, left: 78 };
 
     const min = loading ? 0 : Math.min(...activeData);
@@ -2172,7 +2173,8 @@ const TokenInteractiveChart = ({
                 )}
                 <svg
                     viewBox={`0 0 ${w} ${h}`}
-                    style={{ width: '100%', height: 'auto', minHeight: 140, maxHeight: 240, display: 'block', overflow: 'visible', opacity: loading ? 0.2 : 1, transition: 'opacity 0.3s' }}
+                    className="token-chart-svg"
+                    style={{ width: '100%', height: 'auto', minHeight: 200, maxHeight: 320, display: 'block', overflow: 'visible', opacity: loading ? 0.2 : 1, transition: 'opacity 0.3s' }}
                     preserveAspectRatio="xMidYMid meet"
                     onMouseLeave={() => setHoveredIdx(null)}
                     onMouseMove={(e) => {
@@ -4165,6 +4167,7 @@ const App = () => {
     const [isOrderlyOnboardingOpen, setOrderlyOnboardingOpen] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
     const [isVeloWelcomeOpen, setVeloWelcomeOpen] = useState(false);
+    const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
     const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
     const [isVeloSendOpen, setVeloSendOpen] = useState(false);
@@ -7373,10 +7376,18 @@ const App = () => {
                 }
               }}
             />
-            {/* VeloBridgeModal mount removed in batch 8. Cross-chain UX now
-                lives entirely inside VeloDepositModal's network picker. The
-                component file remains in src/components/ for reference but
-                is no longer imported anywhere. */}
+            {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ──
+                NOTE (batch 7): no longer wired to any UI button. Cross-chain
+                deposits/withdraws now live inside the unified Funds modal
+                (VeloDepositModal) as a network picker. This mount is kept
+                so any future programmatic trigger still works, but in the
+                current UX the user never sees it. Safe to remove if it
+                becomes a maintenance burden — also remove `isVeloBridgeOpen`
+                state and the `VeloBridgeModal` import at top of file. */}
+            <VeloBridgeModal
+              isOpen={isVeloBridgeOpen}
+              onClose={() => setVeloBridgeOpen(false)}
+            />
             {/* ── Velo Deposit Modal (main wallet → trading wallet, same chain) ── */}
             <VeloDepositModal
               isOpen={isVeloDepositOpen}
