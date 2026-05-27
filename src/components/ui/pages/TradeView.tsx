@@ -861,8 +861,16 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             </td>
                                             <td style={{ padding: '4px 7px' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                    <span style={{ color: 'var(--fg-subtle)', fontSize: 10 }}>{p.takeProfit ? formatPrice(p.takeProfit) : '–'}/{p.stopLoss ? formatPrice(p.stopLoss) : '–'}</span>
-                                                    <button onClick={(e) => { e.stopPropagation(); onEditPosition(p); }} style={{ background: 'var(--chip-bg)', border: 'none', cursor: 'pointer', borderRadius: 5, padding: 2, display: 'flex', color: 'var(--fg-muted)' }}><Edit size={10} /></button>
+                                                    <span style={{ color: 'var(--fg-subtle)', fontSize: 10 }}>
+                                                      {p.takeProfit && p.takeProfit > 0
+                                                        ? <span style={{ color: 'var(--pnl-up)' }}>TP ${formatPrice(p.takeProfit)}</span>
+                                                        : <span>–</span>}
+                                                      {' / '}
+                                                      {p.stopLoss && p.stopLoss > 0
+                                                        ? <span style={{ color: 'var(--pnl-down)' }}>SL ${formatPrice(p.stopLoss)}</span>
+                                                        : <span>–</span>}
+                                                    </span>
+                                                    <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'TRIGGERS'); }} style={{ background: 'var(--chip-bg)', border: 'none', cursor: 'pointer', borderRadius: 5, padding: 2, display: 'flex', color: 'var(--fg-muted)' }} title="Set Take Profit / Stop Loss"><Edit size={10} /></button>
                                                 </div>
                                             </td>
                                             <td style={{ padding: '4px 9px', textAlign: 'right' }}>
@@ -918,7 +926,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         ))}
                                     </div>
                                     <div style={{ display: 'flex', gap: 5 }}>
-                                        {!p.onChain && <button onClick={(e) => { e.stopPropagation(); onEditPosition(p); }} style={{ flex: 1, background: 'var(--chip-bg)', border: 'none', padding: '6px 0', borderRadius: 8, cursor: 'pointer', ...S.label, textAlign: 'center' as const, fontSize: 9 }}>Edit TP/SL</button>}
+                                        {!p.onChain && <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'TRIGGERS'); }} style={{ flex: 1, background: 'var(--chip-bg)', border: 'none', padding: '6px 0', borderRadius: 8, cursor: 'pointer', ...S.label, textAlign: 'center' as const, fontSize: 9 }}>Edit TP/SL</button>}
                                         {onSharePosition && (
                                           <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share" style={{ padding: '6px 12px', background: 'rgba(180,110,255,0.12)', border: 'none', borderRadius: 8, cursor: 'pointer', color: 'var(--iris-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <Share2 size={11} />
@@ -1542,7 +1550,7 @@ export const TradeView = ({
                 </button>
                 <div style={{ textAlign: 'right' }}>
                     <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
-                    <div style={{ ...S.label, fontSize: 9, color: changeColor }}>{changeLabel} · Perp</div>
+                    <div style={{ ...S.label, fontSize: 9, color: changeColor }}>{changeLabel} · <span title="Display price from Binance spot feed. Trade executions use Pyth oracle price, which may differ slightly." style={{ cursor: 'help', borderBottom: '1px dashed currentColor' }}>Binance</span></div>
                 </div>
             </div>
 
@@ -1612,7 +1620,7 @@ export const TradeView = ({
                         </button>
                         <div style={{ textAlign: 'right' }}>
                             <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
-                            <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
+                            <div style={{ ...S.label, marginTop: 2, color: changeColor }} title="Display price from Binance spot feed. Trade executions use Pyth oracle price, which may differ slightly.">{changeLabel} · Binance</div>
                         </div>
                     </div>
 

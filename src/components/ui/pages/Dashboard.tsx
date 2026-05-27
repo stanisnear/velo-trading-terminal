@@ -376,8 +376,15 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                     <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>${formatPrice(p.entryPrice)}</td>
                     <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${formatPrice(cp)}</td>
                     <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>
-                      {p.takeProfit ? formatPrice(p.takeProfit) : '--'} / {p.stopLoss ? formatPrice(p.stopLoss) : '--'}
-                      <button onClick={() => onEditPosition(p)} style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: 2, opacity: 0.5 }}
+                      {p.takeProfit && p.takeProfit > 0
+                        ? <span style={{ color: 'var(--pnl-up)' }}>TP {formatPrice(p.takeProfit)}</span>
+                        : <span>--</span>}
+                      {' / '}
+                      {p.stopLoss && p.stopLoss > 0
+                        ? <span style={{ color: 'var(--pnl-down)' }}>SL {formatPrice(p.stopLoss)}</span>
+                        : <span>--</span>}
+                      <button onClick={() => onEditPosition(p, 'TRIGGERS')} style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: 2, opacity: 0.5 }}
+                        title="Set Take Profit / Stop Loss"
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}><Edit size={10}/></button>
                     </td>

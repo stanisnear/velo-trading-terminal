@@ -4173,6 +4173,7 @@ const App = () => {
     const [isVeloSendOpen, setVeloSendOpen] = useState(false);
     const [isVeloWithdrawOpen, setVeloWithdrawOpen] = useState(false);
     const [managingPosition, setManagingPosition] = useState<Position | null>(null);
+    const [managingPositionTab, setManagingPositionTab] = useState<'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS'>('ADD');
     const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
     const [shareTradeData, setShareTradeData] = useState<ClosedTradeShareData | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
@@ -4439,9 +4440,9 @@ const App = () => {
      *  - V2 on-chain position → manage modal (real on-chain TP/SL etc.)
      *  - Anything else        → legacy demo-only Edit modal (Supabase-stored)
      */
-    const handleEditPosition = (p: Position | null) => {
+    const handleEditPosition = (p: Position | null, initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS') => {
       if (!p) { setEditingPosition(null); setManagingPosition(null); return; }
-      if (p.onChain && p.onChainTradeId) setManagingPosition(p);
+      if (p.onChain && p.onChainTradeId) { setManagingPositionTab(initialTab || 'ADD'); setManagingPosition(p); }
       else setEditingPosition(p);
     };
     const [activeSocialTicker, setActiveSocialTicker] = useState<string | null>(null);
@@ -6598,6 +6599,17 @@ const App = () => {
         if (processingIds.current.has(id)) return;
         const p = positionsRef.current.find(x => x.id === id);
         if (!p || !user) return;
+
+        // For on-chain V2 positions, open the manage modal at the "Close %" tab
+        // so the user can choose how much of the position to close. This replaces
+        // the old one-click full-close behaviour with a proper partial-close UX.
+        const isOnChainV2 = (p as any).onChain && p.id.startsWith('velo_') && p.onChainTradeId;
+        if (isOnChainV2) {
+            setManagingPositionTab('PARTIAL');
+            setManagingPosition(p);
+            return;
+        }
+
         processingIds.current.add(id);
 
         // Block profileCh from overwriting our optimistic balance update
@@ -7491,9 +7503,10 @@ const App = () => {
             {/* ── Velo Manage Position Modal (V2: add/reduce margin, partial close, TP/SL) ── */}
             <VeloManagePositionModal
               isOpen={!!managingPosition}
-              onClose={() => setManagingPosition(null)}
+              onClose={() => { setManagingPosition(null); setManagingPositionTab('ADD'); }}
               position={managingPosition}
               currentPrice={managingPosition ? (marketPrices[managingPosition.pair] || managingPosition.entryPrice) : 0}
+              initialTab={managingPositionTab}
               actions={{
                 addMargin: async (tradeId, amt) => {
                   const r = await veloPerpsTrading.addMargin(tradeId, amt);

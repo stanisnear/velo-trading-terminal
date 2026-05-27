@@ -964,3 +964,39 @@ This batch is light cleanup work after the heavier batch 7 architectural changes
 4. Switch to Withdraw tab → pick Arbitrum. The fee block should show the LayerZero fee AND a reassuring note "Paid by your trading wallet on Base. Velo tops it up automatically — you don't need any ETH on Arbitrum Sepolia."
 5. Check Vercel deploy preview's network tab on first load: should see separate `appkit-*.js`, `viem-*.js`, `wagmi-*.js`, `walletconnect-*.js`, `supabase-*.js`, `charts-*.js`, `icons-*.js`, and `index-*.js` chunks instead of one monolithic bundle.
 6. Push a one-character whitespace change to App.tsx, deploy, refresh. The `index-*.js` chunk hash should change; the `appkit-*.js` and `viem-*.js` chunk hashes should NOT change (browser cache hit).
+
+### 2026-05-27 — Build 81: Close modal, TP/SL improvements, price source label
+
+**Problems fixed (from user-reported issues on production):**
+
+1. **Close button fired immediately without letting user choose how much to close.** For V2 on-chain positions, `handleClosePosition` now intercepts the click and opens `VeloManagePositionModal` at the "Close %" tab instead of immediately submitting a full close. The user sees the full slider (1–100%), preset buttons (10/20/25/50/75/100%), an estimated PnL preview on the portion being closed, and a clearly-labeled submit button ("Close 25% of position" vs "Close full position" in red). The old one-click-instant-close path is preserved for non-V2/non-on-chain positions.
+
+2. **TP/SL values didn't reflect on the position row visually.** The TP/SL column in the positions table was rendering gray `–/–` even when triggers were set. Now renders TP price in green (`var(--pnl-up)`) and SL price in red (`var(--pnl-down)`) with `$` prefix. Both TradeView and Dashboard position tables updated.
+
+3. **Clicking the TP/SL edit icon opened the manage modal at "Add" tab, not "TP/SL" tab.** All edit icon buttons in the positions table (TradeView desktop table, Dashboard active positions table) now call `onEditPosition(p, 'TRIGGERS')` which opens the modal directly on the TP/SL tab. `handleEditPosition` signature extended with optional `initialTab` param. Mobile "Edit TP/SL" button similarly updated.
+
+4. **When re-opening TP/SL modal, previous values didn't pre-fill.** This was already working in the modal's `useEffect` (reads `position.takeProfit`/`position.stopLoss`). Added a new "ACTIVE ON-CHAIN TRIGGERS" summary panel above the save button so users can clearly see what's currently set on-chain before overwriting.
+
+5. **TP/SL had no partial-close % option — triggers always closed 100% of the position.** The TRIGGERS tab now shows a partial-close selector (slider + 25/50/75/100% presets, with "remaining X% stays open" note) that appears when either a TP or SL price is set. This is UI-only for now — the `setTriggers` contract function only accepts two price params. Full on-chain support requires a new contract function `setTriggersWithFraction(tradeId, tp, sl, tpBps, slBps)` and keeper update to call `partialClose` instead of `closePosition` when the trigger fraction < 10000 bps.
+
+6. **Price display said "Perp" but the displayed price is from Binance, not the Pyth oracle used for execution.** Added `· Binance` label with tooltip on both price displays in TradeView (mobile header and desktop right panel). Tooltip: "Display price from Binance spot feed. Trade executions use Pyth oracle price, which may differ slightly." This explains the ~$1–2 discrepancy users observe between the displayed price and their fill price.
+
+7. **PARTIAL close tab: slider defaulted to 50%, range label was sparse.** Changed default `closePct` to 100% (matching the previous one-click-close expectation). Range ticks updated to show 1%/25%/50%/75%/100%. Added estimated PnL preview for the closed portion.
+
+**Files changed:**
+- `src/App.tsx` — `managingPositionTab` state added; `handleClosePosition` intercepts V2 positions and opens modal at PARTIAL tab; `handleEditPosition` extended with `initialTab` param; `VeloManagePositionModal` mount passes `initialTab={managingPositionTab}` and resets tab on close.
+- `src/components/VeloManagePositionModal.tsx` — `initialTab` prop added; PARTIAL tab defaults to 100%, improved range ticks and PnL preview, "Close full position" label in red; TRIGGERS tab gains per-trigger partial-close % selectors with sliders and presets, active triggers summary panel, improved quick-pick button layout.
+- `src/components/ui/pages/TradeView.tsx` — TP/SL column renders colored prices (green/red); edit icon opens at TRIGGERS tab; mobile Edit TP/SL button opens at TRIGGERS tab; price label updated from "Perp" to "Binance" with tooltip.
+- `src/components/ui/pages/Dashboard.tsx` — TP/SL column renders colored prices; edit icon opens at TRIGGERS tab.
+- `PROJECT_STATUS.md` — this entry.
+
+**New gotchas:**
+- The partial-close % on TP/SL triggers (Issue 5) is currently stored only in React state — it is NOT sent to the contract. `setTriggers(tradeId, tp, sl)` only takes two prices. The UI shows the option to set expectations and prepare for the contract upgrade, but the keeper will always call full `closeIfTriggered` (100% close) until the contract and keeper are updated. Don't ship this as "partial TP/SL works on-chain" — it doesn't yet.
+- `handleClosePosition` only intercepts V2 on-chain positions (those with `p.onChainTradeId` set). Legacy/demo positions still close immediately with no modal. If a position is `onChain: true` but `onChainTradeId` is somehow undefined (the Build 80 gotcha), it falls through to the legacy path. The Build 80 fix (populating `onChainTradeId` during sync) is required for this to work correctly.
+- The `managingPositionTab` state is reset to `'ADD'` when the modal closes. This means if a user opens the close modal, cancels, and then clicks the edit TP/SL icon, they correctly land on the TRIGGERS tab. No stale-tab bug.
+- `Submit` component in `VeloManagePositionModal` now accepts an optional `color?: 'red'` prop. Only PARTIAL at 100% passes this. If you add more "destructive" actions, pass `color="red"` to make the intent clear.
+
+**Verification:**
+- `npx tsc --noEmit --skipLibCheck` passes with 0 new errors.
+- Build environment blocked from running `vite build` due to `pkg.pr.new` network restriction (a transitive dependency fetch). Build integrity confirmed via TS check and manual diff review. Stan should run `npx vite build` locally or let Vercel build to confirm.
+- Manual test plan: (1) Open any V2 LONG position. (2) Click "Close" — should open manage modal at "Close %" tab, NOT immediately close. (3) Drag slider to 50%, see PnL preview update. (4) Click "Close 50% of position". (5) Check position row still shows remaining 50%. (6) Click the edit (pencil) icon in TP/SL column — should open modal at TP/SL tab. (7) Set TP using +50% quick-pick, observe green partial-close selector appear at 100%. (8) Drag TP partial-close to 50%, note "remaining 50% stays open" label. (9) Save — verify TP price shows green on position row. (10) Click edit again — TP value pre-fills from on-chain. (11) Check price label in right panel says "Binance" not "Perp".
