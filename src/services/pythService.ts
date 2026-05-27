@@ -36,30 +36,31 @@ export const PYTH_FEED_IDS = {
 const HERMES_URL = import.meta.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 
 /**
- * Fetch a fresh price update for the given feed ids.
- *
- * Returns:
- *   updateData — bytes[] to pass to VeloPerps.openPosition / closePosition
- *   feeWei     — what to send as msg.value. Estimated at 1 wei per update + buffer
- *                (Pyth's getUpdateFee returns a few thousand wei in practice; we
- *                pad with 0.0001 ETH ceiling since the contract refunds excess).
- *
- * Throws if Hermes is unreachable or returns malformed data — callers should
- * surface this to UI ("price feed unavailable, try again").
+ * Maximum age (seconds) we accept from Hermes before retrying.
+ * The contract enforces 60s via getPriceNoOlderThan. We enforce 30s
+ * client-side so we never submit data that's borderline stale.
  */
-export async function fetchPriceUpdate(
-  feedIds: readonly string[],
-): Promise<{ updateData: `0x${string}`[] }> {
-  if (feedIds.length === 0) {
-    throw new Error('fetchPriceUpdate: no feed ids');
-  }
+const MAX_DATA_AGE_SECONDS = 30;
 
+/**
+ * Minimum sane price for any asset we trade ($0.001).
+ * If Hermes returns a price below this, the data is corrupt and we refuse
+ * to submit it — this prevents the phantom entry-price bug where a
+ * near-zero price gets stored on-chain.
+ */
+const MIN_SANE_PRICE_USD = 0.001;
+
+async function fetchOnce(feedIds: readonly string[]): Promise<{
+  updateData: `0x${string}`[];
+  parsedPrice: number;
+  publishTime: number;
+}> {
   const params = new URLSearchParams();
   for (const id of feedIds) {
-    // Hermes accepts ids with or without 0x prefix; we send without for safety.
     params.append('ids[]', id.startsWith('0x') ? id.slice(2) : id);
   }
   params.set('encoding', 'hex');
+  params.set('parsed', 'true');
 
   const res = await fetch(`${HERMES_URL}/v2/updates/price/latest?${params.toString()}`);
   if (!res.ok) {
@@ -67,8 +68,6 @@ export async function fetchPriceUpdate(
   }
 
   const data = await res.json();
-  // Response shape: { binary: { encoding: "hex", data: [ "<hex>", ... ] }, parsed: [...] }
-  // We only need the binary blobs to forward to the contract.
   const hexBlobs: string[] = data?.binary?.data ?? [];
   if (hexBlobs.length === 0) {
     throw new Error('Hermes returned no price updates');
@@ -78,16 +77,62 @@ export async function fetchPriceUpdate(
     s.startsWith('0x') ? (s as `0x${string}`) : (`0x${s}` as `0x${string}`),
   );
 
-  // Pyth update fee on Base Sepolia is typically a few wei per update.
-  // We pad to 0.001 ETH per update — the VeloPerps contract refunds the excess
-  // automatically. This generous buffer eliminates "Internal JSON-RPC error"
-  // reverts caused by fee underestimation during gas-price volatility.
-  // DO NOT estimate the fee here.
-  // The VeloPerps contract enforces msg.value == getUpdateFee(updateData) exactly.
-  // Any difference (even 1 wei) reverts with PythFeeMismatch.
-  // Fee is computed on-chain in veloPerpsService via getExactPythFee().
+  // Validate freshness and sanity from the parsed field.
+  const parsed = data?.parsed?.[0];
+  const publishTime: number = parsed?.price?.publish_time ?? 0;
+  const rawPrice: number = parsed?.price?.price ?? 0;
+  const expo: number = parsed?.price?.expo ?? -8;
+  const parsedPrice = rawPrice * Math.pow(10, expo);
 
-  return { updateData };
+  return { updateData, parsedPrice, publishTime };
+}
+
+/**
+ * Fetch a fresh price update for the given feed ids.
+ *
+ * Returns:
+ *   updateData  — bytes[] to pass to VeloPerps.openPosition / closePosition
+ *   parsedPrice — human-readable price for UI display / sanity check
+ *
+ * Throws if:
+ *   - Hermes is unreachable
+ *   - The price data is stale (>30s old) after one retry
+ *   - The price is suspiciously low (<$0.001) — corrupt oracle data guard
+ *
+ * The VeloPerps contract enforces msg.value == getUpdateFee(updateData) exactly.
+ * Fee is computed on-chain in veloPerpsService via getExactPythFee().
+ */
+export async function fetchPriceUpdate(
+  feedIds: readonly string[],
+): Promise<{ updateData: `0x${string}`[]; parsedPrice: number }> {
+  if (feedIds.length === 0) {
+    throw new Error('fetchPriceUpdate: no feed ids');
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  let result = await fetchOnce(feedIds);
+
+  // If data is stale, wait 1s and retry once — Hermes may have cached old data.
+  if (result.publishTime > 0 && nowSec - result.publishTime > MAX_DATA_AGE_SECONDS) {
+    await new Promise(r => setTimeout(r, 1000));
+    result = await fetchOnce(feedIds);
+    if (nowSec - result.publishTime > MAX_DATA_AGE_SECONDS) {
+      throw new Error(
+        `Pyth price data is stale (${nowSec - result.publishTime}s old). ` +
+        `Try again in a few seconds.`
+      );
+    }
+  }
+
+  // Guard against corrupt/near-zero prices — these cause phantom trillion-dollar PnL.
+  if (result.parsedPrice > 0 && result.parsedPrice < MIN_SANE_PRICE_USD) {
+    throw new Error(
+      `Pyth returned a suspiciously low price ($${result.parsedPrice.toFixed(8)}). ` +
+      `This looks like corrupt oracle data. Refusing to open position.`
+    );
+  }
+
+  return { updateData: result.updateData, parsedPrice: result.parsedPrice };
 }
 
 /**

@@ -94,6 +94,11 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         res = await actions.setTriggers(tradeId, tpNum, slNum);
       }
       setLastTx(res.txHash);
+      // Auto-dismiss after a full close so the stale position card disappears immediately.
+      const isFullClose = (kind === 'PARTIAL' && closePct >= 100);
+      if (isFullClose) {
+        setTimeout(() => onClose(), 1800);
+      }
     } catch (e: any) {
       setError(e?.shortMessage || e?.message || 'Action failed');
     } finally {

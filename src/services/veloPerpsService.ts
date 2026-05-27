@@ -733,7 +733,9 @@ export async function openPosition(
   const feedId = PYTH_FEED_IDS[args.pair];
   if (!feedId) throw new Error(`No Pyth feed for ${args.pair}`);
 
-  const { updateData } = await fetchPriceUpdate([feedId]);
+  const { updateData, parsedPrice } = await fetchPriceUpdate([feedId]);
+  // parsedPrice is validated by fetchPriceUpdate (stale/corrupt guard). Log for debugging.
+  if (parsedPrice > 0) console.debug(`[velo] openPosition ${args.pair} oracle price: $${parsedPrice.toFixed(4)}`);
   const feeWei = await getExactPythFee(publicClient, updateData);
   const collateral_6 = parseUnits(args.collateralUSDC.toString(), USDC_DECIMALS);
 
@@ -873,7 +875,8 @@ export async function closePosition(
   if (!account) throw new Error('Wallet not connected');
 
   const feedId = PYTH_FEED_IDS[pair];
-  const { updateData } = await fetchPriceUpdate([feedId]);
+  const { updateData, parsedPrice: closeParsedPrice } = await fetchPriceUpdate([feedId]);
+  if (closeParsedPrice > 0) console.debug(`[velo] closePosition ${pair} oracle price: $${closeParsedPrice.toFixed(4)}`);
   const feeWei = await getExactPythFee(publicClient, updateData);
 
   const txHash = await walletClient.writeContract({
