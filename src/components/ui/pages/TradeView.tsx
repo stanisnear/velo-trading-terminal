@@ -1624,7 +1624,7 @@ export const TradeView = ({
 
                 {/* BUBBLE 2 ── Order form */}
                 <div style={{ flex: isMobile ? 'none' : 1, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', minHeight: 0, margin: isMobile ? '8px 10px' : undefined }}>
-                    <div style={{ flex: 1, overflowY: isMobile ? 'visible' : 'auto', position: 'relative' }} className="custom-scrollbar">
+                    <div style={{ flex: 1, overflowY: isMobile ? 'auto' : 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }} className={isMobile ? 'custom-scrollbar' : ''}>
 
                         {/* Auth overlay */}
                         {!user && (
@@ -1657,7 +1657,7 @@ export const TradeView = ({
                             </div>
                         )}
 
-                        <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 7, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto' }}>
+                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : 5, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: 1, minHeight: 0 }}>
 
                             {/* Margin mode toggle */}
                             <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 12, padding: 3, border: '1px solid var(--hairline)' }}>
@@ -1665,7 +1665,7 @@ export const TradeView = ({
                                     <button key={m} onClick={() => {
                                         if (hasExistPos) { setToast({ message: 'Close existing position first', type: 'ERROR' }); playSound('ERROR'); }
                                         else setMarginMode(m);
-                                    }} style={{ flex: 1, padding: '5px 0', borderRadius: 7, border: 'none', cursor: 'pointer', ...S.label, fontSize: 9, textAlign: 'center' as const, transition: 'all 0.12s', background: marginMode === m ? 'var(--glass-bg-strong)' : 'transparent', color: marginMode === m ? 'var(--fg)' : 'var(--fg-subtle)', opacity: hasExistPos ? 0.5 : 1 }}>
+                                    }} style={{ flex: 1, padding: isMobile ? '5px 0' : '4px 0', borderRadius: 7, border: 'none', cursor: 'pointer', ...S.label, fontSize: 9, textAlign: 'center' as const, transition: 'all 0.12s', background: marginMode === m ? 'var(--glass-bg-strong)' : 'transparent', color: marginMode === m ? 'var(--fg)' : 'var(--fg-subtle)', opacity: hasExistPos ? 0.5 : 1 }}>
                                         {m}
                                     </button>
                                 ))}
@@ -1684,7 +1684,7 @@ export const TradeView = ({
                             {/* Long / Short */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                                 {(['LONG', 'SHORT'] as const).map(s => (
-                                    <button key={s} onClick={() => setSide(s)} style={{ padding: '8px 0', borderRadius: 12, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.12s', background: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--chip-bg)', color: side === s ? (s === 'LONG' ? '#0a1a10' : '#fff') : 'var(--fg-subtle)', boxShadow: side === s ? (s === 'LONG' ? '0 3px 16px rgba(62,207,142,0.22)' : '0 3px 16px rgba(255,60,60,0.22)') : 'none' }}>
+                                    <button key={s} onClick={() => setSide(s)} style={{ padding: isMobile ? '8px 0' : '6px 0', borderRadius: 12, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.12s', background: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--chip-bg)', color: side === s ? (s === 'LONG' ? '#0a1a10' : '#fff') : 'var(--fg-subtle)', boxShadow: side === s ? (s === 'LONG' ? '0 3px 16px rgba(62,207,142,0.22)' : '0 3px 16px rgba(255,60,60,0.22)') : 'none' }}>
                                         {s === 'LONG' ? 'Buy / Long' : 'Sell / Short'}
                                     </button>
                                 ))}
@@ -1699,9 +1699,22 @@ export const TradeView = ({
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                                     <span style={{ ...S.label }}>Size · Margin %</span>
-                                    <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{sizeSlider}%</span>
+                                    <span style={{ ...S.mono, fontSize: 11, fontWeight: 700,
+                                        color: sizeSlider > 66 ? '#f97316' : sizeSlider > 33 ? 'var(--iris-violet)' : side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
+                                        transition: 'color 0.3s ease',
+                                    }}>{sizeSlider}%</span>
                                 </div>
-                                <input type="range" min="0" max="100" step="1" value={sizeSlider} onChange={e => setSizeSlider(parseInt(e.target.value))} className="velo-range w-full" />
+                                <input
+                                    type="range" min="0" max="100" step="1"
+                                    value={sizeSlider}
+                                    onChange={e => setSizeSlider(parseInt(e.target.value))}
+                                    className="velo-range w-full"
+                                    style={{
+                                        '--slider-pct': `${sizeSlider}%`,
+                                        '--slider-color': sizeSlider > 66 ? '#f97316' : sizeSlider > 33 ? 'oklch(0.68 0.22 295)' : side === 'LONG' ? 'oklch(0.78 0.18 150)' : 'oklch(0.66 0.22 25)',
+                                        '--slider-glow': sizeSlider > 66 ? 'rgba(249,115,22,0.35)' : sizeSlider > 33 ? 'oklch(0.68 0.22 295 / 0.35)' : side === 'LONG' ? 'rgba(62,207,142,0.35)' : 'rgba(255,60,60,0.35)',
+                                    } as React.CSSProperties}
+                                />
                             </div>
 
                             {/* Cost + Leverage */}
@@ -1794,7 +1807,7 @@ export const TradeView = ({
                             </div>
 
                             {/* Summary rows */}
-                            <div style={{ paddingTop: 7, borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <div style={{ paddingTop: isMobile ? 7 : 5, borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: isMobile ? 3 : 2 }}>
                                 {(marginMode === 'ISOLATED' ? [
                                     ['Est. Liq. Price', `$${formatPrice(estLiqPrice)}`, '#f97316'],
                                     ['Margin Risk', riskLevel, riskColor],
@@ -1813,11 +1826,12 @@ export const TradeView = ({
 
                             {/* Submit button */}
                             <button onClick={handleSubmit} disabled={parseFloat(sizeAmount) <= 0} style={{
-                                width: '100%', padding: '11px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
+                                width: '100%', padding: isMobile ? '11px 0' : '9px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
                                 opacity: parseFloat(sizeAmount) <= 0 ? 0.35 : 1,
                                 background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
                                 color: side === 'LONG' ? '#0a1a10' : '#fff',
                                 boxShadow: side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
+                                marginTop: 'auto',
                             }}>
                                 {user ? (
                                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
