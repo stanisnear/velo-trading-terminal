@@ -1615,7 +1615,7 @@ export const TradeView = ({
                                         <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
                                     )}
                                 </div>
-                                <div style={{ ...S.label, marginTop: 2 }}>Perp · Fund: <span style={{ color: changeColor }}>{changeLabel}</span></div>
+                                <div style={{ ...S.label, marginTop: 2, color: 'var(--fg-subtle)' }}>Perpetual</div>
                             </div>
                         </button>
                         <div style={{ textAlign: 'right' }}>
