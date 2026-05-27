@@ -44,11 +44,20 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   const [closePct,     setClosePct]     = useState(100);
   const [tp,           setTp]           = useState('');
   const [sl,           setSl]           = useState('');
+  const [closing,      setClosing]      = useState(false);
+
+  // Smooth animated dismiss — fades + slides down, then fires onClose
+  const dismiss = React.useCallback((delay = 0) => {
+    setTimeout(() => {
+      setClosing(true);
+      setTimeout(() => { setClosing(false); onClose(); }, 350);
+    }, delay);
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
     setTab(initialTab || 'PARTIAL');
-    setBusy(false); setError(''); setLastTx(null);
+    setBusy(false); setError(''); setLastTx(null); setClosing(false);
     setAddAmount(''); setReduceAmount(''); setClosePct(100);
     if (position) {
       setTp(position.takeProfit && position.takeProfit > 0 ? String(position.takeProfit) : '');
@@ -59,8 +68,12 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   if (!isOpen || !position) return null;
 
   const collateral = position.size / position.leverage;
-  const pnl = (currentPrice - position.entryPrice) * (position.side === 'LONG' ? 1 : -1) * (position.size / position.entryPrice);
-  const pnlPct = (pnl / collateral) * 100;
+  // Guard: corrupt entry price (near-zero) means PnL would be nonsense — show N/A instead
+  const entryValid = position.entryPrice > 0.0001;
+  const pnl = entryValid
+    ? (currentPrice - position.entryPrice) * (position.side === 'LONG' ? 1 : -1) * (position.size / position.entryPrice)
+    : 0;
+  const pnlPct = entryValid && collateral > 0 ? (pnl / collateral) * 100 : 0;
   const tradeId = position.onChainTradeId ? BigInt(position.onChainTradeId) : 0n;
   const isV1 = !position.onChain || tradeId === 0n;
   const ok = IS_V2 && !isV1;
@@ -97,7 +110,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
       // Auto-dismiss after a full close so the stale position card disappears immediately.
       const isFullClose = (kind === 'PARTIAL' && closePct >= 100);
       if (isFullClose) {
-        setTimeout(() => onClose(), 1800);
+        dismiss(1600); // show 'Confirmed on-chain' briefly then animate out
       }
     } catch (e: any) {
       setError(e?.shortMessage || e?.message || 'Action failed');
@@ -114,26 +127,35 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   ];
 
   return (
-    <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 65,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20,
-        background: 'rgba(7,7,10,0.75)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-      }}
-    >
-      <div style={{
-        width: '100%', maxWidth: 420,
-        borderRadius: 24,
-        background: 'var(--glass-bg-strong)',
-        border: '1px solid var(--glass-border)',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset',
-        backdropFilter: 'blur(40px)',
-        WebkitBackdropFilter: 'blur(40px)',
-        overflow: 'hidden',
+    <>
+      <style>{`
+        @keyframes velo-modal-in  { from { opacity:0; transform:scale(0.96) translateY(12px) } to { opacity:1; transform:scale(1) translateY(0) } }
+        @keyframes velo-modal-out { from { opacity:1; transform:scale(1) translateY(0) } to { opacity:0; transform:scale(0.94) translateY(20px) } }
+        @keyframes velo-bg-in     { from { opacity:0 } to { opacity:1 } }
+        @keyframes velo-bg-out    { from { opacity:1 } to { opacity:0 } }
+      `}</style>
+      <div
+        onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 65,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+          background: 'rgba(7,7,10,0.75)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          animation: closing ? 'velo-bg-out 0.35s ease forwards' : 'velo-bg-in 0.2s ease forwards',
+        }}
+      >
+        <div style={{
+          width: '100%', maxWidth: 420,
+          borderRadius: 24,
+          background: 'var(--glass-bg-strong)',
+          border: '1px solid var(--glass-border)',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset',
+          backdropFilter: 'blur(40px)',
+          WebkitBackdropFilter: 'blur(40px)',
+          overflow: 'hidden',
+          animation: closing ? 'velo-modal-out 0.35s cubic-bezier(0.4,0,1,1) forwards' : 'velo-modal-in 0.25s cubic-bezier(0,0,0.2,1) forwards',
       }}>
 
         {/* gradient top accent */}
@@ -165,13 +187,13 @@ export const VeloManagePositionModal: React.FC<Props> = ({
               <span style={{ color: 'var(--fg-muted)' }}>
                 Mark <span style={{ color: 'var(--fg)', fontWeight: 700 }}>${currentPrice.toLocaleString('en-US', { maximumFractionDigits: 4 })}</span>
               </span>
-              <span style={{ color: pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 700 }}>
-                {pnl >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+              <span style={{ color: entryValid ? (pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--fg-subtle)', fontWeight: 700 }}>
+                {entryValid ? `${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%` : 'Entry N/A'}
               </span>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => dismiss()}
             style={{
               background: 'var(--chip-bg)', border: '1px solid var(--hairline)',
               borderRadius: 10, padding: '6px 7px', cursor: 'pointer',
@@ -277,8 +299,10 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <span style={{ ...S.label }}>Est. PnL on close</span>
-                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                  {(pnl * closePct / 100) >= 0 ? '+' : ''}${Math.abs(pnl * closePct / 100).toFixed(2)}
+                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: entryValid ? (pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--fg-subtle)' }}>
+                  {entryValid
+                    ? `${(pnl * closePct / 100) >= 0 ? '+' : ''}$${Math.abs(pnl * closePct / 100).toFixed(2)}`
+                    : '—'}
                 </span>
               </div>
               <ActionBtn busy={busy} disabled={!ok} onClick={() => handle('PARTIAL')}
@@ -365,6 +389,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         </div>
       </div>
     </div>
+    </>
   );
 };
 
