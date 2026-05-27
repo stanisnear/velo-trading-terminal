@@ -1060,6 +1060,45 @@ This batch is light cleanup work after the heavier batch 7 architectural changes
 5. Check Vercel deploy preview's network tab on first load: should see separate `appkit-*.js`, `viem-*.js`, `wagmi-*.js`, `walletconnect-*.js`, `supabase-*.js`, `charts-*.js`, `icons-*.js`, and `index-*.js` chunks instead of one monolithic bundle.
 6. Push a one-character whitespace change to App.tsx, deploy, refresh. The `index-*.js` chunk hash should change; the `appkit-*.js` and `viem-*.js` chunk hashes should NOT change (browser cache hit).
 
+### 2026-05-27 — Build 83: Fix trading reverts — approve + auto cross-deposit, remove cross account UI
+
+**Problems fixed:**
+
+1. **ISOLATED trades always reverted** — The V3 contract calls `USDC.safeTransferFrom(msg.sender, address(this), collateral)` when opening an isolated position. The frontend never called `approve` before `openPosition`. The wallet had mUSDC but the contract had zero allowance → every trade reverted with `0xf860ca3b` (ERC20 insufficient allowance). Fix: `openPosition` in `veloPerpsService.ts` now calls `ensureApproval(collateral)` before the contract write for ISOLATED mode. Approves 10× the collateral so the user doesn't get approval prompts on every single trade.
+
+2. **CROSS trades blocked by "Deposit to cross first" gate** — The frontend checked `crossFreeBalance >= collateral` and showed an error if it wasn't. This forced users to manually manage a separate cross ledger before trading. The V3 contract requires `crossBalanceUSDC_6[trader] >= collateral` when opening in CROSS mode — this is a contract constraint we can't change. Fix: the service now auto-handles this invisibly: checks cross free balance, calculates the shortfall, calls `approve` + `depositCross` to top up the cross ledger from the wallet, then calls `openPosition`. From the user's perspective: you have wallet mUSDC, you click LONG/SHORT, one or two wallet confirmations (approve if needed, deposit if needed, open position), done.
+
+3. **"Cross account has $X free — need $Y. Deposit to cross first" toast** — Both in `executeTrade` and the conditional-order path in `App.tsx`, this gate is removed. Both modes now check only wallet mUSDC balance (`usdcBalance`). The service handles everything else.
+
+4. **"Cross Free Balance" + Deposit/Manage button in the margin toggle panel** — Removed from TradeView. This panel told the user they needed a separate cross account and offered a button to deposit/withdraw. Since the service auto-manages the cross ledger, this UI is confusing and unnecessary.
+
+5. **"Cross Pool Risk" / "Cross Pool" labels in summary rows** — Replaced with the same "Margin Risk" / "Free Balance" labels used for ISOLATED. Both show the same wallet-balance-based numbers. No more fake separate pool concept in the UI.
+
+**How CROSS margin actually works now (from user's perspective):**
+- Switch to CROSS mode in the margin toggle
+- Set your size and leverage as normal
+- Click LONG/SHORT
+- Wallet prompts: (1) Approve mUSDC if allowance is too low, (2) DepositCross to top up the cross ledger if needed, (3) OpenPosition — the actual trade
+- Done — position opens, cross ledger has collateral locked in it
+- When you close, collateral + PnL returns to your wallet
+
+**Why CROSS mode exists at all:**
+- ISOLATED: each position is independent. If BTC position loses 90%, it gets liquidated. Your ETH position is unaffected.
+- CROSS: all positions share one collateral pool. A winning ETH position offsets a losing BTC position. More capital efficient but one bad trade can drain all your cross collateral.
+- For most users on testnet, ISOLATED is safer. CROSS is there for advanced traders.
+
+**Files changed:**
+- `src/services/veloPerpsService.ts` — `openPosition` now approves USDC before ISOLATED open; auto-deposits cross shortfall from wallet before CROSS open.
+- `src/App.tsx` — CROSS balance gate removed from `executeTrade` and conditional-order path; both now check wallet `usdcBalance` only.
+- `src/TradeView.tsx` — Cross Free Balance panel removed from margin toggle area; "Cross Pool Risk"/"Cross Pool" summary rows replaced with "Margin Risk"/"Free Balance".
+- `PROJECT_STATUS.md` — this entry.
+
+**New gotchas:**
+- The auto-deposit for CROSS means up to 2 extra wallet confirmations before the actual trade (approve + deposit). This is unavoidable given the contract design. Showing a toast like "Approving mUSDC…" and "Funding cross account…" as intermediate steps would be a nice UX improvement in a future build.
+- The `ensureApproval` helper approves `collateral × 10` — a large allowance so the user isn't prompted on every trade. This is safe on testnet. On mainnet, consider whether unlimited approval is acceptable to your risk posture; the safer alternative is approving the exact amount each time at the cost of one extra tx.
+- The VeloCrossAccountModal and `onOpenCrossAccount` prop still exist in the codebase — they're just no longer surfaced from the main trade panel. Advanced users could still access the modal if a UI entry point is added back. The modal itself remains useful for manually withdrawing excess cross balance.
+- Minted 100k mUSDC sent to V3 contract — this is the pool liquidity. Isolated position winners are paid from this pool. The pool shrinks when traders win and grows when traders lose (plus protocol fees). If it goes to zero, profitable close calls revert. Seed it again with another `cast send` call when it runs low.
+
 ### 2026-05-27 — Build 82: Remove fake on-chain features, real liquidation math, Supabase V3 migration
 
 **Context:** After completing the V3 full-wiring pass (Build 80), a plain-English audit of which features are genuinely on-chain vs misleading UI was requested. This build removes or corrects every feature that was either using fake/derived data or referencing the old Orderly order-book model that is no longer connected.

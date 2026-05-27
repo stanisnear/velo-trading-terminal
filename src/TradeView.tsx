@@ -1683,28 +1683,6 @@ export const TradeView = ({
                                 ))}
                             </div>
 
-                            {/* Cross account balance + manage button — shown when CROSS mode is active */}
-                            {marginMode === 'CROSS' && onOpenCrossAccount && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 10, background: 'oklch(0.68 0.22 295/0.08)', border: '1px solid oklch(0.68 0.22 295/0.20)' }}>
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 8, color: 'var(--iris-violet)' }}>Cross Free Balance</div>
-                                        <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: crossFreeBalance > 0 ? 'var(--fg)' : 'oklch(0.75 0.18 25)' }}>
-                                            ${crossFreeBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </div>
-                                        {crossTotalBalance > 0 && crossTotalBalance !== crossFreeBalance && (
-                                            <div style={{ ...S.label, fontSize: 8, color: 'var(--fg-subtle)' }}>
-                                                ${crossTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => onOpenCrossAccount(crossFreeBalance === 0 ? 'DEPOSIT' : 'WITHDRAW')}
-                                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid oklch(0.68 0.22 295/0.35)', background: 'oklch(0.68 0.22 295/0.12)', color: 'var(--iris-violet)', cursor: 'pointer', ...S.label, fontSize: 9 }}>
-                                        {crossFreeBalance === 0 ? 'Deposit →' : 'Manage'}
-                                    </button>
-                                </div>
-                            )}
-
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
                                 {(['MARKET', 'LIMIT', 'STOP'] as const).map(t => (
@@ -1865,8 +1843,8 @@ export const TradeView = ({
                                     ['Free Balance', `$${formatMoney(isolatedBuyingPower)}`, 'var(--pnl-up)'],
                                 ] : [
                                     ['Est. Liq. Price', estLiqPrice > 0 ? `$${formatPrice(estLiqPrice)}` : '—', '#f97316'],
-                                    ['Cross Pool Risk', riskLevel, riskColor],
-                                    ['Cross Pool', `$${formatMoney(crossBuyingPower)}`, crossBuyingPower > 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'],
+                                    ['Margin Risk', riskLevel, riskColor],
+                                    ['Free Balance', `$${formatMoney(isolatedBuyingPower)}`, isolatedBuyingPower > 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'],
                                 ]).map(([label, val, color]) => (
                                     <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ ...S.label, fontSize: 9 }}>{label}</span>

@@ -6494,31 +6494,19 @@ const App = () => {
                 releaseLock();
                 return;
               }
-              // Balance gating depends on marginMode:
-              //   ISOLATED — collateral pulled from wallet mUSDC on-chain at open time.
-              //   CROSS    — collateral pulled from on-chain cross account (must
-              //              depositCross first). Wallet mUSDC is irrelevant.
-              if (marginMode === 'CROSS') {
-                if (veloPerpsTrading.crossFreeBalance < collateral) {
-                  setToast({
-                    message: `Cross account has $${veloPerpsTrading.crossFreeBalance.toFixed(2)} free — need $${collateral.toFixed(2)}. Deposit to cross first.`,
-                    type: 'ERROR',
-                  });
-                  releaseLock();
-                  return;
-                }
-              } else {
-                if (veloPerpsTrading.usdcBalance <= 0) {
-                  setToast({ message: 'No mUSDC in your wallet. Claim from the faucet first.', type: 'ERROR' });
-                  setVeloWelcomeOpen(true);
-                  releaseLock();
-                  return;
-                }
-                if (collateral > veloPerpsTrading.usdcBalance) {
-                  setToast({ message: 'Insufficient mUSDC for this collateral. Reduce size or claim more.', type: 'ERROR' });
-                  releaseLock();
-                  return;
-                }
+              // Balance gating: for both ISOLATED and CROSS, collateral comes
+              // from the wallet mUSDC. The service auto-deposits to the cross
+              // ledger if needed — the user never has to do it manually.
+              if (veloPerpsTrading.usdcBalance <= 0) {
+                setToast({ message: 'No mUSDC in your wallet. Claim from the faucet first.', type: 'ERROR' });
+                setVeloWelcomeOpen(true);
+                releaseLock();
+                return;
+              }
+              if (collateral > veloPerpsTrading.usdcBalance) {
+                setToast({ message: 'Insufficient mUSDC for this collateral. Reduce size or claim more.', type: 'ERROR' });
+                releaseLock();
+                return;
               }
 
               // ── Merge path: if a V2 on-chain position already exists with the same
@@ -6646,17 +6634,9 @@ const App = () => {
                 setToast({ message: 'Minimum collateral is $1.', type: 'ERROR' });
                 return;
               }
-              // For non-reduce-only opening orders, ISOLATED requires wallet
-              // mUSDC; CROSS requires cross free balance.
-              if (marginMode === 'CROSS') {
-                if (veloPerpsTrading.crossFreeBalance < collateral) {
-                  setToast({
-                    message: `Cross account has $${veloPerpsTrading.crossFreeBalance.toFixed(2)} free — need $${collateral.toFixed(2)}.`,
-                    type: 'ERROR',
-                  });
-                  return;
-                }
-              } else if (collateral > veloPerpsTrading.usdcBalance) {
+              // Both ISOLATED and CROSS pull from wallet mUSDC — the service
+              // auto-deposits to the cross ledger when needed.
+              if (collateral > veloPerpsTrading.usdcBalance) {
                 setToast({ message: 'Insufficient mUSDC for this collateral.', type: 'ERROR' });
                 return;
               }

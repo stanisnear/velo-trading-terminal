@@ -691,9 +691,11 @@ export interface OpenPositionResult {
  * Open a new market position.
  *
  * On V3: takes marginMode (ISOLATED/CROSS). For CROSS, collateral is pulled
- * from the trader's on-chain cross account (must have called depositCross
- * first). For ISOLATED, collateral is pulled directly from wallet via
- * safeTransferFrom — caller must have approved the contract.
+ * For ISOLATED: approves the contract then calls openPosition (collateral
+ * pulled from wallet via safeTransferFrom).
+ * For CROSS: checks cross free balance first; if insufficient, auto-deposits
+ * the shortfall from the wallet (approve + depositCross) so the user never
+ * has to manually manage a separate cross account. Then calls openPosition.
  */
 export async function openPosition(
   walletClient: WalletClient,
@@ -710,10 +712,69 @@ export async function openPosition(
   const { updateData, feeWei } = await fetchPriceUpdate([feedId]);
   const collateral_6 = parseUnits(args.collateralUSDC.toString(), USDC_DECIMALS);
 
+  // ── Shared approve helper ─────────────────────────────────────────────────
+  const usdcAbi = [
+    { type: 'function', name: 'allowance', stateMutability: 'view',
+      inputs: [{ type: 'address' }, { type: 'address' }], outputs: [{ type: 'uint256' }] },
+    { type: 'function', name: 'approve', stateMutability: 'nonpayable',
+      inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [{ type: 'bool' }] },
+  ] as const;
+
+  async function ensureApproval(amount: bigint) {
+    const allowance = await publicClient.readContract({
+      address: VELO_USDC_BASE,
+      abi: usdcAbi,
+      functionName: 'allowance',
+      args: [account!.address, VELO_PERPS_ADDRESS],
+    }) as bigint;
+    if (allowance < amount) {
+      const approveTx = await walletClient.writeContract({
+        address: VELO_USDC_BASE,
+        abi: usdcAbi,
+        functionName: 'approve',
+        args: [VELO_PERPS_ADDRESS, amount * 10n], // approve 10× for UX
+        account,
+        chain: walletClient.chain,
+      });
+      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+    }
+  }
+
   let txHash: `0x${string}`;
 
   if (IS_V3) {
     const mm = args.marginMode || 'ISOLATED';
+
+    if (mm === 'ISOLATED') {
+      // ISOLATED: contract pulls collateral from wallet via safeTransferFrom —
+      // must approve first.
+      await ensureApproval(collateral_6);
+    } else {
+      // CROSS: contract uses the trader's cross ledger balance.
+      // Auto-top-up: if cross free balance < collateral, deposit the shortfall
+      // from the wallet so the user never has to manage the cross account manually.
+      const crossFree = await publicClient.readContract({
+        address: VELO_PERPS_ADDRESS,
+        abi: VELO_PERPS_V3_ABI,
+        functionName: 'crossFreeBalance',
+        args: [account.address],
+      }) as bigint;
+      if (crossFree < collateral_6) {
+        const shortfall = collateral_6 - crossFree;
+        await ensureApproval(shortfall);
+        const depositHash = await walletClient.writeContract({
+          address: VELO_PERPS_ADDRESS,
+          abi: [{ type: 'function', name: 'depositCross', stateMutability: 'nonpayable',
+            inputs: [{ name: 'amountUSDC_6', type: 'uint64' }], outputs: [] }] as const,
+          functionName: 'depositCross',
+          args: [shortfall],
+          account,
+          chain: walletClient.chain,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: depositHash });
+      }
+    }
+
     txHash = await walletClient.writeContract({
       address: VELO_PERPS_ADDRESS,
       abi: VELO_PERPS_V3_ABI,
