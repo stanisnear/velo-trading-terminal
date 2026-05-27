@@ -1550,7 +1550,7 @@ export const TradeView = ({
                 </button>
                 <div style={{ textAlign: 'right' }}>
                     <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
-                    <div style={{ ...S.label, fontSize: 9, color: changeColor }}>{changeLabel} · <span title="Display price from Binance spot feed. Trade executions use Pyth oracle price, which may differ slightly." style={{ cursor: 'help', borderBottom: '1px dashed currentColor' }}>Binance</span></div>
+                    <div style={{ ...S.label, fontSize: 9, color: changeColor }}>{changeLabel}</div>
                 </div>
             </div>
 
@@ -1620,7 +1620,7 @@ export const TradeView = ({
                         </button>
                         <div style={{ textAlign: 'right' }}>
                             <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
-                            <div style={{ ...S.label, marginTop: 2, color: changeColor }} title="Display price from Binance spot feed. Trade executions use Pyth oracle price, which may differ slightly.">{changeLabel} · Binance</div>
+                            <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
                         </div>
                     </div>
 

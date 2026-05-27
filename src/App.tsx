@@ -4369,6 +4369,12 @@ const App = () => {
             : p.entryPrice * (1 + 0.9 / p.leverage),
           timestamp: p.openedAt * 1000,
           onChain: true,
+          // ── V2 fields required for manage modal routing ──────────────────────
+          // Without onChainTradeId the manage modal can't be reached — the UI
+          // falls back to the legacy EditPositionModal which only saves to Supabase.
+          onChainTradeId: p.tradeId.toString(),
+          takeProfit: p.takeProfit,
+          stopLoss: p.stopLoss,
           // Reuse the orderly fields for tx link surfacing (modal already reads them).
           orderlyOrderId: undefined,
           orderlyOrderUrl: p.openTxHash ? `https://sepolia.basescan.org/tx/${p.openTxHash}` : undefined,
