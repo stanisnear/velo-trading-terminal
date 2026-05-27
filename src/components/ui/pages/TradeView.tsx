@@ -1594,7 +1594,7 @@ export const TradeView = ({
             <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', gap: isMobile ? 0 : 10, overflow: isMobile ? 'visible' : 'hidden' }}>
 
                 {/* BUBBLE 1 ── Pair header + Order book */}
-                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '36%', minHeight: isMobile ? 'auto' : 200, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined }}>
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : 240, minHeight: isMobile ? 'auto' : 240, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined }}>
 
                     {/* Pair header (desktop only) */}
                     <div style={{ flexShrink: 0, padding: '10px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
@@ -1623,8 +1623,8 @@ export const TradeView = ({
                 </div>
 
                 {/* BUBBLE 2 ── Order form */}
-                <div style={{ flex: isMobile ? 'none' : 1, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', minHeight: 0, margin: isMobile ? '8px 10px' : undefined }}>
-                    <div style={{ flex: 1, overflowY: isMobile ? 'auto' : 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }} className={isMobile ? 'custom-scrollbar' : ''}>
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px' : undefined }}>
+                    <div style={{ overflowY: isMobile ? 'auto' : 'auto', position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }} className={isMobile ? 'custom-scrollbar' : 'custom-scrollbar'}>
 
                         {/* Auth overlay */}
                         {!user && (
@@ -1657,7 +1657,7 @@ export const TradeView = ({
                             </div>
                         )}
 
-                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : 5, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto' }}>
+                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : 5, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: 1 }}>
 
                             {/* Margin mode toggle */}
                             <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 12, padding: 3, border: '1px solid var(--hairline)' }}>
@@ -1848,7 +1848,7 @@ export const TradeView = ({
                                 background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
                                 color: side === 'LONG' ? '#0a1a10' : '#fff',
                                 boxShadow: side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
-                                marginTop: 0,
+                                marginTop: 'auto',
                             }}>
                                 {user ? (
                                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
