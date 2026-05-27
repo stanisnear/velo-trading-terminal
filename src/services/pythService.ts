@@ -5,8 +5,10 @@
  * passed as `bytes[]` calldata. The contract calls updatePriceFeeds() with
  * this data and charges a small ETH fee (typically < 0.0001 ETH).
  *
- * Hermes is Pyth's HTTP gateway. We hit /v2/updates/price/latest with the
- * feed ids we want, and it returns hex-encoded update bytes ready to forward.
+ * IMPORTANT: The VeloPerps contract enforces msg.value == getUpdateFee(updateData)
+ * exactly — it reverts with PythFeeMismatch if the value differs by even 1 wei.
+ * Do NOT estimate the fee here. Call getExactPythFee() in veloPerpsService after
+ * fetching updateData to get the precise on-chain fee.
  *
  * See: https://docs.pyth.network/price-feeds/fetch-price-updates
  */
@@ -36,27 +38,19 @@ export const PYTH_FEED_IDS = {
 const HERMES_URL = import.meta.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 
 /**
- * Fetch a fresh price update for the given feed ids.
- *
- * Returns:
- *   updateData — bytes[] to pass to VeloPerps.openPosition / closePosition
- *   feeWei     — what to send as msg.value. Estimated at 1 wei per update + buffer
- *                (Pyth's getUpdateFee returns a few thousand wei in practice; we
- *                pad with 0.0001 ETH ceiling since the contract refunds excess).
- *
- * Throws if Hermes is unreachable or returns malformed data — callers should
- * surface this to UI ("price feed unavailable, try again").
+ * Fetch a fresh price update for the given feed ids from Hermes.
+ * Returns only the updateData bytes — the caller must compute the exact
+ * fee via getExactPythFee() before submitting the transaction.
  */
 export async function fetchPriceUpdate(
   feedIds: readonly string[],
-): Promise<{ updateData: `0x${string}`[]; feeWei: bigint }> {
+): Promise<{ updateData: `0x${string}`[] }> {
   if (feedIds.length === 0) {
     throw new Error('fetchPriceUpdate: no feed ids');
   }
 
   const params = new URLSearchParams();
   for (const id of feedIds) {
-    // Hermes accepts ids with or without 0x prefix; we send without for safety.
     params.append('ids[]', id.startsWith('0x') ? id.slice(2) : id);
   }
   params.set('encoding', 'hex');
@@ -67,8 +61,6 @@ export async function fetchPriceUpdate(
   }
 
   const data = await res.json();
-  // Response shape: { binary: { encoding: "hex", data: [ "<hex>", ... ] }, parsed: [...] }
-  // We only need the binary blobs to forward to the contract.
   const hexBlobs: string[] = data?.binary?.data ?? [];
   if (hexBlobs.length === 0) {
     throw new Error('Hermes returned no price updates');
@@ -78,13 +70,7 @@ export async function fetchPriceUpdate(
     s.startsWith('0x') ? (s as `0x${string}`) : (`0x${s}` as `0x${string}`),
   );
 
-  // Pyth update fee on Base Sepolia is typically a few wei per update.
-  // We pad to 0.001 ETH per update — the VeloPerps contract refunds the excess
-  // automatically. This generous buffer eliminates "Internal JSON-RPC error"
-  // reverts caused by fee underestimation during gas-price volatility.
-  const feeWei = BigInt(updateData.length) * 1_000_000_000_000_000n; // 0.001 ETH each
-
-  return { updateData, feeWei };
+  return { updateData };
 }
 
 /**
