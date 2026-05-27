@@ -45,6 +45,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   const [tp,           setTp]           = useState('');
   const [sl,           setSl]           = useState('');
   const [closing,      setClosing]      = useState(false);
+  const [success,      setSuccess]      = useState<{ txHash: `0x${string}`; pct: number } | null>(null);
 
   // Smooth animated dismiss — fades + slides down, then fires onClose
   const dismiss = React.useCallback((delay = 0) => {
@@ -57,7 +58,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   useEffect(() => {
     if (!isOpen) return;
     setTab(initialTab || 'PARTIAL');
-    setBusy(false); setError(''); setLastTx(null); setClosing(false);
+    setBusy(false); setError(''); setLastTx(null); setClosing(false); setSuccess(null);
     setAddAmount(''); setReduceAmount(''); setClosePct(100);
     if (position) {
       setTp(position.takeProfit && position.takeProfit > 0 ? String(position.takeProfit) : '');
@@ -65,7 +66,9 @@ export const VeloManagePositionModal: React.FC<Props> = ({
     }
   }, [isOpen, position, initialTab]);
 
-  if (!isOpen || !position) return null;
+  // Stay mounted while closing so the exit animation can play
+  if (!isOpen && !closing) return null;
+  if (!position) return null;
 
   const collateral = position.size / position.leverage;
   // Guard: corrupt entry price (near-zero) means PnL would be nonsense — show N/A instead
@@ -107,10 +110,10 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         res = await actions.setTriggers(tradeId, tpNum, slNum);
       }
       setLastTx(res.txHash);
-      // Auto-dismiss after a full close so the stale position card disappears immediately.
       const isFullClose = (kind === 'PARTIAL' && closePct >= 100);
       if (isFullClose) {
-        dismiss(1600); // show 'Confirmed on-chain' briefly then animate out
+        setSuccess({ txHash: res.txHash, pct: closePct });
+        dismiss(2800); // show success screen, then animate out
       }
     } catch (e: any) {
       setError(e?.shortMessage || e?.message || 'Action failed');
@@ -133,6 +136,8 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         @keyframes velo-modal-out { from { opacity:1; transform:scale(1) translateY(0) } to { opacity:0; transform:scale(0.94) translateY(20px) } }
         @keyframes velo-bg-in     { from { opacity:0 } to { opacity:1 } }
         @keyframes velo-bg-out    { from { opacity:1 } to { opacity:0 } }
+        @keyframes velo-check-pop { from { opacity:0; transform:scale(0.5) } to { opacity:1; transform:scale(1) } }
+        @keyframes velo-check-draw { from { stroke-dashoffset:28 } to { stroke-dashoffset:0 } }
       `}</style>
       <div
         onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
@@ -163,6 +168,70 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           height: 2,
           background: 'linear-gradient(90deg, oklch(0.68 0.22 295), oklch(0.72 0.20 240), oklch(0.68 0.22 295))',
         }} />
+
+        {/* ── SUCCESS SCREEN ── replaces body on full close confirm */}
+        {success ? (
+          <div style={{
+            padding: '40px 28px 36px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
+            animation: 'velo-modal-in 0.3s cubic-bezier(0,0,0.2,1) forwards',
+          }}>
+            {/* big animated checkmark */}
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'oklch(0.78 0.18 150 / 0.12)',
+              border: '1.5px solid oklch(0.78 0.18 150 / 0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginBottom: 20,
+              animation: 'velo-check-pop 0.4s cubic-bezier(0.175,0.885,0.32,1.275) 0.1s both',
+            }}>
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <path d="M8 16.5l5.5 5.5 10.5-11" stroke="oklch(0.78 0.18 150)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ strokeDasharray: 28, strokeDashoffset: 0, animation: 'velo-check-draw 0.35s ease 0.3s both' }} />
+              </svg>
+            </div>
+            <div style={{
+              fontFamily: 'var(--font-display)', fontStyle: 'italic',
+              fontSize: 26, letterSpacing: '-0.02em', color: 'var(--fg)',
+              marginBottom: 6,
+            }}>
+              {success.pct === 100 ? 'Position Closed' : `${success.pct}% Closed`}
+            </div>
+            <div style={{
+              fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-muted)',
+              marginBottom: 28,
+            }}>
+              {position.pair} · {position.side} · {position.leverage}×
+            </div>
+            <a
+              href={`https://sepolia.basescan.org/tx/${success.txHash}`}
+              target="_blank" rel="noopener noreferrer"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                letterSpacing: '0.06em', textTransform: 'uppercase',
+                color: 'oklch(0.68 0.22 295)',
+                padding: '10px 20px', borderRadius: 12,
+                background: 'oklch(0.68 0.22 295 / 0.08)',
+                border: '1px solid oklch(0.68 0.22 295 / 0.25)',
+                textDecoration: 'none',
+                transition: 'background 0.15s',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              View on BaseScan
+            </a>
+            <div style={{
+              marginTop: 20, fontFamily: 'var(--font-mono)', fontSize: 11,
+              color: 'var(--fg-subtle)', opacity: 0.6,
+            }}>
+              Closing…
+            </div>
+          </div>
+        ) : (
+        <>
 
         {/* Header */}
         <div style={{ padding: '18px 20px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -387,6 +456,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           )}
 
         </div>
+        </>)}{/* end success ? ... : <> */}
       </div>
     </div>
     </>
