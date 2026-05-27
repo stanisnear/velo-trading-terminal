@@ -271,25 +271,19 @@ html.light iframe[id*="tradingview"] {
 @media (max-width: 640px) {
   /* Hero title */
   .lb-hero-title {
-    font-size: clamp(36px, 10vw, 56px) !important;
-    margin-bottom: 8px !important;
+    font-size: clamp(28px, 9vw, 44px) !important;
+    margin-bottom: 6px !important;
   }
   .lb-view > div:first-child {
-    margin-bottom: 24px !important;
+    margin-bottom: 16px !important;
   }
-  /* Podium cards — single column on very small screens */
-  .lb-podium {
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-    align-items: stretch !important;
-  }
-  /* Leaderboard table — shrink font + padding */
+  /* Leaderboard table — hidden on mobile, replaced by card list */
   .lb-view table {
-    font-size: 11px !important;
+    display: none !important;
   }
-  .lb-view table td,
-  .lb-view table th {
-    padding: 8px 8px !important;
+  /* Leaderboard outer wrapper — add side padding on mobile */
+  .lb-view {
+    padding: 0 10px !important;
   }
 }
 
@@ -337,21 +331,44 @@ html.light iframe[id*="tradingview"] {
 
 /* ── Dashboard ───────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  /* Quick stats 2-col → 1-col when too tight */
+  /* Quick stats 2-col */
   .dash-quick-stats {
     grid-template-columns: 1fr 1fr !important;
   }
   /* Portfolio chart area — shorter on mobile */
   .dash-portfolio-chart {
-    min-height: 120px !important;
+    min-height: 110px !important;
+    padding: 4px 0 !important;
   }
-  /* Deposit/withdraw buttons — stack more naturally */
+  /* Deposit/withdraw buttons — full-width feel */
   .dash-action-btns {
     flex-wrap: wrap !important;
+    padding: 0 14px 14px !important;
+  }
+  .dash-action-btns button {
+    flex: 1 1 calc(50% - 4px) !important;
+    min-width: 0 !important;
   }
   /* Dashboard panel inner padding */
   .dash-panel-inner {
     padding: 14px 16px 0 !important;
+  }
+  /* Positions table — hide less critical columns */
+  .dash-positions-table .col-source,
+  .dash-positions-table .col-tpsl,
+  .dash-positions-table .col-mark {
+    display: none !important;
+  }
+  .dash-positions-table td,
+  .dash-positions-table th {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+  /* Activity table mobile */
+  .dash-activity-table td,
+  .dash-activity-table th {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
   }
 }
 

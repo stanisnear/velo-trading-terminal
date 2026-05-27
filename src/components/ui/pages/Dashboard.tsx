@@ -13,7 +13,7 @@ const S = {
 };
 
 const panel: React.CSSProperties = {
-  background: 'var(--bg-base-2)',
+  background: 'var(--glass-bg)',
   border: '1px solid var(--hairline)',
   borderRadius: 16,
   backdropFilter: 'blur(24px)',
@@ -169,7 +169,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   };
 
   return (
-    <div style={{ maxWidth: 1600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }} className="animate-fade-in">
+    <div style={{ maxWidth: 1600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 'max(88px, calc(env(safe-area-inset-bottom, 0px) + 88px))' }} className="animate-fade-in">
       {/* Pending Deposit Detail Modal */}
       {pendingDepositDetail && <PendingDepositDetailModal deposit={pendingDepositDetail} onClose={() => setPendingDepositDetail(null)} />}
       {/* On-chain deposit/withdraw handled by OrderlyOnboardingModal in App.tsx */}

@@ -338,6 +338,20 @@ html.light body::after {
   }
 }
 
+@media (max-width: 640px) {
+  .dash-grid-main {
+    padding: 0 10px;
+    gap: 10px;
+  }
+  .animate-fade-in > .dash-grid-main,
+  .animate-fade-in > div[style*="gap: 12px"],
+  .animate-fade-in > div[style*="gap:12px"] {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+
 @media (max-width: 720px) {
   .social-feed-grid > div:first-child,
   .social-feed-grid > div:last-child {

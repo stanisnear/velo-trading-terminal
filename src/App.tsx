@@ -1177,6 +1177,12 @@ const podiumAccents = [
 ];
 const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCopyTrade, handleViewProfile }: any) => {
     const [period, setPeriod] = React.useState<'24H' | '7D' | '30D' | 'ALL'>('ALL');
+    const [isMobile, setIsMobile] = React.useState(window.innerWidth < 640);
+    React.useEffect(() => {
+        const handler = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', handler);
+        return () => window.removeEventListener('resize', handler);
+    }, []);
     // Leaderboard rules (build 79+):
     //   1. Wallet-only — every trader on the leaderboard must have a wallet_address
     //      in their profile. Demo (email-only) users are excluded entirely so
@@ -1202,7 +1208,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
         .sort((a: any, b: any) => (b.pnl ?? 0) - (a.pnl ?? 0));
     const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
     return (
-        <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto', paddingBottom: 80 }} className="animate-fade-in lb-view">
+        <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 80 }} className="animate-fade-in lb-view">
             {/* Hero header */}
             <div style={{ textAlign: 'center', marginBottom: 40 }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 14px', borderRadius: 999, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', marginBottom: 16 }}>
@@ -1221,6 +1227,47 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
             </div>
 
             {/* Podium top 3 */}
+            {isMobile ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                    {/* #1 full width */}
+                    {[0, 1, 2].map((idx) => {
+                        const trader = sortedTraders[idx];
+                        if (!trader) return null;
+                        const rank = idx + 1;
+                        const isSelf = user && trader.id === user.id;
+                        const accentColor = podiumAccents[idx];
+                        const winRateDisplay = Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—';
+                        return (
+                            <div key={trader.id} onClick={() => handleViewProfile(trader)} style={{
+                                background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 18%, var(--bg-base-2))' : podiumGolds[idx],
+                                border: isSelf ? '1px solid oklch(0.68 0.22 295 / 0.5)' : podiumBorders[idx],
+                                borderRadius: 16,
+                                backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+                                padding: '14px 16px',
+                                display: 'flex', alignItems: 'center', gap: 14,
+                                position: 'relative', overflow: 'hidden', cursor: 'pointer',
+                            }}>
+                                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, color: accentColor, opacity: 0.1, lineHeight: 1, userSelect: 'none' as const, pointerEvents: 'none' }}>{rank}</span>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: accentColor, letterSpacing: '0.08em', width: 22, flexShrink: 0 }}>#{rank}</span>
+                                <div style={{ position: 'relative', width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', border: `2px solid ${accentColor}`, flexShrink: 0 }}>
+                                    <img src={trader.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', letterSpacing: '-0.02em', fontSize: 15, color: 'var(--fg)' }}>{trader.username}</span>
+                                        {isSelf && <span style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--iris-violet)', color: '#fff', fontFamily: 'var(--font-mono)', fontSize: 7, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>You</span>}
+                                    </div>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'var(--fg-subtle)' }}>{trader.handle}</span>
+                                </div>
+                                <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontSize: 14, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginBottom: 2 }}>{trader.pnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(trader.pnl))}</p>
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>{winRateDisplay} WR</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
             <div className="lb-podium" style={{ display: 'grid', gap: 14, marginBottom: 18, alignItems: 'end' }}>
                 {[1, 0, 2].map((idx) => {
                     const trader = sortedTraders[idx];
@@ -1278,9 +1325,11 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                     )
                 })}
             </div>
+            )} {/* end desktop podium ternary */}
 
-            {/* Full table */}
+            {/* Full table — desktop */}
             <div style={panel}>
+                {!isMobile && (
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>
                         <thead>
@@ -1329,6 +1378,62 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                         </tbody>
                     </table>
                 </div>
+                )}
+
+                {/* Mobile card list */}
+                {isMobile && (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {/* Header row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid var(--hairline)' }}>
+                        <span style={{ ...S_LB.label, fontSize: 9 }}>Rank · Trader</span>
+                        <span style={{ ...S_LB.label, fontSize: 9 }}>PnL · Win Rate</span>
+                    </div>
+                    {sortedTraders.map((trader: any, i: number) => {
+                        const isSelf = user && trader.id === user.id;
+                        const rankColors = ['oklch(0.70 0.15 75)', 'oklch(0.80 0.05 240)', 'oklch(0.65 0.13 50)'];
+                        const rankColor = i < 3 ? rankColors[i] : 'var(--fg-subtle)';
+                        return (
+                            <div key={trader.id}
+                                onClick={() => handleViewProfile(trader)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 12,
+                                    padding: '12px 16px',
+                                    borderBottom: '1px solid var(--hairline)',
+                                    cursor: 'pointer',
+                                    background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 10%, transparent)' : 'transparent',
+                                    transition: 'background 0.1s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = isSelf ? 'color-mix(in oklab, var(--iris-violet) 16%, transparent)' : 'var(--chip-bg)'}
+                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = isSelf ? 'color-mix(in oklab, var(--iris-violet) 10%, transparent)' : 'transparent'}>
+                                {/* Rank */}
+                                <span style={{ ...S_LB.mono, fontSize: 12, fontWeight: 700, color: rankColor, width: 26, flexShrink: 0, textAlign: 'center' as const }}>#{i + 1}</span>
+                                {/* Avatar */}
+                                <div style={{ position: 'relative', flexShrink: 0 }}>
+                                    <img src={trader.avatar} style={{ width: 40, height: 40, borderRadius: '50%', border: `1.5px solid ${i < 3 ? rankColor : 'var(--hairline)'}`, display: 'block' }} />
+                                    {isSelf && <span style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: '50%', background: 'var(--iris-violet)', border: '2px solid var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 7, color: '#fff', fontWeight: 900 }}>✓</span></span>}
+                                </div>
+                                {/* Name + handle */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                        <span style={{ ...S_LB.display, fontSize: 14, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{trader.username}</span>
+                                        {isSelf && <span style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--iris-violet)', color: '#fff', ...S_LB.mono, fontSize: 7, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, flexShrink: 0 }}>You</span>}
+                                    </div>
+                                    <span style={{ ...S_LB.label, fontSize: 9, color: 'var(--fg-subtle)' }}>{trader.handle} · {trader.followers.length} followers</span>
+                                </div>
+                                {/* Stats */}
+                                <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
+                                    <p style={{ ...S_LB.mono, fontSize: 13, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginBottom: 2 }}>
+                                        {trader.pnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(trader.pnl))}
+                                    </p>
+                                    <p style={{ ...S_LB.mono, fontSize: 10, color: 'var(--fg-muted)' }}>
+                                        {Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—'} WR
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                )}
             </div>
         </div>
     );
