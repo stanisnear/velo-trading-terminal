@@ -1483,6 +1483,10 @@ export const TradeView = ({
 
     const handleSubmit = () => {
         if (!user) return onRequireAuth();
+        if (isLiveMode && orderType !== 'MARKET') {
+            setToast({ message: 'Live trading currently supports MARKET orders only. LIMIT/STOP are not on-chain yet.', type: 'ERROR' });
+            return;
+        }
         const price = orderType === 'MARKET' ? currentPrice : parseFloat(limitPrice);
         if (!price) return;
         if (Date.now() - (window as any)._lastTradeTime < 1000) return;
@@ -1615,7 +1619,7 @@ export const TradeView = ({
                                         <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
                                     )}
                                 </div>
-                                <div style={{ ...S.label, marginTop: 2, color: 'var(--fg-subtle)' }}>Perpetual</div>
+                                <div style={{ ...S.label, marginTop: 2 }}>Perp · Fund: <span style={{ color: changeColor }}>{changeLabel}</span></div>
                             </div>
                         </button>
                         <div style={{ textAlign: 'right' }}>
@@ -1681,12 +1685,14 @@ export const TradeView = ({
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
-                                {(['MARKET', 'LIMIT', 'STOP'] as const).map(t => (
-                                    <button key={t} onClick={() => setOrderType(t)} style={{ border: 'none', background: 'none', cursor: 'pointer', position: 'relative', paddingBottom: 3, ...S.label, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', transition: 'color 0.12s' }}>
+                                {(['MARKET', 'LIMIT', 'STOP'] as const).map(t => {
+                                    const disabledInLive = isLiveMode && t !== 'MARKET';
+                                    return (
+                                    <button key={t} onClick={() => { if (!disabledInLive) setOrderType(t); }} style={{ border: 'none', background: 'none', cursor: disabledInLive ? 'not-allowed' : 'pointer', position: 'relative', paddingBottom: 3, ...S.label, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', opacity: disabledInLive ? 0.45 : 1, transition: 'color 0.12s' }}>
                                         {t}
                                         {orderType === t && <div style={{ position: 'absolute', bottom: -8, left: 0, right: 0, height: 2, background: 'var(--fg)', borderRadius: 2 }} />}
                                     </button>
-                                ))}
+                                )})}
                             </div>
 
                             {/* Long / Short */}

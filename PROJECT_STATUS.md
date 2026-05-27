@@ -4,11 +4,11 @@
 >
 > **For NotebookLM / context hand-off:** this is the authoritative state document. Lower-level details live in `README.md` and `MIGRATION_STATUS.md`.
 
-**Last updated:** May 26, 2026 — End of Phase 8 + VELO v3 rebrand pass
+**Last updated:** May 27, 2026 — V3 contract expansion pass (feature-parity focus)
 **Live URL:** https://velo-trading-terminal.vercel.app
 **Repo:** https://github.com/stanisnear/velo-trading-terminal
 **Owner:** Stan (@stanisnear)
-**Stage:** Testnet on Base Sepolia, pre-funding
+**Stage:** Testnet on Base Sepolia, V3 wiring-in-progress, not yet cut over to prod
 
 ---
 
@@ -46,6 +46,24 @@ The frontend has now been moved onto the VELO v3 visual system from the handoff 
 ---
 
 ## Deployed contracts (Base Sepolia, chain ID 84532)
+
+### V3 — prepared for deployment (not live yet)
+
+| Contract | Address |
+|----------|---------|
+| **VeloPerps V3** | Pending deploy from `contracts/script/DeployVeloPerpsV3.s.sol` |
+
+**V3 contract scope currently implemented (code-level):**
+
+1. Isolated + cross margin modes.
+2. On-chain TP/SL set/replace/clear (`setTriggers` with `0` to clear) and keeper close path (`closeIfTriggered`).
+3. On-chain conditional trigger orders (LIMIT/STOP) with place/cancel/execute.
+4. Reduce-only trigger execution via partial close semantics.
+5. Liquidation path with bounty.
+6. Pair-level risk controls (max notional / OI cap checks).
+7. Funding index accrual and funding settlement in close PnL.
+
+**Critical note:** this is contract-ready but requires full frontend routing to V3 methods before claiming parity in production.
 
 ### V2 — currently live (primary trading venue)
 
@@ -100,11 +118,11 @@ Plus: `version()` returns 2, `effectiveLeverage(tradeId)` computes leverage from
 
 All 12 V2 forge tests pass.
 
-### What V2 does NOT add (and why — not bolt-on changes)
+### What V2 does NOT add (and why V3 exists)
 
-- **Cross margin** — needs shared collateral pool, portfolio equity, multi-position liquidation cascade → V3
-- **On-chain limit orders** — needs separate OrderBook contract + keeper → V3
-- **Funding rate** — needs OI tracking + accrual per pair → v2.5
+- **Cross margin** — implemented in V3.
+- **On-chain limit/stop trigger orders** — implemented in V3.
+- **Funding accrual/indexing** — implemented in V3.
 - **Insurance fund + ADL** — needs separate vault + drawdown logic → required for any real-money launch
 
 ---
@@ -337,6 +355,12 @@ cast call $REGISTRY "nextChangeAllowed(address)(uint256)" $OWNER --rpc-url $RPC
 
 # Public faucet mint (6-hour cooldown)
 cast send $MUSDC "mint()" --rpc-url $RPC --private-key $PRIVATE_KEY
+
+# Owner mintTo (no cooldown; admin funding)
+cast send $MUSDC "mintTo(address,uint256)" 0xTRADER <amount_6dec> --rpc-url $RPC --private-key $PRIVATE_KEY
+
+# Seed perps pool directly
+cast send $MUSDC "transfer(address,uint256)" $V2 <amount_6dec> --rpc-url $RPC --private-key $PRIVATE_KEY
 
 # Owner-only mint (no cooldown)
 cast send $MUSDC "mintTo(address,uint256)" <to> <amount_6dec> \
