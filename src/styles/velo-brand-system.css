@@ -600,6 +600,37 @@ html, body {
   .token-page-grid {
     grid-template-columns: 1fr !important;
   }
+  .token-chart-header {
+    padding: 12px 12px 0 !important;
+  }
+  .token-chart-controls {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100%;
+    justify-content: space-between;
+  }
+  /* Make chart SVG fill container width fully */
+  .token-chart-svg {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 220px;
+  }
+  /* Trade button full width on mobile */
+  .token-trade-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 11px 18px !important;
+    font-size: 12px !important;
+    border-radius: 12px !important;
+  }
+  .token-header-actions {
+    width: 100% !important;
+    flex-direction: row !important;
+  }
+  .token-header-actions > button:last-child {
+    flex: 1 !important;
+  }
 }
 
 /* ── Top tokens bar — 2 cols on mobile ───────────────────────────────────── */

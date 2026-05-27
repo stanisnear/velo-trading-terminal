@@ -161,7 +161,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8 }) =
 
   const rowStyle = (_side: 'ask' | 'bid', _pct: number): React.CSSProperties => ({
     display: 'flex', justifyContent: 'space-between', position: 'relative',
-    cursor: 'pointer', padding: '0 12px', alignItems: 'center', height: 18, flexShrink: 0,
+    cursor: 'pointer', padding: '0 12px', alignItems: 'center', height: 26, flexShrink: 0,
   });
 
   const barStyle = (side: 'ask' | 'bid', pct: number): React.CSSProperties => ({

@@ -21,9 +21,9 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Use the actual panel background color so lightweight-charts canvas blends in.
-    // The panel uses --bg-base-2 which maps to #0b0d12 (dark) / #f3f1fa (light).
-    const bgColor = theme === 'dark' ? '#0b0d12' : '#f0eef8';
+    // Match the panel's glass-bg color so chart blends seamlessly.
+    // Light: rgba(255,255,255,0.58) over #F5F3EE ≈ #FAF9F7. Dark: panel is rgba(22,22,28,0.55) over #07070A ≈ #0D0D11.
+    const bgColor = theme === 'dark' ? '#0D0D11' : '#FAF9F7';
     const colors = {
         background: bgColor,
         text: theme === 'dark' ? '#9ca3af' : '#50506a',
