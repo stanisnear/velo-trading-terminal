@@ -740,7 +740,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             </div>
 
             {/* Body */}
-            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', opacity: !user ? 0.08 : 1, filter: !user ? 'blur(1px)' : 'none', pointerEvents: !user ? 'none' : 'auto' }}>
+            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', opacity: !user ? 0.08 : 1, filter: !user ? 'blur(1px)' : 'none', pointerEvents: !user ? 'none' : 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
 
                 {/* POSITIONS */}
                 {tab === 'POSITIONS' && <>
@@ -1118,10 +1118,10 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
         <div onClick={onClose}
             style={{ position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)' }}>
             <div onClick={(e: any) => e.stopPropagation()}
-                style={{ width: '100%', maxWidth: 340, borderRadius: 20, background: 'var(--bg-base-2)', border: borderRow, boxShadow: '0 24px 64px rgba(0,0,0,0.45)', overflow: 'hidden' }}>
+                style={{ width: '100%', maxWidth: 340, borderRadius: 20, background: 'var(--glass-bg-strong)', backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)', border: borderRow, boxShadow: '0 24px 64px rgba(0,0,0,0.45)', overflow: 'hidden' }}>
 
                 {/* Header */}
-                <div style={{ padding: '16px 16px 12px', borderBottom: borderRow, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', background: 'var(--bg-base-2)' }}>
+                <div style={{ padding: '16px 16px 12px', borderBottom: borderRow, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', background: 'transparent' }}>
                     <div>
                         <div style={{ ...S.display, fontSize: 17, color: textPrimary }}>
                             {isBlocked ? 'Cannot Reduce Leverage' : isUp ? 'Increase Leverage?' : 'Reduce Leverage?'}
@@ -1137,7 +1137,7 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
                 </div>
 
                 {/* Body */}
-                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg-base-2)' }}>
+                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, background: 'transparent' }}>
                     {/* Warning banner */}
                     <div style={{ background: accentBg, border: `1px solid ${accentBorder}`, borderRadius: 10, padding: '10px 13px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                         <div style={{ ...S.label, fontSize: 9, color: accentColor }}>
@@ -1183,7 +1183,7 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
                 </div>
 
                 {/* Footer */}
-                <div style={{ padding: '10px 16px 16px', borderTop: borderRow, display: 'flex', gap: 8, background: 'var(--bg-base-2)' }}>
+                <div style={{ padding: '10px 16px 16px', borderTop: borderRow, display: 'flex', gap: 8, background: 'transparent' }}>
                     <button onClick={onClose}
                         style={{ flex: 1, padding: '10px 0', borderRadius: 9, border: borderRow, background: 'var(--chip-bg)', color: 'var(--fg)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em' }}>
                         Keep {leverageModal.currentLeverage}x
@@ -1504,7 +1504,7 @@ export const TradeView = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 84px)', background: 'transparent', overflow: isMobile ? 'auto' : 'hidden', paddingBottom: isMobile ? 80 : 0, gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 84px)', background: 'transparent', overflow: isMobile ? 'auto' : 'hidden', gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
             <PairSelector isOpen={pairOpen} onClose={() => setPairOpen(false)} onSelect={setActivePair} marketPrices={marketPrices} marketChanges={marketChanges} isLiveMode={isLiveMode} />
 
             {/* Order Details Modal — clicked from History row */}
@@ -1590,38 +1590,40 @@ export const TradeView = ({
                 )}
             </div>
 
-            {/* ── Right: pair info + order book + order form ── */}
-            <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', overflow: 'hidden', borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
+            {/* ── Right: two glass bubbles stacked vertically ── */}
+            <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', gap: isMobile ? 0 : 10, overflow: isMobile ? 'visible' : 'hidden' }}>
 
-                {/* 1 ── Pair header (desktop only) */}
-                <div style={{ flexShrink: 0, padding: '8px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
-                    <button onClick={() => setPairOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
-                        <div style={{ textAlign: 'left' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{activePair.id}</span>
-                                <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
-                                {isActivePairDemo && (
-                                    <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
-                                )}
+                {/* BUBBLE 1 ── Pair header + Order book */}
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '42%', minHeight: isMobile ? 'auto' : 220, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined }}>
+
+                    {/* Pair header (desktop only) */}
+                    <div style={{ flexShrink: 0, padding: '10px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
+                        <button onClick={() => setPairOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+                            <div style={{ textAlign: 'left' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{activePair.id}</span>
+                                    <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
+                                    {isActivePairDemo && (
+                                        <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
+                                    )}
+                                </div>
+                                <div style={{ ...S.label, marginTop: 2 }}>Perp · Fund: <span style={{ color: changeColor }}>{changeLabel}</span></div>
                             </div>
-                            <div style={{ ...S.label, marginTop: 2 }}>Perp · Fund: <span style={{ color: changeColor }}>{changeLabel}</span></div>
+                        </button>
+                        <div style={{ textAlign: 'right' }}>
+                            <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
+                            <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
                         </div>
-                    </button>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
-                        <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
                     </div>
-                </div>
 
-                {/* 2 ── Order book */}
-                <div style={{ flexShrink: 0, height: isMobile ? 'auto' : '28%', minHeight: isMobile ? 'auto' : 170, display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--hairline)', overflow: 'hidden' }}>
+                    {/* Order book */}
                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 6 : 5} />
+                        <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 4 : 5} />
                     </div>
                 </div>
 
-                {/* 3 ── Order form */}
-                <div style={{ flex: isMobile ? 'none' : 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                {/* BUBBLE 2 ── Order form */}
+                <div style={{ flex: isMobile ? 'none' : 1, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', minHeight: 0, margin: isMobile ? '8px 10px' : undefined }}>
                     <div style={{ flex: 1, overflowY: isMobile ? 'visible' : 'auto', position: 'relative' }} className="custom-scrollbar">
 
                         {/* Auth overlay */}
@@ -1843,7 +1845,7 @@ export const TradeView = ({
 
             {/* ── Mobile-only: Positions panel below order form ── */}
             {isMobile && (
-                <div style={{ borderTop: '1px solid var(--hairline)', minHeight: 180, maxHeight: 400 }}>
+                <div style={{ borderRadius: 0, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid var(--hairline)', minHeight: 180, display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <PositionsPanel {...panelProps} />
                 </div>
             )}
