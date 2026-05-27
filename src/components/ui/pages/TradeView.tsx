@@ -1672,7 +1672,7 @@ export const TradeView = ({
                             </div>
 
                             {/* Order type */}
-                            <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: 7 }}>
+                            <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
                                 {(['MARKET', 'LIMIT', 'STOP'] as const).map(t => (
                                     <button key={t} onClick={() => setOrderType(t)} style={{ border: 'none', background: 'none', cursor: 'pointer', position: 'relative', paddingBottom: 3, ...S.label, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', transition: 'color 0.12s' }}>
                                         {t}
@@ -1704,24 +1704,41 @@ export const TradeView = ({
                                         transition: 'color 0.3s ease',
                                     }}>{sizeSlider}%</span>
                                 </div>
-                                <input
-                                    type="range" min="0" max="100" step="1"
-                                    value={sizeSlider}
-                                    onChange={e => setSizeSlider(parseInt(e.target.value))}
-                                    className="velo-range w-full"
-                                    style={{
-                                        '--slider-pct': `${sizeSlider}%`,
-                                        '--slider-color': sizeSlider > 66 ? '#f97316' : sizeSlider > 33 ? 'oklch(0.68 0.22 295)' : side === 'LONG' ? 'oklch(0.78 0.18 150)' : 'oklch(0.66 0.22 25)',
-                                        '--slider-glow': sizeSlider > 66 ? 'rgba(249,115,22,0.35)' : sizeSlider > 33 ? 'oklch(0.68 0.22 295 / 0.35)' : side === 'LONG' ? 'rgba(62,207,142,0.35)' : 'rgba(255,60,60,0.35)',
-                                    } as React.CSSProperties}
-                                />
+                                {/* Wrapper slider: native input layered over a styled track for reliable cross-browser animated fill */}
+                                <div style={{ position: 'relative', height: 20, display: 'flex', alignItems: 'center' }}>
+                                    {/* Track background */}
+                                    <div style={{ position: 'absolute', left: 0, right: 0, height: 6, borderRadius: 999, background: 'var(--hairline-strong, rgba(255,255,255,0.12))', overflow: 'hidden' }}>
+                                        {/* Animated fill */}
+                                        <div style={{
+                                            position: 'absolute', left: 0, top: 0, bottom: 0,
+                                            width: `${sizeSlider}%`,
+                                            borderRadius: 999,
+                                            background: sizeSlider > 66
+                                                ? 'linear-gradient(90deg, oklch(0.78 0.18 150), oklch(0.68 0.22 295), #f97316)'
+                                                : sizeSlider > 33
+                                                    ? 'linear-gradient(90deg, oklch(0.78 0.18 150), oklch(0.68 0.22 295))'
+                                                    : side === 'LONG'
+                                                        ? 'oklch(0.78 0.18 150)'
+                                                        : 'oklch(0.66 0.22 25)',
+                                            transition: 'width 0.05s linear, background 0.3s ease',
+                                        }} />
+                                    </div>
+                                    {/* Native range input — transparent, sits on top for interaction */}
+                                    <input
+                                        type="range" min="0" max="100" step="1"
+                                        value={sizeSlider}
+                                        onChange={e => setSizeSlider(parseInt(e.target.value))}
+                                        className="velo-range-thumb w-full"
+                                        style={{ position: 'relative', zIndex: 1 }}
+                                    />
+                                </div>
                             </div>
 
                             {/* Cost + Leverage */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--chip-bg)', borderRadius: 12, padding: '8px 12px', border: '1px solid var(--hairline)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--chip-bg)', borderRadius: 12, padding: isMobile ? '8px 12px' : '5px 10px', border: '1px solid var(--hairline)' }}>
                                 <div>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Cost</div>
-                                    <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>${formatMoney(cost)}</div>
+                                    <div style={{ ...S.display, fontSize: isMobile ? 16 : 14, color: 'var(--fg)' }}>${formatMoney(cost)}</div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Leverage</div>
