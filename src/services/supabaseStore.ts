@@ -817,7 +817,15 @@ export async function syncUserFinancials(userId: string, balance: number, realiz
   };
   if (winRate !== undefined) update.win_rate = winRate;
   const { error } = await supabase.from('profiles').update(update).eq('id', userId);
-  if (error) console.error('[supabase] syncUserFinancials error:', error.message);
+  if (error) {
+    console.error('[supabase] syncUserFinancials error:', error.message);
+    reportPersistenceError({
+      kind: 'PROFILE_SYNC',
+      message: `Profile sync failed: ${error.message}`,
+      code: (error as any).code,
+      hint: hintFromCode((error as any).code),
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════

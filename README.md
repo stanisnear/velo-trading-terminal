@@ -113,15 +113,25 @@ PnL is settled in mUSDC against the perp pool. Closing in profit pulls from the 
 
 ## Moving funds between wallets
 
-The Velo Trading Wallet is where you trade. Your main wallet is where you keep external funds. Four flows let you shuffle between them:
+The Velo Trading Wallet is where you trade. Your main wallet is where you keep external funds. Four flows let you shuffle between them — and one important rule about cross-chain gas at the bottom.
 
-**Bridge** (cross-chain): use the Bridge button in Settings to move mUSDC between Base Sepolia, Arbitrum Sepolia, Optimism Sepolia, and Ethereum Sepolia. Powered by LayerZero V2 OFT — bidirectional across all four chains, typical delivery 1-3 minutes.
+**Deposit** (anywhere → trading): one modal handles both same-chain and cross-chain. At the top of the Deposit tab you pick a Source Network (Base, Arbitrum, Optimism, or Ethereum Sepolia). Base Sepolia uses a normal ERC-20 transfer from your main wallet to the burner. Other chains use LayerZero V2 OFT — your main wallet on that chain signs `oft.send` and mUSDC lands in your trading wallet on Base in 1-3 minutes. The fee preview shows the LayerZero native fee in source-chain ETH before you sign.
 
-**Move funds** (same chain, main → trading): if you've received mUSDC into your main wallet from a third party (or recovered from an interrupted setup), the Settings panel shows a green "Move $X mUSDC" button that sweeps everything in main → trading in one transaction. Sponsor wallet auto-tops up the burner's gas if needed.
+**Withdraw** (trading → main or any 0x, any network): same modal, Withdraw tab. Pick a Destination Network, an address (main wallet or custom 0x), an amount. Base destination is a silent burner-signed transfer; other destinations bridge via LayerZero. If you try to withdraw more than your idle balance, the modal tells you to close positions to free up collateral. Open positions hold their collateral in the VeloPerps contract, not in the trading wallet, so they're not withdrawable until closed.
 
-**Withdraw** (trading → main or any 0x): from the Dashboard's Withdraw button. Opens a modal showing your trading-wallet balance, a destination toggle (main wallet / custom 0x address), and a max button. The burner signs the transfer silently — no MetaMask popup. If you try to withdraw more than your idle balance, the modal tells you to close positions to free up collateral. Note: open positions hold their collateral in the VeloPerps contract, not in the trading wallet, so they're not withdrawable until closed.
+**Move funds** (same chain, main → trading, recovery flow): if mUSDC arrives in your main wallet from a third party (or after an interrupted setup), the Settings panel shows a "Move $X mUSDC" button that sweeps it main → trading in one transaction. The gas sponsor tops the burner up if needed.
 
-**Send** (peer-to-peer): the Send modal lets you transfer mUSDC to any `@username` (resolved on-chain via VeloRegistry) or any `0x...` address. Signed silently by your trading wallet — no popup. Useful for tipping a trader you follow or paying someone for off-chain services.
+**Send** (peer-to-peer): the Send modal transfers mUSDC to any `@username` (resolved on-chain via VeloRegistry) or any `0x...` address. Signed silently by your trading wallet — no popup. Useful for tipping a trader you follow or paying for off-chain services.
+
+### Gas requirements for cross-chain operations
+
+Velo's gas sponsor (`veloGasSponsor.ts`) **only sponsors Base Sepolia transactions for the trading wallet**. Cross-chain operations split as follows:
+
+- **Cross-chain deposits**: your **main wallet** pays the LayerZero fee in source-chain ETH. A deposit from Optimism Sepolia requires a small amount of Optimism Sepolia ETH (typically 0.0001-0.0005 ETH) in your main wallet on that chain. The Funds modal shows an inline warning whenever a non-Base source is selected, and renders a clear error toast if the wallet rejects the tx for insufficient gas. Top up via the testnet faucet for the relevant chain before bridging.
+- **Cross-chain withdraws**: the **trading wallet on Base** pays the LayerZero fee. The gas sponsor tops it up automatically before submit, so you don't need ETH anywhere — the user-facing experience is identical to a same-chain withdraw.
+- **Same-chain operations on Base**: gas is fully sponsored for the trading wallet. Main-wallet deposits to the burner on Base require a tiny amount of Base Sepolia ETH (~0.00001 ETH), which the gas sponsor also tops up via the faucet path if needed.
+
+Testnet faucet links for the supported chains: [Base Sepolia](https://www.coinbase.com/faucets/base-sepolia-faucet), [Arbitrum Sepolia](https://www.alchemy.com/faucets/arbitrum-sepolia), [Optimism Sepolia](https://www.alchemy.com/faucets/optimism-sepolia), [Ethereum Sepolia](https://www.alchemy.com/faucets/ethereum-sepolia).
 
 ## On-chain username registration
 

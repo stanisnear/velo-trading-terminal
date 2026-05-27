@@ -814,3 +814,55 @@ For the Recent Activity persistence:
 - `src/components/ui/pages/MarketsView.tsx` — `overflow: clip`, wider Trade column, responsive button sizing
 - `src/components/VeloAdminPanel.tsx` — feed ID overflow constraints, flexShrink fixes
 - `src/styles/tokens.css` — `admin-feed-id` hide at 540px
+
+### 2026-05-27 — Batch 8: bridge gas docs, dead-code cleanup, bundle splitting
+
+This batch is light cleanup work after the heavier batch 7 architectural changes. Three independent improvements that don't touch the trade engine or wallet logic.
+
+**Problems fixed:**
+
+1. **Bridge gas requirements were undocumented.** A user bridging from Optimism Sepolia with no Optimism ETH would get a cryptic "execution reverted" from their wallet, with no in-app guidance about why or what to do. Velo only gas-sponsors Base Sepolia for the trading wallet — every other chain requires the user's main wallet to hold a small amount of native ETH. Now surfaced in three places:
+   - **Inline notice in the Funds modal**: whenever a non-Base source/destination is selected, an amber notice appears below the LayerZero fee row. On the Deposit tab it warns the user that their main wallet needs source-chain ETH; on the Withdraw tab it reassures them that the burner pays and the sponsor tops up automatically.
+   - **Friendlier "insufficient funds" error**: `handleDepositBridge` now intercepts the wallet's generic "insufficient funds" / "exceeds the balance" error messages and replaces them with actionable guidance: "Not enough ETH on Optimism Sepolia to pay the LayerZero fee. Top up your main wallet on that chain and try again."
+   - **README section rewrite**: the "Moving funds between wallets" section now has a dedicated "Gas requirements for cross-chain operations" subsection with bullet points for each operation type plus testnet faucet links for all four supported Sepolias.
+
+2. **PROFILE_SYNC failures were silent.** Batch 7 broadcast persistence errors for `TRADE_HISTORY` and `TRANSACTION` inserts via the new `onPersistenceError` bus, but `syncUserFinancials` (which writes `balance`, `realized_pnl`, `pnl_total`, `win_rate` to the profile) only did `console.error`. If RLS or a column rename ever broke the profile sync, the user's Win Rate / Realized PnL would silently drift from in-memory state — same disappear-on-refresh class of bug, different table. `syncUserFinancials` now reports through the same broadcaster, so the in-app toast covers all four kinds (`TRADE_HISTORY`, `TRANSACTION`, `POSITION`, `PROFILE_SYNC`).
+
+3. **Dormant VeloBridgeModal mount removed.** Batch 7 left the modal mounted but disconnected from all UI buttons, with a comment saying "safe to remove if it becomes a maintenance burden." It's been one batch and the cross-chain flow inside VeloDepositModal is working — the dormant mount is now dead code. Removed the mount, the `isVeloBridgeOpen` state, and the import. The component file at `src/components/VeloBridgeModal.tsx` itself is kept (it might be useful as reference for the LayerZero quoting flow), just no longer imported.
+
+4. **Bundle splitting via Vite manualChunks.** The pre-batch-8 build was a single ~3.5MB unminified bundle, gzipped to ~1MB. Every patch — even a one-character fix to App.tsx — invalidated the entire bundle in browser caches, so repeat visitors paid the full download cost on every deploy. Added a `manualChunks` strategy in `vite.config.ts` that splits vendor libraries into stable chunks:
+   - `appkit` (~2MB) — Reown AppKit, changes rarely
+   - `viem` (~1.75MB) — shared crypto primitives
+   - `walletconnect` (~850KB) — @walletconnect/*, @web3modal/*
+   - `wagmi` (~150KB) — wagmi hooks
+   - `charts` (~560KB) — Recharts + lightweight-charts + d3
+   - `supabase` (~200KB) — Supabase client
+   - `icons` (~210KB) — lucide-react + phosphor-icons
+   - Main index — application code only, now ~860KB
+   
+   Net effect: patches to App.tsx invalidate ~860KB instead of 3.5MB. The huge vendor chunks (appkit, viem) cache aggressively across deploys since they change with library version bumps, not per-commit. First-load total size unchanged; repeat-load size for typical iterations drops by ~80%.
+
+**Files changed:**
+- `src/App.tsx` — removed `VeloBridgeModal` import + mount + `isVeloBridgeOpen` state.
+- `src/components/VeloDepositModal.tsx` — replaced both cross-chain fee preview blocks with combined fee+notice blocks (deposit-side warns, withdraw-side reassures). Friendlier error in `handleDepositBridge` for "insufficient funds" / "exceeds the balance" cases.
+- `src/services/supabaseStore.ts` — `syncUserFinancials` now calls `reportPersistenceError` on failure with kind `PROFILE_SYNC`.
+- `vite.config.ts` — `build.rollupOptions.output.manualChunks` strategy + `chunkSizeWarningLimit: 1000`.
+- `README.md` — "Moving funds between wallets" section rewritten with deposit-anywhere + withdraw-anywhere unified flows; new "Gas requirements for cross-chain operations" subsection with bullets and testnet faucet links.
+
+**New gotchas:**
+- The new chunk-size warnings (`viem` at 1.75MB, `appkit` at 2MB) are EXPECTED and don't indicate a real problem. The warning threshold is for chunks that ship per-deploy; these are vendor chunks that change with library bumps. If you bump them, the warning will fire and that's the signal to verify the size hasn't ballooned unexpectedly. If a real per-deploy chunk crosses 1MB, that's an actual signal to investigate.
+- The deposit-side cross-chain notice uses warm amber (`rgba(255,180,60,0.85)`) to convey "user action required". The withdraw-side notice uses neutral muted text (`var(--fg-subtle)`) because no user action is needed. Keep the color discipline — flipping them would be misleading.
+- The "insufficient funds" string match is wallet-vendor-dependent. MetaMask, Rabby, Coinbase Wallet, and most viem-emitted errors include either "insufficient funds" or "exceeds the balance" verbatim, so the heuristic catches the common case. If a future wallet emits something different, the user sees the raw error — annoying but not broken.
+- VeloBridgeModal.tsx is now an orphaned file. Don't accidentally re-import it; the path forward is to extend VeloDepositModal's network picker if more bridge features are needed.
+
+**Verification:**
+- `npx vite build` passes in 38s. Final bundle topology: 7 vendor chunks + 1 application chunk. Largest per-deploy chunk is ~860KB (App.tsx and friends), down from ~3.5MB.
+- TS `--noEmit` no new errors introduced.
+
+**Manual test plan for Stan after deploy:**
+1. Open the Funds modal → Deposit tab → click "Optimism" in the source-network row. The fee block should now show the LayerZero fee AND a warning "⚠ Your main wallet must hold a small amount of ETH on Optimism Sepolia to pay this fee. Velo only gas-sponsors Base Sepolia."
+2. Type any amount and click "Bridge $X from Optimism" WITHOUT having Optimism Sepolia ETH in your main wallet. The wallet should reject the tx, and the modal should show "Not enough ETH on Optimism Sepolia to pay the LayerZero fee. Top up your main wallet on that chain and try again." (NOT the raw chain error.)
+3. Top up Optimism Sepolia ETH via faucet, retry the bridge — should succeed.
+4. Switch to Withdraw tab → pick Arbitrum. The fee block should show the LayerZero fee AND a reassuring note "Paid by your trading wallet on Base. Velo tops it up automatically — you don't need any ETH on Arbitrum Sepolia."
+5. Check Vercel deploy preview's network tab on first load: should see separate `appkit-*.js`, `viem-*.js`, `wagmi-*.js`, `walletconnect-*.js`, `supabase-*.js`, `charts-*.js`, `icons-*.js`, and `index-*.js` chunks instead of one monolithic bundle.
+6. Push a one-character whitespace change to App.tsx, deploy, refresh. The `index-*.js` chunk hash should change; the `appkit-*.js` and `viem-*.js` chunk hashes should NOT change (browser cache hit).

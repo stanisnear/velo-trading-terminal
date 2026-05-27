@@ -287,11 +287,17 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
       // polls and will pick up the new burner balance within 5s of arrival.
       onSuccess?.(hash, parsed, 'deposit');
     } catch (e: any) {
-      const msg = e?.shortMessage || e?.message || 'Bridge failed';
-      if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
+      const raw = e?.shortMessage || e?.message || 'Bridge failed';
+      const lower = raw.toLowerCase();
+      if (lower.includes('user rejected') || lower.includes('user denied')) {
         setStep('IDLE');
+      } else if (lower.includes('insufficient funds') || lower.includes('exceeds the balance')) {
+        // Wallet rejected because main wallet on source chain has no ETH for gas.
+        // The generic message is unhelpful — replace with actionable guidance.
+        setStep('ERROR');
+        setErrMsg(`Not enough ETH on ${CHAIN_LABEL[depositChain]} to pay the LayerZero fee. Top up your main wallet on that chain and try again.`);
       } else {
-        setStep('ERROR'); setErrMsg(msg);
+        setStep('ERROR'); setErrMsg(raw);
       }
     }
   };
@@ -534,11 +540,23 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 </div>
               )}
 
-              {/* Cross-chain fee preview */}
-              {isCrossChain && feeDisplay && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
-                  <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
-                  <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{feeDisplay}</span>
+              {/* Cross-chain fee preview + gas warning. The fee row shows the
+                  LayerZero native fee in source-chain ETH. The warning tells
+                  the user they need that ETH in their main wallet on the
+                  source chain — Velo only gas-sponsors Base Sepolia, so a
+                  bridge from Optimism with $0 ETH on Optimism will fail
+                  with "insufficient funds for gas" from their wallet. */}
+              {isCrossChain && (
+                <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
+                  {feeDisplay && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
+                      <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{feeDisplay}</span>
+                    </div>
+                  )}
+                  <div style={{ ...S.mono, fontSize: 10, color: 'rgba(255,180,60,0.85)', lineHeight: 1.45 }}>
+                    ⚠ Your main wallet must hold a small amount of ETH on {CHAIN_LABEL[depositChain]} to pay this fee. Velo only gas-sponsors Base Sepolia.
+                  </div>
                 </div>
               )}
               {isCrossChain && quoteError && (
@@ -663,11 +681,21 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 </div>
               </div>
 
-              {/* Cross-chain fee preview */}
-              {isCrossChain && feeDisplay && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
-                  <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
-                  <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{feeDisplay}</span>
+              {/* Cross-chain fee preview + sponsorship notice. On withdraws
+                  the burner (on Base) pays the LayerZero fee — Velo's gas
+                  sponsor tops up the burner before submit, so the user
+                  doesn't need ETH anywhere. Just inform them. */}
+              {isCrossChain && (
+                <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
+                  {feeDisplay && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
+                      <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{feeDisplay}</span>
+                    </div>
+                  )}
+                  <div style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', lineHeight: 1.45 }}>
+                    Paid by your trading wallet on Base. Velo tops it up automatically — you don't need any ETH on {CHAIN_LABEL[withdrawChain]}.
+                  </div>
                 </div>
               )}
               {isCrossChain && quoteError && (

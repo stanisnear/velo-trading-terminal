@@ -22,7 +22,6 @@ import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient } from 'wagmi';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
-import { VeloBridgeModal } from './components/VeloBridgeModal';
 import { VeloDepositModal } from './components/VeloDepositModal';
 import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
 import { VeloUsernameModal } from './components/VeloUsernameModal';
@@ -4166,7 +4165,6 @@ const App = () => {
     const [isOrderlyOnboardingOpen, setOrderlyOnboardingOpen] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
     const [isVeloWelcomeOpen, setVeloWelcomeOpen] = useState(false);
-    const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
     const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
     const [isVeloSendOpen, setVeloSendOpen] = useState(false);
@@ -7375,18 +7373,10 @@ const App = () => {
                 }
               }}
             />
-            {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ──
-                NOTE (batch 7): no longer wired to any UI button. Cross-chain
-                deposits/withdraws now live inside the unified Funds modal
-                (VeloDepositModal) as a network picker. This mount is kept
-                so any future programmatic trigger still works, but in the
-                current UX the user never sees it. Safe to remove if it
-                becomes a maintenance burden — also remove `isVeloBridgeOpen`
-                state and the `VeloBridgeModal` import at top of file. */}
-            <VeloBridgeModal
-              isOpen={isVeloBridgeOpen}
-              onClose={() => setVeloBridgeOpen(false)}
-            />
+            {/* VeloBridgeModal mount removed in batch 8. Cross-chain UX now
+                lives entirely inside VeloDepositModal's network picker. The
+                component file remains in src/components/ for reference but
+                is no longer imported anywhere. */}
             {/* ── Velo Deposit Modal (main wallet → trading wallet, same chain) ── */}
             <VeloDepositModal
               isOpen={isVeloDepositOpen}
