@@ -1220,6 +1220,10 @@ export const TradeView = ({
     activePair, setActivePair, marketPrices, marketChanges = {}, candles, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, onShareHistory, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
     savedChartPrefs, onChartPrefsChange, tradeFocus, autoOpenHistoryId,
     orderlyBalance = 0, orderlyIsReady = false,
+    // V3 cross-margin account (optional — pass from App.tsx)
+    onOpenCrossAccount,                  // (tab?: 'DEPOSIT'|'WITHDRAW') => void
+    crossFreeBalance = 0,
+    crossTotalBalance = 0,
     // ── Environment split ─────────────────────────────────────────────────────
     // isLiveMode = true  → user connected with crypto wallet → Orderly live trading
     // isLiveMode = false → demo/email user → full pair list, simulated P&L
@@ -1678,6 +1682,28 @@ export const TradeView = ({
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Cross account balance + manage button — shown when CROSS mode is active */}
+                            {marginMode === 'CROSS' && onOpenCrossAccount && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 10, background: 'oklch(0.68 0.22 295/0.08)', border: '1px solid oklch(0.68 0.22 295/0.20)' }}>
+                                    <div>
+                                        <div style={{ ...S.label, fontSize: 8, color: 'var(--iris-violet)' }}>Cross Free Balance</div>
+                                        <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: crossFreeBalance > 0 ? 'var(--fg)' : 'oklch(0.75 0.18 25)' }}>
+                                            ${crossFreeBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                        {crossTotalBalance > 0 && crossTotalBalance !== crossFreeBalance && (
+                                            <div style={{ ...S.label, fontSize: 8, color: 'var(--fg-subtle)' }}>
+                                                ${crossTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => onOpenCrossAccount(crossFreeBalance === 0 ? 'DEPOSIT' : 'WITHDRAW')}
+                                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid oklch(0.68 0.22 295/0.35)', background: 'oklch(0.68 0.22 295/0.12)', color: 'var(--iris-violet)', cursor: 'pointer', ...S.label, fontSize: 9 }}>
+                                        {crossFreeBalance === 0 ? 'Deposit →' : 'Manage'}
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>

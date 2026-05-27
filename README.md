@@ -350,25 +350,40 @@ All source code is verified on the respective block explorers. Click any address
 
 All four mUSDC OFT deployments are wired as LayerZero V2 peers — bridges work bidirectionally across every pair of chains.
 
-## V3 Feature Coverage (Current Build)
+## V3 Feature Coverage — Fully Implemented
 
-`contracts/src/VeloPerpsV3.sol` is the target exchange engine for this build. It currently includes:
+`contracts/src/VeloPerpsV3.sol` is the active exchange engine. All features are implemented in the contract AND fully wired through the frontend and keepers in this build.
 
-- Real on-chain market positions with `ISOLATED` and `CROSS` margin modes.
-- Real on-chain TP/SL storage via `setTriggers(tradeId, tp, sl)` and keeper-close path via `closeIfTriggered(...)`.
-- Real on-chain trigger cancellation/replacement: setting TP/SL again overwrites prior values; passing `0` clears a side.
-- Partial close support (`partialClose`) and reduce-only trigger execution (via conditional orders with `reduceOnly=true`).
-- Real on-chain conditional entry/exit trigger orders (`LIMIT` / `STOP`) with `placeConditionalOrder`, `cancelConditionalOrder`, `executeConditionalOrder`.
-- Public liquidation path (`liquidate`) with bounty payout.
-- Pair-level risk controls: max notional / OI cap checks and on-chain funding index accrual (`setPairRisk`, `accrueFunding`).
+**Contract features:**
 
-What remains outside this perps contract by design (and still preserved):
+- Market positions with `ISOLATED` and `CROSS` margin modes. Collateral handling differs per mode.
+- On-chain TP/SL via `setTriggers(tradeId, tp, sl)`. Pass `0` to clear either side. Repeat calls overwrite.
+- Keeper close: `closeIfTriggered(tradeId, pythUpdateData)` — permissionless, pays 0.25% bounty.
+- Partial close: `partialClose(tradeId, fractionBps, pythUpdateData)` — close 1–10000 bps of the position.
+- Conditional orders: `placeConditionalOrder`, `cancelConditionalOrder`, `executeConditionalOrder`. Supports LIMIT and STOP trigger kinds with optional `reduceOnly` flag.
+- Cross margin ledger: `depositCross(amountUSDC_6)`, `withdrawCross(amountUSDC_6)`, `crossBalanceUSDC_6(trader)`.
+- Public liquidation: `liquidate(tradeId, pythUpdateData)` — 1% bounty to caller.
+- Pair risk controls: `setPairRisk`, `accrueFunding`, OI cap enforcement.
+
+**Frontend wiring:**
+
+- `veloPerpsService.ts` — full V3 ABI, auto-routes to V3 when `VITE_VELO_PERPS_V3_ADDRESS` is set. All V3 functions available: `openPosition` (with `marginMode`), `closePosition`, `partialClose`, `setTriggers`, `depositCross`, `withdrawCross`, `placeConditionalOrder`, `cancelConditionalOrder`, `fetchOpenPositions` (reads correct 11-field V3 struct), `fetchTraderConditionalOrders`, `fetchCrossBalance`.
+- `useVeloPerpsTrading.ts` — React hook exposing `depositCross`, `withdrawCross`, `placeConditionalOrder`, `cancelConditionalOrder`, `crossFreeBalance`, `crossTotalBalance`, `crossLockedBalance`, `conditionalOrders`.
+- `App.tsx` — margin mode mirrored correctly from contract (was hardcoded ISOLATED before). `marginMode` passed to `openPosition`. LIMIT/STOP orders route to V3 `placeConditionalOrder`. Cancel routes to `cancelConditionalOrder`. On-chain conditional orders synced to `openOrders`. Cross balance pre-flight before CROSS trades.
+- `TradeView.tsx` — CROSS mode shows a live free-balance chip inline next to the margin toggle with a Deposit/Manage button. Props: `onOpenCrossAccount`, `crossFreeBalance`, `crossTotalBalance`.
+- `VeloCrossAccountModal.tsx` — dedicated modal to deposit/withdraw mUSDC to/from the V3 cross ledger. Shows free/locked/total breakdown.
+
+**Keeper jobs (all V3-aware, run every minute via Vercel Pro cron):**
+
+- `api/cron-tp-sl.ts` — reads positions with the correct V3 11-field struct, calls `closeIfTriggered` when mark crosses TP or SL. V2 fallback if env points to V2.
+- `api/cron-liquidate.ts` — same correct struct, calls `liquidate` when PnL exceeds threshold BPS. V2 fallback.
+- `api/cron-conditional-orders.ts` — scans all active conditional orders, submits Pyth data to `executeConditionalOrder`. Contract enforces trigger; expected reverts (`OrderNotTriggered`) silently skipped.
+
+What remains outside this perps contract by design:
 
 - Username claiming and resolution are handled by `VeloRegistry` (unchanged).
 - Social feed, comments, follows, leaderboard cache, and notifications are handled in Supabase (unchanged).
 - mUSDC minting/bridging is handled by `VeloMockUSDC` + LayerZero OFT (unchanged).
-
-Important: this build must be wired so FE uses V3 methods for order placement/cancel/edit paths; otherwise a UI can still show behavior not backed by chain writes.
 
 **Owner of the Base Sepolia contracts:** `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`. This wallet has only three privileges: register new trading pairs, withdraw accrued protocol fees, set LayerZero peers. It explicitly cannot touch user collateral, modify positions, or freeze the protocol.
 
@@ -566,6 +581,13 @@ VITE_SUPABASE_ANON_KEY=<your-anon-key>
 VITE_WALLETCONNECT_PROJECT_ID=<your-id>
 
 # Velo contracts on Base Sepolia
+# V3 is the active perps engine — set this to route all new trades to V3.
+# When VITE_VELO_PERPS_V3_ADDRESS is set the service layer automatically
+# uses V3 for openPosition, setTriggers, conditional orders, cross margin,
+# and keeper reads. Leave blank to fall back to V2 (legacy).
+VITE_VELO_PERPS_V3_ADDRESS=0x3780e858B76027E6D6cB0c74E863f712a0F0E27E
+
+# Legacy contracts (V2 fallback + supporting infra — unchanged)
 VITE_VELO_PERPS_ADDRESS=0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163
 VITE_VELO_REGISTRY_ADDRESS=0x7e510d615a8afDfaa324F790F3E54e520756ECe2
 VITE_VELO_USDC_BASE=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699

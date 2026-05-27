@@ -30,6 +30,7 @@ import { VeloSendModal } from './components/VeloSendModal';
 import { VeloWithdrawModal } from './components/VeloWithdrawModal';
 import { VeloShareCard, type ShareCardData } from './components/VeloShareCard';
 import { VeloManagePositionModal } from './components/VeloManagePositionModal';
+import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
 import { VeloAdminPanel } from './components/VeloAdminPanel';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services/veloPerpsService';
@@ -4174,6 +4175,8 @@ const App = () => {
     const [isVeloWithdrawOpen, setVeloWithdrawOpen] = useState(false);
     const [managingPosition, setManagingPosition] = useState<Position | null>(null);
     const [managingPositionTab, setManagingPositionTab] = useState<'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS'>('ADD');
+    const [isCrossAccountOpen, setCrossAccountOpen] = useState(false);
+    const [crossAccountTab, setCrossAccountTab] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
     const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
     const [shareTradeData, setShareTradeData] = useState<ClosedTradeShareData | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
@@ -4356,6 +4359,11 @@ const App = () => {
       const onChainPositions: Position[] = veloPerpsTrading.openPositions.map((p) => {
         const uiPair = p.pair.replace('-', '/'); // BTC-USD → BTC/USD etc.
         const notional = p.collateralUSDC * p.leverage;
+        // marginMode comes straight from the V3 contract's Position struct.
+        // Falls back to 'ISOLATED' for V1/V2 positions which don't have the field.
+        const mm: MarginMode = (p.marginMode === 'CROSS' || p.marginMode === 'ISOLATED')
+          ? p.marginMode
+          : 'ISOLATED';
         return {
           id: `velo_${p.tradeId.toString()}`,
           pair: uiPair,
@@ -4363,7 +4371,7 @@ const App = () => {
           entryPrice: p.entryPrice,
           size: notional,
           leverage: p.leverage,
-          marginMode: 'ISOLATED' as MarginMode,
+          marginMode: mm,
           liquidationPrice: p.isLong
             ? p.entryPrice * (1 - 0.9 / p.leverage)
             : p.entryPrice * (1 + 0.9 / p.leverage),
@@ -4387,6 +4395,35 @@ const App = () => {
         return [...nonVelo, ...onChainPositions];
       });
     }, [user, isWalletConnected, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
+
+    // ── VeloPerps V3 conditional orders → local openOrders sync ───────────
+    // Mirror on-chain conditional orders (LIMIT/STOP) into the UI's openOrders
+    // array so they render in the Open Orders panel. Keyed by `velo_ord_<id>`
+    // so non-on-chain (off-chain demo) orders aren't touched.
+    useEffect(() => {
+      if (!user || !isWalletConnected) return;
+      if (veloPerpsTrading.isInitialLoading) return;
+      const mapped: OpenOrder[] = veloPerpsTrading.conditionalOrders.map((o) => {
+        const uiPair = o.pair.replace('-', '/');
+        const orderType: OrderType = o.triggerKind === 'LIMIT' ? 'LIMIT' : 'STOP';
+        return {
+          id: `velo_ord_${o.orderId.toString()}`,
+          pair: uiPair,
+          side: o.isLong ? 'LONG' : 'SHORT',
+          type: orderType,
+          price: o.triggerPrice,
+          size: o.collateralUSDC * o.leverage,
+          leverage: o.leverage,
+          timestamp: o.createdAt * 1000,
+        } as OpenOrder;
+      });
+      setOpenOrders((prev) => {
+        // Replace the on-chain subset, keep any non-on-chain orders intact.
+        const nonVelo = prev.filter((o) => !o.id.startsWith('velo_ord_'));
+        return [...nonVelo, ...mapped];
+      });
+    }, [user, isWalletConnected, veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading]);
+
 
     // Reset the dismiss flag on logout so a different account triggers onboarding again.
     useEffect(() => { if (!user) setOnboardingDismissed(false); }, [user]);
@@ -6447,12 +6484,6 @@ const App = () => {
                 releaseLock();
                 return;
               }
-              if (veloPerpsTrading.usdcBalance <= 0) {
-                setToast({ message: 'No mUSDC in your wallet. Claim from the faucet first.', type: 'ERROR' });
-                setVeloWelcomeOpen(true);
-                releaseLock();
-                return;
-              }
               if (size <= 0) { releaseLock(); return; }
 
               // The TradeView form sends `size` as the notional (collateral × leverage).
@@ -6463,10 +6494,31 @@ const App = () => {
                 releaseLock();
                 return;
               }
-              if (collateral > veloPerpsTrading.usdcBalance) {
-                setToast({ message: 'Insufficient mUSDC for this collateral. Reduce size or claim more.', type: 'ERROR' });
-                releaseLock();
-                return;
+              // Balance gating depends on marginMode:
+              //   ISOLATED — collateral pulled from wallet mUSDC on-chain at open time.
+              //   CROSS    — collateral pulled from on-chain cross account (must
+              //              depositCross first). Wallet mUSDC is irrelevant.
+              if (marginMode === 'CROSS') {
+                if (veloPerpsTrading.crossFreeBalance < collateral) {
+                  setToast({
+                    message: `Cross account has $${veloPerpsTrading.crossFreeBalance.toFixed(2)} free — need $${collateral.toFixed(2)}. Deposit to cross first.`,
+                    type: 'ERROR',
+                  });
+                  releaseLock();
+                  return;
+                }
+              } else {
+                if (veloPerpsTrading.usdcBalance <= 0) {
+                  setToast({ message: 'No mUSDC in your wallet. Claim from the faucet first.', type: 'ERROR' });
+                  setVeloWelcomeOpen(true);
+                  releaseLock();
+                  return;
+                }
+                if (collateral > veloPerpsTrading.usdcBalance) {
+                  setToast({ message: 'Insufficient mUSDC for this collateral. Reduce size or claim more.', type: 'ERROR' });
+                  releaseLock();
+                  return;
+                }
               }
 
               // ── Merge path: if a V2 on-chain position already exists with the same
@@ -6520,6 +6572,7 @@ const App = () => {
                 isLong: side === 'LONG',
                 collateralUSDC: collateral,
                 leverage,
+                marginMode,
               }).then((result) => {
                 // The 5s poll inside useVeloPerpsTrading will pick up the new position
                 // and our sync effect will mirror it into local state. We don't call
@@ -6576,8 +6629,59 @@ const App = () => {
             releaseLock();
             executeTrade(pairId, side, size, leverage, currentPrice, marginMode, tp, sl);
         } else {
-            // Limit / Stop order — margin is NOT deducted until the order fills.
-            // Deducting here AND in executeTrade (when it fills) would double-charge.
+            // ── LIMIT / STOP conditional order ──────────────────────────────
+            // On-chain (wallet user, V3): submit placeConditionalOrder so the
+            // keeper can execute it on-chain when price crosses the trigger.
+            // Off-chain (demo / non-V3): persist locally so the simulator can
+            // fire it when the local price stream crosses the trigger.
+
+            if (isWalletConnected && veloPerpsTrading.isReady && veloPerpsTrading.isV3) {
+              const veloPair = uiPairToVeloPair(pairId);
+              if (!veloPair) {
+                setToast({ message: `${pairId} is not yet listed on Velo Perps.`, type: 'INFO' });
+                return;
+              }
+              const collateral = size / leverage;
+              if (collateral < 1) {
+                setToast({ message: 'Minimum collateral is $1.', type: 'ERROR' });
+                return;
+              }
+              // For non-reduce-only opening orders, ISOLATED requires wallet
+              // mUSDC; CROSS requires cross free balance.
+              if (marginMode === 'CROSS') {
+                if (veloPerpsTrading.crossFreeBalance < collateral) {
+                  setToast({
+                    message: `Cross account has $${veloPerpsTrading.crossFreeBalance.toFixed(2)} free — need $${collateral.toFixed(2)}.`,
+                    type: 'ERROR',
+                  });
+                  return;
+                }
+              } else if (collateral > veloPerpsTrading.usdcBalance) {
+                setToast({ message: 'Insufficient mUSDC for this collateral.', type: 'ERROR' });
+                return;
+              }
+              const triggerKind = type === 'LIMIT' ? 'LIMIT' : 'STOP';
+              veloPerpsTrading.placeConditionalOrder({
+                pair: veloPair,
+                isLong: side === 'LONG',
+                leverage,
+                marginMode,
+                triggerKind,
+                triggerPrice: price,
+                collateralUSDC: collateral,
+                reduceOnly: false,
+              }).then((r) => {
+                setToast({ message: `${type} order placed on-chain (#${r.orderId.toString()})`, type: 'SUCCESS' });
+                playSound('CLICK');
+              }).catch((e) => {
+                const msg = e?.shortMessage || e?.message || 'Order placement failed';
+                setToast({ message: `Order failed: ${msg}`, type: 'ERROR' });
+              });
+              return;
+            }
+
+            // ── Off-chain order persistence (demo / non-V3) ─────────────────
+            // Margin is NOT deducted until the order fills.
             const uniqueSuffix = uuidv4();
             const newOrder: OpenOrder = { id: `ord_${Date.now()}_${uniqueSuffix}`, pair: pairId, side, type, price, size, leverage, timestamp: Date.now() };
             setOpenOrders(prev => [...prev, newOrder]);
@@ -6763,6 +6867,23 @@ const App = () => {
         }
     };
     const handleCancelOrder = (id: string) => {
+        // On-chain conditional order? Route to V3 cancelConditionalOrder.
+        if (id.startsWith('velo_ord_')) {
+            const orderId = BigInt(id.slice('velo_ord_'.length));
+            // Optimistically remove from UI; the 5s poll will reconcile.
+            setOpenOrders(prev => prev.filter(o => o.id !== id));
+            veloPerpsTrading.cancelConditionalOrder(orderId).then(() => {
+                setToast({ message: 'Order cancelled on-chain', type: 'SUCCESS' });
+                playSound('CLICK');
+            }).catch((e) => {
+                const msg = e?.shortMessage || e?.message || 'Cancel failed';
+                setToast({ message: `Cancel failed: ${msg}`, type: 'ERROR' });
+                // Force a refresh so the order reappears on failure.
+                veloPerpsTrading.refresh().catch(() => {});
+            });
+            return;
+        }
+
         setOpenOrders(prevOrders => {
             const order = prevOrders.find(o => o.id === id);
             if (!order) return prevOrders;
@@ -7538,6 +7659,18 @@ const App = () => {
                 },
               }}
             />
+            {/* ── V3 Cross-Margin Account modal ── */}
+            <VeloCrossAccountModal
+              isOpen={isCrossAccountOpen}
+              onClose={() => setCrossAccountOpen(false)}
+              walletBalance={veloPerpsTrading.usdcBalance}
+              crossFree={veloPerpsTrading.crossFreeBalance}
+              crossTotal={veloPerpsTrading.crossTotalBalance}
+              crossLocked={veloPerpsTrading.crossLockedBalance}
+              deposit={veloPerpsTrading.depositCross}
+              withdraw={veloPerpsTrading.withdrawCross}
+              initialTab={crossAccountTab}
+            />
             {/* ── Orderly Onboarding Modal (Phase 3 removes this entirely) ── */}
             <OrderlyOnboardingModal
               isOpen={isOrderlyOnboardingOpen}
@@ -7749,7 +7882,7 @@ const App = () => {
                 {activeTab === TabView.TRADE && <>
 
 
-                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => setLoginOpen(true)} onEditPosition={handleEditPosition} onSharePosition={(p: any) => {
+                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => setLoginOpen(true)} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
                     const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
                     const collateral = p.size / p.leverage;

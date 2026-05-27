@@ -63,7 +63,7 @@ The frontend has now been moved onto the VELO v3 visual system from the handoff 
 6. Pair-level risk controls (max notional / OI cap checks).
 7. Funding index accrual and funding settlement in close PnL.
 
-**Critical note:** V3 is deployed and verified. Frontend + keeper routing must point to V3 addresses/envs for full parity.
+**Status:** V3 is deployed, verified, and **fully wired** in this build. Set `VITE_VELO_PERPS_V3_ADDRESS=0x3780e858B76027E6D6cB0c74E863f712a0F0E27E` in Vercel and redeploy. All frontend service functions, UI flows (cross margin, conditional orders, TP/SL), and keeper crons are V3-aware. See the Change log entry "V3 full wiring" for the complete cutover checklist.
 
 ### V2 — legacy (kept for historical positions)
 
@@ -303,8 +303,9 @@ The schema enables RLS on every table; if a write fails silently and trade histo
 
 ### Architecture (multi-week)
 
-- [ ] **Cross margin V3 contract** — shared collateral pool, portfolio equity
-- [ ] **OrderBook contract** for real on-chain limit/stop orders
+- [x] **Cross margin V3 contract** — deployed at `0x3780e858B76027E6D6cB0c74E863f712a0F0E27E`. Frontend fully wired.
+- [x] **On-chain LIMIT/STOP conditional orders** — `placeConditionalOrder` / `cancelConditionalOrder` / `executeConditionalOrder` in V3. Keeper runs every minute.
+- [ ] **Insurance fund + ADL** — required for any real-money launch
 - [ ] **Insurance fund + ADL** — required for any real-money launch
 - [ ] **Multisig ownership transfer** — single-key admin doesn't pass DD
 - [ ] **Smart contract audit** — Code4rena, Sherlock, or boutique firm
@@ -494,6 +495,79 @@ If you do NOT update this file, the next agent will have stale context and will 
 ---
 
 ## Change log
+
+### 2026-05-27 — V3 full wiring: cross margin, conditional orders, TP/SL keepers, cross account modal
+
+This pass completes the V3 contract integration end-to-end. The contract was already deployed at `0x3780e858B76027E6D6cB0c74E863f712a0F0E27E` but the frontend and keepers were pointing at V1/V2 data structures (wrong Position ABI in keepers, no cross margin functions, no conditional order routing). Everything below is now fully wired.
+
+**Root causes fixed (from the Codex session that didn't finish):**
+
+1. **Keepers scanned 0 positions silently.** `cron-tp-sl.ts` and `cron-liquidate.ts` had a V3 `POSITION_V3_ABI` with two fabricated fields (`notionalUSDC_6`, `fundingEntry_E18`) that don't exist in the contract. Every `getPosition` decode failed; the loop skipped all positions. Fixed to the real 11-field V3 struct: `owner`, `pairIndex`, `isLong`, `leverage`, `marginMode`, `collateralUSDC_6`, `entryPrice_E18`, `openedAt`, `takeProfit_E18`, `stopLoss_E18`, `originalNotional_6`.
+
+2. **`marginMode` was hardcoded `ISOLATED` in App.tsx sync.** The on-chain → local position mirror always set `marginMode: 'ISOLATED'` regardless of the contract's actual value. CROSS positions displayed as isolated. Fixed to decode the real `marginMode` uint8 (0=ISOLATED, 1=CROSS) from the V3 struct.
+
+3. **`openPosition` didn't pass `marginMode` to the contract.** App.tsx was calling `veloPerpsTrading.openPosition(...)` without the `marginMode` argument, so every position went on-chain as isolated regardless of the user's UI choice. Fixed.
+
+4. **No cross margin UI.** There was no modal for depositing/withdrawing mUSDC to/from the V3 cross ledger, and no balance display in TradeView. Added `VeloCrossAccountModal.tsx` (full deposit/withdraw with free/locked/total breakdown) and wired it to the CROSS margin toggle in TradeView (shows live free balance + "Deposit →"/"Manage" button inline).
+
+5. **LIMIT/STOP orders were stored locally only.** When a wallet user placed a LIMIT or STOP order it was saved to Supabase `open_orders` but never called `placeConditionalOrder` on V3. Fixed to route to the contract for on-chain users. Cancel and on-chain order sync (to `openOrders` array) also wired.
+
+6. **`veloPerpsService.ts` had no V3 functions.** The service had no cross balance reads, no `depositCross`/`withdrawCross`, no `placeConditionalOrder`/`cancelConditionalOrder`, and `getPosition` used the V1/V2 struct. Full V3 ABI + all V3 function implementations added.
+
+**Files changed:**
+
+- `src/services/veloPerpsService.ts` — complete V3 rewrite: full ABI with correct 11-field Position struct, all V3 functions (depositCross, withdrawCross, placeConditionalOrder, cancelConditionalOrder, fetchTraderConditionalOrders, fetchCrossBalance), auto-routing to V3 via `VITE_VELO_PERPS_V3_ADDRESS`.
+- `src/services/useVeloPerpsTrading.ts` — V3-aware hook: exposes depositCross, withdrawCross, placeConditionalOrder, cancelConditionalOrder, crossFreeBalance, crossTotalBalance, crossLockedBalance, conditionalOrders.
+- `src/App.tsx` — margin mode mirrored from contract; marginMode passed to openPosition; LIMIT/STOP routes to placeConditionalOrder; cancel routes to cancelConditionalOrder; on-chain conditional orders synced to openOrders; cross balance pre-flight; VeloCrossAccountModal imported and mounted; isCrossAccountOpen + crossAccountTab state; TradeView gets onOpenCrossAccount + crossFreeBalance + crossTotalBalance props.
+- `src/components/ui/pages/TradeView.tsx` — CROSS mode shows inline free-balance chip + Deposit/Manage button; props onOpenCrossAccount, crossFreeBalance, crossTotalBalance added.
+- `src/components/VeloCrossAccountModal.tsx` — new modal: deposit/withdraw mUSDC to/from V3 cross ledger, free/locked/total breakdown, tab switcher, MAX button, error + success states.
+- `api/cron-tp-sl.ts` — correct V3 11-field Position struct, V2 fallback ABI, version detection via `VERSION` constant, correct fired/checked reporting.
+- `api/cron-liquidate.ts` — same correction, uses quoteUnrealisedPnL for threshold check, version-aware struct selection.
+- `api/cron-conditional-orders.ts` — full V3 conditional order keeper: scans 1..nextOrderId, executes triggered orders, silently skips OrderNotTriggered reverts.
+- `README.md` — V3 feature coverage updated to "Fully Implemented"; env vars table adds `VITE_VELO_PERPS_V3_ADDRESS`.
+- `PROJECT_STATUS.md` — this entry.
+
+**New env var required:**
+
+Add to Vercel: `VITE_VELO_PERPS_V3_ADDRESS=0x3780e858B76027E6D6cB0c74E863f712a0F0E27E`
+
+The service layer automatically routes to V3 when this env is a valid 42-char address. Without it, falls back to V2 (or V1 if V2 is also unset).
+
+**Pool seeding (required before trades work):**
+
+The V3 contract needs mUSDC in its pool for isolated payouts. From the owner wallet:
+
+```bash
+export V3=0x3780e858B76027E6D6cB0c74E863f712a0F0E27E
+export MUSDC=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699
+export RPC=https://base-sepolia-rpc.publicnode.com
+
+# Seed 100,000 mUSDC to V3 pool
+cast send $MUSDC "transfer(address,uint256)" $V3 100000000000 \
+  --rpc-url $RPC --private-key $PRIVATE_KEY
+```
+
+For cross margin, traders deposit themselves via the modal (no pool seeding needed — the contract holds collateral in its own `crossBalanceUSDC_6` mapping).
+
+**V3 end-to-end cutover checklist:**
+
+1. Set `VITE_VELO_PERPS_V3_ADDRESS` in Vercel → trigger redeploy.
+2. Seed V3 pool (see cast command above).
+3. Open a market isolated long: appears on-chain + UI with ISOLATED badge.
+4. Set TP/SL in manage modal: verify `takeProfit_E18` / `stopLoss_E18` update on-chain (cast call).
+5. Wait for keeper to fire `closeIfTriggered`: position closes, history row has real tx hash.
+6. Open a CROSS trade: modal opens, deposit some mUSDC to cross, position appears with CROSS badge.
+7. Place a LIMIT order: check `conditionalOrders(orderId)` on-chain via cast. Order appears in Open Orders tab.
+8. Let keeper execute it: position opens at limit price.
+9. Check keeper logs in Vercel → Functions → cron-tp-sl: `checked` should be > 0.
+
+**New gotchas:**
+
+- The V3 Position struct has 11 fields. Any service code that reads positions must use the full V3 ABI — viem decodes by position, so any mismatch silently drops or misaligns fields. The `POSITION_V3_ABI` in all three cron files and `fetchOpenPositions` in the service are now correct. Don't add or reorder fields.
+- `crossBalanceUSDC_6` is the TOTAL cross balance (free + locked). Locked = sum of `collateralUSDC_6` across all CROSS positions. Free = total − locked. The hook computes this correctly — don't use the raw contract value for "available to trade."
+- `placeConditionalOrder` requires mUSDC approval from the trading wallet first (ERC-20 `approve(V3, amount)` before `placeConditionalOrder`). The service handles this; don't bypass it.
+- `depositCross` requires mUSDC approval too. The service calls `approve` then `depositCross` in sequence. If the approval tx fails (e.g. insufficient gas), the deposit fails but nothing is wrong on-chain — just retry.
+- The `VITE_VELO_PERPS_V3_ADDRESS` env var is the single routing switch. When set and 42 chars: all trades go to V3. When unset: V2 or V1 fallback. The admin panel's "pool seed" shortcut targets `VELO_PERPS_ADDRESS` (the active address) — after you add V3 to env, that shortcut will seed V3.
 
 ### 2026-05-27 — Build 80: TP/SL closes on-chain, wall-delete, leaderboard, market gating, admin verification
 
