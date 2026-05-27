@@ -14,7 +14,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
-import { formatUnits, parseUnits } from 'viem';
+import { formatUnits, parseUnits, formatEther } from 'viem';
 import {
   ArrowDownToLine, CheckCircle2, ChevronRight, ExternalLink, Loader2,
   Pause, Play, PlusCircle, RefreshCw, Shield, X, TrendingUp, Activity,
@@ -123,6 +123,9 @@ export const VeloAdminPanel: React.FC = () => {
   const [feeBalance, setFeeBalance] = useState(0);
   const [poolBalance, setPoolBalance] = useState(0);
   const [adminUsdcBalance, setAdminUsdcBalance] = useState(0);
+  // Keeper wallet (VELO_SPONSOR_PRIVATE_KEY-derived address exposed via VITE_KEEPER_ADDRESS)
+  const keeperAddress = (import.meta.env.VITE_KEEPER_ADDRESS || '') as string;
+  const [keeperEthBalance, setKeeperEthBalance] = useState<number | null>(null);
   const [faucetCooldownEnd, setFaucetCooldownEnd] = useState(0);
   const [seedAmount, setSeedAmount] = useState('1000');
   // Admin mintTo: owner-only, no cooldown. Default target = self.
@@ -169,6 +172,14 @@ export const VeloAdminPanel: React.FC = () => {
       setMaxLeverage(Number(maxLev));
       setFeeBalance(Number(formatUnits(fees as bigint, 6)));
       setPoolBalance(pool);
+
+      // Keeper wallet ETH balance
+      if (keeperAddress && keeperAddress.startsWith('0x')) {
+        try {
+          const ethBal = await publicClient.getBalance({ address: keeperAddress as `0x${string}` });
+          setKeeperEthBalance(Number(formatEther(ethBal)));
+        } catch { setKeeperEthBalance(null); }
+      }
 
       // Admin wallet mUSDC balance + faucet cooldown
       if (address) {
@@ -767,6 +778,64 @@ export const VeloAdminPanel: React.FC = () => {
             }
           </button>
         </div>
+      </div>
+
+      {/* Keeper wallet */}
+      <div style={{
+        padding: 20, borderRadius: 16, marginBottom: 16,
+        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+      }}>
+        <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 4px' }}>Keeper wallet</h2>
+        <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
+          This wallet runs TP/SL, liquidation, and conditional-order cron jobs every minute.
+          It must hold Base Sepolia ETH to pay gas — if it runs dry, all automated execution stops.
+          Add <code style={{ fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VITE_KEEPER_ADDRESS</code> in Vercel env vars (the public address derived from your <code style={{ fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VELO_SPONSOR_PRIVATE_KEY</code>) to enable monitoring here.
+        </p>
+
+        {!keeperAddress ? (
+          <div style={{ padding: 14, borderRadius: 10, background: 'rgba(255,180,60,0.08)', border: '1px solid rgba(255,180,60,0.25)', ...S.mono, fontSize: 11, color: 'rgba(255,180,60,0.9)' }}>
+            ⚠ VITE_KEEPER_ADDRESS not set — add it in Vercel environment variables to monitor keeper ETH balance here.
+            <br /><br />
+            To find it: <code style={{ opacity: 0.8 }}>cast wallet address --private-key $VELO_SPONSOR_PRIVATE_KEY</code>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: `1px solid ${keeperEthBalance !== null && keeperEthBalance < 0.005 ? 'rgba(255,60,60,0.4)' : 'var(--hairline)'}` }}>
+              <div style={S.label}>Keeper ETH balance</div>
+              <div style={{ ...S.display, fontSize: 28, marginTop: 6, color: keeperEthBalance === null ? 'var(--fg-muted)' : keeperEthBalance < 0.005 ? 'var(--pnl-down)' : keeperEthBalance < 0.02 ? '#f97316' : 'var(--pnl-up)' }}>
+                {keeperEthBalance === null ? '…' : `${keeperEthBalance.toFixed(4)} ETH`}
+              </div>
+              {keeperEthBalance !== null && keeperEthBalance < 0.005 && (
+                <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 4 }}>Critical — top up now or keepers stop</div>
+              )}
+              {keeperEthBalance !== null && keeperEthBalance >= 0.005 && keeperEthBalance < 0.02 && (
+                <div style={{ ...S.mono, fontSize: 10, color: '#f97316', marginTop: 4 }}>Low — top up soon</div>
+              )}
+            </div>
+            <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
+              <div style={S.label}>Keeper address</div>
+              <div style={{ ...S.mono, fontSize: 11, marginTop: 8, wordBreak: 'break-all' as const, color: 'var(--fg)', lineHeight: 1.5 }}>
+                {keeperAddress}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' as const }}>
+                <a
+                  href={`https://sepolia.basescan.org/address/${keeperAddress}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ ...S.label, fontSize: 9, padding: '4px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--hairline)', color: 'var(--fg)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <ExternalLink size={9} /> BaseScan
+                </a>
+                <a
+                  href="https://www.alchemy.com/faucets/base-sepolia"
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ ...S.label, fontSize: 9, padding: '4px 10px', borderRadius: 7, background: 'rgba(62,207,142,0.10)', border: '1px solid rgba(62,207,142,0.25)', color: 'var(--pnl-up)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  ⛽ Faucet →
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pool management */}

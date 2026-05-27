@@ -1060,6 +1060,43 @@ This batch is light cleanup work after the heavier batch 7 architectural changes
 5. Check Vercel deploy preview's network tab on first load: should see separate `appkit-*.js`, `viem-*.js`, `wagmi-*.js`, `walletconnect-*.js`, `supabase-*.js`, `charts-*.js`, `icons-*.js`, and `index-*.js` chunks instead of one monolithic bundle.
 6. Push a one-character whitespace change to App.tsx, deploy, refresh. The `index-*.js` chunk hash should change; the `appkit-*.js` and `viem-*.js` chunk hashes should NOT change (browser cache hit).
 
+### 2026-05-27 — Build 85: Keeper wallet monitor in Admin Panel, margin toggle removed, README updated
+
+**What changed:**
+
+1. **Keeper wallet section in Admin Panel.** The `VeloAdminPanel` now shows a live ETH balance for the keeper wallet (the address derived from `VELO_SPONSOR_PRIVATE_KEY`). Balance reads from chain on every refresh. Color coding: green ≥ 0.02 ETH, orange 0.005–0.02 ETH, red < 0.005 ETH with a "Critical — top up now or keepers stop" warning. Includes a direct link to the Alchemy Base Sepolia faucet and a BaseScan address link. If `VITE_KEEPER_ADDRESS` is not set in Vercel, the panel shows a setup instruction instead of erroring. **Action required: add `VITE_KEEPER_ADDRESS` to Vercel env vars** (run `cast wallet address --private-key $VELO_SPONSOR_PRIVATE_KEY` to derive it).
+
+2. **Margin mode toggle removed from TradeView.** The ISOLATED/CROSS toggle and the static "ISOLATED" label are both gone. All trades are ISOLATED — no UI selection needed. The `marginMode` state variable remains in the component (used for reading existing position types) but has no user-facing control.
+
+3. **README updated.** The V3 contract section now documents the testnet ISOLATED-only policy with a plain-English explanation of why CROSS is architecturally different from Binance/Hyperliquid. The env vars section includes `VITE_KEEPER_ADDRESS` with setup instructions.
+
+**Files changed:**
+- `src/components/VeloAdminPanel.tsx` — keeper wallet section added (ETH balance, faucet link, BaseScan link, low-balance warning).
+- `src/components/ui/pages/TradeView.tsx` — ISOLATED/CROSS toggle removed entirely.
+- `README.md` — V3 cross margin note added; `VITE_KEEPER_ADDRESS` env var documented.
+- `PROJECT_STATUS.md` — this entry.
+
+**Action items after deploy:**
+1. Add `VITE_KEEPER_ADDRESS=<address>` to Vercel env vars. Derive with: `cast wallet address --private-key $VELO_SPONSOR_PRIVATE_KEY`
+2. Redeploy. Check Admin Panel → Keeper wallet section shows a balance.
+3. If balance is < 0.02 ETH, top up at https://www.alchemy.com/faucets/base-sepolia
+
+---
+
+### 2026-05-27 — Build 84: ISOLATED-only mode — CROSS disabled, approve fix, trading verified
+
+**Why CROSS was disabled:**
+
+The V3 contract's CROSS margin uses an internal ledger (`crossBalanceUSDC_6[trader]`). Unlike Binance/Hyperliquid where your account balance IS your margin, the Velo V3 contract cannot see your wallet. CROSS requires: approve → depositCross → openPosition (3 transactions to open), and profits return to the ledger not the wallet on close. ISOLATED is the correct UX: wallet → approve → openPosition → profits back to wallet. One confirmation per trade.
+
+**Changes:**
+- `veloPerpsService.ts` — `openPosition` now always approves mUSDC before calling the contract. This was the root cause of all trade reverts (`0xf860ca3b`): the contract calls `safeTransferFrom` which requires prior approval. Approves 10× collateral so one approval covers ~10 similar trades. CROSS path removed from `openPosition`.
+- `App.tsx` — cross balance pre-flight gate removed. `marginMode` forced to `'ISOLATED'` in all live trading paths.
+- `src/components/ui/pages/TradeView.tsx` — ISOLATED/CROSS toggle replaced with static "ISOLATED" label. Cross free balance chip and "Deposit/Manage" button removed.
+- `PROJECT_STATUS.md` — this entry.
+
+---
+
 ### 2026-05-27 — Build 83: Fix trading reverts — approve + auto cross-deposit, remove cross account UI
 
 **Problems fixed:**

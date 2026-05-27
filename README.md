@@ -356,7 +356,7 @@ All four mUSDC OFT deployments are wired as LayerZero V2 peers — bridges work 
 
 **Contract features:**
 
-- Market positions with `ISOLATED` and `CROSS` margin modes. Collateral handling differs per mode.
+- Market positions with `ISOLATED` and `CROSS` margin modes in the contract. **Testnet UI exposes ISOLATED only** (see note below).
 - On-chain TP/SL via `setTriggers(tradeId, tp, sl)`. Pass `0` to clear either side. Repeat calls overwrite.
 - Keeper close: `closeIfTriggered(tradeId, pythUpdateData)` — permissionless, pays 0.25% bounty.
 - Partial close: `partialClose(tradeId, fractionBps, pythUpdateData)` — close 1–10000 bps of the position.
@@ -365,13 +365,14 @@ All four mUSDC OFT deployments are wired as LayerZero V2 peers — bridges work 
 - Public liquidation: `liquidate(tradeId, pythUpdateData)` — 1% bounty to caller.
 - Pair risk controls: `setPairRisk`, `accrueFunding`, OI cap enforcement.
 
+> **Cross margin — testnet status:** The V3 contract has full CROSS margin support, but the testnet frontend runs ISOLATED only. The architectural difference: Binance/Hyperliquid CROSS reads your wallet balance as margin directly. The Velo V3 contract uses an internal per-trader ledger (`crossBalanceUSDC_6`) — money must be pre-deposited there before a CROSS trade can open, and profits return to the ledger (not the wallet) on close. This creates a 3-transaction flow (approve → depositCross → openPosition) and a confusing post-close experience where funds land in the ledger rather than the wallet. For the testnet launch, CROSS is removed from the UI entirely. ISOLATED works exactly like any exchange: wallet → position → wallet, one confirmation per trade. CROSS will be re-introduced in a future version either via an EIP-2612 permit upgrade (bundles approval into one signature) or a router contract that makes the whole flow atomic. The contract functions remain deployed and can be exercised directly via BaseScan.
+
 **Frontend wiring:**
 
-- `veloPerpsService.ts` — full V3 ABI, auto-routes to V3 when `VITE_VELO_PERPS_V3_ADDRESS` is set. All V3 functions available: `openPosition` (with `marginMode`), `closePosition`, `partialClose`, `setTriggers`, `depositCross`, `withdrawCross`, `placeConditionalOrder`, `cancelConditionalOrder`, `fetchOpenPositions` (reads correct 11-field V3 struct), `fetchTraderConditionalOrders`, `fetchCrossBalance`.
-- `useVeloPerpsTrading.ts` — React hook exposing `depositCross`, `withdrawCross`, `placeConditionalOrder`, `cancelConditionalOrder`, `crossFreeBalance`, `crossTotalBalance`, `crossLockedBalance`, `conditionalOrders`.
-- `App.tsx` — margin mode mirrored correctly from contract (was hardcoded ISOLATED before). `marginMode` passed to `openPosition`. LIMIT/STOP orders route to V3 `placeConditionalOrder`. Cancel routes to `cancelConditionalOrder`. On-chain conditional orders synced to `openOrders`. Cross balance pre-flight before CROSS trades.
-- `TradeView.tsx` — CROSS mode shows a live free-balance chip inline next to the margin toggle with a Deposit/Manage button. Props: `onOpenCrossAccount`, `crossFreeBalance`, `crossTotalBalance`.
-- `VeloCrossAccountModal.tsx` — dedicated modal to deposit/withdraw mUSDC to/from the V3 cross ledger. Shows free/locked/total breakdown.
+- `veloPerpsService.ts` — full V3 ABI, auto-routes to V3 when `VITE_VELO_PERPS_V3_ADDRESS` is set. `openPosition` adds mUSDC approve before every trade so the contract's `safeTransferFrom` never reverts. All positions use ISOLATED mode.
+- `useVeloPerpsTrading.ts` — React hook exposing trading state, balances, and position management.
+- `App.tsx` — all trades force `marginMode: 'ISOLATED'`. Balance gating checks wallet mUSDC directly. LIMIT/STOP orders route to V3 `placeConditionalOrder`. Cancel routes to `cancelConditionalOrder`.
+- `TradeView.tsx` — margin mode toggle removed. ISOLATED is the only mode. No cross account UI.
 
 **Keeper jobs (all V3-aware, run every minute via Vercel Pro cron):**
 
@@ -597,6 +598,13 @@ VITE_VELO_USDC_BASE=0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699
 # ~0.5 Base Sepolia ETH and top it up periodically (liquidation bounties
 # refill it organically over time).
 VELO_SPONSOR_PRIVATE_KEY=<0x-prefixed private key of a funded ops wallet>
+
+# Keeper wallet public address (derived from VELO_SPONSOR_PRIVATE_KEY).
+# Run: cast wallet address --private-key $VELO_SPONSOR_PRIVATE_KEY
+# Set this so the Admin Panel can show live ETH balance and warn before it runs dry.
+# The keeper runs every minute — if it hits 0 ETH, TP/SL, liquidations, and
+# conditional orders stop executing. Top up via https://www.alchemy.com/faucets/base-sepolia
+VITE_KEEPER_ADDRESS=<0x-prefixed public address derived from VELO_SPONSOR_PRIVATE_KEY>
 
 # Velo mUSDC OFT on remote Sepolias
 VITE_VELO_USDC_ARB=0xEC76fD9182ba15ff193FDBc122013FCa18900290
