@@ -339,7 +339,8 @@ All source code is verified on the respective block explorers. Click any address
 
 | Chain | Contract | Address |
 |---|---|---|
-| Base Sepolia | **VeloPerpsV2** (active) | [`0x3C7cBCa2C675F1f788148aaD08eceab262298de8`](https://sepolia.basescan.org/address/0x3C7cBCa2C675F1f788148aaD08eceab262298de8) |
+| Base Sepolia | **VeloPerpsV3** (active) | [`0x3780e858B76027E6D6cB0c74E863f712a0F0E27E`](https://sepolia.basescan.org/address/0x3780e858B76027E6D6cB0c74E863f712a0F0E27E) |
+| Base Sepolia | VeloPerpsV2 (legacy) | [`0x3C7cBCa2C675F1f788148aaD08eceab262298de8`](https://sepolia.basescan.org/address/0x3C7cBCa2C675F1f788148aaD08eceab262298de8) |
 | Base Sepolia | VeloPerps V1 (legacy) | [`0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163`](https://sepolia.basescan.org/address/0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163) |
 | Base Sepolia | **VeloMockUSDC** | [`0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699`](https://sepolia.basescan.org/address/0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699) |
 | Base Sepolia | **VeloRegistry** | [`0x7e510d615a8afDfaa324F790F3E54e520756ECe2`](https://sepolia.basescan.org/address/0x7e510d615a8afDfaa324F790F3E54e520756ECe2) |
@@ -348,6 +349,26 @@ All source code is verified on the respective block explorers. Click any address
 | Ethereum Sepolia | VeloMockUSDC | [`0x96d0CF69896FE6b5B031D21967f027d95Eb42e9A`](https://sepolia.etherscan.io/address/0x96d0CF69896FE6b5B031D21967f027d95Eb42e9A) |
 
 All four mUSDC OFT deployments are wired as LayerZero V2 peers — bridges work bidirectionally across every pair of chains.
+
+## V3 Feature Coverage (Current Build)
+
+`contracts/src/VeloPerpsV3.sol` is the target exchange engine for this build. It currently includes:
+
+- Real on-chain market positions with `ISOLATED` and `CROSS` margin modes.
+- Real on-chain TP/SL storage via `setTriggers(tradeId, tp, sl)` and keeper-close path via `closeIfTriggered(...)`.
+- Real on-chain trigger cancellation/replacement: setting TP/SL again overwrites prior values; passing `0` clears a side.
+- Partial close support (`partialClose`) and reduce-only trigger execution (via conditional orders with `reduceOnly=true`).
+- Real on-chain conditional entry/exit trigger orders (`LIMIT` / `STOP`) with `placeConditionalOrder`, `cancelConditionalOrder`, `executeConditionalOrder`.
+- Public liquidation path (`liquidate`) with bounty payout.
+- Pair-level risk controls: max notional / OI cap checks and on-chain funding index accrual (`setPairRisk`, `accrueFunding`).
+
+What remains outside this perps contract by design (and still preserved):
+
+- Username claiming and resolution are handled by `VeloRegistry` (unchanged).
+- Social feed, comments, follows, leaderboard cache, and notifications are handled in Supabase (unchanged).
+- mUSDC minting/bridging is handled by `VeloMockUSDC` + LayerZero OFT (unchanged).
+
+Important: this build must be wired so FE uses V3 methods for order placement/cancel/edit paths; otherwise a UI can still show behavior not backed by chain writes.
 
 **Owner of the Base Sepolia contracts:** `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`. This wallet has only three privileges: register new trading pairs, withdraw accrued protocol fees, set LayerZero peers. It explicitly cannot touch user collateral, modify positions, or freeze the protocol.
 
@@ -596,37 +617,21 @@ Migrations are idempotent — safe to run multiple times.
 
 ## Risk model and what's still missing
 
-**This is v1 / testnet / grant-demo grade. The contracts have not been audited.**
+**This is still testnet-grade and not audited.**
 
-The contracts are simple, the keeper works, the social product is real, and a trader can complete a full open/close lifecycle on Base Sepolia with one MetaMask signature. But there's an honest gap between "working testnet demo" and "production perp DEX." Here's the full list of what's not yet built — these are v2 / mainnet items:
+Current V3 closes major feature gaps (cross margin, on-chain TP/SL, conditional orders, OI/funding controls), but production readiness still requires:
 
-**Insurance fund.** If cumulative trader profits exceed pool reserves, the pool can go insolvent. There's no separate vault absorbing losses today. Mainnet seeds an insurance fund from the first ~$50K of accrued fees, capped at 5% of TVL, drawn down when the pool dips below a threshold.
-
-**Funding rate.** Right now mark price equals the Pyth oracle price exactly. There's no mechanism aligning Velo's price with spot when open interest is skewed long or short. Mainnet adds an hourly funding payment between longs and shorts proportional to OI imbalance.
-
-**Take-profit and stop-loss enforcement.** The TradeView UI has TP/SL fields and they save to Supabase, but no on-chain keeper monitors them. A trader can set a $50,000 stop-loss on a BTC long and the position will not actually close at that level. Mainnet needs a TP/SL keeper that scans positions, compares against Pyth prices, and closes them on trigger. Architecturally identical to the liquidation keeper — just runs against TP/SL thresholds instead of liquidation thresholds.
-
-**Limit and stop orders on-chain.** Today every order is a market order against the oracle price. Limit orders are a UI affordance but they don't persist on-chain — they're tracked locally in Supabase and never execute unless the user is online. Mainnet introduces an `OrderBook` contract where limit/stop orders live on-chain and the same keeper network triggers them.
-
-**Open-interest caps per pair.** No per-pair OI limits exist. A whale could open a $10M position on SOL/USD and the contract wouldn't blink. Mainnet sets cap = min(maxOIPercent × poolSize, hardCap).
-
-**Cross-margin / portfolio margining.** Every position is fully isolated. Multiple positions don't net against each other. v2.5 introduces a cross-margin mode where a long BTC and a short ETH partially hedge.
-
-**Dynamic fees / price impact.** All trades pay the flat 0.10% per side. Large trades vs small trades should pay different rates as they move the protocol's net delta further from neutral. Mainnet uses size-tiered fees plus a price-impact term.
-
-**Secondary oracle.** All prices come from Pyth alone. If Pyth feeds drift, glitch, or get manipulated, the protocol settles at the wrong price. Mainnet adds Chainlink as a fallback / sanity check; if the two disagree by more than 1%, the contract pauses pair trading.
-
-**Multisig ownership.** The contract owner is currently a single EOA. Mainnet transfers ownership to a Safe multisig with at least three signers.
-
-**Audit.** The contract code is short (~300 lines for VeloPerps + libraries) but has not been formally reviewed by a third party. An audit is the gating item between v1 and v2.
-
-The grant funds the audit, the insurance fund seed, the TP/SL keeper network, the secondary oracle integration, and the multisig handover.
+- End-to-end FE wiring audit to guarantee every visible action performs a matching chain write.
+- Keeper redundancy and alerting (not one single scheduler).
+- Economic stress testing for pool solvency and liquidation under high volatility.
+- External audit before any mainnet value is at risk.
+- Optional: insurance/ADL module if targeting adversarial mainnet conditions.
 
 ## Roadmap
 
 **v1 — testnet, today.** Base Sepolia perps for 17 pairs (BTC, ETH, SOL, AVAX, LINK, DOGE shipped registered at deploy time; NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL ship as one-click registerable through the Admin Panel). LayerZero V2 cross-chain mUSDC (four chains). Social feed, leaderboard, profiles. One-MetaMask-signature onboarding via the Velo Trading Wallet + gas sponsor. Bridge UI, Send-to-@username UI, on-chain username registry (VeloRegistry), automated liquidation keeper, TP/SL keeper scaffolding (dry-run mode pending a contract update to permit keeper-triggered closes), protocol owner Admin Panel with on-chain stats and charts. Trade-history rows attach BaseScan tx hashes for every open and close. Grant submission build.
 
-**v1.1 — production polish.** TP/SL keeper that actually closes positions on trigger (Vercel cron sibling of the liquidation keeper). Limit and stop orders persisted on-chain in a separate OrderBook contract. Per-pair OI caps enforced at the Solidity level. Copy-trade subscriptions executing trades automatically when leaders open positions (today copy-trade is a follow signal; tomorrow it's a mirrored trade through the copier's session wallet while they're online, then through their Vault contract once Vaults ship).
+**v1.1 — V3 hardening.** Full FE-to-V3 routing, keeper redundancy for TP/SL + conditional orders, position/order reconciliation tooling, and final deployment runbook.
 
 **v2 — mainnet.** Production launch on Base mainnet after a security audit. Real USDC replaces mUSDC. Insurance fund seeded from accrued fees, capped at 5% of TVL. Funding rate mechanism — hourly payments between longs and shorts proportional to open-interest imbalance. Secondary oracle (Chainlink) as a Pyth sanity check. Cross-margin mode for portfolio margining. Multisig ownership (Safe with at least three signers). Dynamic fees scaled by trade size and protocol delta. The Velo Trading Wallet, leaderboard, social product, and Admin Panel carry over unchanged.
 

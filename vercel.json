@@ -1,4 +1,9 @@
 {
+  "crons": [
+    { "path": "/api/cron-conditional-orders", "schedule": "*/1 * * * *" },
+    { "path": "/api/cron-tp-sl", "schedule": "*/1 * * * *" },
+    { "path": "/api/cron-liquidate", "schedule": "*/1 * * * *" }
+  ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/:path*", "destination": "/index.html" }

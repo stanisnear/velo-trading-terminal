@@ -45,12 +45,23 @@ const HERMES_URL = process.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.netw
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const bearer = req.headers?.authorization as string | undefined;
+    const xSecret = req.headers?.['x-cron-secret'] as string | undefined;
+    const qSecret = req.query?.secret as string | undefined;
+    const ok =
+      bearer === `Bearer ${cronSecret}` ||
+      xSecret === cronSecret ||
+      qSecret === cronSecret;
+    if (!ok) return res.status(401).json({ error: 'Unauthorized cron call' });
+  }
   if (!V3 || V3.length !== 42) return res.status(200).json({ ok: true, skipped: true, reason: 'V3 address unset' });
 
-  const sponsorKey = process.env.VELO_SPONSOR_PRIVATE_KEY;
+  const sponsorKey = process.env.VELO_SPONSOR_PRIVATE_KEY || process.env.PRIVATE_KEY;
   if (!sponsorKey) return res.status(500).json({ error: 'Sponsor not configured' });
 
-  const rpcUrl = process.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+  const rpcUrl = process.env.VITE_BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
   const publicClient: any = createPublicClient({ chain: baseSepolia, transport: http(rpcUrl) });
   const account = privateKeyToAccount(sponsorKey.startsWith('0x') ? sponsorKey as `0x${string}` : (`0x${sponsorKey}` as `0x${string}`));
   const walletClient: any = createWalletClient({ account, chain: baseSepolia, transport: http(rpcUrl) });
