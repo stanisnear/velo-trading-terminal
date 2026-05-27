@@ -21,9 +21,12 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
+    // Use the actual panel background color so lightweight-charts canvas blends in.
+    // The panel uses --bg-base-2 which maps to #0b0d12 (dark) / #f3f1fa (light).
+    const bgColor = theme === 'dark' ? '#0b0d12' : '#f0eef8';
     const colors = {
-        background: 'transparent',
-        text: theme === 'dark' ? '#9ca3af' : '#4b5563',
+        background: bgColor,
+        text: theme === 'dark' ? '#9ca3af' : '#50506a',
     };
 
     const resizeObserver = new ResizeObserver((entries) => {

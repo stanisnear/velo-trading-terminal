@@ -2003,7 +2003,7 @@ const TokenInteractiveChart = ({
     return (
         <div style={{ width: '100%' }}>
             {/* Header: value + controls — stacks vertically on mobile */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '14px 14px 0', gap: 8, flexWrap: 'wrap' }}>
+            <div className="token-chart-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '14px 14px 0', gap: 8, flexWrap: 'wrap' }}>
                 {/* Left: value + change */}
                 <div style={{ minWidth: 0, flex: '1 1 160px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
@@ -2024,7 +2024,7 @@ const TokenInteractiveChart = ({
                     </div>
                 </div>
                 {/* Right: mode + timeframe — stays together, wraps below value on very small screens */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+                <div className="token-chart-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
                     <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 8, padding: 3, border: '1px solid var(--hairline)', gap: 2 }}>
                         {(['PRICE', 'MCAP'] as const).map(m => (
                             <button key={m} onClick={() => setMode(m)} style={{
@@ -2286,8 +2286,8 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 
             {/* Token header */}
             <div style={{ ...panel, padding: '14px 16px', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                <div className="token-header-inner" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
+                    <div className="token-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                         {(pairInfo?.logo || tokenInfo?.image?.large) && (
                             <img src={pairInfo?.logo || tokenInfo?.image?.large} style={{ width: 44, height: 44, borderRadius: '50%', border: '2px solid var(--hairline)', flexShrink: 0 }} />
                         )}
@@ -2322,7 +2322,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     </div>
 
                     {/* Right: Watchlist + Trade button */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <div className="token-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         {onToggleWatchlist && (() => {
                             const pairId = `${ticker}/USD`;
                             const isFav = watchlist?.includes(pairId);
@@ -2339,6 +2339,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                         })()}
                         {onNavigateToTrade && (
                             <button
+                                className="token-trade-btn"
                                 onClick={() => onNavigateToTrade(ticker)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite', color: '#0B0B0E', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', boxShadow: '0 2px 12px oklch(0.68 0.22 295 / 0.25)', transition: 'transform 0.1s, box-shadow 0.1s', whiteSpace: 'nowrap' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px oklch(0.68 0.22 295 / 0.4)'; }}
@@ -2366,7 +2367,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     {/* Stats strip */}
                     {(mcap || ath || circulatingSupply) && (
                         <div style={{ ...panel, padding: '12px 16px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 14 }}>
+                            <div className="token-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 14 }}>
                                 {mcap && (
                                     <div>
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Market Cap</div>

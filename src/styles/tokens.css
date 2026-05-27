@@ -107,9 +107,9 @@ body.dark,
 html.light,
 body.light,
 .light {
-  --bg: #faf9fd;
-  --bg-2: #f3f1fa;
-  --bg-3: #ebe8f5;
+  --bg: #f8f8fc;
+  --bg-2: #f0eef8;
+  --bg-3: #e8e5f2;
   --fg: #0a0b18;
   --fg-2: #50506a;
   --fg-3: #9898b8;
@@ -247,10 +247,10 @@ select {
   }
 }
 
-/* ── Light mode: chart background matches clean white bg ─────────────────── */
+/* ── Light mode: chart background matches page bg ─────────────────────────── */
 html.light .tv-lightweight-charts,
 html.light iframe[id*="tradingview"] {
-  background: #ffffff !important;
+  background: #f0eef8 !important;
 }
 
 /* ── Mobile content offset: navbar is 60px flush, not 84px floating ──────── */
@@ -401,6 +401,43 @@ html.light iframe[id*="tradingview"] {
 @media (max-width: 680px) {
   .token-page-grid {
     grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Token page mobile refinements ────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Token header: stack logo+name above price+button cleanly */
+  .token-header-inner {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+  .token-header-left {
+    width: 100% !important;
+  }
+  .token-header-actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+  /* Trade button full width on mobile */
+  .token-trade-btn {
+    flex: 1 !important;
+    justify-content: center !important;
+  }
+  /* Stats grid: force 2-col on mobile */
+  .token-stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  /* Chart header: stack value + controls vertically */
+  .token-chart-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+  .token-chart-controls {
+    flex-direction: row !important;
+    align-items: center !important;
+    width: 100% !important;
+    justify-content: space-between !important;
   }
 }
 
