@@ -4,11 +4,11 @@
 >
 > **For NotebookLM / context hand-off:** this is the authoritative state document. Lower-level details live in `README.md` and `MIGRATION_STATUS.md`.
 
-**Last updated:** May 27, 2026 — V3 contract expansion pass (feature-parity focus)
+**Last updated:** May 26, 2026 — End of Phase 8 + VELO v3 rebrand pass
 **Live URL:** https://velo-trading-terminal.vercel.app
 **Repo:** https://github.com/stanisnear/velo-trading-terminal
 **Owner:** Stan (@stanisnear)
-**Stage:** Testnet on Base Sepolia, V3 wiring-in-progress, not yet cut over to prod
+**Stage:** Testnet on Base Sepolia, pre-funding
 
 ---
 
@@ -47,29 +47,11 @@ The frontend has now been moved onto the VELO v3 visual system from the handoff 
 
 ## Deployed contracts (Base Sepolia, chain ID 84532)
 
-### V3 — live on Base Sepolia (active)
+### V2 — currently live (primary trading venue)
 
 | Contract | Address |
 |----------|---------|
-| **VeloPerps V3** | `0x3780e858B76027E6D6cB0c74E863f712a0F0E27E` |
-
-**V3 contract scope currently implemented (code-level):**
-
-1. Isolated + cross margin modes.
-2. On-chain TP/SL set/replace/clear (`setTriggers` with `0` to clear) and keeper close path (`closeIfTriggered`).
-3. On-chain conditional trigger orders (LIMIT/STOP) with place/cancel/execute.
-4. Reduce-only trigger execution via partial close semantics.
-5. Liquidation path with bounty.
-6. Pair-level risk controls (max notional / OI cap checks).
-7. Funding index accrual and funding settlement in close PnL.
-
-**Critical note:** V3 is deployed and verified. Frontend + keeper routing must point to V3 addresses/envs for full parity.
-
-### V2 — legacy (kept for historical positions)
-
-| Contract | Address |
-|----------|---------|
-| **VeloPerps V2** | `0x3C7cBCa2C675F1f788148aaD08eceab262298de8` |
+| **VeloPerps V2** | `0x8D4b792137252D79FB3Ae953AA619fA57101665f` |
 | **VeloMockUSDC** | `0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699` |
 | **VeloRegistry** | `0x7e510d615a8afDfaa324F790F3E54e520756ECe2` |
 | **Pyth oracle** | `0xA2aa501b19aff244D90cc15a4Cf739D2725B5729` (Pyth's, not ours) |
@@ -77,7 +59,10 @@ The frontend has now been moved onto the VELO v3 visual system from the handoff 
 
 **V2 contract status:** Live, all 17 pairs registered (BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL). `version()` returns 2. Verified via `cast code`. **Pool needs continuous seeding** as users open positions — use the admin panel.
 
-**BaseScan source verification:** V3 verified successfully on BaseScan via Standard JSON Input.
+**BaseScan source verification:** NOT YET DONE. The CLI verification fails because BaseScan deprecated Etherscan V1 API. Use the web UI at https://sepolia.basescan.org/verifyContract?a=0x8D4b792137252D79FB3Ae953AA619fA57101665f with Compiler Type "Solidity (Standard-Json-Input)" and upload `contracts/out/VeloPerpsV2.sol/VeloPerpsV2.json`. Constructor args (no 0x prefix):
+```
+0000000000000000000000005efaf3f69b09bc2abf3439bdc0c93bf611026699000000000000000000000000a2aa501b19aff244d90cc15a4cf739d2725b57290000000000000000000000008f8ff5a29760278c7b54d450da57a13cd3fd3a8b
+```
 
 ### V1 — legacy (still on-chain but no new trades routed)
 
@@ -115,11 +100,11 @@ Plus: `version()` returns 2, `effectiveLeverage(tradeId)` computes leverage from
 
 All 12 V2 forge tests pass.
 
-### What V2 does NOT add (and why V3 exists)
+### What V2 does NOT add (and why — not bolt-on changes)
 
-- **Cross margin** — implemented in V3.
-- **On-chain limit/stop trigger orders** — implemented in V3.
-- **Funding accrual/indexing** — implemented in V3.
+- **Cross margin** — needs shared collateral pool, portfolio equity, multi-position liquidation cascade → V3
+- **On-chain limit orders** — needs separate OrderBook contract + keeper → V3
+- **Funding rate** — needs OI tracking + accrual per pair → v2.5
 - **Insurance fund + ADL** — needs separate vault + drawdown logic → required for any real-money launch
 
 ---
@@ -352,12 +337,6 @@ cast call $REGISTRY "nextChangeAllowed(address)(uint256)" $OWNER --rpc-url $RPC
 
 # Public faucet mint (6-hour cooldown)
 cast send $MUSDC "mint()" --rpc-url $RPC --private-key $PRIVATE_KEY
-
-# Owner mintTo (no cooldown; admin funding)
-cast send $MUSDC "mintTo(address,uint256)" 0xTRADER <amount_6dec> --rpc-url $RPC --private-key $PRIVATE_KEY
-
-# Seed perps pool directly
-cast send $MUSDC "transfer(address,uint256)" $V2 <amount_6dec> --rpc-url $RPC --private-key $PRIVATE_KEY
 
 # Owner-only mint (no cooldown)
 cast send $MUSDC "mintTo(address,uint256)" <to> <amount_6dec> \

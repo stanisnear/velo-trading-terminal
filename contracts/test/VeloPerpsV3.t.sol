@@ -146,40 +146,4 @@ contract VeloPerpsV3Test is Test {
         VeloPerpsV3.Position memory p = velo.getPosition(tradeId);
         assertEq(p.owner, address(0));
     }
-
-    function test_PairLiquidityCapBlocksOversizedOpen() public {
-        velo.setPairRisk(0, uint128(5_000 * 1e6), 0);
-
-        vm.startPrank(ALICE);
-        usdc.approve(address(velo), type(uint256).max);
-        bytes[] memory empty;
-
-        // Effective collateral ~= 999, notional ~= 9990 -> above 5k cap.
-        vm.expectRevert(VeloPerpsV3.PairLiquidityExceeded.selector);
-        velo.openPosition(0, true, 1_000 * 1e6, 10, uint8(VeloPerpsV3.MarginMode.ISOLATED), empty);
-        vm.stopPrank();
-    }
-
-    function test_FundingAffectsPayout() public {
-        vm.startPrank(ALICE);
-        usdc.approve(address(velo), type(uint256).max);
-        bytes[] memory empty;
-
-        uint256 tradeId = velo.openPosition(0, true, 1_000 * 1e6, 10, uint8(VeloPerpsV3.MarginMode.ISOLATED), empty);
-        uint256 before = usdc.balanceOf(ALICE);
-
-        // Longs pay funding.
-        vm.stopPrank();
-        velo.setPairRisk(0, type(uint128).max, 100); // +1%/hour on index side
-        vm.startPrank(ALICE);
-        vm.warp(block.timestamp + 3600);
-        velo.accrueFunding(0);
-
-        velo.closePosition(tradeId, empty);
-        uint256 afterBal = usdc.balanceOf(ALICE);
-
-        // Closing at same mark, payout should be less than no-funding baseline due to funding payment.
-        assertLt(afterBal - before, 999 * 1e6);
-        vm.stopPrank();
-    }
 }

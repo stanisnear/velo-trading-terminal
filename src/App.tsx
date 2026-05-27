@@ -6576,11 +6576,6 @@ const App = () => {
             releaseLock();
             executeTrade(pairId, side, size, leverage, currentPrice, marginMode, tp, sl);
         } else {
-            if (isLiveMode) {
-                setToast({ message: 'LIMIT/STOP are not on-chain yet. Use MARKET for real on-chain execution.', type: 'ERROR' });
-                playSound('ERROR');
-                return;
-            }
             // Limit / Stop order — margin is NOT deducted until the order fills.
             // Deducting here AND in executeTrade (when it fills) would double-charge.
             const uniqueSuffix = uuidv4();
@@ -6767,63 +6762,46 @@ const App = () => {
                 .catch(() => {});
         }
     };
-    const handleCancelOrder = async (id: string) => {
-        const order = openOrders.find(o => o.id === id);
-        if (!order) return;
-        if (order.copyTraderId) {
-            setToast({ message: 'Cannot cancel copy trade orders', type: 'ERROR' });
-            playSound('ERROR');
-            return;
-        }
-
-        const isTpSl = order.type === 'TAKE_PROFIT' || order.type === 'STOP_LOSS';
-        const related = order.relatedPositionId
-          ? positionsRef.current.find(p => p.id === order.relatedPositionId)
-          : null;
-        const isOnChainRelated = !!(related && (related as any).onChain && related.id.startsWith('velo_') && related.onChainTradeId);
-
-        // On-chain TP/SL must be cleared on the contract, not only in local state.
-        if (isTpSl && isOnChainRelated && related?.onChainTradeId) {
-            try {
-                const tradeId = BigInt(related.onChainTradeId);
-                const nextTp = order.type === 'TAKE_PROFIT' ? 0 : (related.takeProfit || 0);
-                const nextSl = order.type === 'STOP_LOSS' ? 0 : (related.stopLoss || 0);
-                await veloPerpsTrading.setTriggers(tradeId, nextTp, nextSl);
-                setToast({ message: 'On-chain trigger cancelled', type: 'SUCCESS' });
-                playSound('SUCCESS');
-            } catch (e: any) {
-                setToast({ message: `Cancel failed: ${e?.shortMessage || e?.message || 'setTriggers reverted'}`, type: 'ERROR' });
+    const handleCancelOrder = (id: string) => {
+        setOpenOrders(prevOrders => {
+            const order = prevOrders.find(o => o.id === id);
+            if (!order) return prevOrders;
+            if (order.copyTraderId) {
+                setToast({ message: 'Cannot cancel copy trade orders', type: 'ERROR' });
                 playSound('ERROR');
-                return;
+                return prevOrders;
             }
-        }
 
-        // TP/SL orders don't lock margin — only regular limit/stop orders do
-        if (!isTpSl) {
-            setUser(prevUser => prevUser ? {...prevUser, balance: prevUser.balance + (order.size / order.leverage)} : null);
-        }
+            const isTpSl = order.type === 'TAKE_PROFIT' || order.type === 'STOP_LOSS';
 
-        // Local state mirror for UI responsiveness (on-chain poll keeps source of truth).
-        if (isTpSl && order.relatedPositionId) {
-            setPositions(prevPositions => prevPositions.map(p => {
-                if (p.id !== order.relatedPositionId) return p;
-                const patch: Partial<Position> = {};
-                if (order.type === 'TAKE_PROFIT') patch.takeProfit = undefined;
-                if (order.type === 'STOP_LOSS')   patch.stopLoss = undefined;
-                if (isSupabaseConfigured() && !p.id.startsWith('velo_')) {
-                    updatePositionInDB(p.id, {
-                        take_profit: order.type === 'TAKE_PROFIT' ? null : (p.takeProfit || null),
-                        stop_loss: order.type === 'STOP_LOSS' ? null : (p.stopLoss || null),
-                    }).catch(() => {});
-                }
-                return { ...p, ...patch };
-            }));
-        }
+            // TP/SL orders don't lock margin — only regular limit/stop orders do
+            if (!isTpSl) {
+                setUser(prevUser => prevUser ? {...prevUser, balance: prevUser.balance + (order.size/order.leverage)} : null);
+            }
 
-        setOpenOrders(prevOrders => prevOrders.filter(o => o.id !== id));
-        if (isSupabaseConfigured()) deleteOpenOrder(id).catch(() => {});
-        setToast({ message: 'Order Cancelled', type: 'INFO' });
-        playSound('CLICK');
+            // If cancelling a TP/SL order, clear the corresponding field on the linked position
+            if (isTpSl && order.relatedPositionId) {
+                setPositions(prevPositions => prevPositions.map(p => {
+                    if (p.id !== order.relatedPositionId) return p;
+                    const patch: Partial<Position> = {};
+                    if (order.type === 'TAKE_PROFIT') patch.takeProfit = undefined;
+                    if (order.type === 'STOP_LOSS')   patch.stopLoss   = undefined;
+                    const updated = { ...p, ...patch };
+                    // Persist the cleared field to DB
+                    if (isSupabaseConfigured()) {
+                        updatePositionInDB(p.id, {
+                            take_profit: order.type === 'TAKE_PROFIT' ? null : (p.takeProfit || null),
+                            stop_loss:   order.type === 'STOP_LOSS'   ? null : (p.stopLoss   || null),
+                        }).catch(() => {});
+                    }
+                    return updated;
+                }));
+            }
+
+            if (isSupabaseConfigured()) deleteOpenOrder(id).catch(() => {});
+            setToast({message:'Order Cancelled', type:'INFO'}); playSound('CLICK');
+            return prevOrders.filter(o => o.id !== id);
+        });
     };
     const handleFollow = async (id: string) => { 
         if(!user) return setLoginOpen(true);
