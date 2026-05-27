@@ -47,11 +47,11 @@ The frontend has now been moved onto the VELO v3 visual system from the handoff 
 
 ## Deployed contracts (Base Sepolia, chain ID 84532)
 
-### V3 — prepared for deployment (not live yet)
+### V3 — live on Base Sepolia (active)
 
 | Contract | Address |
 |----------|---------|
-| **VeloPerps V3** | Pending deploy from `contracts/script/DeployVeloPerpsV3.s.sol` |
+| **VeloPerps V3** | `0x3780e858B76027E6D6cB0c74E863f712a0F0E27E` |
 
 **V3 contract scope currently implemented (code-level):**
 
@@ -63,13 +63,13 @@ The frontend has now been moved onto the VELO v3 visual system from the handoff 
 6. Pair-level risk controls (max notional / OI cap checks).
 7. Funding index accrual and funding settlement in close PnL.
 
-**Critical note:** this is contract-ready but requires full frontend routing to V3 methods before claiming parity in production.
+**Critical note:** V3 is deployed and verified. Frontend + keeper routing must point to V3 addresses/envs for full parity.
 
-### V2 — currently live (primary trading venue)
+### V2 — legacy (kept for historical positions)
 
 | Contract | Address |
 |----------|---------|
-| **VeloPerps V2** | `0x8D4b792137252D79FB3Ae953AA619fA57101665f` |
+| **VeloPerps V2** | `0x3C7cBCa2C675F1f788148aaD08eceab262298de8` |
 | **VeloMockUSDC** | `0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699` |
 | **VeloRegistry** | `0x7e510d615a8afDfaa324F790F3E54e520756ECe2` |
 | **Pyth oracle** | `0xA2aa501b19aff244D90cc15a4Cf739D2725B5729` (Pyth's, not ours) |
@@ -77,10 +77,7 @@ The frontend has now been moved onto the VELO v3 visual system from the handoff 
 
 **V2 contract status:** Live, all 17 pairs registered (BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL). `version()` returns 2. Verified via `cast code`. **Pool needs continuous seeding** as users open positions — use the admin panel.
 
-**BaseScan source verification:** NOT YET DONE. The CLI verification fails because BaseScan deprecated Etherscan V1 API. Use the web UI at https://sepolia.basescan.org/verifyContract?a=0x8D4b792137252D79FB3Ae953AA619fA57101665f with Compiler Type "Solidity (Standard-Json-Input)" and upload `contracts/out/VeloPerpsV2.sol/VeloPerpsV2.json`. Constructor args (no 0x prefix):
-```
-0000000000000000000000005efaf3f69b09bc2abf3439bdc0c93bf611026699000000000000000000000000a2aa501b19aff244d90cc15a4cf739d2725b57290000000000000000000000008f8ff5a29760278c7b54d450da57a13cd3fd3a8b
-```
+**BaseScan source verification:** V3 verified successfully on BaseScan via Standard JSON Input.
 
 ### V1 — legacy (still on-chain but no new trades routed)
 

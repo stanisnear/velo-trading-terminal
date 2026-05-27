@@ -339,7 +339,8 @@ All source code is verified on the respective block explorers. Click any address
 
 | Chain | Contract | Address |
 |---|---|---|
-| Base Sepolia | **VeloPerpsV2** (active) | [`0x3C7cBCa2C675F1f788148aaD08eceab262298de8`](https://sepolia.basescan.org/address/0x3C7cBCa2C675F1f788148aaD08eceab262298de8) |
+| Base Sepolia | **VeloPerpsV3** (active) | [`0x3780e858B76027E6D6cB0c74E863f712a0F0E27E`](https://sepolia.basescan.org/address/0x3780e858B76027E6D6cB0c74E863f712a0F0E27E) |
+| Base Sepolia | VeloPerpsV2 (legacy) | [`0x3C7cBCa2C675F1f788148aaD08eceab262298de8`](https://sepolia.basescan.org/address/0x3C7cBCa2C675F1f788148aaD08eceab262298de8) |
 | Base Sepolia | VeloPerps V1 (legacy) | [`0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163`](https://sepolia.basescan.org/address/0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163) |
 | Base Sepolia | **VeloMockUSDC** | [`0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699`](https://sepolia.basescan.org/address/0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699) |
 | Base Sepolia | **VeloRegistry** | [`0x7e510d615a8afDfaa324F790F3E54e520756ECe2`](https://sepolia.basescan.org/address/0x7e510d615a8afDfaa324F790F3E54e520756ECe2) |
