@@ -315,7 +315,7 @@ export const OrderDetailsModal = ({
     );
     body = (
       <>
-        <R label="Entry Price"       value={`$${formatPrice(p.entryPrice)}`}  tip="The average price at which this position was opened." />
+        <R label="Entry Price"       value={p.entryPrice < 0.001 ? '⚠ Bad data (stale oracle)' : `$${formatPrice(p.entryPrice)}`} valueColor={p.entryPrice < 0.001 ? 'var(--pnl-down)' : 'var(--fg)'} tip="The average price at which this position was opened. A warning here means the position was opened with stale Pyth data and should be closed." />
         <R label="Mark Price"        value={`$${formatPrice(mark)}`}          tip="Current fair-value price used to calculate PnL and liquidation. Updates every tick." />
         <R label="Price Change"      value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in mark price since entry." />
         <R label="Liquidation Price" value={`$${formatPrice(displayLiqPrice)}`} valueColor={bufferColor}
@@ -333,8 +333,8 @@ export const OrderDetailsModal = ({
            tip={isCross
              ? "CROSS: your entire account balance backs this position. Gains on other positions help avoid liquidation here, but losses can consume your whole balance."
              : "ISOLATED: only the margin you assigned is at risk. This position can't draw on your other funds — max loss is capped at the margin used."} />
-        <R label="Take Profit"       value={p.takeProfit ? `$${formatPrice(p.takeProfit)}` : '—'} valueColor={p.takeProfit ? 'var(--pnl-up)' : 'var(--fg)'} tip="Your position auto-closes in profit when mark price hits this level." />
-        <R label="Stop Loss"         value={p.stopLoss   ? `$${formatPrice(p.stopLoss)}`   : '—'} valueColor={p.stopLoss   ? 'var(--pnl-down)' : 'var(--fg)'} tip="Your position auto-closes at a loss when mark price hits this level, protecting against further downside." />
+        <R label="Take Profit"       value={p.takeProfit && p.takeProfit > 0.00001 ? `$${formatPrice(p.takeProfit)}` : '—'} valueColor={p.takeProfit && p.takeProfit > 0.00001 ? 'var(--pnl-up)' : 'var(--fg)'} tip="Your position auto-closes in profit when mark price hits this level." />
+        <R label="Stop Loss"         value={p.stopLoss && p.stopLoss > 0.00001   ? `$${formatPrice(p.stopLoss)}`   : '—'} valueColor={p.stopLoss && p.stopLoss > 0.00001   ? 'var(--pnl-down)' : 'var(--fg)'} tip="Your position auto-closes at a loss when mark price hits this level, protecting against further downside." />
         <R label="Opened"            value={fmtDateTime(p.timestamp)} tip="When this position was opened." />
         <R label="Open Duration"     value={fmtDuration(openDurMs)} tip="How long this position has been open." />
         <R label="Position ID"       value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{p.id}</span>} tip="Unique identifier for this position." />
