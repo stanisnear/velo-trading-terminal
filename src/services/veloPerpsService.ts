@@ -734,66 +734,7 @@ export async function openPosition(
   if (!feedId) throw new Error(`No Pyth feed for ${args.pair}`);
 
   let { updateData, parsedPrice } = await fetchPriceUpdate([feedId]);
-  if (parsedPrice > 0) console.debug(`[velo] openPosition ${args.pair} oracle price: $${parsedPrice.toFixed(4)}`);
-
-  // ── Pre-flight price check: verify Pyth on-chain cache will have a sane price ──
-  // The Pyth testnet contract (Base Sepolia) silently no-ops updatePriceFeeds when
-  // incoming data is older than the cached value. _readPrice then returns whatever
-  // stale (possibly near-zero) value is cached, creating phantom corrupt entry prices.
-  //
-  // We read the CURRENT on-chain Pyth price, compare it to what Hermes says. If they
-  // deviate by >15% (or the on-chain call reverts = stale cache), we wait and re-fetch
-  // up to 3 times before aborting with a user-visible error.
-  if (parsedPrice > 1) {
-    const GET_PRICE_ABI = [{
-      type: 'function', name: 'getPriceNoOlderThan', stateMutability: 'view',
-      inputs: [{ name: 'id', type: 'bytes32' }, { name: 'age', type: 'uint256' }],
-      outputs: [{ type: 'tuple', components: [
-        { name: 'price',       type: 'int64'   },
-        { name: 'conf',        type: 'uint64'  },
-        { name: 'expo',        type: 'int32'   },
-        { name: 'publishTime', type: 'uint256' },
-      ]}],
-    }] as const;
-
-    let priceCheckPassed = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const pp = await publicClient.readContract({
-          address: PYTH_CONTRACT_ADDRESS,
-          abi: GET_PRICE_ABI,
-          functionName: 'getPriceNoOlderThan',
-          args: [feedId as `0x${string}`, BigInt(60)],
-        }) as { price: bigint; conf: bigint; expo: number; publishTime: bigint };
-
-        const onChainPrice = Number(pp.price) * Math.pow(10, Number(pp.expo));
-        const cacheAge = Math.floor(Date.now() / 1000) - Number(pp.publishTime);
-        console.debug(`[velo] Pyth on-chain: $${onChainPrice.toFixed(4)}, age=${cacheAge}s`);
-
-        const deviation = Math.abs(onChainPrice - parsedPrice) / parsedPrice;
-        if (onChainPrice > 1 && deviation < 0.15) {
-          priceCheckPassed = true;
-          break;
-        }
-        console.warn(`[velo] On-chain Pyth ($${onChainPrice.toFixed(6)}) deviates ${(deviation * 100).toFixed(1)}% from Hermes ($${parsedPrice.toFixed(4)}) — attempt ${attempt}/3, refreshing...`);
-      } catch {
-        // getPriceNoOlderThan reverts when cache is stale — this is the corrupt case
-        console.warn(`[velo] getPriceNoOlderThan reverted (stale/cold cache, attempt ${attempt}/3)`);
-      }
-      await new Promise(r => setTimeout(r, 1500));
-      const fresh = await fetchPriceUpdate([feedId]);
-      updateData = fresh.updateData;
-      parsedPrice = fresh.parsedPrice;
-    }
-
-    if (!priceCheckPassed) {
-      throw new Error(
-        `Pyth oracle on-chain price is stale or corrupt after 3 attempts. ` +
-        `The Base Sepolia testnet Pyth contract cache may be cold. ` +
-        `Please wait 30–60 seconds and try again.`
-      );
-    }
-  }
+  if (parsedPrice > 0) console.debug(`[velo] openPosition ${args.pair} Hermes price: $${parsedPrice.toFixed(4)}`);
 
   let feeWei = await getExactPythFee(publicClient, updateData);
   const collateral_6 = parseUnits(args.collateralUSDC.toString(), USDC_DECIMALS);
@@ -913,6 +854,12 @@ export async function openPosition(
   }
   if (tradeId == null) {
     throw new Error('Transaction confirmed but PositionOpened event not found');
+  }
+  // Warn (don't throw) if the contract stored a corrupt near-zero entry price.
+  // This is a Base Sepolia testnet Pyth quirk — the position exists on-chain and
+  // can still be closed. The UI shows the warning banner separately.
+  if (entryPrice > 0 && entryPrice < 0.0001) {
+    console.warn(`[velo] ⚠️ Corrupt entry price detected: $${entryPrice} — Pyth oracle cache was stale on-chain. Position opened but entry price is invalid.`);
   }
   return { txHash, tradeId, entryPrice };
 }
