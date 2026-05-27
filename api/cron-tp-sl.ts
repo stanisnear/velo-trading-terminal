@@ -9,6 +9,7 @@ import { baseSepolia } from 'viem/chains';
 const CORE_ABI: Abi = [
   { type: 'function', name: 'nextTradeId', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'version', stateMutability: 'pure', inputs: [], outputs: [{ type: 'uint16' }] },
+  { type: 'function', name: 'VERSION', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint16' }] },
   { type: 'function', name: 'pairFeedId', stateMutability: 'view', inputs: [{ type: 'uint16' }], outputs: [{ type: 'bytes32' }] },
   {
     type: 'function', name: 'quoteUnrealisedPnL', stateMutability: 'view',
@@ -106,7 +107,17 @@ export default async function handler(req: any, res: any) {
   const walletClient: any = createWalletClient({ account, chain: baseSepolia, transport: http(rpcUrl) });
 
   try {
-    const version = Number(await publicClient.readContract({ address: PERPS, abi: CORE_ABI, functionName: 'version' }));
+    // V2 exposes `version()`, V3 exposes `VERSION()` via public constant getter.
+    let version = 0;
+    try {
+      version = Number(await publicClient.readContract({ address: PERPS, abi: CORE_ABI, functionName: 'version' }));
+    } catch {
+      try {
+        version = Number(await publicClient.readContract({ address: PERPS, abi: CORE_ABI, functionName: 'VERSION' }));
+      } catch {
+        version = (V3 && PERPS.toLowerCase() === V3.toLowerCase()) ? 3 : 2;
+      }
+    }
     const posAbi = version >= 3 ? POSITION_V3_ABI : POSITION_V2_ABI;
 
     const nextTradeId = await publicClient.readContract({
