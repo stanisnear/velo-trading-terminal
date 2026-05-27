@@ -350,7 +350,8 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const feedId = (PYTH_FEED_IDS as any)[pair];
-        const { updateData, feeWei } = await fetchPriceUpdate([feedId]);
+        const { updateData } = await fetchPriceUpdate([feedId]);
+        const feeWei = await publicClient.readContract({ address: '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729' as `0x${string}`, abi: [{ type: 'function', name: 'getUpdateFee', stateMutability: 'view', inputs: [{ name: 'updateData', type: 'bytes[]' }], outputs: [{ name: 'feeAmount', type: 'uint256' }] }] as const, functionName: 'getUpdateFee', args: [updateData] }) as bigint;
         const result = await reduceMarginTx(tradingClient as any, publicClient, tradeId, amountUSDC, updateData, feeWei);
         await refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
@@ -369,7 +370,8 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const feedId = (PYTH_FEED_IDS as any)[pair];
-        const { updateData, feeWei } = await fetchPriceUpdate([feedId]);
+        const { updateData } = await fetchPriceUpdate([feedId]);
+        const feeWei = await publicClient.readContract({ address: '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729' as `0x${string}`, abi: [{ type: 'function', name: 'getUpdateFee', stateMutability: 'view', inputs: [{ name: 'updateData', type: 'bytes[]' }], outputs: [{ name: 'feeAmount', type: 'uint256' }] }] as const, functionName: 'getUpdateFee', args: [updateData] }) as bigint;
         const result = await partialCloseTx(tradingClient as any, publicClient, tradeId, fractionBps, updateData, feeWei);
         await refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };

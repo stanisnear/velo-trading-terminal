@@ -835,7 +835,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                         ? <span style={{ color: 'var(--pnl-up)' }}>TP ${formatPrice(p.takeProfit)}</span>
                                                         : <span>–</span>}
                                                       {' / '}
-                                                      {p.stopLoss && p.stopLoss > 0
+                                                      {p.stopLoss && p.stopLoss > 0.00001
                                                         ? <span style={{ color: 'var(--pnl-down)' }}>SL ${formatPrice(p.stopLoss)}</span>
                                                         : <span>–</span>}
                                                     </span>
