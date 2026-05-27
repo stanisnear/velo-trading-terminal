@@ -54,30 +54,24 @@ export const IS_V2: boolean = IS_V3
 export const VELO_USDC_BASE = (import.meta.env.VITE_VELO_USDC_BASE ||
   '0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699') as Address;
 
-/** Pyth oracle contract on Base Sepolia. Used to query exact update fees. */
+/** Pyth oracle on Base Sepolia. Used to query exact update fees. */
 export const PYTH_CONTRACT_ADDRESS = (import.meta.env.VITE_PYTH_CONTRACT_ADDRESS ||
   '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729') as Address;
 
 /**
- * Query the Pyth contract's getUpdateFee() to get the EXACT ETH fee required
- * for a given updateData payload. The VeloPerps contract enforces
- * msg.value == getUpdateFee(updateData) — any difference (even 1 wei) reverts
- * with PythFeeMismatch. Never estimate this fee; always read it on-chain.
+ * Get the EXACT ETH fee the Pyth contract requires for this updateData.
+ * VeloPerps enforces msg.value == getUpdateFee(updateData) to the wei.
+ * Never estimate this — always read it on-chain.
  */
 async function getExactPythFee(
   publicClient: PublicClient,
   updateData: `0x${string}`[],
 ): Promise<bigint> {
-  const pythAbi = [{
-    type: 'function',
-    name: 'getUpdateFee',
-    stateMutability: 'view',
-    inputs: [{ name: 'updateData', type: 'bytes[]' }],
-    outputs: [{ name: 'feeAmount', type: 'uint256' }],
-  }] as const;
   const fee = await publicClient.readContract({
     address: PYTH_CONTRACT_ADDRESS,
-    abi: pythAbi,
+    abi: [{ type: 'function', name: 'getUpdateFee', stateMutability: 'view',
+      inputs: [{ name: 'updateData', type: 'bytes[]' }],
+      outputs: [{ name: 'feeAmount', type: 'uint256' }] }] as const,
     functionName: 'getUpdateFee',
     args: [updateData],
   }) as bigint;

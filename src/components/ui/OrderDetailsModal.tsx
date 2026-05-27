@@ -315,7 +315,7 @@ export const OrderDetailsModal = ({
     );
     body = (
       <>
-        <R label="Entry Price"       value={p.entryPrice < 0.001 ? '⚠ Bad data (stale oracle)' : `$${formatPrice(p.entryPrice)}`} valueColor={p.entryPrice < 0.001 ? 'var(--pnl-down)' : 'var(--fg)'} tip="The average price at which this position was opened. A warning here means the position was opened with stale Pyth data and should be closed." />
+        <R label="Entry Price"       value={p.entryPrice < 0.001 ? '⚠ Corrupt (stale oracle)' : `$${formatPrice(p.entryPrice)}`} valueColor={p.entryPrice < 0.001 ? 'var(--pnl-down)' : 'var(--fg)'} tip="Entry price. A warning means the position was opened with stale Pyth data — close it." />
         <R label="Mark Price"        value={`$${formatPrice(mark)}`}          tip="Current fair-value price used to calculate PnL and liquidation. Updates every tick." />
         <R label="Price Change"      value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in mark price since entry." />
         <R label="Liquidation Price" value={`$${formatPrice(displayLiqPrice)}`} valueColor={bufferColor}

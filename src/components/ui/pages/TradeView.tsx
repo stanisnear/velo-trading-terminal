@@ -1640,27 +1640,7 @@ export const TradeView = ({
                         )}
 
                         <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : (orderType === 'MARKET' ? 10 : 6), justifyContent: isMobile ? undefined : 'space-between', opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
-
-                            {/* Margin mode toggle */}
-                            <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 12, padding: 3, border: '1px solid var(--hairline)' }}>
-                                {(['ISOLATED', 'CROSS'] as const).map(m => (
-                                    <button key={m} onClick={() => {
-                                        if (hasExistPos) { setToast({ message: 'Close existing position first', type: 'ERROR' }); playSound('ERROR'); }
-                                        else setMarginMode(m);
-                                    }} style={{ flex: 1, padding: isMobile ? '5px 0' : '4px 0', borderRadius: 7, border: 'none', cursor: 'pointer', ...S.label, fontSize: 9, textAlign: 'center' as const, transition: 'all 0.12s', background: marginMode === m ? 'var(--glass-bg-strong)' : 'transparent', color: marginMode === m ? 'var(--fg)' : 'var(--fg-subtle)', opacity: hasExistPos ? 0.5 : 1 }}>
-                                        {m}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Cross account balance + manage button — shown when CROSS mode is active */}
-                            {marginMode === 'CROSS' && onOpenCrossAccount && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 10, background: 'oklch(0.68 0.22 295/0.08)', border: '1px solid oklch(0.68 0.22 295/0.20)' }}>
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 8, color: 'var(--iris-violet)' }}>Cross Free Balance</div>
-                                        <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: crossFreeBalance > 0 ? 'var(--fg)' : 'oklch(0.75 0.18 25)' }}>
-                                            ${crossFreeBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </div>
+</div>
                                         {crossTotalBalance > 0 && crossTotalBalance !== crossFreeBalance && (
                                             <div style={{ ...S.label, fontSize: 8, color: 'var(--fg-subtle)' }}>
                                                 ${crossTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total
