@@ -526,7 +526,6 @@ const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, char
                         <OverlayToggle label="Liq. Price"  color="#f97316" checked={overlays.liq} onChange={() => onOverlayToggle('liq')} />
                         <div style={{ ...S.label, fontSize: 9, padding: '6px 10px 4px', background: 'var(--chip-bg)', marginTop: 2 }}>Info</div>
                         <OverlayToggle label="Open Position" color="#60a5fa" checked={overlays.openPos} onChange={() => onOverlayToggle('openPos')} />
-                        <OverlayToggle label="Funding Rate"  color="#a3e635" checked={overlays.funding} onChange={() => onOverlayToggle('funding')} />
                     </DropPanel>
                 )}
             </div>
@@ -755,7 +754,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                     { h: 'Entry',     tip: 'Average price at which your position was opened' },
                                     { h: 'Mark',      tip: 'Current fair-market price used for PnL and liquidation calculations' },
                                     { h: 'Liq.',      tip: 'Liquidation price — your position is force-closed if the mark price reaches this level' },
-                                    { h: 'Buffer',    tip: 'ISO: distance from mark to liq. price — lower % = closer to forced close. CROSS: shared pool health as % of total cross notional — measures how much cushion the shared margin pool has.' },
+                                    { h: 'Buffer',    tip: 'Distance between current mark price and your liquidation price, as a percentage. Lower = closer to forced close.' },
                                     { h: 'PnL (ROE)', tip: 'Unrealized profit/loss in USD · Return on equity (leverage-adjusted %)' },
                                     { h: 'TP/SL',     tip: 'Take Profit / Stop Loss prices. Click the edit icon to set or change them.' },
                                     { h: '',          tip: null },
@@ -769,37 +768,21 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                         <tbody>
                             {pos.items.length === 0 ? <tr><td colSpan={10}><Empty msg="No open positions." /></td></tr>
                                 : (() => {
-                                    // Cross pool health — the shared balance backing all CROSS positions.
-                                    // Pool = free balance + unrealised PnL of all cross positions.
-                                    const crossPoolBalance = orderlyIsReady ? orderlyBalance : (user ? user.balance : 0);
-                                    const crossPoolPnl = pos.items
-                                        .filter((p: Position) => p.marginMode === 'CROSS')
-                                        .reduce((acc: number, p: Position) => {
-                                            const cp2 = marketPrices[p.pair] || p.entryPrice;
-                                            return acc + (cp2 - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
-                                        }, 0);
-                                    const crossTotalMargin = pos.items
-                                        .filter((p: Position) => p.marginMode === 'CROSS')
-                                        .reduce((acc: number, p: Position) => acc + (p.size / p.leverage), 0);
-                                    // Pool health: how much buffer the shared pool has relative to total cross position size
-                                    const crossPoolTotal = crossPoolBalance + crossTotalMargin + crossPoolPnl;
-                                    const crossTotalNotional = pos.items
-                                        .filter((p: Position) => p.marginMode === 'CROSS')
-                                        .reduce((acc: number, p: Position) => acc + p.size, 0);
-                                    // Cross buffer = pool / notional (% of notional backed by pool)
-                                    const crossPoolBuf = crossTotalNotional > 0
-                                        ? Math.max(0, (crossPoolTotal / crossTotalNotional) * 100)
-                                        : 100;
-
                                     return pos.items.map((p: Position) => {
                                     const cp = marketPrices[p.pair] || p.entryPrice;
                                     const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
                                     const roe = (pnl / (p.size / p.leverage)) * 100;
-                                    // Buffer: isolated = distance to own liq price; cross = shared pool health
-                                    const isoCrossBuf = p.marginMode === 'CROSS'
-                                        ? crossPoolBuf
-                                        : Math.abs((cp - p.liquidationPrice) / cp) * 100;
-                                    const buf = isoCrossBuf;
+                                    // V3 liquidation threshold is 90% of collateral lost (LIQUIDATION_THRESHOLD_BPS = 9000).
+                                    // Liq price formula: entry ± (collateral * 0.9 / notional) * entry
+                                    // For cross positions p.liquidationPrice may be 0 (not set by V2 path), so compute it.
+                                    const collateral = p.size / p.leverage;
+                                    const computedLiq = p.liquidationPrice > 0
+                                        ? p.liquidationPrice
+                                        : p.side === 'LONG'
+                                            ? p.entryPrice * (1 - 0.9 / p.leverage)
+                                            : p.entryPrice * (1 + 0.9 / p.leverage);
+                                    const liqPrice = computedLiq;
+                                    const buf = liqPrice > 0 ? Math.abs((cp - liqPrice) / cp) * 100 : 100;
                                     const bufClr = buf < 5 ? 'var(--pnl-down)' : buf < 10 ? '#f97316' : 'var(--pnl-up)';
                                     const bufLabel = buf < 2 ? 'EXTREME' : buf < 5 ? 'HIGH' : buf < 10 ? 'MED' : 'LOW';
                                     const pi = PAIRS.find(x => x.id === p.pair);
@@ -828,28 +811,13 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${formatPrice(p.entryPrice)}</td>
                                             <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${formatPrice(cp)}</td>
                                             <td style={{ padding: '4px 7px', fontWeight: 700, color: bufClr }}>
-                                                {p.marginMode === 'CROSS'
-                                                    ? (() => {
-                                                        // For cross, estimate liq price using pool cushion per unit of notional
-                                                        const mm2 = 0.005;
-                                                        const poolPerNotional = crossTotalNotional > 0 ? crossPoolTotal / crossTotalNotional : 0;
-                                                        const crossLiq = p.side === 'LONG'
-                                                            ? cp * (1 - poolPerNotional + mm2)
-                                                            : cp * (1 + poolPerNotional - mm2);
-                                                        return crossLiq > 0 ? `$${formatPrice(crossLiq)}` : '—';
-                                                    })()
-                                                    : `$${formatPrice(p.liquidationPrice)}`}
+                                                {liqPrice > 0 ? `$${formatPrice(liqPrice)}` : '—'}
                                             </td>
                                             <td style={{ padding: '4px 7px' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 72 }}>
                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
                                                     <span style={{ color: bufClr, fontWeight: 700, fontSize: 11 }}>{buf.toFixed(1)}%</span>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                                      {p.marginMode === 'CROSS' && (
-                                                        <span title="Buffer reflects shared cross margin pool health" style={{ fontSize: 7, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--iris-violet)', opacity: 0.8 }}>POOL</span>
-                                                      )}
-                                                      <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', color: bufClr, textTransform: 'uppercase' as const }}>{bufLabel}</span>
-                                                    </div>
+                                                    <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', color: bufClr, textTransform: 'uppercase' as const }}>{bufLabel}</span>
                                                   </div>
                                                   <div style={{ height: 3, borderRadius: 2, background: 'var(--hairline-strong)', overflow: 'hidden' }}>
                                                     <div style={{ height: '100%', width: `${Math.min(100, buf * 5)}%`, background: bufClr, borderRadius: 2, transition: 'width 0.3s' }} />
@@ -1220,6 +1188,10 @@ export const TradeView = ({
     activePair, setActivePair, marketPrices, marketChanges = {}, candles, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, onShareHistory, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
     savedChartPrefs, onChartPrefsChange, tradeFocus, autoOpenHistoryId,
     orderlyBalance = 0, orderlyIsReady = false,
+    // V3 cross-margin account (optional — pass from App.tsx)
+    onOpenCrossAccount,                  // (tab?: 'DEPOSIT'|'WITHDRAW') => void
+    crossFreeBalance = 0,
+    crossTotalBalance = 0,
     // ── Environment split ─────────────────────────────────────────────────────
     // isLiveMode = true  → user connected with crypto wallet → Orderly live trading
     // isLiveMode = false → demo/email user → full pair list, simulated P&L
@@ -1287,7 +1259,7 @@ export const TradeView = ({
     const [showCandle, setShowCandle]     = useState(false);
     const [showOverlays, setShowOverlays] = useState(false);
     const [indConfigId, setIndConfigId]   = useState<string | null>(null);
-    const [overlays, setOverlays]         = useState(savedChartPrefs?.overlays || { entry: true, tp: true, sl: true, liq: true, openPos: true, funding: false });
+    const [overlays, setOverlays]         = useState(savedChartPrefs?.overlays || { entry: true, tp: true, sl: true, liq: true, openPos: true });
     const indRef      = useRef<HTMLDivElement>(null);
     const candleRef   = useRef<HTMLDivElement>(null);
     const overlaysRef = useRef<HTMLDivElement>(null);
@@ -1678,6 +1650,28 @@ export const TradeView = ({
                                     </button>
                                 ))}
                             </div>
+
+                            {/* Cross account balance + manage button — shown when CROSS mode is active */}
+                            {marginMode === 'CROSS' && onOpenCrossAccount && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 10, background: 'oklch(0.68 0.22 295/0.08)', border: '1px solid oklch(0.68 0.22 295/0.20)' }}>
+                                    <div>
+                                        <div style={{ ...S.label, fontSize: 8, color: 'var(--iris-violet)' }}>Cross Free Balance</div>
+                                        <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: crossFreeBalance > 0 ? 'var(--fg)' : 'oklch(0.75 0.18 25)' }}>
+                                            ${crossFreeBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                        {crossTotalBalance > 0 && crossTotalBalance !== crossFreeBalance && (
+                                            <div style={{ ...S.label, fontSize: 8, color: 'var(--fg-subtle)' }}>
+                                                ${crossTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => onOpenCrossAccount(crossFreeBalance === 0 ? 'DEPOSIT' : 'WITHDRAW')}
+                                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid oklch(0.68 0.22 295/0.35)', background: 'oklch(0.68 0.22 295/0.12)', color: 'var(--iris-violet)', cursor: 'pointer', ...S.label, fontSize: 9 }}>
+                                        {crossFreeBalance === 0 ? 'Deposit →' : 'Manage'}
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
