@@ -474,6 +474,104 @@ If you do NOT update this file, the next agent will have stale context and will 
 
 ## Change log
 
+### 2026-05-27 — Build 80: TP/SL closes on-chain, wall-delete, leaderboard, market gating, admin verification
+
+This is a five-issue bug-fix + features pass driven by user-reported breakage on production. Each issue had a single root cause that was independently broken; combined they hit the heart of the trade UX (TP/SL not actually closing), the social moderation flow (wall owners couldn't delete posts on their wall), the leaderboard (empty for all users but the logged-in one), the markets list (Trade button for pairs that weren't on the contract), and the verification badge (handed out to every signup automatically).
+
+**Problems fixed:**
+
+1. **TP/SL hit fired a notification but never actually closed the position; the order disappeared and nothing landed in history.** Two-layer root cause. (a) `Position.onChainTradeId` was being **read** at three call sites (`handleEditPosition` routing logic, the V2 manage modal, and the open-or-add merge path), but never **written** during the on-chain → local sync at `App.tsx`. Result: every V2 on-chain position had `p.onChain && p.onChainTradeId === undefined`, so `handleEditPosition` routed to the legacy `EditPositionModal` instead of `VeloManagePositionModal`. The legacy modal writes TP/SL into a local Supabase `open_orders` row, NOT to the contract's `setTriggers()`. (b) A client-side "TP/SL simulation" effect in `App.tsx` then watched the local order, fired a CLOSE when the mark crossed the trigger, removed the position from React state, wrote a phantom CLOSE row to Supabase — but never called the on-chain `closePosition` / `closeIfTriggered`. Five seconds later the on-chain poll re-inserted the still-open position, and the orphaned history row never linked back to it.
+
+   Fix: `VeloPosition` now also carries `takeProfit` and `stopLoss`, decoded from the V2 `getPosition` struct (which has 10 fields, not 7 — the ABI was previously declared with the V1 shape). Added a V1-shape fallback decode so reads still work against V1 if anyone ever flips the address back. The on-chain → local sync at `App.tsx` now populates `Position.onChainTradeId` (so the manage modal routes correctly) AND mirrors `position.takeProfit` / `position.stopLoss` from the contract (so the manage modal pre-fills the user's currently-set triggers). The TP/SL simulation effect now filters out any order whose `relatedPositionId` starts with `velo_`, and has a defensive `if (!pos.onChain)` guard at the closure site so even if a stale local order slips through the simulation can't close an on-chain position. The liquidation-monitoring effect got the same `pos.onChain` skip. `handleUpdatePosition` early-returns if called with a `velo_` id and reroutes to `setManagingPosition` instead — belt-and-suspenders against the legacy code path. Finally, the on-chain position sync now also **prunes stale local orders** whose `relatedPositionId` starts with `velo_`, cleaning up any leftover phantom orders from pre-fix data.
+
+   End-to-end effect on Stan's reported scenario: setting TP on a V2 position now writes `takeProfit_E18` to the contract via `setTriggers()`. The off-chain keeper (`api/cron-tp-sl.ts`) picks it up on its 5-minute cycle and calls `closeIfTriggered()` when the mark crosses. The local sim no longer fires false-positive notifications, no longer removes positions, and no longer writes phantom CLOSE rows. The keeper close emits a real on-chain CLOSE that flows back into the next 5-second poll and updates the UI naturally.
+
+2. **Wall-post delete didn't work for wall owners.** The Supabase RLS policy on `public.posts` for DELETE was `USING (auth.uid() = author_id)` — author-only. The UI correctly offered the delete button to wall owners (via `canDelete = user.id === post.authorId || user.id === post.targetProfileId`), but the DELETE silently failed on the server. The optimistic local removal made it look like it worked until refresh re-loaded the row.
+
+   Fix: policy is now `USING (auth.uid() = author_id OR auth.uid() = target_profile_id)`. Authors retain full control of their posts everywhere; wall owners get moderation rights on their own profile. The `target_profile_id` ALTER was also hoisted to run BEFORE the posts RLS policy block in `SUPABASE_SCHEMA.sql` — the previous order would have failed on a fresh database because the policy referenced a column that didn't exist yet (the ALTER was at the bottom of the file). Both the schema file and the new `SUPABASE_MIGRATION_BUILD80.sql` are idempotent — safe to re-run.
+
+3. **Leaderboard only showed the current user's own account.** Build 79's filter required `t.walletAddress` on every trader row to be eligible. In practice almost no account had `wallet_address` persisted to their profile (wallet identity is held in the auth session, not always mirrored to the profile row), so the entire leaderboard collapsed to one entry: whoever was logged in.
+
+   Fix: relaxed the leaderboard filter in `LeaderboardView`. The current user always appears. Every other trader appears if they show ANY sign of activity — non-zero `pnl`, at least one follower, or an admin-set `verifiedReason` badge. Placeholder accounts (default username "Trader" or missing username) are still excluded. The wallet check is dropped entirely as a hard filter; activity is the new signal, which is what users actually want to see.
+
+4. **Markets that aren't registered on-chain still showed a Trade button.** The visible `PAIRS` list (15 markets) is broader than `VELO_PAIRS` (17 markets on the contract), and 4 markets (`WIF`, `JUP`, `BONK`, `PEPE`) only exist in `PAIRS` — they had Trade buttons that, when clicked, opened the trade view where the contract pre-flight in `useVeloPerpsTrading.openPosition` would eventually reject with `PairNotRegistered`. Bad UX: looks broken instead of "not yet listed."
+
+   Fix: added `VELO_PAIR_IDS: ReadonlySet<string>` and `isTradablePair(pairId)` helpers to `src/utils/types.ts`. In `MarketsView`, untradable pairs get a quiet dashed "Soon" chip with a tooltip ("Not yet listed on-chain. Trading opens once the protocol owner registers this market") instead of the Trade button. In `TradeView`, if the active pair isn't tradable the entire BUBBLE 2 (order entry form) is replaced with a "not yet listed" panel that surfaces 4 quick links to listed pairs. Charts and price data remain visible for non-tradable pairs — the goal is to communicate the state, not hide the market.
+
+5. **Verification badges were given to every Supabase user automatically.** `isVerifiedUser(userId)` was just a regex check for UUID format. Every account that signed up via Supabase auth got a badge. Stan wants admin-controlled verification with discrete reasons (VELO Team, Founder, Investor, etc.) and a hover-tooltip that shows the reason.
+
+   Fix: new `profiles.verified_reason` column with a CHECK constraint enumerating six reasons (`VELO_TEAM`, `FOUNDER`, `INVESTOR`, `CONTRIBUTOR`, `VERIFIED_TESTER`, `PARTNER`). The badge component now requires either an explicit `reason` prop OR `userId + traders` (it looks the reason up from the in-scope `traders` array). If no reason is set, the badge renders nothing. Tooltip shows the human-friendly label and `cursor: help` so it's obvious it's hoverable. Both copies of `VerifiedBadge` (the one in `App.tsx` and the one in `src/components/ui/shared.tsx`) were updated.
+
+   Admin write path: a new `velo_admins` allowlist table + `admin_set_verification(target_user_id, new_reason)` SECURITY DEFINER RPC. The function re-checks `is_velo_admin()` server-side before bypassing RLS — the frontend can't escalate. The Admin Panel grew a new "Verifications" section above the Contract Metadata block: search by username/handle, dropdown picker per row with all six reasons plus "None" (to un-verify), busy spinner per row, error banner on failure. The panel surfaces a clear "not an admin" warning with the exact SQL to grant yourself access if you haven't seeded `velo_admins` yet.
+
+   Important: the previous `isVerifiedUser(userId)` regex check at the profile-lookup call site (used as "is this id a real Supabase UUID I should try to fetch?") had nothing to do with the verification badge — that was misleading naming. Replaced inline with the same UUID regex but called `isSupabaseUserId` so the semantic is obvious. The old badge gating is fully removed; no implicit verification anywhere in the codebase.
+
+**Files changed:**
+
+- `src/services/veloPerpsService.ts` — `VeloPosition` carries `takeProfit/stopLoss`; `getPosition` ABI updated to V2's 10-field struct; `fetchOpenPositions` decodes the new fields and falls back to the V1 shape if decode throws.
+- `src/utils/types.ts` — `Position.onChainTradeId` added; `Trader.verifiedReason`, `Trader.walletAddress`, `Trader.authMethod` added; new `VERIFICATION_REASONS`, `VERIFICATION_LABELS`, `VerificationReason` type; new `VELO_PAIR_IDS` set and `isTradablePair()` helper.
+- `src/App.tsx` — on-chain → local sync populates `onChainTradeId` + `takeProfit/stopLoss`; pruning of stale `velo_` orders during sync; TP/SL simulation effect skips on-chain; liquidation effect skips on-chain; `handleUpdatePosition` early-returns + reroutes for `velo_` ids; trader sync mirrors `verified_reason`; leaderboard filter relaxed; both `VerifiedBadge` definitions replaced with admin-controlled implementation; profile lookup uses local `isSupabaseUserId` instead of the misnamed legacy check; all 3 badge call sites pass `traders` (or `reason={profile.verifiedReason}` directly).
+- `src/components/ui/shared.tsx` — `VerifiedBadge` rewritten with the same admin-controlled API; old UUID regex `isVerifiedUser` replaced with a no-op-without-traders version.
+- `src/components/ui/pages/MarketsView.tsx` — imports `isTradablePair`; Trade button replaced with a "Soon" chip for untradable pairs.
+- `src/components/ui/pages/TradeView.tsx` — imports `isTradablePair`; BUBBLE 2 (order entry) wrapped in a ternary that renders a "not yet listed" panel for untradable pairs, with 4 quick-link buttons to listed pairs.
+- `src/services/supabaseStore.ts` — `fetchAllProfiles` selects `verified_reason` with two-tier fallback; new `isCurrentUserAdmin()` and `setUserVerification()` helpers that call the admin RPCs.
+- `src/components/VeloAdminPanel.tsx` — new Verifications section with user list, search, per-row dropdown, busy state, error display, and clear "not in velo_admins" guidance for first-time setup.
+- `SUPABASE_SCHEMA.sql` — `posts` DELETE policy now allows wall owners; `target_profile_id` ALTER moved before the posts RLS block; `profiles.verified_reason` column added with CHECK constraint and index; `velo_admins` allowlist table; `is_velo_admin()` and `admin_set_verification()` SECURITY DEFINER functions; `NOTIFY pgrst, 'reload schema'` at end.
+- `SUPABASE_MIGRATION_BUILD80.sql` (NEW) — idempotent migration that applies all of #2 and #5 to an existing database. Run once in Supabase SQL editor.
+- `PROJECT_STATUS.md` — this entry.
+
+**New gotchas:**
+
+- The contract's V2 Position struct returns 10 fields, not 7. The previous service ABI declared 7. Decoding only worked because viem was tolerant — but TP/SL were silently dropped. If you ever update the V2 contract's struct shape, update **both** `VELO_PERPS_ABI.getPosition` (in `veloPerpsService.ts`) AND the V2 path in `fetchOpenPositions`. The V1-shape fallback inside `fetchOpenPositions` is the safety net.
+- `onChainTradeId` was read in three places but never written before this build. Any new `Position` source (e.g., a future cross-chain wrapper, a copy-trade mirror, an analytics feed) MUST populate `onChainTradeId` if the position is `onChain: true`, otherwise the manage modal will silently fall back to the legacy edit path and TP/SL will be local-only again. The simulation effect filters those out anyway, but the user will lose the on-chain manage actions.
+- The TP/SL simulation effect (`App.tsx` near line 5400) and the liquidation effect (near 5320) are now demo-only. If anyone ever revives demo/legacy positions alongside V2, those effects still work; if a future build deletes demo mode entirely, both effects can be removed wholesale.
+- `velo_admins` is **not auto-seeded**. After running `SUPABASE_MIGRATION_BUILD80.sql`, you must manually insert your own Supabase user id: `INSERT INTO velo_admins(user_id, note) VALUES (auth.uid(), 'self');` (run while logged in as yourself in the SQL editor so `auth.uid()` resolves). The admin panel surfaces this exact command in the "not an admin" warning box.
+- The `verified_reason` CHECK constraint enumerates the six reasons. Adding a new one requires a migration: `ALTER TABLE profiles DROP CONSTRAINT profiles_verified_reason_check; ALTER TABLE profiles ADD CONSTRAINT profiles_verified_reason_check CHECK (verified_reason IS NULL OR verified_reason IN ('VELO_TEAM', ..., 'NEW_REASON'));`. Also add the constant to `VERIFICATION_REASONS` and `VERIFICATION_LABELS` in `src/utils/types.ts`, and update the CHECK in `admin_set_verification()` RPC body so the server-side validation matches.
+- The leaderboard now shows every trader with activity — the "demo account" filter from build 79 is gone. If demo accounts ever come back, gate them on the `walletAddress` field again, but the new default (activity-based) is correct for a testnet where most users haven't propagated their wallet to the profile row yet.
+- `isTradablePair()` consults a frozen `VELO_PAIR_IDS` set. If you register a new pair on-chain via the admin panel, you ALSO need to add it to `VELO_PAIRS` in `src/utils/types.ts` (or, better long-term, switch this from a static set to a `pairTradable(pairIndex)` contract read). The current static approach is fast and correct for the 17 pairs that exist today.
+
+**Verification:**
+- `npx vite build` passes in 45s.
+- `npx tsc --noEmit` error count is **76** (down from 78 baseline — two stale errors cleared by the leaderboard filter cleanup and the `isVerifiedUser` rename). No new TS errors introduced.
+- Pre-existing 76 errors are all viem strict-typing complaints about wagmi clients missing `chain: undefined` / `authorizationList: any` — same as previous batches, not blockers for `vite build`.
+
+**Manual test plan for Stan after deploy:**
+
+For Issue 1 (TP/SL on-chain):
+1. Open a fresh long position (e.g., 10x SOL/USD with $20 collateral).
+2. Click Manage → TP/SL tab. Confirm the modal opens (not the legacy EditPositionModal — they look different; the manage modal has Add / Reduce / Partial / TP/SL tabs).
+3. Set a TP slightly above the current mark and submit. Wait for the on-chain tx confirmation.
+4. Refresh the page. Confirm the position still shows the TP price (this means it survived the round trip from the contract).
+5. Wait for the TP price to be crossed (or set it to a price that's already crossed). Within ~5 minutes the keeper should fire `closeIfTriggered` and the position should be closed on-chain. The activity feed will show a real CLOSE row with the actual exit price and a Basescan-linkable tx hash.
+6. Confirm no phantom toast fires the moment the local mark crosses the TP — the only notification should come AFTER the keeper actually closes the position.
+
+For Issue 2 (wall-delete RLS):
+7. Run `SUPABASE_MIGRATION_BUILD80.sql` in the Supabase SQL editor.
+8. On another account, post on your wall.
+9. Switch to your account, navigate to your own profile. Confirm the X (delete) button is visible on the post.
+10. Click it. Confirm the post is gone immediately. Hard-refresh. Confirm it stays gone (this means RLS allowed the DELETE).
+
+For Issue 3 (leaderboard):
+11. Open the Leaderboard tab. Confirm you see all accounts with any activity — not just yours.
+12. If you only see yourself, check that other accounts in your DB have either non-zero `pnl_total` OR at least one follower OR a `verified_reason`. If they have none of those, they're correctly filtered out as inactive.
+
+For Issue 4 (market gating):
+13. Open the Markets view. The four non-Velo pairs (WIF, JUP, BONK, PEPE) should show a "Soon" chip instead of a Trade button.
+14. Click one of them — the row navigates to the token page as usual (the row click handler still fires).
+15. Now navigate to TradeView with one of those pairs as activePair (via URL or pair switcher). Confirm BUBBLE 2 shows the "not yet listed" panel with four quick-link buttons to listed pairs, not the order form.
+16. Confirm listed pairs (BTC, ETH, SOL, etc.) still show the order entry form normally.
+
+For Issue 5 (admin verification):
+17. Run `SUPABASE_MIGRATION_BUILD80.sql` if not already done.
+18. Seed yourself as admin: in Supabase SQL editor while logged in, run `INSERT INTO velo_admins(user_id, note) VALUES (auth.uid(), 'self');`. (Or copy your user id from `auth.users` and use that literal.)
+19. In the Velo Admin Panel, scroll to the new "Verifications" section. You should see a user list with avatars and a dropdown per row. If you see the "not an admin" warning instead, the seed didn't work — verify the row exists in `velo_admins`.
+20. Pick a user, select "VELO Team" from the dropdown. Confirm the busy spinner appears briefly. Refresh. Confirm the user has a verified badge on their profile and posts.
+21. Hover the badge. Confirm the tooltip says "VELO Team".
+22. Pick the same user again, select "— None —". Confirm the badge disappears.
+23. As a non-admin account, confirm the Verifications section is hidden (you're not connected as the contract owner so the Admin tab itself isn't visible — that's the outer gate; the Supabase admin check is the inner gate for verify writes).
+
+---
+
 ### 2026-05-26 — Batch 8: Supabase schema-cache compatibility for disappearing history/activity/orders
 
 **Problem:** On Vercel, on-chain trades and activity rows appeared live, then vanished after refresh. Devtools showed `PGRST204` / "Could not find the 'on_chain' column of 'trade_history' in the schema cache", but the compatibility fallback in `supabaseStore.ts` only retried on raw Postgres `42703` (`undefined_column`). Result: optimistic UI rows existed in memory, the DB insert failed, and refresh reloaded an empty history/activity feed. There was a second schema drift too: `transactions.type` in `SUPABASE_SCHEMA.sql` still only allowed `DEPOSIT/WITHDRAW` even though the app records `SEND/RECEIVE`.

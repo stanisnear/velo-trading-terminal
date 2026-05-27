@@ -43,6 +43,21 @@ CREATE INDEX IF NOT EXISTS profiles_wallet_address_idx
   ON public.profiles (lower(wallet_address))
   WHERE wallet_address IS NOT NULL;
 
+-- ── Admin verification (build 80+) ─────────────────────────────────────────
+-- Admin-controlled badge. NULL = unverified. When set, the UI shows the
+-- verified-check badge with a tooltip explaining the reason. Add new reasons
+-- here, in src/utils/types.ts (VERIFICATION_REASONS), and the admin panel
+-- dropdown picks them up. The CHECK constraint is dropped+recreated so adding
+-- a reason is a single ALTER away.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS verified_reason TEXT;
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_verified_reason_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_verified_reason_check
+  CHECK (verified_reason IS NULL OR verified_reason IN
+    ('VELO_TEAM','FOUNDER','INVESTOR','CONTRIBUTOR','VERIFIED_TESTER','PARTNER'));
+CREATE INDEX IF NOT EXISTS profiles_verified_reason_idx
+  ON public.profiles (verified_reason)
+  WHERE verified_reason IS NOT NULL;
+
 -- Drop legacy bot column if it's hanging around from an earlier build
 ALTER TABLE public.profiles DROP COLUMN IF EXISTS active_bots;
 
@@ -87,13 +102,24 @@ CREATE TABLE IF NOT EXISTS public.posts (
   trade_entry     NUMERIC,
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
+-- Wall posting: target_profile_id is added BEFORE the RLS policies so the
+-- DELETE policy can reference it. The trailing ALTER at the bottom of this
+-- file (kept idempotent) is a no-op on fresh DBs and a safety net for legacy
+-- DBs that were created when posts had no target_profile_id column.
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS target_profile_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS posts_target_profile_idx ON public.posts(target_profile_id);
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public read posts" ON public.posts;
 DROP POLICY IF EXISTS "Auth insert posts" ON public.posts;
 DROP POLICY IF EXISTS "Own delete posts"  ON public.posts;
+DROP POLICY IF EXISTS "Wall delete posts" ON public.posts;
 CREATE POLICY "Public read posts" ON public.posts FOR SELECT USING (true);
 CREATE POLICY "Auth insert posts" ON public.posts FOR INSERT WITH CHECK (auth.uid() = author_id);
-CREATE POLICY "Own delete posts"  ON public.posts FOR DELETE USING (auth.uid() = author_id);
+-- Author OR wall owner can delete a post. Wall owners get this so they can
+-- moderate posts left on their profile by other users; authors retain the
+-- right to delete their own posts anywhere.
+CREATE POLICY "Own delete posts"  ON public.posts FOR DELETE
+  USING (auth.uid() = author_id OR auth.uid() = target_profile_id);
 
 -- ── LIKES ─────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.likes (
@@ -474,6 +500,78 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ── PROFILE WALL (posted_on) ──────────────────────────────────────
--- Add target_profile_id to posts so users can post on each other's walls
+-- Add target_profile_id to posts so users can post on each other's walls.
+-- The actual ALTER + index now lives ABOVE the posts RLS policies (so the
+-- DELETE policy can reference target_profile_id on a fresh DB). The lines
+-- below are kept idempotent for any legacy database that ran the old order.
 ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS target_profile_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS posts_target_profile_idx ON public.posts(target_profile_id);
+
+-- ══════════════════════════════════════════════════════════════════
+-- ADMIN ROLES + VERIFICATION RPC (build 80+)
+-- ══════════════════════════════════════════════════════════════════
+-- Admins can set `profiles.verified_reason` on any user from the in-app
+-- admin panel. The RLS on profiles still says "Self update", so we route
+-- admin writes through a SECURITY DEFINER RPC that re-checks membership
+-- in velo_admins before bypassing RLS.
+--
+-- Seeding: insert your own Supabase user id into velo_admins manually
+-- (Supabase → Authentication → Users → copy the id of the deployer
+-- account, then `INSERT INTO velo_admins(user_id) VALUES ('<uuid>');`).
+-- The contract owner is the canonical admin, but Supabase doesn't know
+-- about on-chain ownership — this table is the off-chain mirror.
+
+CREATE TABLE IF NOT EXISTS public.velo_admins (
+  user_id    UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  added_at   TIMESTAMPTZ DEFAULT NOW(),
+  note       TEXT
+);
+ALTER TABLE public.velo_admins ENABLE ROW LEVEL SECURITY;
+-- Admins can read the list (handy for the admin UI). Nobody can write to
+-- this table from the client — only Supabase service role (i.e. the SQL
+-- editor) can insert/delete rows.
+DROP POLICY IF EXISTS "Admins read" ON public.velo_admins;
+CREATE POLICY "Admins read" ON public.velo_admins FOR SELECT
+  USING (auth.uid() IN (SELECT user_id FROM public.velo_admins));
+
+-- Helper: is the calling user an admin?
+CREATE OR REPLACE FUNCTION public.is_velo_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (SELECT 1 FROM public.velo_admins WHERE user_id = auth.uid());
+$$;
+GRANT EXECUTE ON FUNCTION public.is_velo_admin() TO anon, authenticated;
+
+-- RPC: set or clear a user's verification reason. Only admins may call.
+-- Pass NULL to clear (un-verify a user).
+CREATE OR REPLACE FUNCTION public.admin_set_verification(
+  target_user_id UUID,
+  new_reason     TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_velo_admin() THEN
+    RAISE EXCEPTION 'Not authorized: caller is not an admin';
+  END IF;
+  IF new_reason IS NOT NULL AND new_reason NOT IN
+    ('VELO_TEAM','FOUNDER','INVESTOR','CONTRIBUTOR','VERIFIED_TESTER','PARTNER') THEN
+    RAISE EXCEPTION 'Invalid verification reason: %', new_reason;
+  END IF;
+  UPDATE public.profiles
+     SET verified_reason = new_reason
+   WHERE id = target_user_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_set_verification(UUID, TEXT) TO authenticated;
+
+-- Force PostgREST to reload its schema cache so the new column + RPC are
+-- visible to the JS client immediately, without waiting for the cache TTL.
+NOTIFY pgrst, 'reload schema';
