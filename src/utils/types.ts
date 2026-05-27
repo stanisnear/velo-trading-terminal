@@ -153,9 +153,34 @@ export interface Position {
   copyTraderId?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;
+  onChainTradeId?: string;      // VeloPerps V2 tradeId (as string to survive JSON)
   orderlyOrderId?: number;      // open order id
   orderlyOrderUrl?: string;
 }
+
+// ── Verification reasons ───────────────────────────────────────────────────
+// Admin-controlled. NULL = unverified (no badge). When set, the verification
+// badge appears next to the username and the value drives the tooltip text.
+// Add new reasons here, run the migration's CHECK constraint update, and the
+// admin dropdown picks them up automatically.
+export const VERIFICATION_REASONS = [
+  'VELO_TEAM',
+  'FOUNDER',
+  'INVESTOR',
+  'CONTRIBUTOR',
+  'VERIFIED_TESTER',
+  'PARTNER',
+] as const;
+export type VerificationReason = typeof VERIFICATION_REASONS[number];
+
+export const VERIFICATION_LABELS: Record<VerificationReason, string> = {
+  VELO_TEAM:       'VELO Team',
+  FOUNDER:         'Founder',
+  INVESTOR:        'Investor',
+  CONTRIBUTOR:     'Contributor',
+  VERIFIED_TESTER: 'Verified Tester',
+  PARTNER:         'Partner',
+};
 
 export interface Trader {
   id: string;
@@ -172,6 +197,13 @@ export interface Trader {
   activePositions: Position[];
   isPrivate: boolean; 
   joinedDate: string;
+  // ── Admin-controlled verification (build 80+) ─────────────────────────────
+  // NULL/undefined = unverified. When set, the verified badge appears with a
+  // tooltip showing the reason. Only the protocol owner can set this from the
+  // admin panel.
+  verifiedReason?: VerificationReason | null;
+  walletAddress?: string | null;
+  authMethod?: string | null;
 }
 
 export enum TabView {
@@ -242,6 +274,19 @@ export const VELO_PAIRS = [
 // Backwards-compat alias — many call sites still reference ORDERLY_PAIRS.
 // New code should use VELO_PAIRS.
 export const ORDERLY_PAIRS = VELO_PAIRS;
+
+// Frozen set of pair ids supported on-chain. Used to gate the trade UI:
+// markets in PAIRS but not in VELO_PAIR_IDS render in a "coming soon" state
+// with no trade entry points. The contract still gates each trade in
+// pre-flight (via pairTradable + pairFeedId reads in useVeloPerpsTrading.openPosition)
+// but this set lets us shape the UI before the user clicks Trade.
+export const VELO_PAIR_IDS: ReadonlySet<string> = new Set(VELO_PAIRS.map(p => p.id));
+
+/** Returns true if a pair is tradable on-chain (registered in VELO_PAIRS). */
+export const isTradablePair = (pairId: string | undefined | null): boolean => {
+  if (!pairId) return false;
+  return VELO_PAIR_IDS.has(pairId);
+};
 
 /** Returns true when the user authenticated with a crypto wallet (not demo/email). */
 export const isWalletUser = (userId: string | undefined): boolean => {

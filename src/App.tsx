@@ -22,7 +22,6 @@ import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient } from 'wagmi';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
-import { VeloBridgeModal } from './components/VeloBridgeModal';
 import { VeloDepositModal } from './components/VeloDepositModal';
 import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
 import { VeloUsernameModal } from './components/VeloUsernameModal';
@@ -184,17 +183,50 @@ const calculateStats = (tradeHistory: TradeHistoryItem[]) => {
 };
 
 
-// Check if user is Supabase-verified (UUID format vs demo timestamp format)
-const isVerifiedUser = (userId: string) => {
-    // UUID format: 8-4-4-4-12 hex chars (Supabase auth UUIDs)
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+// ── Verified badge ──────────────────────────────────────────────────────────
+// Admin-controlled. Before build 80 every Supabase user with a UUID id got a
+// badge; that was wrong because anyone who signed up was implicitly "verified".
+// Now the badge ONLY renders when an admin has explicitly set verified_reason
+// on the user's profile (via the Admin Panel → Verifications section, which
+// calls the admin_set_verification RPC).
+//
+// API: pass either a `reason` directly, OR `userId` + the in-scope `traders`
+// array and the badge will look the reason up. If neither resolves to a
+// reason, the badge renders nothing.
+const isVerifiedUser = (userId: string, traders?: any[]): boolean => {
+    if (!traders) return false;
+    const t = traders.find((tr: any) => tr.id === userId);
+    return !!(t && t.verifiedReason);
 };
-// Verified badge component — blue check for Supabase users, gray for bots/mock
-const VerifiedBadge = ({ userId, size = 16 }: { userId: string, size?: number }) => {
-    if (!isVerifiedUser(userId)) return null;
+
+const VERIFICATION_TOOLTIPS: Record<string, string> = {
+    VELO_TEAM:       'VELO Team',
+    FOUNDER:         'Founder',
+    INVESTOR:        'Investor',
+    CONTRIBUTOR:     'Contributor',
+    VERIFIED_TESTER: 'Verified Tester',
+    PARTNER:         'Partner',
+};
+
+interface VerifiedBadgeProps {
+    userId?: string;
+    traders?: any[];
+    reason?: string | null;
+    size?: number;
+}
+const VerifiedBadge = ({ userId, traders, reason, size = 16 }: VerifiedBadgeProps) => {
+    // Resolve the reason: prefer explicit `reason` prop, otherwise look up
+    // by userId in traders. No reason → no badge.
+    let resolvedReason: string | null | undefined = reason;
+    if (!resolvedReason && userId && traders) {
+        const t = traders.find((tr: any) => tr.id === userId);
+        resolvedReason = t?.verifiedReason || null;
+    }
+    if (!resolvedReason) return null;
+    const tooltip = VERIFICATION_TOOLTIPS[resolvedReason] || 'Verified';
     return (
-        <span title="Verified Account" className="inline-flex items-center justify-center rounded-full shrink-0"
-            style={{ width: size + 2, height: size + 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }}>
+        <span title={tooltip} aria-label={`Verified — ${tooltip}`} className="inline-flex items-center justify-center rounded-full shrink-0"
+            style={{ width: size + 2, height: size + 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite', cursor: 'help' }}>
             <Check size={size * 0.6} style={{ color: '#0B0B0E' }} strokeWidth={3}/>
         </span>
     );
@@ -1183,26 +1215,27 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
         window.addEventListener('resize', handler);
         return () => window.removeEventListener('resize', handler);
     }, []);
-    // Leaderboard rules (build 79+):
-    //   1. Wallet-only — every trader on the leaderboard must have a wallet_address
-    //      in their profile. Demo (email-only) users are excluded entirely so
-    //      the rankings reflect verifiable on-chain PnL.
-    //   2. The current user is included if AND ONLY IF they themselves have a
-    //      wallet connected (wallet_address may not yet be set in the trader
-    //      object for the current session, so we check `walletAddress` prop).
-    //   3. Exclude placeholder accounts (default username "Trader").
-    //   4. Require evidence of activity — non-zero PnL or a follower — to filter
-    //      out stale test accounts.
-    //   5. Sort by realized PnL desc.
+    // Leaderboard rules (build 80+):
+    //   1. Exclude placeholder accounts (default username "Trader" or missing).
+    //   2. Include the current logged-in user always (rank-relative to others).
+    //   3. Include every other trader who shows ANY sign of activity — non-zero
+    //      pnl, at least one follower, or a verified-by-admin badge. This is a
+    //      relaxation from build 79 which required a persisted wallet_address
+    //      on every row; in practice most accounts hadn't migrated their
+    //      wallet onto the profile row yet, so the leaderboard was nearly
+    //      empty. The wallet check now only suppresses the "obviously demo"
+    //      tier of accounts (no wallet AND no activity AND no badge).
+    //   4. Sort by realized PnL desc.
     const sortedTraders = [...traders]
         .filter((t: any) => {
             if (!t || !t.id) return false;
             if (!t.username || t.username === 'Trader') return false;
-            // Current user — wallet check via prop (may not be in trader object yet)
-            if (user && t.id === user.id) return !!walletAddress;
-            // All other traders — must have a wallet_address persisted
-            if (!t.walletAddress) return false;
-            const hasActivity = (t.pnl ?? 0) !== 0 || (t.followers?.length ?? 0) > 0;
+            // Always include the logged-in user so they see their own rank.
+            if (user && t.id === user.id) return true;
+            const hasActivity =
+                (t.pnl ?? 0) !== 0 ||
+                (t.followers?.length ?? 0) > 0 ||
+                !!t.verifiedReason;
             return hasActivity;
         })
         .sort((a: any, b: any) => (b.pnl ?? 0) - (a.pnl ?? 0));
@@ -1725,7 +1758,7 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)', cursor: 'pointer' }} onClick={() => onViewProfile({ id: post.authorId })}>{post.authorHandle}</span>
-                            <VerifiedBadge userId={post.authorId} size={13}/>
+                            <VerifiedBadge userId={post.authorId} traders={traders} size={13}/>
                             <span style={{ ...S.label, fontSize: 10, cursor: onSinglePost ? 'pointer' : 'default', textDecoration: onSinglePost ? 'underline' : 'none' }} onClick={() => onSinglePost && onSinglePost(post.id)} title={onSinglePost ? 'View post' : undefined}>{(() => { const d = new Date(post.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
                         </div>
                         {canDelete && (
@@ -2055,7 +2088,7 @@ const TokenInteractiveChart = ({
     const activeData = mode === 'PRICE' ? priceDataForTf : (mcapDataMap[timeframe] || []);
     const loading = activeData.length < 2 || (mode === 'MCAP' && mcapLoading && (mcapDataMap[timeframe] || []).length < 2);
 
-    const w = 800, h = 280;
+    const w = 800, h = 200;
     const pad = { top: 20, right: 16, bottom: 36, left: 78 };
 
     const min = loading ? 0 : Math.min(...activeData);
@@ -2173,8 +2206,7 @@ const TokenInteractiveChart = ({
                 )}
                 <svg
                     viewBox={`0 0 ${w} ${h}`}
-                    className="token-chart-svg"
-                    style={{ width: '100%', height: 'auto', minHeight: 200, maxHeight: 320, display: 'block', overflow: 'visible', opacity: loading ? 0.2 : 1, transition: 'opacity 0.3s' }}
+                    style={{ width: '100%', height: 'auto', minHeight: 140, maxHeight: 240, display: 'block', overflow: 'visible', opacity: loading ? 0.2 : 1, transition: 'opacity 0.3s' }}
                     preserveAspectRatio="xMidYMid meet"
                     onMouseLeave={() => setHoveredIdx(null)}
                     onMouseMove={(e) => {
@@ -2769,7 +2801,7 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                                 <span style={{ ...S.display, fontSize: 18, color: 'var(--fg)', cursor: 'pointer' }} onClick={() => onViewProfile({ id: post.authorId })}>{post.authorHandle}</span>
-                                <VerifiedBadge userId={post.authorId} size={15}/>
+                                <VerifiedBadge userId={post.authorId} traders={traders} size={15}/>
                             </div>
                             <div style={{ ...S.label, fontSize: 10 }}>
                                 {postDate.toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
@@ -3579,7 +3611,7 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                         <h2 className="velo-profile-username" style={{ ...S.display, fontSize: 32, color: 'var(--fg)', margin: 0, lineHeight: 1.1 }}>{profile.username}</h2>
                         {profile.veloRewards > 10000 && <Sparkles size={18} style={{ color: 'var(--iris-amber)' }} fill="currentColor"/>}
-                        <VerifiedBadge userId={profile.id} size={16}/>
+                        <VerifiedBadge reason={profile.verifiedReason} size={16}/>
                     </div>
                     <p style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', margin: 0, letterSpacing: '0.02em' }}>{profile.handle}</p>
                 </div>
@@ -4167,7 +4199,6 @@ const App = () => {
     const [isOrderlyOnboardingOpen, setOrderlyOnboardingOpen] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
     const [isVeloWelcomeOpen, setVeloWelcomeOpen] = useState(false);
-    const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
     const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
     const [isVeloSendOpen, setVeloSendOpen] = useState(false);
@@ -4366,8 +4397,15 @@ const App = () => {
           liquidationPrice: p.isLong
             ? p.entryPrice * (1 - 0.9 / p.leverage)
             : p.entryPrice * (1 + 0.9 / p.leverage),
+          // Carry the on-chain TP/SL into the local model so the manage modal
+          // pre-fills the user's currently-set triggers, and so the local
+          // TP/SL simulation effect can recognise on-chain triggers and stay
+          // out of the way (the on-chain keeper closes those positions).
+          takeProfit: p.takeProfit,
+          stopLoss:   p.stopLoss,
           timestamp: p.openedAt * 1000,
           onChain: true,
+          onChainTradeId: p.tradeId.toString(),
           // Reuse the orderly fields for tx link surfacing (modal already reads them).
           orderlyOrderId: undefined,
           orderlyOrderUrl: p.openTxHash ? `https://sepolia.basescan.org/tx/${p.openTxHash}` : undefined,
@@ -4379,6 +4417,15 @@ const App = () => {
         const nonVelo = prev.filter((p) => !p.id.startsWith('velo_'));
         return [...nonVelo, ...onChainPositions];
       });
+
+      // Prune any legacy local TP/SL orders that target on-chain positions —
+      // on-chain takeProfit_E18 / stopLoss_E18 on the contract are now the
+      // single source of truth, and the keeper closes the position when the
+      // mark crosses. Leaving stale local orders around would re-introduce
+      // the phantom "TP hit" notifications we're explicitly fixing.
+      setOpenOrders((prev) => prev.filter((o) =>
+        !(o.relatedPositionId && o.relatedPositionId.startsWith('velo_'))
+      ));
     }, [user, isWalletConnected, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
     // Reset the dismiss flag on logout so a different account triggers onboarding again.
@@ -5297,6 +5344,8 @@ const App = () => {
                             // to filter out demo (email-only) accounts. NULL for demo.
                             walletAddress:   p.wallet_address || null,
                             authMethod:      p.auth_method    || null,
+                            // Admin-controlled verification (build 80+). NULL = unverified.
+                            verifiedReason:  p.verified_reason || null,
                         };
                     });
                     setTraders(realTraders);
@@ -5311,11 +5360,16 @@ const App = () => {
     }, []);
 
     // --- Liquidation Monitoring Effect ---
+    //
+    // Demo-only. On-chain positions are liquidated by the contract via the
+    // liquidation keeper (api/cron-liquidate.ts) — we never fire a phantom
+    // local liquidation that would contradict on-chain state.
     useEffect(() => {
         if (!user || positions.length === 0) return;
 
         const liquidated: Position[] = [];
         positions.forEach(pos => {
+            if (pos.onChain) return;                  // contract owns this
             if (!pos.liquidationPrice) return;
             const mark = marketPrices[pos.pair];
             if (!mark) return;
@@ -5382,13 +5436,33 @@ const App = () => {
     }, [marketPrices]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // --- TP/SL Simulation Effect ---
+    //
+    // This effect ONLY runs for demo / legacy positions. On-chain V2 positions
+    // (id prefix `velo_`) are handled by the contract: the user calls
+    // setTriggers() on-chain, takeProfit_E18 / stopLoss_E18 are stored in the
+    // position struct, and the off-chain keeper (api/cron-tp-sl.ts) calls
+    // closeIfTriggered() when the mark crosses the trigger.
+    //
+    // Running the local simulation against an on-chain position would: fire a
+    // "TP hit" toast, remove the position from local state, write a phantom
+    // CLOSE row to Supabase, then have the next 5s poll re-insert the live
+    // on-chain position because the contract still has it open. The user sees
+    // a contradictory "closed but still open" state and the TP order vanishes
+    // without ever actually firing on-chain. We avoid that here by filtering
+    // both the candidate orders and the position lookups to non-on-chain only.
     useEffect(() => {
         if (openOrders.length === 0) return;
+
+        // Skip orders attached to on-chain positions — the keeper owns those.
+        const simOrders = openOrders.filter(o =>
+            !(o.relatedPositionId && o.relatedPositionId.startsWith('velo_'))
+        );
+        if (simOrders.length === 0) return;
 
         const filledOrders: string[] = [];
         const closedPositions: string[] = [];
 
-        openOrders.forEach(order => {
+        simOrders.forEach(order => {
             const currentPrice = marketPrices[order.pair];
             if (!currentPrice) return;
 
@@ -5422,7 +5496,7 @@ const App = () => {
 
             closedPositions.forEach(posId => {
                 const pos = positions.find(p => p.id === posId);
-                if (pos) {
+                if (pos && !pos.onChain) {
                     const closePrice = marketPrices[pos.pair] || pos.entryPrice;
                     const pnl = (closePrice - pos.entryPrice) * (pos.side === 'LONG' ? 1 : -1) * (pos.size / pos.entryPrice);
                     pnlUpdate += pnl;
@@ -5519,6 +5593,17 @@ const App = () => {
     }, [marketPrices, openOrders, positions, user]);
 
     const handleUpdatePosition = (id: string, tp: string, sl: string) => {
+        // Belt-and-suspenders: on-chain positions must NEVER reach the legacy
+        // local edit path. handleEditPosition already routes them to the V2
+        // manage modal (which calls setTriggers on-chain), but if anything
+        // ever calls this with a velo_ id, drop the write so we don't create
+        // a phantom local TP/SL order that contradicts on-chain state.
+        if (id.startsWith('velo_')) {
+            setEditingPosition(null);
+            const pos = positions.find(p => p.id === id);
+            if (pos) setManagingPosition(pos);
+            return;
+        }
         const tpPrice = parseFloat(tp) || undefined;
         const slPrice = parseFloat(sl) || undefined;
 
@@ -7105,8 +7190,11 @@ const App = () => {
                 setActiveTab(TabView.PUBLIC_PROFILE);
                 return;
             }
-            // Try Supabase lookup for verified users not in local traders
-            if (isSupabaseConfigured() && isVerifiedUser(profile.id)) {
+            // Try Supabase lookup for any real Supabase user (UUID format) not in local traders.
+            // NOTE: this UUID check used to be called "isVerifiedUser" — that was misleading.
+            // The check is just "looks like a Supabase auth UUID, worth attempting a profile fetch".
+            const isSupabaseUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profile.id);
+            if (isSupabaseConfigured() && isSupabaseUserId) {
                 getProfile(profile.id).then(({ profile: p }) => {
                     if (p) {
                         const syntheticTrader: Trader = {
@@ -7376,18 +7464,10 @@ const App = () => {
                 }
               }}
             />
-            {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ──
-                NOTE (batch 7): no longer wired to any UI button. Cross-chain
-                deposits/withdraws now live inside the unified Funds modal
-                (VeloDepositModal) as a network picker. This mount is kept
-                so any future programmatic trigger still works, but in the
-                current UX the user never sees it. Safe to remove if it
-                becomes a maintenance burden — also remove `isVeloBridgeOpen`
-                state and the `VeloBridgeModal` import at top of file. */}
-            <VeloBridgeModal
-              isOpen={isVeloBridgeOpen}
-              onClose={() => setVeloBridgeOpen(false)}
-            />
+            {/* VeloBridgeModal mount removed in batch 8. Cross-chain UX now
+                lives entirely inside VeloDepositModal's network picker. The
+                component file remains in src/components/ for reference but
+                is no longer imported anywhere. */}
             {/* ── Velo Deposit Modal (main wallet → trading wallet, same chain) ── */}
             <VeloDepositModal
               isOpen={isVeloDepositOpen}

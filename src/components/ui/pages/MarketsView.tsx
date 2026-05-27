@@ -3,7 +3,7 @@ import {
   Search, TrendingUp, TrendingDown, Star, BarChart2, Activity,
   ArrowUpRight, ArrowDownRight, ChevronRight,
 } from 'lucide-react';
-import { PAIRS } from '@/utils/types';
+import { PAIRS, isTradablePair } from '@/utils/types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const formatPrice = (price: number | undefined | null) => {
@@ -347,15 +347,28 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
                   : <div style={{ width: 72, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ ...S.label, fontSize: 8 }}>…</span></div>}
               </div>
 
-              {/* Trade button */}
+              {/* Trade button — only render if the pair is registered on-chain.
+                  Pairs in PAIRS but not in VELO_PAIR_IDS render a quiet "Soon"
+                  chip instead. The row remains clickable through to the token
+                  page (the parent's onNavigateToSocial still fires), but there's
+                  no entry point to the trade UI for an untradable market. */}
               <div className="mk-trade-col" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  className="mk-trade-btn"
-                  onClick={e => { e.stopPropagation(); const po = PAIRS.find(p => p.id === pair.id); if (po) onNavigateToTrade(po); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
-                >
-                  Trade<ChevronRight size={11}/>
-                </button>
+                {isTradablePair(pair.id) ? (
+                  <button
+                    className="mk-trade-btn"
+                    onClick={e => { e.stopPropagation(); const po = PAIRS.find(p => p.id === pair.id); if (po) onNavigateToTrade(po); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
+                  >
+                    Trade<ChevronRight size={11}/>
+                  </button>
+                ) : (
+                  <span
+                    title="Not yet listed on-chain. Trading opens once the protocol owner registers this market."
+                    style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '6px 10px', borderRadius: 8, border: '1px dashed var(--hairline)', background: 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--fg-subtle)', whiteSpace: 'nowrap', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'help' }}
+                  >
+                    Soon
+                  </span>
+                )}
               </div>
             </div>
           );

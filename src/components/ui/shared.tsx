@@ -39,7 +39,24 @@ export const formatPrice = (price: number | undefined | null) => {
 export const formatTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 // --- Verified ---
-export const isVerifiedUser = (userId: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+// Admin-controlled. Pass either a `reason` directly, OR `userId` + `traders`
+// and the badge looks it up. If no reason is set, the badge renders nothing.
+// Before build 80 the badge appeared for every Supabase UUID; that was the
+// wrong default and is no longer used.
+export const isVerifiedUser = (userId: string, traders?: any[]): boolean => {
+    if (!traders) return false;
+    const t = traders.find((tr: any) => tr.id === userId);
+    return !!(t && t.verifiedReason);
+};
+
+const VERIFICATION_LABELS_LOCAL: Record<string, string> = {
+    VELO_TEAM:       'VELO Team',
+    FOUNDER:         'Founder',
+    INVESTOR:        'Investor',
+    CONTRIBUTOR:     'Contributor',
+    VERIFIED_TESTER: 'Verified Tester',
+    PARTNER:         'Partner',
+};
 
 export const calculateStats = (tradeHistory: any[]) => {
     if (!tradeHistory || tradeHistory.length === 0) return { winRate: 0, realizedPnl: 0, totalTrades: 0, fees: 0 };
@@ -148,11 +165,23 @@ export const ToastNotification = ({ message, type, onClose }: { message: string,
 };
 
 // --- Verified Badge (holographic) ---
-export const VerifiedBadge = ({ userId, size = 16 }: { userId: string, size?: number }) => {
-    if (!isVerifiedUser(userId)) return null;
+interface VerifiedBadgeProps {
+    userId?: string;
+    traders?: any[];
+    reason?: string | null;
+    size?: number;
+}
+export const VerifiedBadge = ({ userId, traders, reason, size = 16 }: VerifiedBadgeProps) => {
+    let resolvedReason: string | null | undefined = reason;
+    if (!resolvedReason && userId && traders) {
+        const t = traders.find((tr: any) => tr.id === userId);
+        resolvedReason = t?.verifiedReason || null;
+    }
+    if (!resolvedReason) return null;
+    const tooltip = VERIFICATION_LABELS_LOCAL[resolvedReason] || 'Verified';
     return (
-        <span title="Verified" className="inline-flex items-center justify-center rounded-full shrink-0"
-            style={{ width: size + 2, height: size + 2, background: 'var(--prism-vivid)', backgroundSize: '200% 100%', animation: 'prismSlide 14s linear infinite' }}>
+        <span title={tooltip} aria-label={`Verified — ${tooltip}`} className="inline-flex items-center justify-center rounded-full shrink-0"
+            style={{ width: size + 2, height: size + 2, background: 'var(--prism-vivid)', backgroundSize: '200% 100%', animation: 'prismSlide 14s linear infinite', cursor: 'help' }}>
             <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none" stroke="#0B0B0E" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
             </svg>

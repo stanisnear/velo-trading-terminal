@@ -138,6 +138,12 @@ export interface VeloPosition {
   entryPrice_E18: bigint;     // raw 1e18 units
   entryPrice: number;         // display
   openedAt: number;           // unix seconds
+  // ── V2-only trigger fields ─────────────────────────────────────────────────
+  // Take-profit / stop-loss prices set on-chain via setTriggers(). When the
+  // mark crosses these prices, the off-chain keeper (api/cron-tp-sl.ts) calls
+  // closeIfTriggered() which closes the position on-chain. 0 = unset.
+  takeProfit?: number;        // display price (1e18 → display)
+  stopLoss?: number;          // display price (1e18 → display)
   openTxHash?: `0x${string}`; // populated from event scan; optional pre-rewire
 }
 
@@ -262,13 +268,19 @@ export const VELO_PERPS_ABI = [
     outputs: [{
       type: 'tuple',
       components: [
-        { name: 'owner',            type: 'address' },
-        { name: 'pairIndex',        type: 'uint16'  },
-        { name: 'isLong',           type: 'bool'    },
-        { name: 'leverage',         type: 'uint16'  },
-        { name: 'collateralUSDC_6', type: 'uint64'  },
-        { name: 'entryPrice_E18',   type: 'uint128' },
-        { name: 'openedAt',         type: 'uint64'  },
+        { name: 'owner',              type: 'address' },
+        { name: 'pairIndex',          type: 'uint16'  },
+        { name: 'isLong',             type: 'bool'    },
+        { name: 'leverage',           type: 'uint16'  },
+        { name: 'collateralUSDC_6',   type: 'uint64'  },
+        { name: 'entryPrice_E18',     type: 'uint128' },
+        { name: 'openedAt',           type: 'uint64'  },
+        // V2-only fields. V1 only returns the first 7. fetchOpenPositions
+        // wraps the decode in try/catch and falls back to the V1-shape ABI
+        // so the call works against either contract.
+        { name: 'takeProfit_E18',     type: 'uint128' },
+        { name: 'stopLoss_E18',       type: 'uint128' },
+        { name: 'originalNotional_6', type: 'uint128' },
       ],
     }],
   },
@@ -357,7 +369,31 @@ const pairIndexToLabel = (idx: number): VeloPairLabel => {
  * contract — we first ask for the list of trade ids, then resolve each one.
  *
  * Returns an empty array if the trader has no open positions or any call fails.
+ *
+ * V1/V2 ABI handling: the V2 contract's Position struct has 10 fields
+ * (adds takeProfit_E18, stopLoss_E18, originalNotional_6). The V1 contract's
+ * struct has 7. We try the V2 decode first; if it throws (V1 contract), we
+ * retry with the V1-shape ABI so reads work against either version.
  */
+const GET_POSITION_V1_ABI = [
+  {
+    type: 'function', name: 'getPosition', stateMutability: 'view',
+    inputs: [{ name: 'tradeId', type: 'uint256' }],
+    outputs: [{
+      type: 'tuple',
+      components: [
+        { name: 'owner',            type: 'address' },
+        { name: 'pairIndex',        type: 'uint16'  },
+        { name: 'isLong',           type: 'bool'    },
+        { name: 'leverage',         type: 'uint16'  },
+        { name: 'collateralUSDC_6', type: 'uint64'  },
+        { name: 'entryPrice_E18',   type: 'uint128' },
+        { name: 'openedAt',         type: 'uint64'  },
+      ],
+    }],
+  },
+] as const;
+
 export async function fetchOpenPositions(
   publicClient: PublicClient,
   trader: Address,
@@ -380,14 +416,28 @@ export async function fetchOpenPositions(
   // Resolve each id in parallel. Failure of one row doesn't blow up the rest.
   const positions = await Promise.allSettled(
     tradeIds.map(async (id) => {
-      const raw = await publicClient.readContract({
-        address: VELO_PERPS_ADDRESS,
-        abi: VELO_PERPS_ABI,
-        functionName: 'getPosition',
-        args: [id],
-      });
-      // The struct uses BigInt for several fields; we narrow to safer JS types.
+      let raw: any;
+      try {
+        raw = await publicClient.readContract({
+          address: VELO_PERPS_ADDRESS,
+          abi: VELO_PERPS_ABI,
+          functionName: 'getPosition',
+          args: [id],
+        });
+      } catch (decodeErr) {
+        // Fallback: V1 contract returns 7 fields, V2 ABI expects 10. Decode with
+        // the legacy shape so V1 positions still surface. TP/SL stay undefined.
+        raw = await publicClient.readContract({
+          address: VELO_PERPS_ADDRESS,
+          abi: GET_POSITION_V1_ABI,
+          functionName: 'getPosition',
+          args: [id],
+        });
+      }
       const pairIndex = Number(raw.pairIndex) as PairIndex;
+      // V2-only fields. Default to 0n on V1 (decoded raw won't have them).
+      const tpRaw: bigint = raw.takeProfit_E18 != null ? BigInt(raw.takeProfit_E18) : 0n;
+      const slRaw: bigint = raw.stopLoss_E18   != null ? BigInt(raw.stopLoss_E18)   : 0n;
       return {
         tradeId:           id,
         owner:             raw.owner,
@@ -400,6 +450,8 @@ export async function fetchOpenPositions(
         entryPrice_E18:    raw.entryPrice_E18,
         entryPrice:        fromE18(raw.entryPrice_E18),
         openedAt:          Number(raw.openedAt),
+        takeProfit:        tpRaw > 0n ? fromE18(tpRaw) : undefined,
+        stopLoss:          slRaw > 0n ? fromE18(slRaw) : undefined,
       } satisfies VeloPosition;
     }),
   );

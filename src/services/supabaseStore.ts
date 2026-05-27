@@ -143,24 +143,36 @@ export async function updateProfile(userId: string, updates: Record<string, any>
 }
 
 export async function fetchAllProfiles(limit = 50) {
-  // Include wallet_address + auth_method so the leaderboard can filter
-  // demo accounts at the data layer (build 79+). Use a star select with a
-  // fallback if the columns aren't yet present (older DB schemas).
+  // Include wallet_address + auth_method + verified_reason so the leaderboard
+  // can filter demo accounts and the UI can render the verified badge. Use
+  // a column-explicit select with two fallbacks if the latest columns aren't
+  // yet present (older DB schemas).
   let { data, error } = await supabase
     .from('profiles')
-    .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, wallet_address, auth_method, created_at')
+    .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, wallet_address, auth_method, verified_reason, created_at')
     .order('pnl_total', { ascending: false })
     .limit(limit);
-  // If the DB hasn't been migrated yet, fall back to the legacy column set.
+  // If verified_reason is missing (pre-build-80), retry without it.
   if (isMissingColumnError(error as any)) {
-    const retry = await supabase
+    const r2 = await supabase
       .from('profiles')
-      .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, created_at')
+      .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, wallet_address, auth_method, created_at')
       .order('pnl_total', { ascending: false })
       .limit(limit);
-    data = retry.data;
-    error = retry.error;
-    if (!retry.error) console.warn('[supabase] profiles missing wallet-address/auth-method columns in schema cache — run SUPABASE_MIGRATION_BUILD79.sql and reload PostgREST schema.');
+    data = r2.data as any;
+    error = r2.error;
+    if (!r2.error) console.warn('[supabase] profiles missing verified_reason column — run SUPABASE_MIGRATION_BUILD80.sql.');
+    // If wallet_address / auth_method are ALSO missing (pre-build-79), retry once more.
+    if (isMissingColumnError(r2.error as any)) {
+      const r3 = await supabase
+        .from('profiles')
+        .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, created_at')
+        .order('pnl_total', { ascending: false })
+        .limit(limit);
+      data = r3.data as any;
+      error = r3.error;
+      if (!r3.error) console.warn('[supabase] profiles missing wallet-address/auth-method columns in schema cache — run SUPABASE_MIGRATION_BUILD79.sql and reload PostgREST schema.');
+    }
   }
   return { data, error };
 }
@@ -939,4 +951,45 @@ export function subscribeLeaderboard(onUpdate: (profile: any) => void): Realtime
   return supabase.channel('velo-leaderboard')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, p => onUpdate(p.new))
     .subscribe();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ADMIN — VERIFICATION CONTROL (build 80+)
+// ══════════════════════════════════════════════════════════════════
+// All admin writes go through SECURITY DEFINER RPCs in Postgres. The
+// frontend just calls them; the RPCs re-check membership in velo_admins
+// before touching profiles.
+
+/** Returns true if the calling user is in the velo_admins allowlist. */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('is_velo_admin');
+  if (error) {
+    // RPC may not exist on pre-build-80 DBs — treat as "not admin"
+    // so the UI degrades gracefully instead of erroring.
+    if ((error as any).code === 'PGRST202') return false;   // function not found
+    if ((error as any).code === '42883')    return false;   // undefined_function
+    console.warn('[supabase] is_velo_admin RPC failed:', error.message);
+    return false;
+  }
+  return data === true;
+}
+
+/**
+ * Set or clear a user's verification reason. Only admins may call.
+ * Pass null to un-verify a user.
+ * Reasons must match VERIFICATION_REASONS in src/utils/types.ts.
+ */
+export async function setUserVerification(
+  targetUserId: string,
+  reason: string | null,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc('admin_set_verification', {
+    target_user_id: targetUserId,
+    new_reason: reason,
+  });
+  if (error) {
+    console.error('[supabase] admin_set_verification failed:', error.message);
+    return { error: error.message };
+  }
+  return { error: null };
 }

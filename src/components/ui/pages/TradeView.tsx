@@ -4,7 +4,7 @@ import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Sha
 import { TradingViewChart, TV_INTERVALS, TV_INTERVALS_QUICK, CHART_STYLES, INDICATORS, ChartStyleCode } from '@/components/TradingViewChart';
 import { OrderBook } from '@/components/OrderBook';
 import { Button, Input, formatMoney, formatPrice, formatTime, playSound } from '@/components/ui/shared';
-import { Position, OpenOrder, OrderType, MarginMode, PAIRS, ORDERLY_PAIRS, TradeHistoryItem } from '@/utils/types';
+import { Position, OpenOrder, OrderType, MarginMode, PAIRS, ORDERLY_PAIRS, TradeHistoryItem, isTradablePair } from '@/utils/types';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 // ── Orderly helpers inlined to avoid circular-dependency bundler errors ────────
 // (TradeView → OrderBook → orderlyOrderbookStream → orderlyService → viem causes
@@ -1622,7 +1622,38 @@ export const TradeView = ({
                     </div>
                 </div>
 
-                {/* BUBBLE 2 ── Order form */}
+                {/* BUBBLE 2 ── Order form (or "not yet listed" panel for
+                    pairs not registered on-chain). isTradablePair() consults
+                    VELO_PAIR_IDS — the static list of pairs deployed on the
+                    contract. For everything else we render a quiet placeholder
+                    instead of the live order entry. */}
+                {!isTradablePair(activePair.id) ? (
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px' : undefined }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 22px', gap: 14, textAlign: 'center' as const }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Lock size={18} style={{ color: 'var(--fg-subtle)' }} />
+                      </div>
+                      <div>
+                        <div style={{ ...S.display, fontSize: 20, color: 'var(--fg)', marginBottom: 4 }}>
+                          {activePair.id.split('/')[0]} not yet listed
+                        </div>
+                        <div style={{ ...S.label, color: 'var(--fg-muted)', fontSize: 10, lineHeight: 1.5, maxWidth: 260, margin: '0 auto' }}>
+                          This market isn't registered on the VeloPerps contract yet. Charts and price data are visible, but trading opens once the protocol owner lists this pair.
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {PAIRS.filter(p => isTradablePair(p.id)).slice(0, 4).map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => setActivePair(p)}
+                            style={{ padding: '6px 12px', borderRadius: 999, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--fg-muted)', letterSpacing: '0.06em' }}>
+                            {p.id.split('/')[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px' : undefined }}>
                     <div style={{ overflowY: isMobile ? 'auto' : 'auto', position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }} className={isMobile ? 'custom-scrollbar' : 'custom-scrollbar'}>
 
@@ -1872,6 +1903,7 @@ export const TradeView = ({
                         </div>
                     </div>
                 </div>
+                )}
             </div>
 
             {/* ── Mobile-only: Positions panel below order form ── */}

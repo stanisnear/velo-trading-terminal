@@ -29,6 +29,15 @@ import {
   fetchPoolBalance, baseScanAddressUrl, baseScanTxUrl,
   PAIR_LABEL, type VeloPairLabel, type PairIndex,
 } from '@/services/veloPerpsService';
+import {
+  fetchAllProfiles,
+  isCurrentUserAdmin,
+  setUserVerification,
+  isConfigured as isSupabaseConfigured,
+} from '@/services/supabaseStore';
+import {
+  VERIFICATION_REASONS, VERIFICATION_LABELS, type VerificationReason,
+} from '@/utils/types';
 
 const VELO_USDC_ABI = [
   { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] },
@@ -129,6 +138,17 @@ export const VeloAdminPanel: React.FC = () => {
   const [stats, setStats] = useState<ProtocolStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  // ── Verifications (build 80+) ─────────────────────────────────────────────
+  // Admin allowlist is stored in `velo_admins`. The verify RPC re-checks
+  // membership server-side, so the gating here is purely UX (we still
+  // surface the section to anyone who passes `isCurrentUserAdmin()` so the
+  // owner can verify themselves, then teammates, etc).
+  const [isDbAdmin, setIsDbAdmin] = useState(false);
+  const [verifyUsers, setVerifyUsers] = useState<Array<{ id: string; username: string; handle: string; avatar: string; verifiedReason: VerificationReason | null }>>([]);
+  const [verifySearch, setVerifySearch] = useState('');
+  const [verifyBusy, setVerifyBusy] = useState<string | null>(null);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
   const isOwner = !!address && !!contractOwner && address.toLowerCase() === contractOwner.toLowerCase();
 
   const refresh = async () => {
@@ -209,6 +229,45 @@ export const VeloAdminPanel: React.FC = () => {
     }
   };
   useEffect(() => { if (isOwner) fetchStats(); }, [isOwner]);
+
+  // Verifications loader. Hydrates on mount if Supabase is configured AND
+  // the connected wallet has a Supabase session linked to a velo_admins row.
+  // Falls open (empty list) if the admin RPC isn't present yet (pre-build-80).
+  const refreshVerifyUsers = async () => {
+    if (!isSupabaseConfigured()) return;
+    const admin = await isCurrentUserAdmin();
+    setIsDbAdmin(admin);
+    if (!admin) { setVerifyUsers([]); return; }
+    const { data } = await fetchAllProfiles(200);
+    if (!data) return;
+    setVerifyUsers(
+      data.map((p: any) => ({
+        id:              p.id,
+        username:        p.username || 'Trader',
+        handle:          p.handle   || `@${p.username}`,
+        avatar:          p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`,
+        verifiedReason:  (p.verified_reason || null) as VerificationReason | null,
+      }))
+    );
+  };
+  useEffect(() => { refreshVerifyUsers(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [isOwner]);
+
+  const handleSetVerification = async (userId: string, reason: VerificationReason | null) => {
+    setVerifyBusy(userId);
+    setVerifyError(null);
+    try {
+      const { error } = await setUserVerification(userId, reason);
+      if (error) throw new Error(error);
+      // Optimistic update — server is now the source of truth on next refresh.
+      setVerifyUsers((prev) => prev.map((u) =>
+        u.id === userId ? { ...u, verifiedReason: reason } : u
+      ));
+    } catch (e: any) {
+      setVerifyError(e?.message || 'Verification update failed');
+    } finally {
+      setVerifyBusy(null);
+    }
+  };
 
   const handleRegisterPair = async (pair: PairState) => {
     if (!walletClient || !publicClient) return;
@@ -844,6 +903,93 @@ export const VeloAdminPanel: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Verifications (admin-controlled badges) ─────────────────────── */}
+      <div style={{
+        padding: 20, borderRadius: 16, marginBottom: 16,
+        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+          <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: 0 }}>Verifications</h2>
+          <button
+            onClick={refreshVerifyUsers}
+            style={{ ...S.mono, padding: '6px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)', color: 'var(--fg-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <RefreshCw size={10} /> Refresh
+          </button>
+        </div>
+        <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 14px', lineHeight: 1.5 }}>
+          Assign a verification reason to grant a user the verified badge. The reason shows in a tooltip on hover. Choose "None" to remove. Only members of the <code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>velo_admins</code> table can use this panel — seed yourself by inserting your Supabase user id once via the SQL editor.
+        </p>
+
+        {!isSupabaseConfigured() ? (
+          <p style={{ ...S.label, color: 'var(--fg-subtle)' }}>Supabase not configured — verification panel unavailable.</p>
+        ) : !isDbAdmin ? (
+          <div style={{ padding: 12, borderRadius: 10, background: 'rgba(255,180,60,0.06)', border: '1px solid rgba(255,180,60,0.2)' }}>
+            <p style={{ ...S.mono, fontSize: 11, color: 'oklch(0.80 0.16 60)', margin: '0 0 4px', fontWeight: 700 }}>NOT AN ADMIN</p>
+            <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.5 }}>
+              Your logged-in Supabase account isn't in the <code style={{ fontFamily: 'var(--font-mono)' }}>velo_admins</code> allowlist. To grant yourself access, run in the Supabase SQL editor:<br/>
+              <code style={{ display: 'block', marginTop: 8, padding: 8, borderRadius: 6, background: 'var(--chip-bg)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                INSERT INTO velo_admins (user_id, note) VALUES (auth.uid(), 'self');
+              </code>
+              (Run this while logged in as yourself in Supabase so <code style={{ fontFamily: 'var(--font-mono)' }}>auth.uid()</code> resolves to your id.)
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <input
+                type="text" value={verifySearch} onChange={(e) => setVerifySearch(e.target.value)}
+                placeholder="Search by username or handle…"
+                style={{ ...S.mono, width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.04)', color: 'var(--fg)', fontSize: 12, boxSizing: 'border-box' as const, outline: 'none' }}
+              />
+            </div>
+            {verifyError && (
+              <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(255,60,60,0.08)', border: '1px solid rgba(255,60,60,0.25)', ...S.mono, fontSize: 11, color: 'var(--pnl-down)' }}>
+                {verifyError}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6, maxHeight: 420, overflowY: 'auto' as const, paddingRight: 4 }} className="custom-scrollbar">
+              {verifyUsers
+                .filter(u => {
+                  if (!verifySearch.trim()) return true;
+                  const q = verifySearch.toLowerCase();
+                  return u.username.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q);
+                })
+                .slice(0, 50)
+                .map((u) => (
+                <div key={u.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10,
+                  background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+                  flexWrap: 'wrap' as const,
+                }}>
+                  <img src={u.avatar} alt="" style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ ...S.display, fontSize: 14, color: 'var(--fg)', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.username}</div>
+                    <div style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>{u.handle}</div>
+                  </div>
+                  <select
+                    value={u.verifiedReason || ''}
+                    disabled={verifyBusy === u.id}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      handleSetVerification(u.id, v as VerificationReason | null);
+                    }}
+                    style={{ ...S.mono, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.04)', color: 'var(--fg)', fontSize: 11, outline: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                    <option value="">— None —</option>
+                    {VERIFICATION_REASONS.map((r) => (
+                      <option key={r} value={r}>{VERIFICATION_LABELS[r]}</option>
+                    ))}
+                  </select>
+                  {verifyBusy === u.id && <Loader2 className="animate-spin" size={12} style={{ color: 'var(--fg-subtle)' }} />}
+                </div>
+              ))}
+              {verifyUsers.length === 0 && (
+                <p style={{ ...S.label, color: 'var(--fg-subtle)', textAlign: 'center' as const, padding: 20 }}>No users loaded.</p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Contract metadata */}
