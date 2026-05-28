@@ -1,75 +1,85 @@
-# Build 101 — Leverage modal removed, order panel tightened, Close All
+# Build 102 — Full activity sync, TP/SL cleanup, V3.1 docs
 
-Drop these three files into the repo:
+Files changed:
 
 ```
 src/App.tsx
-src/components/ui/pages/TradeView.tsx
 src/components/ui/pages/Dashboard.tsx
+README.md
+PROJECT_STATUS.md
 ```
 
 `vite build` clean.
 
 ---
 
-## 1. No more Increase/Decrease Leverage modal on live mode
+## 1. Recent Activity now shows every event — including keeper-driven closes
 
-The "Increase Leverage?" / "Reduce Leverage" confirmation modal was a relic of
-the Orderly netting model — it asked the user to confirm because changing
-leverage there re-priced and reallocated the single net position.
+**The gap:** Recent Activity only showed OPEN rows because on-chain positions
+that closed *without a user click* — liquidations, TP/SL fills, keeper closes —
+never wrote a CLOSE row. The 5s poll just diffed the position list and silently
+dropped vanished positions. So big equity swings from liquidations left no trace
+in the feed.
 
-VeloPerps doesn't work that way. Each tradeId is its own position, with its
-own collateral and leverage. Opening at 20x while a 10x exists just creates
-a second position — there's nothing to confirm.
+**The fix:** the position sync effect now keeps a snapshot of the previous
+poll's on-chain positions (`prevOnChainPositions` ref). Each poll, any position
+that disappeared *and* wasn't closed locally (not in `processingIds` /
+`ownDeletedPositionIds`) is treated as a keeper close. We synthesize a CLOSE
+row — flagged as a liquidation if the mark crossed the liq threshold — write it
+to local state AND Supabase, toast the user, and sweep its TP/SL orders. Same
+snapshot-diff logic now runs for conditional orders (fill vs cancel detection)
+so limit/stop lifecycle events surface too.
 
-Both the size=0 leverage-only adjustment path (the dropdown) and the
-mismatched-leverage modal trigger are now gated behind `!isLiveMode`. The
-demo simulator still uses them since its position model is single-netting.
+Combined with the build-100 merge fix (server rows merge with local optimistic
+rows instead of clobbering), the dashboard Recent Activity and TradeView History
+now reflect the complete lifecycle: open, close, partial close, liquidation,
+TP/SL fill, limit fill/cancel, deposit, withdraw, send, receive.
 
-## 2. Order panel spacing fixed
+## 2. TP/SL orders cancel when their position closes
 
-The submit button had `marginTop: 'auto'` which pinned it to the bottom of
-the bubble, leaving a void above when content was short (no TP/SL, simple
-market order). Removed. The summary block (Est. Liq. Price / Margin Risk /
-Free Balance) now gets a touch more breathing room, the submit button sits
-naturally after it, and font sizes tick up from 9/10 to 9.5/10.5 for
-cleaner readability.
+**The gap:** open a position with a TP, close the position, the TP order lingered
+in Open Orders.
 
-## 3. Close button = instant 100% market close
+**The fix:** belt-and-suspenders cleanup. The close path already filtered
+`relatedPositionId`, but now the position sync effect also sweeps, every poll,
+any synthetic TP/SL row (`ord_tp_*` / `ord_sl_*`) whose related position is no
+longer open on-chain. Even if a close path misses cleanup, the next 5s poll
+removes the orphan. The keeper-close detection (above) also clears them on the
+spot.
 
-Previously, clicking Close on a V2 on-chain position opened the Manage modal
-at the PARTIAL tab. Now it fires `closePosition` directly — one click flattens
-the position at market.
+## 3. Docs: V3.1 fully documented
 
-The partial-close UX is still reachable via the Edit/Manage button (the row's
-edit icon, or the dashboard's TP/SL edit pencil) which calls
-`handleEditPosition` → opens the modal at the chosen tab.
+The frontend was already pointed at V3.1, but the docs still described V3.
+Updated `README.md` and `PROJECT_STATUS.md`:
 
-## 4. Close All button
-
-New affordance, two places:
-
-- **Dashboard** — header of "All active positions" panel, next to the "X Open"
-  badge. Visible when positions.length > 1.
-- **TradeView** — right side of the Positions/Open Orders/History tab bar,
-  visible only when on POSITIONS tab with >1 positions.
-
-Both call `handleClosePosition` per position, staggered 550ms apart so the
-500ms tx-lock doesn't silently drop the 2nd…Nth calls. Each close goes
-through the normal on-chain path.
+- **Active contract is now VeloPerpsV3.1** at
+  `0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907` (verified on BaseScan, owned by
+  the deployer, pre-funded with the mUSDC pool). V3 demoted to "superseded".
+- **New "Why V3.1 exists" section** explaining the Pyth stale-price bug and fix:
+  V3 used `updatePriceFeeds` + `getPriceNoOlderThan`, which silently no-ops on
+  testnet when the cached publishTime is already ahead, returning a stale /
+  near-zero price that corrupts entry, liq, and PnL. V3.1 uses
+  `parsePriceFeedUpdates` (via the new `_extractPrice` helper) to read the price
+  straight from the signed VAA blob — no cache dependency. ABI-identical to V3,
+  so no frontend interface changes were needed. `IPyth`→`IPythV2`, VERSION 3→31.
+- **Full V3.1 feature reference** — every function (open/close/partialClose/
+  liquidate/setTriggers/closeIfTriggered/placeConditionalOrder/cancel/execute/
+  increaseCollateral/decreaseCollateral/depositCross/withdrawCross + views),
+  the constants the contract enforces, the keeper jobs, and the
+  frontend-wiring notes.
+- Env var section updated to point `VITE_VELO_PERPS_V3_ADDRESS` at V3.1.
+- Supabase `trade_history` section documents the `action` column and the
+  merge/diff activity-sync behavior.
 
 ---
 
 ## Verify
 
-1. Open a SOL long at 10x. Change the leverage dropdown to 20x without
-   touching size. → Nothing happens (no modal). Demo mode (no wallet) still
-   shows the modal since the simulator needs it.
-2. Open at 20x while the 10x is still open. → No "Increase Leverage" modal
-   — a second position opens at 20x.
-3. Look at the right-side order form: no void between Free Balance and
-   the LONG/SHORT submit button. Spacing reads cleanly.
-4. Click Close on a position row (dashboard or TradeView) → position closes
-   at market immediately, no modal.
-5. Open 2+ positions → "Close All" button appears in both Dashboard and
-   TradeView headers. Click it → all positions close, staggered 550ms apart.
+1. Open a position, let it hit TP (or get liquidated). → A CLOSE row appears in
+   Recent Activity AND the History tab without you clicking close. Liquidations
+   show with the red liquidation toast and negative PnL.
+2. Open a position with a TP set → close it manually → the TP order is gone from
+   Open Orders immediately (and stays gone after the next poll).
+3. Place a limit order → cancel it on-chain or let it fill → you get a toast and
+   the order leaves Open Orders.
+4. README + PROJECT_STATUS now lead with V3.1 and explain the Pyth fix.
