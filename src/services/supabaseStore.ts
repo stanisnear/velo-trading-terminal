@@ -202,8 +202,8 @@ export function dbProfileToUserProfile(row: any): UserProfile {
     likes:               [],
     reposts:             [],
     email:               row.email || '',
-    walletAddress:       row.wallet_address || null,
-    verifiedReason:      row.verified_reason ?? null,
+    walletAddress:       row.wallet_address || undefined,
+    veloWalletAddress:   row.velo_wallet_address || undefined,
   };
 }
 

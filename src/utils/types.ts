@@ -87,8 +87,9 @@ export interface UserProfile {
   walletAddress?: string;
   /** Notification email — optional, can be added after signup in Settings. */
   email?: string;
-  /** Admin-assigned verification reason (build 80+). NULL = unverified. */
-  verifiedReason?: VerificationReason | null;
+  /** Persisted Velo trading (burner) wallet address. Used to auto-detect when a
+      device is missing the local burner and offer/trigger re-derivation. */
+  veloWalletAddress?: string;
 }
 
 export type NotificationType =

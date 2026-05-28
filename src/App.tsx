@@ -19,7 +19,7 @@ import { OrderBook } from './components/OrderBook';
 import { fetchRealPrices, binancePriceStream, fetchKlines } from './services/priceService';
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
-import { useChainId, useAccount, usePublicClient } from 'wagmi';
+import { useChainId, useAccount, usePublicClient, useSignMessage } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 // VeloWelcomeModal merged into VeloOnboardingModal
@@ -39,7 +39,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
-import { loadStoredBurner } from './services/veloBurnerWallet';
+import { loadStoredBurner, getOrCreateVeloBurner } from './services/veloBurnerWallet';
 import {
   usePendingDeposits, usePendingDepositCount, updatePendingDeposit, reapStaleDeposits,
 } from './services/pendingDeposits';
@@ -4202,6 +4202,9 @@ const App = () => {
     const { address: walletAddress, isConnected: isWalletConnected } = useAccount();
     const { open: openAppKitModal } = useAppKit();
     const publicClient = usePublicClient();
+    const { signMessageAsync } = useSignMessage();
+    // Guard so the auto-recovery signature prompt fires at most once per session.
+    const autoRecoverAttemptedRef = useRef(false);
 
     // ── Contract owner read ─────────────────────────────────────────────────
     // Used to gate the ADMIN tab + admin panel. One read on mount, no polling.
@@ -4274,6 +4277,46 @@ const App = () => {
         setBurnerAddress(cached.veloAddress as `0x${string}`);
       }
     }, [walletAddress]);
+
+    // ── Auto-recovery of the trading (burner) wallet ──────────────────────────
+    // The burner private key lives only in this browser's localStorage. If the
+    // user is logged in and their profile has a persisted velo_wallet_address (so
+    // they HAVE set up a trading wallet before) but this device has no local
+    // burner, we automatically prompt a single signature to re-derive it — the
+    // derivation is deterministic, so it regenerates the exact same wallet/funds.
+    // We verify the derived address matches the DB value before trusting it, so a
+    // mismatch (e.g. different main wallet) never silently strands funds.
+    useEffect(() => {
+      const expected = user?.veloWalletAddress?.toLowerCase();
+      if (!user || !walletAddress || !expected) return;
+      if (autoRecoverAttemptedRef.current) return;
+      // Already have a local burner? Nothing to recover.
+      if (loadStoredBurner(walletAddress)?.veloAddress) return;
+      autoRecoverAttemptedRef.current = true;
+
+      (async () => {
+        try {
+          setToast({ message: 'Restoring your trading wallet — confirm in your wallet', type: 'INFO' });
+          const recovered = await getOrCreateVeloBurner(walletAddress as `0x${string}`, signMessageAsync as any);
+          if (recovered.veloAddress.toLowerCase() !== expected) {
+            // Derived a different wallet than the one on record — don't trust it.
+            // Clear it so we don't shadow the real (funded) wallet, and tell the user.
+            try { localStorage.removeItem(`velo_burner_${walletAddress.toLowerCase()}`); } catch {}
+            setToast({ message: 'Could not auto-restore — recover manually in Wallet & Settings', type: 'ERROR' });
+            return;
+          }
+          setBurnerAddress(recovered.veloAddress as `0x${string}`);
+          veloPerpsTrading.reloadBurner();
+          setToast({ message: 'Trading wallet restored', type: 'SUCCESS' });
+        } catch (e: any) {
+          // User rejected the signature or it failed — leave the manual recovery
+          // path in Settings available; don't nag again this session.
+          if (!/reject|denied|cancel/i.test(e?.message || '')) {
+            console.warn('[velo] auto-recovery failed:', e?.message);
+          }
+        }
+      })();
+    }, [user, walletAddress, signMessageAsync]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Activity refetch on tab focus — the body of the effect described in the
     // comment block higher up. Placed here because it needs `user` in scope.
@@ -7981,9 +8024,12 @@ const App = () => {
               onEmailSaved={(email: string) => setUser(prev => prev ? { ...prev, email } : null)}
               onBurnerRecovered={(veloAddress) => {
                 // The user re-derived their trading wallet on this device. Hydrate
-                // the trading layer immediately (no refresh) and persist the address
-                // so the dashboard's on-chain balance and trading work right away.
+                // the trading layer immediately (no refresh): setBurnerAddress updates
+                // App-level UI, and reloadBurner() forces useVeloPerpsTrading to re-read
+                // the freshly-written localStorage burner so balance/positions/trading
+                // all come alive right away.
                 setBurnerAddress(veloAddress);
+                veloPerpsTrading.reloadBurner();
                 if (user && isSupabaseConfigured()) {
                   supabase.from('profiles')
                     .update({ velo_wallet_address: veloAddress.toLowerCase() })
