@@ -5082,7 +5082,7 @@ const App = () => {
                 // immediately from the DB row without waiting for MetaMask to reconnect.
                 // walletAddressRef is a secondary fallback for when the profile row predates
                 // the wallet_address column (very old accounts).
-                const ownerForBurner = profile.wallet_address || walletAddressRef.current;
+                const ownerForBurner = (session?.user?.user_metadata?.wallet_address as string | undefined) || profile.wallet_address || walletAddressRef.current;
                 if (ownerForBurner) {
                     const cachedBurner = loadStoredBurner(ownerForBurner);
                     if (cachedBurner?.veloAddress) {
