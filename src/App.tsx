@@ -4368,13 +4368,20 @@ const App = () => {
       // has an existing Velo account. If yes: silent login + SUCCESS_RETURNING.
       // If no: open onboarding modal at USERNAME step (new user flow).
       setTimeout(async () => {
+        // Guard: re-check after async gap — onAuth may have fired while we waited
+        if (freshSignupRef.current) return;
+        if (intentionalLogoutRef.current) return;
         try {
           // Try to sign in with the deterministic wallet-derived credentials
           const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
           const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
           const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
+          // Guard again after await — new account may have been created during Supabase round-trip
+          if (freshSignupRef.current) return;
           if (data?.user && !signInErr) {
             const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+            // Final guard after second await
+            if (freshSignupRef.current) return;
             if (profile?.username) {
               // Existing account — show welcome-back screen AND hydrate app state
               intentionalLogoutRef.current = false;
@@ -7724,6 +7731,7 @@ const App = () => {
                 setToast({ message: `@${handle} registered on-chain`, type: 'SUCCESS' });
               }}
               onBurnerReady={async ({ burnerAddress, amount, txHash }) => {
+                setBurnerAddress(burnerAddress as `0x\${string}`);
                 veloPerpsTrading.reloadBurner();
                 setToast({ message: 'Trading wallet ready — no more popups', type: 'SUCCESS' });
                 if (user && isSupabaseConfigured()) {
