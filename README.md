@@ -68,20 +68,27 @@ A complete trade has four on-chain phases. The first one happens once per browse
 
 **Phase 0 — wallet connection.** The user connects MetaMask (or any wagmi-compatible wallet) and switches to Base Sepolia. We auto-prompt the network switch if they're elsewhere.
 
-**Phase 1 — one-shot onboarding.** The user clicks "Get started" once. Behind the scenes:
+**Phase 1 — one-shot onboarding.** The user clicks "Get started" in the unified . Behind the scenes:
 
 ```
-1. They sign a deterministic message in MetaMask (gas-free)
-   → we derive a 32-byte private key via keccak256
-   → that key becomes their Velo Trading Wallet (a separate EOA)
-2. We POST /api/sponsor-eth with the trading wallet's address
-   → our sponsor wallet sends 0.005 ETH to the trading wallet
-3. The trading wallet (now funded with gas) calls mint() on the
-   mUSDC contract — silent, signed locally with the burner key
-   → 1,000 mUSDC lands in the trading wallet
+1.  Wallet connect — MetaMask / WalletConnect / social (Google, Discord, etc
+    via Reown AppKit). If the wallet is already connected the modal skips the
+    welcome splash and goes straight to session verification.
+2.  Returning user? → Welcome-back animation, auto-close. Done.
+3.  New user — picks a @username (3–20 chars, validated off-chain and on-chain)
+4.  Optional email (can be added or changed later in Settings)
+5.  Review screen shows wallet, handle, email, network, starting balance
+6.  They sign ONE gas-free MetaMask message to derive the Trading Wallet key
+7.  Sponsor POSTs /api/sponsor-eth → sends 0.01 ETH to the trading wallet
+8.  Trading wallet silently calls mint() on VeloMockUSDC
+    → 1,000 mUSDC lands in the trading wallet
+9.  Trading wallet silently calls VeloRegistry.setUsername()
+    → @handle is registered on-chain using the BURNER key, no MetaMask popup
 ```
 
-That's it. One MetaMask signature, zero MetaMask transactions. The trading wallet is funded, derived, and ready to trade. If the sponsor server is offline, the flow falls back to a regular MetaMask `sendTransaction` to fund the burner — same end state, one extra popup.
+That's it. One MetaMask signature, zero MetaMask transaction popups. The trading wallet is funded, the username is on-chain, and 1,000 mUSDC is ready to trade.
+
+**Gas sponsor (updated):**  now sends **0.01 ETH** (up from 0.005) and rate-limits by burner address rather than IP — multiple new users behind the same NAT no longer block each other. Threshold to trigger a top-up raised to 0.003 ETH so there's always enough headroom for both the faucet mint AND the username claim in the same session.
 
 **The Velo Trading Wallet is now your trading account.** All your mUSDC lives there. All trades sign locally with its private key. Your main MetaMask wallet stays cold.
 

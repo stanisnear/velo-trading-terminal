@@ -280,6 +280,14 @@ The schema enables RLS on every table; if a write fails silently and trade histo
 - **BaseScan source verification** — must be done via the web UI (see top of doc). CLI fails because BaseScan deprecated Etherscan V1 API.
 - **Admin tab not visible for main wallet** — Stan's main wallet is not the contract owner. Either connect with deployer key OR transfer ownership.
 
+### Fixed in 2026-05-28 session (previously listed as unresolved)
+
+- ✅ **Modal showing WELCOME on every refresh** — now skips straight to CHECKING if wallet already connected
+- ✅ **MetaMask opening for ETH on username claim** — username claim now uses burner wallet client, no MetaMask involved
+- ✅ **Blank page (viem circular dep crash)** — eliminated all dynamic `await import('viem')` calls; using static `createBurnerWalletClient` helper instead
+- ✅ **Duplicate `supabase` import in App.tsx** — removed second instance, was causing ReferenceError in production
+- ✅ **No way to add email after skipping it during onboarding** — Settings modal now has full email add/edit section with Supabase sync
+
 ---
 
 ## What's left before a funding proposal
@@ -498,6 +506,115 @@ If you do NOT update this file, the next agent will have stale context and will 
 ---
 
 ## Change log
+
+
+### 2026-05-28 — Onboarding modal rewrite, sponsor ETH fixes, blank-page crash fix, email-in-settings
+
+#### What changed and why
+
+**TL;DR for new AI agents:** This session fixed three production bugs (modal resetting on refresh, MetaMask popping up for ETH on username claims, blank-page JS crash) and one feature gap (email skipped during onboarding can now be added in Settings). Read the "What changed" bullets below before touching any of the files in scope.
+
+---
+
+**Bug 1 — Modal showed WELCOME splash on every page refresh, even with wallet already connected**
+
+Root cause: the `isOpen` `useEffect` in `VeloOnboardingModal.tsx` always reset `step` to `'WELCOME'` unconditionally. For returning users whose wallet was already connected when the modal opened, this meant they sat through the animated splash before the session check ran.
+
+Fix: the `isOpen` effect now reads `isConnected && address` at open-time. If the wallet is already connected it initialises `step` to `'CHECKING'` instead of `'WELCOME'`, and skips `splashPhase` animations. The wallet-check `useEffect` was also gated on `step === 'CONNECT'` only — it now also fires on `step === 'CHECKING'` so the returning-user session lookup runs immediately without any user interaction.
+
+Files: `src/components/VeloOnboardingModal.tsx`
+
+---
+
+**Bug 2 — MetaMask opened and asked for ETH during username claim**
+
+Root cause: `handleCreate` in `VeloOnboardingModal.tsx` called `claimUsername(walletClient, uname)` where `walletClient` is the MetaMask wagmi client. The VeloRegistry `setUsername` is a non-payable contract write — it requires gas from the caller's wallet. MetaMask then popped up asking the user to confirm a transaction and pay gas. Since most users have zero ETH in their main wallet (they only have testnet mUSDC on the burner), this always failed with "Insufficient funds".
+
+Fix: `claimUsername` is now called with a burner wallet client built from the derived private key, not the MetaMask client. The burner already has ETH from the sponsor. Also fixed `ensureBurnerGas` which was checking `address` (the main MetaMask wallet!) instead of `result.burner.veloAddress` — so even when gas top-up logic ran, it was checking the wrong wallet's balance.
+
+Implementation: added `createBurnerWalletClient(privateKey)` as a proper export in `veloBurnerSetup.ts`. This is a static function (no dynamic imports) that uses the already-imported viem `createWalletClient` + `http` + `baseSepolia`. The modal imports it statically.
+
+Files: `src/components/VeloOnboardingModal.tsx`, `src/services/veloBurnerSetup.ts`
+
+---
+
+**Bug 3 — Blank page on Vercel (JS crash: "Cannot access 'ZC' before initialization")**
+
+Root cause: our first fix attempt for Bug 2 used `await import('viem')`, `await import('viem/accounts')`, `await import('viem/chains')` inside the `handleCreate` async function. Vite bundles viem as a single static chunk (because the rest of the app imports it statically at module load). When a dynamic `import('viem')` executes inside the same bundle, Vite creates an internal circular reference — the dynamic import tries to evaluate a module that is mid-initialization, hitting an uninitialized export (`ZC`). This crashes the entire bundle before React mounts, producing a completely blank page with a purple gradient background.
+
+Fix: replaced the three `await import(...)` calls with a single static import of `createBurnerWalletClient` from `veloBurnerSetup.ts` (which has its own static viem imports and no circular dependency). Zero dynamic imports remain in the onboarding modal.
+
+Rule going forward: **never use `await import('viem')` or any dynamic import of a package that is already statically imported elsewhere in the bundle.** If you need a function from viem in a new place, add a static import at the top of the file or expose a helper from a service file that already imports it.
+
+Files: `src/components/VeloOnboardingModal.tsx`, `src/services/veloBurnerSetup.ts`
+
+---
+
+**Bug 4 — Duplicate `supabase` identifier in App.tsx caused a runtime crash on some bundler configurations**
+
+Root cause: `supabase` was imported twice in the same destructure block from `./services/supabaseStore` — once near the top of the import list and again near the bottom. TypeScript's `tsc --noEmit` flags this as `TS2300: Duplicate identifier`. The Vite bundler was previously tolerant of this but a build config change (the chunk-splitting manualChunks added in batch 8) caused the duplicate to manifest as a runtime ReferenceError in production.
+
+Fix: removed the second `supabase,` entry from the supabaseStore import destructure.
+
+Files: `src/App.tsx`
+
+---
+
+**Feature — Email skipped during onboarding can now be added in Settings**
+
+The onboarding modal has an optional email step (Step 2 of 3) with a "Skip for now" path. Previously, skipping was permanent — there was no way to add an email later. The Settings modal had no email section at all.
+
+Fix: `SettingsModal` now accepts a `profile` prop (`{ id, email, username }`) and an `onEmailSaved` callback. When `profile` is passed:
+- If `email` is empty: shows "Not set" badge and a prompt explaining the user skipped during signup
+- If `email` is set: shows "Saved" badge and the current value pre-filled
+- Input validates format, checks Supabase for uniqueness, writes to `profiles.email`, calls `onEmailSaved(email)` so App.tsx's local `user` state updates immediately (no page reload needed)
+
+Wiring in App.tsx:
+- `UserProfile` type now has `email?: string`
+- `dbProfileToUserProfile` maps `row.email` to the profile
+- `<SettingsModal>` receives `profile={user ? { id: user.id, email: user.email, username: user.username } : null}` and `onEmailSaved={(email) => setUser(prev => prev ? { ...prev, email } : null)}`
+
+Files: `src/components/SettingsModal.tsx`, `src/App.tsx`, `src/services/supabaseStore.ts`, `src/utils/types.ts`
+
+---
+
+**Sponsor ETH improvements**
+
+- Amount raised from **0.005 → 0.01 ETH** per top-up (enough for faucet mint + username claim + ~40 more trades at Base Sepolia gas prices)
+- Top-up threshold raised from **0.002 → 0.003 ETH** (the old threshold was too low — the burner could pass the threshold check but then run out mid-flow)
+- Rate limiting switched from **per-IP** to **per-burner-address** — multiple users behind the same NAT (office, shared WiFi) were blocking each other with the IP limit. Now each burner can request a top-up independently; the 5-minute window is per-address
+- `MIN_BURNER_ETH_REQUIRED` in `veloBurnerSetup.ts` and `MIN_BURNER_GAS_WEI` in `veloGasSponsor.ts` updated to match
+
+Files: `api/sponsor-eth.ts`, `src/services/veloBurnerSetup.ts`, `src/services/veloGasSponsor.ts`
+
+---
+
+#### Files changed in this session
+
+| File | Change |
+|------|--------|
+| `src/components/VeloOnboardingModal.tsx` | Modal-open logic skips splash if wallet connected; check effect fires on CHECKING step; username claim uses burner wallet; no dynamic imports |
+| `src/services/veloBurnerSetup.ts` | `createBurnerWalletClient(privateKey)` exported; ETH thresholds updated to 0.003/0.01 |
+| `src/components/SettingsModal.tsx` | `profile` + `onEmailSaved` props; full email section with uniqueness check, save, badge |
+| `src/App.tsx` | Duplicate `supabase` import removed; SettingsModal wired with `profile` + `onEmailSaved` |
+| `src/services/supabaseStore.ts` | `dbProfileToUserProfile` maps `row.email` |
+| `src/utils/types.ts` | `UserProfile.email?: string` added |
+| `api/sponsor-eth.ts` | 0.01 ETH, 0.003 threshold, rate-limit by address not IP |
+| `src/services/veloGasSponsor.ts` | `MIN_BURNER_GAS_WEI` = 0.003 ETH, `SPONSOR_TOP_UP_WEI` = 0.01 ETH |
+
+---
+
+#### New gotchas
+
+1. **Never dynamically import viem inside the app bundle.** `await import('viem')` crashes the bundle because viem is already statically imported. Always add a static import at the top of the file, or expose a helper from a service that already has the static import. This applies to `viem/accounts`, `viem/chains`, and any other viem sub-paths.
+
+2. **The burner wallet, not MetaMask, should sign ALL on-chain transactions after onboarding.** The only legitimate MetaMask interactions in the entire post-signup flow are: (a) the initial derivation signature (gas-free), and (b) sending funds to/from the main wallet. Everything else — username claim, trades, deposits to the perp contract, cross-margin deposits — should use `createBurnerWalletClient`. If you add a new on-chain action and it opens a MetaMask popup, that's a bug.
+
+3. **`ensureBurnerGas` takes the BURNER address, not the main wallet address.** The old code passed `address` (main wallet) by mistake. Always pass `burner.veloAddress` or the explicit burner address constant.
+
+4. **Email in Supabase is in `profiles.email`, not `auth.users.email`.** The auth user's email is `address@wallet.velo` (a pseudo-email for the wallet-based auth scheme). The real contact email lives in `profiles.email`. Don't confuse the two. `dbProfileToUserProfile` maps `row.email` for the profiles table, not the auth table.
+
+5. **Supabase `profiles.email` has a uniqueness check in the frontend but NOT a DB-level UNIQUE constraint.** If two users somehow submit the same email simultaneously the uniqueness check could race. For testnet this is acceptable. Mainnet should add `UNIQUE` constraint to `profiles.email`.
 
 ### 2026-05-28 — V3.1 deployment: oracle corrupt entry price fix
 
