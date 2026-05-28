@@ -25,6 +25,8 @@ The visual source of truth for this refresh is the VELO handoff brief and mockup
 - [What Velo is](#what-velo-is)
 - [The product philosophy](#the-product-philosophy)
 - [How trading works end-to-end](#how-trading-works-end-to-end)
+- [Authentication and session management](#authentication-and-session-management)
+- [Account derivation — the Velo Trading Wallet](#account-derivation--the-velo-trading-wallet)
 - [The Velo Trading Wallet — silent session signing](#the-velo-trading-wallet--silent-session-signing)
 - [Fees](#fees)
 - [The social layer](#the-social-layer)
@@ -117,6 +119,67 @@ No MetaMask popup. The trader sees the toast and the position appears under the 
 PnL is settled in mUSDC against the perp pool. Closing in profit pulls from the pool. Closing at a loss returns the remaining collateral to the trader and the loss accrues to the pool.
 
 **Liquidations** happen when a position's unrealised loss exceeds 90% of its collateral. The contract has a public `liquidate(tradeId)` function that anyone can call for a 1% bounty. Velo runs an automated keeper (driven by a GitHub Action every 5 minutes, or any external HTTP scheduler) that scans every open position and triggers liquidations the moment they cross threshold — so the protocol never depends on third-party liquidator bots to stay solvent. The keeper code is in `api/cron-liquidate.ts`.
+
+## Authentication and session management
+
+Velo's auth combines wallet-based identity with Supabase session management. Understanding this is important if you're debugging a "not logged in" state or adding a new auth path.
+
+**How a session is established:**
+
+When a new user completes onboarding, `supabase.auth.signInAnonymously()` is called. Supabase creates a session keyed to a pseudo-email derived from the wallet address (`<address>@wallet.velo`). This session JWT is stored in Supabase's own localStorage key. On every subsequent page load, Supabase fires an `INITIAL_SESSION` event which triggers `restoreSession` — a function that re-hydrates the full user profile (positions, history, notifications, preferences, social data) from Supabase.
+
+**The localStorage cache — why it exists:**
+
+`restoreSession` fires 8–10 Supabase queries. On a cold start over a slow connection this takes 1–3 seconds. Without a cache, the app showed a "Connect to Trade / Log In" state for every returning user during that window, even though they were already authenticated. The `velo_session_v1` localStorage key caches the serialized user profile. On page load this is read synchronously — before any async work — so the UI renders immediately with the user logged in. Supabase still runs its full restore in the background and overwrites with fresh data when it completes.
+
+**Cache rules:**
+
+- Written whenever `user` state transitions to a non-null value
+- Cleared on logout (`handleLogout`, Supabase `SIGNED_OUT` event)
+- Cleared when `getSession()` returns null (Supabase confirms the session has expired)
+- Expires after 24 hours as a safety net, regardless of Supabase state
+- The Supabase `INITIAL_SESSION` flow always runs and overwrites the cached data with fresh data — the cache is the initial state, not the final state
+
+**Page load sequence:**
+
+```
+1. Sync: read velo_session_v1 from localStorage
+   → If valid: user = cached, authChecked = true, UI renders immediately
+   → If missing/expired: user = null, authChecked = false, loading screen shown
+
+2. Async: Supabase INITIAL_SESSION fires (0–3s after mount)
+   → restoreSession(session) fetches fresh profile + all related data
+   → setUser(freshProfile) overwrites the cached state
+
+3. Fallback: if INITIAL_SESSION doesn't fire within 2.5s
+   → getSession() is called directly
+   → If session exists: restoreSession runs
+   → If null: cache cleared, user = null (login screen shown)
+```
+
+**Wallet connection vs Supabase session — two separate things:**
+
+A user is "fully authenticated" when both are true: a wagmi-connected wallet (`useAccount().isConnected`) AND a live Supabase session (`supabase.auth.getSession()` returns non-null). The wallet provides the primary identity (address). Supabase provides session tokens and stores profile metadata. Disconnecting the wallet does not end the Supabase session, and vice versa — Velo's logout flow calls both `supabase.auth.signOut()` and wagmi's disconnect to clean both states.
+
+## Account derivation — the Velo Trading Wallet
+
+The Velo Trading Wallet (also called the burner wallet) is a regular EVM EOA whose private key is derived deterministically from a single `personal_sign` signature of the main wallet. The derivation is defined in `src/services/veloBurnerWallet.ts`:
+
+```
+Main wallet signs VELO_DERIVATION_MESSAGE
+  → 65-byte hex signature (r || s || v)
+  → keccak256(signature bytes) → 32-byte hash
+  → This hash is the burner's private key
+  → privateKeyToAccount(privateKey) → { address, ... }
+```
+
+`VELO_DERIVATION_MESSAGE` is a fixed string that includes the app domain, version, and chain ID. It must never change — any modification invalidates every existing user's derived burner address. The message is displayed to the user in the MetaMask signing dialog so they know exactly what they're signing.
+
+**Determinism and recovery:** Because `personal_sign` is deterministic (same message + same private key always produces the same signature), the derived burner private key is also deterministic. A user who clears their browser can re-derive the exact same trading wallet on any device by signing the same message with the same main wallet. Nothing needs to be backed up for wallet recovery — only for instant access without re-signing.
+
+**Storage:** The derived private key is stored in localStorage under `velo_burner_<ownerAddress>` (lower-cased). The cached entry includes the owner address, burner address, private key, and a creation timestamp. On load, `loadStoredBurner(ownerAddress)` reads and validates this — it re-derives the viem account from the stored key and checks that the resulting address matches `veloAddress`; a mismatch clears the corrupt entry.
+
+**Export:** The Settings modal includes a "Reveal Private Key" option. This calls `exportPrivateKey(ownerAddress)` which returns the hex key from localStorage. The user can import this into MetaMask, Rabby, or any EIP-1193 wallet for manual access to their trading account.
 
 ## Moving funds between wallets
 

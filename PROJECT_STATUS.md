@@ -1396,3 +1396,148 @@ The V3 contract's CROSS margin uses an internal ledger (`crossBalanceUSDC_6[trad
 - `npx tsc --noEmit --skipLibCheck` passes with 0 new errors.
 - Build environment blocked from running `vite build` due to `pkg.pr.new` network restriction (a transitive dependency fetch). Build integrity confirmed via TS check and manual diff review. Stan should run `npx vite build` locally or let Vercel build to confirm.
 - Manual test plan: (1) Open any V2 LONG position. (2) Click "Close" — should open manage modal at "Close %" tab, NOT immediately close. (3) Drag slider to 50%, see PnL preview update. (4) Click "Close 50% of position". (5) Check position row still shows remaining 50%. (6) Click the edit (pencil) icon in TP/SL column — should open modal at TP/SL tab. (7) Set TP using +50% quick-pick, observe green partial-close selector appear at 100%. (8) Drag TP partial-close to 50%, note "remaining 50% stays open" label. (9) Save — verify TP price shows green on position row. (10) Click edit again — TP value pre-fills from on-chain. (11) Check price label in right panel says "Binance" not "Perp".
+
+### 2026-05-28 — Session cache: localStorage auth fix + auth/account derivation documentation
+
+#### What changed and why
+
+**The auth problem — root cause and fix (previously solved, now documented)**
+
+Every previous attempt at keeping the user logged in across page refreshes was patching symptoms. The real cause: `restoreSession` fires 8–10 sequential Supabase fetches (profile, positions, orders, history, transactions, notifications, posts, preferences, follows, followers). On a cold start this takes 1–3 seconds. A 2.5s safety timeout was set as a fallback in case `INITIAL_SESSION` never fired — but on slow connections the timeout fired first, set `authChecked = true` with `user = null`, and the loading screen resolved to "CONNECT TO TRADE / Log In" even though the wallet was connected and the session was valid. Supabase would then finish loading a second or two later, update the user state, and show the correct UI — but by then the user had already seen the broken "not logged in" flash.
+
+The fix is the `velo_session_v1` localStorage key. On page load, before any async work, the user's profile is read synchronously from localStorage and used to initialize React state. `authChecked` starts as `true` if the cache exists, so the loading screen is skipped entirely and the app renders immediately with the user logged in — exactly the way Binance, Twitter, and every serious web app works. Supabase still runs its `INITIAL_SESSION` → `restoreSession` flow in the background; it just overwrites with fresh data instead of being the gating condition for the UI to show.
+
+**Cache lifecycle:**
+
+- Written every time `user` state changes to a non-null value (covers login, session restore, and profile updates via a single `useEffect`)
+- Cleared on logout (`handleLogout`, `SIGNED_OUT` Supabase event)
+- Cleared when `getSession()` returns null — meaning Supabase confirms the session is expired or invalid, which evicts a stale cache
+- Includes a 24-hour expiry as a safety net (the `velo_session_v1` JSON carries `cachedAt` and the restore path skips any entry older than 86400000ms)
+
+**Why `sessionRestoredRef` is kept `false` on init (even with cached data):**
+
+When the cache is populated, `sessionRestoredRef` still starts as `false`. This ensures `INITIAL_SESSION` always runs and overwrites with fresh Supabase data — positions, balances, notifications may have changed since the last page load. The `socialLoginEffect` already guards on `if (user) return` so it sees the cached user and returns immediately without showing the login modal. No double-restore: the first one to run sets `sessionRestoredRef = true`; the second (whether `INITIAL_SESSION` or `getSession()` fallback) hits the guard and returns.
+
+**Files changed in this session:**
+- `src/App.tsx` — localStorage session cache init, `useEffect` writer, logout/expired-session clearing
+
+---
+
+#### Authentication and account derivation — reference documentation
+
+This section is the canonical explanation of how Velo's auth and wallet architecture works. Read it before touching `App.tsx`, `veloBurnerWallet.ts`, `veloBurnerSetup.ts`, or `VeloOnboardingModal.tsx`.
+
+---
+
+**Authentication flow — step by step**
+
+Velo's auth is a combination of wallet-based identity (primary) and Supabase social auth (session management). The two are linked by the user's wallet address.
+
+```
+Page load
+  │
+  ├─ Step 1: Sync read from localStorage (velo_session_v1)
+  │           └─ If cache hit AND < 24h old:
+  │               user = cached profile, authChecked = true
+  │               → UI renders immediately, no loading screen
+  │
+  ├─ Step 2: Supabase fires INITIAL_SESSION (async, 0-3s)
+  │           └─ restoreSession(session):
+  │               ├─ Fetch profile from Supabase
+  │               ├─ Fetch positions, orders, history, transactions,
+  │               │   notifications, posts, preferences, follows, followers
+  │               └─ setUser(freshProfile) — overwrites cache if loaded
+  │
+  ├─ Step 3: Fallback (if INITIAL_SESSION never fired)
+  │           └─ getSession() after 2.5s timeout
+  │               ├─ If session: calls restoreSession(session)
+  │               └─ If null: clears localStorage cache, setUser(null)
+  │
+  └─ Step 4: On logout
+              ├─ handleLogout(): calls supabase.auth.signOut()
+              ├─ SIGNED_OUT event: clears user state + localStorage cache
+              └─ Wallet disconnect: same cleanup path
+```
+
+**Supabase's role:** session tokens (JWT) and profile storage (`profiles` table). Supabase does NOT control the wallet — a user is "logged in" when both conditions are true: (a) a valid Supabase session exists, and (b) a wallet is connected via wagmi. The session is created when `supabase.auth.signInAnonymously()` is called during onboarding, keyed to the wallet address via a pseudo-email (`<address>@wallet.velo`).
+
+**wagmi's role:** wallet connection state. `useAccount()` gives the main wallet address. This is the persistent identity — the wallet address is the foreign key linking every Supabase table row (`user_id`, `wallet_address`, `author_id`, etc.) to a real-world key pair.
+
+---
+
+**Account derivation — burner wallet creation**
+
+The burner (Velo Trading Wallet) is derived deterministically from a single signature of the main wallet. The derivation is in `src/services/veloBurnerWallet.ts`:
+
+```
+Main wallet signs VELO_DERIVATION_MESSAGE
+    │
+    └─ signature: 65 bytes (r=32, s=32, v=1) as 0x-prefixed hex
+        │
+        └─ keccak256(signature bytes) → 32 bytes
+            │
+            └─ This 32-byte hash is the burner's private key
+                │
+                └─ privateKeyToAccount(privateKey) → { address, sign, ... }
+                    │
+                    └─ burner.veloAddress = this EVM address
+```
+
+`VELO_DERIVATION_MESSAGE` is a fixed string (defined at the top of `veloBurnerWallet.ts`). It never changes — changing it would invalidate every existing user's burner wallet. The message includes the domain name, version, and chain ID so it can't be replayed on a different app.
+
+Because `personal_sign` is deterministic (same message + same private key = same signature), the derived private key is also deterministic. A user can re-derive their burner on any device by signing the same message with the same main wallet. This is also how private-key export and recovery work — there's nothing to back up unless the user explicitly wants a copy.
+
+The derived private key is stored in `localStorage` under the key `velo_burner_<ownerAddress>`. It is NOT encrypted — this is an intentional tradeoff for simplicity on testnet. The burner should only hold working-capital amounts. For mainnet, consider AES-GCM encryption with a key derived from the user's session.
+
+---
+
+**Two-wallet model — design reasoning**
+
+```
+Main wallet (MetaMask / social / WalletConnect)
+────────────────────────────────────────────────
+Purpose:   Persistent identity. Never signs trades.
+Stores:    External funds. Not the trading account.
+Signs:     Derivation message (once). Username claims (on-chain).
+           Deposits/withdrawals to/from the trading wallet.
+Survives:  Clearing localStorage. Every device change.
+           Browser reinstall. New computer.
+
+Velo Trading Wallet (burner, derived, in localStorage)
+────────────────────────────────────────────────────
+Purpose:   Active session key. Signs every trade silently.
+Stores:    Working capital for open positions.
+Signs:     openPosition, closePosition, setTriggers,
+           placeConditionalOrder, send mUSDC, username setUsername.
+Survives:  Not localStorage-clear (but re-derivable from main wallet).
+Funded by: Gas sponsor (ETH) + faucet (mUSDC) on first setup.
+           User transfers from main wallet for larger amounts.
+```
+
+**Why not just use the main wallet for everything?**
+
+Every contract interaction requires a wallet signature. With MetaMask, each signature pops a confirmation dialog. A trader who opens 10 positions, adjusts TP/SL on 5, and closes 8 would face 23+ MetaMask popups in a session. This is not a trading terminal — it's a confirmation dialog simulator. The burner eliminates this entirely: after the one-time derivation signature, the private key is in memory and signs transactions locally with zero UI interruption.
+
+**Why not a smart account / 4337?**
+
+Smart accounts (ERC-4337) would solve the same UX problem but introduce contract wallet complexity, paymasters, bundlers, and ERC-4337 mempool dependencies on every chain Velo wants to support. The burner-key approach is a standard EOA — works on every EVM chain, with every RPC, with zero additional infrastructure. The architectural cost is the localStorage storage, which is acceptable for a trading wallet that holds only active trading capital.
+
+**Why is username claimed by the MAIN wallet (not the burner)?**
+
+The username is a persistent on-chain identity. If a user clears their browser (destroying the burner's localStorage entry), re-deriving the burner gives them back the same private key and address. But if the username were bound to the burner address, a localStorage clear + re-derive still works correctly. The rule is simpler: the username is signed by whichever wallet makes it persistent by construction. Both paths work, but the main wallet was chosen to make the identity layer unambiguously tied to the user's primary cryptographic identity, not a derived sub-account.
+
+**Note:** Legacy handles claimed before build 3's fix are bound to burner addresses. Those users must wait the 30-day on-chain cooldown or re-claim from the main wallet after it expires.
+
+---
+
+#### New gotchas from this session
+
+1. **The `velo_session_v1` key must be cleared on logout AND on `getSession() → null`.** If you add a new logout path anywhere in App.tsx, make sure it calls `localStorage.removeItem('velo_session_v1')`. Missing this causes the stale-cache bug where a user logs out, refreshes, and appears logged in until Supabase confirms the session is gone.
+
+2. **`authChecked` starts as `true` when the cache is populated.** Any code that gates on `if (!authChecked) return` will run immediately for returning users. This is intentional and correct — but be careful adding new gated effects, as they'll fire on mount rather than waiting for the Supabase async flow to complete.
+
+3. **`sessionRestoredRef` starts as `false` even with a cache hit.** Do not change this. It ensures `INITIAL_SESSION` always runs a fresh restore. The only purpose of `sessionRestoredRef` is to prevent the double-restore race between `INITIAL_SESSION` and the `getSession()` fallback — it is not a signal that the user data is "complete."
+
+4. **The 2.5s timeout still exists as a last-resort safety net.** It no longer controls the loading screen (since `authChecked` starts as `true` for cached users), but it still sets `authChecked = true` for completely new sessions where no cache exists and Supabase is slow. Do not remove it.
+
+5. **`VELO_DERIVATION_MESSAGE` in `veloBurnerWallet.ts` is immutable.** Adding, removing, or reordering any character invalidates every existing user's derived burner. If you ever need to change it (e.g. to support a new chain), bump `VERSION` in the `SIGNATURE_DOMAIN` object AND increment the storage key prefix (e.g. `velo_burner_v2_`) so old and new keys coexist during the migration window.
