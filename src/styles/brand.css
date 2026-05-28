@@ -6,6 +6,15 @@
   }
 }
 
+/* holoSlide — referenced by OrderDetailsModal, DepositWithdrawModal, AuthModal,
+   WalletConnectButton and others. The keyframe previously lived only in
+   velo-brand-system.css, which is not imported, so those animations were dead.
+   Defined here (a loaded stylesheet) so all references animate on-brand. */
+@keyframes holoSlide {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
 @keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 oklch(0.8 0.18 152 / 0.55);

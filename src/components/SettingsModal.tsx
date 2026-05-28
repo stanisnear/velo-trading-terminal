@@ -196,7 +196,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                 </Sect>
               )}
 
-              <div style={{ display:'grid', gridTemplateColumns:`repeat(${[onOpenSend && veloUsdc>0, onOpenBridge, onOpenUsername].filter(Boolean).length}, 1fr)`, gap:8 }}>
+              <div style={{ flexShrink:0, display:'grid', gridTemplateColumns:`repeat(${[onOpenSend && veloUsdc>0, onOpenBridge, onOpenUsername].filter(Boolean).length}, 1fr)`, gap:8 }}>
                 {onOpenSend && veloUsdc > 0 && <ActBtn onClick={onOpenSend} icon={<Send size={13}/>} label="Send" accent />}
                 {onOpenBridge && <ActBtn onClick={onOpenBridge} icon={<ExternalLink size={13}/>} label="Bridge" />}
                 {onOpenUsername && <ActBtn onClick={onOpenUsername} icon={<AtSign size={13}/>} label="Handle" />}
@@ -300,7 +300,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
 };
 
 const Sect: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={{ padding:'14px 16px', borderRadius:16, background:'oklch(1 0 0 / 0.025)', border:'1px solid var(--hairline-strong)' }}>{children}</div>
+  <div style={{ flexShrink:0, padding:'14px 16px', borderRadius:16, background:'oklch(1 0 0 / 0.025)', border:'1px solid var(--hairline-strong)' }}>{children}</div>
 );
 const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <p style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--fg-muted)', margin:'8px 0 0', lineHeight:1.5 }}>{children}</p>
@@ -326,7 +326,7 @@ const WalletCard: React.FC<{ kind:'main'|'velo'; title:string; subtitle:string; 
   const aL = isVelo ? 'oklch(0.45 0.26 295)' : 'oklch(0.50 0.18 220)';
   const aR = isVelo ? 'oklch(0.65 0.22 268)' : 'oklch(0.68 0.14 200)';
   return (
-    <div style={{ padding:16, borderRadius:20, background:`linear-gradient(145deg, ${aL.replace(')','/ 0.08)')}, ${aR.replace(')','/ 0.03)')})`, border:`1px solid ${aL.replace(')','/ 0.22)')}`, boxShadow:`0 2px 16px -8px ${aL.replace(')','/ 0.18)')}`, position:'relative', overflow:'hidden' }}>
+    <div style={{ flexShrink:0, padding:16, borderRadius:20, background:`linear-gradient(145deg, ${aL.replace(')','/ 0.08)')}, ${aR.replace(')','/ 0.03)')})`, border:`1px solid ${aL.replace(')','/ 0.22)')}`, boxShadow:`0 2px 16px -8px ${aL.replace(')','/ 0.18)')}`, position:'relative', overflow:'hidden' }}>
       <div style={{ position:'absolute', top:-30, right:-30, width:140, height:140, borderRadius:'50%', background:`radial-gradient(circle, ${aL.replace(')','/ 0.07)')}, transparent 65%)`, pointerEvents:'none' }} />
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
         <div style={{ width:40, height:40, borderRadius:13, flexShrink:0, background:`linear-gradient(135deg,${aL},${aR})`, boxShadow:`0 4px 16px -4px ${aL.replace(')','/ 0.4)')}`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>

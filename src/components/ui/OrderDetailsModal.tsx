@@ -528,7 +528,7 @@ export const OrderDetailsModal = ({
 
         {hero}
 
-        <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, background: 'transparent' }}>
+        <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, minHeight: 0, background: 'transparent', paddingBottom: 4 }}>
           {body}
         </div>
 
