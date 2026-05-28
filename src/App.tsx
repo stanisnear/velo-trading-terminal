@@ -5026,7 +5026,7 @@ const App = () => {
         // unblock the loading screen so the user doesn't get stuck forever.
         const authTimeout = setTimeout(() => {
             setAuthChecked(true);
-        }, 4000);
+        }, 2500);
         
         // Detect redirect back from password-reset email
         const params = new URLSearchParams(window.location.search);
@@ -5047,10 +5047,15 @@ const App = () => {
             }
             // Block restore if user explicitly logged out this session
             if (intentionalLogoutRef.current) { setAuthChecked(true); return; }
-            // Prevent double-restore: INITIAL_SESSION fires, then getSession() fallback also fires.
-            // BUT: if the fallback is the one that hits this guard, we must still mark authChecked
-            // so the loading screen doesn't spin until the 4s safety timeout.
-            if (sessionRestoredRef.current) { if (isGetSessionFallback) setAuthChecked(true); return; }
+            // Prevent double-restore: INITIAL_SESSION fires first and sets sessionRestoredRef = true,
+            // then getSession() fallback also resolves. Two cases:
+            //   a) INITIAL_SESSION still in-flight (sessionRestoredRef=true, user still null, finally
+            //      not yet called) — returning here is safe; INITIAL_SESSION will call setAuthChecked
+            //      in its own finally block when it finishes. Opening AppKit here would be wrong.
+            //   b) INITIAL_SESSION already finished — sessionRestoredRef=true, user is set,
+            //      setAuthChecked already fired. Returning silently is correct.
+            // Either way: if sessionRestoredRef is true, we must NOT call setAuthChecked prematurely.
+            if (sessionRestoredRef.current) return;
             sessionRestoredRef.current = true;
             try {
                 let profileData = await getProfile(session.user.id);
@@ -5129,6 +5134,7 @@ const App = () => {
                 intentionalLogoutRef.current = true;
                 sessionRestoredRef.current = false;
                 userLoadedFromDB.current = false;
+                autoRecoverAttemptedRef.current = false; // allow re-derivation on next login
                 setUser(null);
                 setPositions([]);
                 setOpenOrders([]);
@@ -5211,13 +5217,11 @@ const App = () => {
             'profile': TabView.PROFILE,
         };
         const basePath = p.split('/')[0];
-        // If this tab requires auth and user is not logged in, show login modal.
-        // IMPORTANT: only redirect after auth has been checked — on a hard refresh
-        // authChecked is false until session restore completes, so we must not
-        // redirect to /trade just because user is null at mount time.
+        // If this tab requires auth and user is not logged in after auth check completes,
+        // silently redirect to /trade. Do NOT auto-open AppKit — the user may have just
+        // had their session expire or be on a slow connection; they can click Log In themselves.
         if (AUTH_REQUIRED_PATHS.has(basePath) && !user && authChecked) {
             setActiveTab(TabView.TRADE);
-            setTimeout(() => openAppKitModal(), 100);
             return;
         }
         // If auth not yet checked, silently navigate to the requested tab —
@@ -6328,6 +6332,7 @@ const App = () => {
         if (isSupabaseConfigured()) await supabaseSignOut();
         userLoadedFromDB.current = false;
         sessionRestoredRef.current = false;
+        autoRecoverAttemptedRef.current = false; // allow auto-recovery to fire again on next login
         setLoginReturningName(''); // reset so modal doesn't skip to SUCCESS_RETURNING on next login
         setUser(null);
         setPositions([]);
