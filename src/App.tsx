@@ -86,7 +86,6 @@ import {
   DEFAULT_PREFERENCES,
   uploadAvatar,
   uploadBanner,
-  supabase,
   onPersistenceError,
 } from './services/supabaseStore';
 
