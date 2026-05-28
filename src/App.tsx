@@ -4163,6 +4163,8 @@ const App = () => {
     });
     const prefsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLoginOpen, setLoginOpen] = useState(false);
+    // Username for SUCCESS_RETURNING screen — set by silent login in socialLoginHandledRef effect
+    const [loginReturningName, setLoginReturningName] = useState<string>('');
     const [isResetPasswordOpen, setResetPasswordOpen] = useState(false);
     const [isOrderlyOnboardingOpen, setOrderlyOnboardingOpen] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
@@ -4355,16 +4357,43 @@ const App = () => {
       }
       if (!authChecked) return;    // wait for Supabase session restore to complete
       if (user) return;            // already authenticated
-      if (isLoginOpen) return;     // AuthModal already open
+      if (isLoginOpen) return;     // modal already open
       if (socialLoginHandledRef.current) return; // already triggered
-      // CRITICAL: if a fresh signup just completed, DON'T re-open AuthModal.
-      // Doing so causes success_returning to flash for a brand-new account.
-      if (freshSignupRef.current) return;
+      if (freshSignupRef.current) return; // brand-new account just created
       socialLoginHandledRef.current = true;
-      // Small delay so AppKit modal fully closes before AuthModal opens
-      setTimeout(() => {
-        socialLoginHandledRef.current = false;
-        setLoginOpen(true);
+
+      // Wallet connected and no Supabase session yet — check if this wallet
+      // has an existing Velo account. If yes: silent login + SUCCESS_RETURNING.
+      // If no: open onboarding modal at USERNAME step (new user flow).
+      setTimeout(async () => {
+        try {
+          // Try to sign in with the deterministic wallet-derived credentials
+          const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
+          const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
+          const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
+          if (data?.user && !signInErr) {
+            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+            if (profile?.username) {
+              // Existing account — show welcome-back screen AND hydrate app state
+              intentionalLogoutRef.current = false;
+              freshSignupRef.current = false;
+              socialLoginHandledRef.current = true;
+              setLoginReturningName(profile.username);
+              setLoginOpen(true);
+              // Hydrate app state directly — onAuth is the canonical path
+              silentLoginCallbackRef.current?.(data.user, profile);
+              return;
+            }
+          }
+          // No existing account — open onboarding for new-user registration
+          socialLoginHandledRef.current = false;
+          setLoginReturningName('');
+          setLoginOpen(true);
+        } catch {
+          socialLoginHandledRef.current = false;
+          setLoginReturningName('');
+          setLoginOpen(true);
+        }
       }, 400);
     }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4670,6 +4699,61 @@ const App = () => {
 
     // Guard: user explicitly logged out — block all automatic session restores until next manual login
     const intentionalLogoutRef = useRef(false);
+    // Callback to hydrate app state on silent login (wallet reconnect → existing account)
+    const silentLoginCallbackRef = useRef<((authUser: any, profile: any) => void) | null>(null);
+
+    // Keep silentLoginCallbackRef current — restores session from silent wallet reconnect
+    useEffect(() => {
+      silentLoginCallbackRef.current = async (authUser: any, profile: any) => {
+        if (!authUser) return;
+        try {
+          const restoredUser = profile ? dbProfileToUserProfile(profile) : {
+            id: authUser.id,
+            username: profile?.username || authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'Trader',
+            handle: profile?.handle || `@${(profile?.username || authUser.email?.split('@')[0] || 'trader').replace(/\s+/g, '')}`,
+            bio: '', avatar: profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authUser.id}`,
+            banner: '', balance: 0, pnlTotal: 0, realizedPnL: 0,
+            following: [], copying: [], followers: [], copierCount: 0,
+            earnedFees: 0, veloRewards: 0,
+            tradeHistory: [], transactionHistory: [], pnlHistory: [],
+            joinedDate: new Date().toISOString(), likes: [], reposts: [],
+          } as UserProfile;
+          const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
+            fetchPositions(authUser.id),
+            fetchOpenOrders(authUser.id),
+            fetchTradeHistory(authUser.id),
+            fetchTransactions(authUser.id),
+            fetchNotifications(authUser.id),
+            fetchPosts(50),
+          ]);
+          const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', authUser.id);
+          restoredUser.following = (follows || []).map((f: any) => f.following_id);
+          const { data: myFollowers } = await supabase.from('follows').select('follower_id').eq('following_id', authUser.id);
+          restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
+          restoredUser.tradeHistory = history;
+          restoredUser.transactionHistory = txns;
+          const closedTrades = history.filter((t: any) => t.action === 'CLOSE').sort((a: any, b: any) => a.timestamp - b.timestamp);
+          const totalRealized = closedTrades.reduce((acc: number, t: any) => acc + t.pnl, 0);
+          const startingBalance = (restoredUser.balance || 0) - totalRealized;
+          let runningPnl = 0;
+          restoredUser.pnlHistory = closedTrades.map((t: any) => {
+            runningPnl += t.pnl;
+            const d = new Date(t.timestamp);
+            return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
+          });
+          userLoadedFromDB.current = true;
+          if (walletAddress) restoredUser.walletAddress = walletAddress;
+          setUser(restoredUser);
+          recordSessionWallet();
+          setPositions(positions);
+          setOpenOrders(orders);
+          setNotifications(notifs);
+          if (loadedPosts.length > 0) setPosts(loadedPosts);
+          try { const prefs = await fetchPreferences(authUser.id); applyPreferences(prefs); } catch (_) {}
+          playSound('SUCCESS');
+        } catch (e) { console.warn('silentLogin hydrate error:', e); }
+      };
+    }); // no deps — always keep current
 
     // Ref to wagmi disconnect fn — populated by AuthModal, called on logout
     const walletDisconnectRef = useRef<(() => void) | null>(null);
@@ -7543,13 +7627,17 @@ const App = () => {
             <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, background: 'var(--ambient)', opacity: 0.35 }} />
             <VeloAnimation kind={anim?.kind ?? null} label={anim?.label} sublabel={anim?.sublabel} onDone={() => setAnim(null)} />
             {toast && <ToastNotification message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {/* Wire silentLoginCallbackRef to onAuth for silent wallet reconnect logins */}
+            {/* We set this inline via a side-effect-safe ref assignment in the effect above */}
             <VeloOnboardingModal
               isOpen={isLoginOpen}
-              required={!user}
+              required={!user && !loginReturningName}
+              returningName={loginReturningName}
               disconnectRef={walletDisconnectRef}
               onClose={() => {
                 freshSignupRef.current = false;
                 setVeloWelcomeOpen(false);
+                setLoginReturningName('');
                 setLoginOpen(false);
               }}
               onAuth={async (authUser, passedProfile, isNewAccount) => {
@@ -7557,6 +7645,7 @@ const App = () => {
                     intentionalLogoutRef.current = false;
                     freshSignupRef.current = !!isNewAccount;
                     if (isNewAccount) socialLoginHandledRef.current = true;
+                    setLoginReturningName('');
                     setLoginOpen(false);
                     setActiveTab(TabView.DASHBOARD);
                     try {
