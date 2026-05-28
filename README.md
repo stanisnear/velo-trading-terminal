@@ -752,3 +752,21 @@ The token is explicitly NOT planned for v1, v2, or v3. There is no token presale
 ## License
 
 MIT. See `LICENSE` if present, or assume MIT.
+
+---
+
+## Logout sentinel — the `__veloLogoutLock` system (build 106+)
+
+Before build 106, clicking "Sign Out" triggered the logout animation and a hard `window.location.replace('/')` navigation, but the page immediately re-authenticated the user. The root cause: wagmi auto-reconnects to MetaMask within ~100ms of any page load (the dapp permission lives in the browser extension, unreachable from app code). The `socialLoginEffect` then saw the wallet address, ran `signInWithPassword` with the wallet-derived credentials, and signed the user back in before they could react.
+
+**The fix is a three-layer sentinel:**
+
+**Layer 1 — URL parameter.** `handleLogout` navigates to `/?logout=1`. The navigation timer is scheduled at the very top of the function — before any `await` — so it always fires even if `wagmi.disconnect()` or `supabase.auth.signOut()` hang.
+
+**Layer 2 — Module-level IIFE.** At the top of `App.tsx`, a synchronous IIFE runs at module import time (before React, before Supabase's `getSession`). If it sees `?logout=1`, it: (a) sets `window.__veloLogoutLock = true`, (b) wipes localStorage/sessionStorage keeping only theme, favourites, burner keys, and Orderly keypairs, (c) strips the URL param via `history.replaceState`.
+
+**Layer 3 — Auth gates.** Both `restoreSession` and `socialLoginEffect` check `window.__veloLogoutLock` at their entry point and return immediately if set.
+
+**Lock clearing.** The lock clears only on `wagmiStatus === 'connecting'` — the state that only fires when the user explicitly opens AppKit and picks a wallet. Auto-reconnect (`'reconnecting'` → `'connected'`) never hits `'connecting'`, so background reconnects can't clear it.
+
+**Debugging.** After logout, check `window.__veloLogoutLock` in DevTools console: `true` = lock is active (something else is clearing it too early); `undefined` = IIFE didn't detect `?logout=1` (check `handleLogout` navigation URL).

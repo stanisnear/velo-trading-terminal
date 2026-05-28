@@ -1541,3 +1541,66 @@ The username is a persistent on-chain identity. If a user clears their browser (
 4. **The 2.5s timeout still exists as a last-resort safety net.** It no longer controls the loading screen (since `authChecked` starts as `true` for cached users), but it still sets `authChecked = true` for completely new sessions where no cache exists and Supabase is slow. Do not remove it.
 
 5. **`VELO_DERIVATION_MESSAGE` in `veloBurnerWallet.ts` is immutable.** Adding, removing, or reordering any character invalidates every existing user's derived burner. If you ever need to change it (e.g. to support a new chain), bump `VERSION` in the `SIGNATURE_DOMAIN` object AND increment the storage key prefix (e.g. `velo_burner_v2_`) so old and new keys coexist during the migration window.
+
+---
+
+## Build 107 — Auth sentinel + Activity persistence (May 29, 2026)
+
+**Last updated:** May 29, 2026
+
+### What was broken
+
+**Bug 1: Recent Activity disappears on page refresh.**
+Transaction history showed live (optimistic UI) but vanished on every reload. Root cause: the `transactions` table's `type` CHECK constraint on some Supabase deployments only included `DEPOSIT` and `WITHDRAW` — `SEND` and `RECEIVE` inserts were silently rejected with error `23514`. The optimistic row appeared in React state but never landed in the DB, so refresh showed nothing.
+
+**Bug 2: Send funds fails from other account (receiver never gets activity row).**
+`recordTransactionForUser` and `createNotificationForUser` in `supabaseStore.ts` both call Supabase RPC functions (`record_transaction_for_user`, `create_notification_for_user`) that were never deployed as SQL. The direct-insert fallbacks are blocked by RLS since `auth.uid() ≠ target_user_id`. The receiver's `RECEIVE` row was silently dropped on every peer-to-peer send.
+
+**Bug 3: VeloSendModal SEND button disabled for email-auth accounts.**
+`canSend` required wagmi's `address` (MetaMask connected) even when a burner wallet exists and can sign independently. Users authenticated via email/password whose wagmi hadn't reconnected saw the button disabled despite having a valid burner and on-chain balance.
+
+### What was fixed
+
+**SQL — `SUPABASE_MIGRATION_BUILD107.sql` (run this in Supabase SQL Editor):**
+- Drops and recreates `transactions_type_check` to include all four types: `DEPOSIT`, `WITHDRAW`, `SEND`, `RECEIVE`
+- Creates `record_transaction_for_user(target_user_id, p_type, p_amount, p_tx_hash, p_counterparty, p_on_chain)` as a `SECURITY DEFINER` function — lets an authenticated user write a transaction row for any other user (receiver gets their `RECEIVE` row)
+- Creates `create_notification_for_user(target_user_id, p_type, p_message, p_related_id)` as a `SECURITY DEFINER` function — same pattern for notifications
+- Grants `EXECUTE` on both functions to the `authenticated` role
+- Idempotent RLS policy refresh for `transactions` and `notifications`
+- Ensures `transactions` is in the `supabase_realtime` publication
+
+**`VeloSendModal.tsx`:**
+- Added `walletAddress?: string` prop — the Supabase profile wallet address, passed from App.tsx as `user?.walletAddress`. Used as fallback when wagmi's `useAccount()` returns `undefined` (email-auth sessions, slow reconnect)
+- `canSend` now checks `hasSigningCapability = !!(burner || mainWalletClient)` instead of `!!address`. A burner wallet session can sign without MetaMask being connected at the wagmi layer
+- `handleSend` early-return guard changed from `if (!address) return` to an explicit check that produces an `ERROR` state with a user-facing message when no signing path exists
+
+**`App.tsx`:**
+- `VeloSendModal` now receives `walletAddress={user?.walletAddress}` so the burner can be resolved even when wagmi hasn't reconnected yet
+
+### Build 106 — Logout sentinel (same session context)
+
+**What was broken:** Clicking "Sign Out" showed the logout animation then immediately re-authenticated the user. wagmi auto-reconnects to MetaMask within ~100ms of page load; the `socialLoginEffect` saw the wallet address return and called `signInWithPassword` with the wallet-derived credentials before the user could react.
+
+**What was fixed (build 106):**
+
+A three-layer sentinel prevents any auto-relogin after an explicit logout:
+
+1. `handleLogout` navigates to `/?logout=1` (not `/`). The `setTimeout` scheduling this navigation moved to the very top of the function — before any `await` — so it fires even if wagmi disconnect or Supabase signOut hang forever.
+
+2. A module-level IIFE at the top of `App.tsx` runs synchronously at import time. If `?logout=1` is present: sets `window.__veloLogoutLock = true`, wipes all localStorage/sessionStorage except `velo_theme`, `velo_fav_markets`, `velo_burner_*`, and `orderly_kp_*`, then strips the param via `history.replaceState`.
+
+3. `restoreSession` and `socialLoginEffect` both check `window.__veloLogoutLock` at their entry point and bail immediately if set.
+
+4. The lock clears only when `wagmiStatus === 'connecting'` — the transition that only fires on explicit user action (opening AppKit, selecting a wallet). Auto-reconnect (`'reconnecting'` → `'connected'`) never hits `'connecting'`, so background reconnects leave the lock intact.
+
+---
+
+#### New gotchas from build 106–107
+
+6. **`record_transaction_for_user` and `create_notification_for_user` must be deployed as SQL SECURITY DEFINER functions.** The `supabaseStore.ts` fallback (direct insert) fails silently under RLS — there is no way for authenticated user A to write a row with `user_id = B` via the standard Supabase client. If these RPCs aren't deployed, receiver activity rows are silently dropped. Run `SUPABASE_MIGRATION_BUILD107.sql` to deploy them.
+
+7. **The `transactions` type CHECK constraint must include `SEND` and `RECEIVE`.** If your DB was created from an old schema dump, the constraint may only contain `DEPOSIT` and `WITHDRAW`. Any `SEND`/`RECEIVE` insert will fail with `23514` — silently from the UI's perspective since the optimistic row is already in React state. Run the migration to fix.
+
+8. **`window.__veloLogoutLock` is a session-level flag.** It is cleared either by the user explicitly connecting a wallet, or by a page refresh (since the IIFE only fires when `?logout=1` is in the URL, and `history.replaceState` removes that param immediately). If you add a new auth pathway, check the lock at the top of any function that silently signs the user in.
+
+9. **VeloSendModal's `canSend` no longer requires wagmi `address`.** It requires `hasSigningCapability = !!(burner || mainWalletClient)`. If you add a new signing path (e.g. WalletConnect v3), make sure it's included in that check. If you see the SEND button disabled unexpectedly, add a console log of `{ burner, mainWalletClient, address }` — one of those will be null.

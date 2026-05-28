@@ -8376,6 +8376,7 @@ const App = () => {
             <VeloSendModal
               isOpen={isVeloSendOpen}
               onClose={() => setVeloSendOpen(false)}
+              walletAddress={user?.walletAddress as `0x${string}` | undefined}
               onSuccess={async ({ txHash, recipientAddress, recipientHandle, amount }) => {
                 // Local toast for the sender
                 const toLabel = recipientHandle ? `@${recipientHandle}` : `${recipientAddress.slice(0, 6)}…${recipientAddress.slice(-4)}`;

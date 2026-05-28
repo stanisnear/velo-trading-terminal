@@ -53,6 +53,13 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   /**
+   * Fallback wallet address from the Supabase profile — used when wagmi
+   * hasn't reconnected yet (email-auth users, slow reconnect). Allows the
+   * burner wallet to be loaded and used for signing even if useAccount()
+   * returns undefined on the current render cycle.
+   */
+  walletAddress?: `0x${string}` | string;
+  /**
    * Fires once the transfer is confirmed on-chain. Lets the host (App.tsx)
    * persist a notification row for both the sender and the recipient.
    */
@@ -64,10 +71,14 @@ interface Props {
   }) => void;
 }
 
-export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
-  const { address } = useAccount();
+export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress: walletAddressProp, onSuccess }) => {
+  const { address: wagmiAddress } = useAccount();
   const publicClient = usePublicClient();
   const { data: mainWalletClient } = useWalletClient();
+
+  // Use wagmi address first; fall back to Supabase profile address so that
+  // email-auth users (wagmi not yet reconnected) can still use their burner.
+  const address = wagmiAddress ?? (walletAddressProp as `0x${string}` | undefined);
 
   const [recipientInput, setRecipientInput] = useState('');
   const [resolvedAddress, setResolvedAddress] = useState<`0x${string}` | null>(null);
@@ -163,6 +174,10 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
   if (!isOpen) return null;
 
   const amountNum = parseFloat(amount) || 0;
+  // canSend: a burner-wallet session can sign without MetaMask being connected
+  // at the wagmi layer. The only hard requirement is publicClient (for reading
+  // balance and waiting for receipts) and a signing path (burner OR wagmi wallet).
+  const hasSigningCapability = !!(burner || mainWalletClient);
   const canSend = resolvedAddress
     && sendToAddress
     && resolveState !== 'invalid'
@@ -170,11 +185,16 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
     && resolveState !== 'checking'
     && amountNum > 0
     && amountNum <= available
-    && address
+    && hasSigningCapability
     && publicClient;
 
   const handleSend = async () => {
-    if (!sendToAddress || !publicClient || !address) return;
+    if (!sendToAddress || !publicClient) return;
+    if (!burner && !mainWalletClient) {
+      setErrorMsg('No wallet available to sign. Connect your wallet in the top-right corner first.');
+      setStep('ERROR');
+      return;
+    }
     setStep('SENDING');
     setErrorMsg('');
     try {
