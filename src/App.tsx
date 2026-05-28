@@ -5076,15 +5076,15 @@ const App = () => {
                 // Mark as fully restored ONLY now that a user is actually set. This is
                 // what makes the guard "stick" so duplicate events become no-ops.
                 sessionRestoredRef.current = true;
-                // Restore burner wallet from localStorage. walletAddressRef holds the
-                // current MetaMask address even inside this [] effect closure.
-                // If localStorage was cleared but the DB has velo_wallet_address, we
-                // at least know a burner should exist — the SettingsModal re-derive
-                // path will recover it. Either way, set whatever we have so the
-                // trading layer initialises correctly without needing a page refresh.
-                const currentWalletAddr = walletAddressRef.current;
-                if (currentWalletAddr) {
-                    const cachedBurner = loadStoredBurner(currentWalletAddr);
+                // Restore burner wallet from localStorage.
+                // profile.wallet_address is the main MetaMask address stored at account
+                // creation — it's the localStorage key for the burner, and it's available
+                // immediately from the DB row without waiting for MetaMask to reconnect.
+                // walletAddressRef is a secondary fallback for when the profile row predates
+                // the wallet_address column (very old accounts).
+                const ownerForBurner = profile.wallet_address || walletAddressRef.current;
+                if (ownerForBurner) {
+                    const cachedBurner = loadStoredBurner(ownerForBurner);
                     if (cachedBurner?.veloAddress) {
                         setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
                     }
