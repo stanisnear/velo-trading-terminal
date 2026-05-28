@@ -42,9 +42,12 @@ interface Props {
   onOpenBridge?: () => void; onOpenUsername?: () => void; onOpenSend?: () => void;
   profile?: { id?: string; email?: string; username?: string } | null;
   onEmailSaved?: (email: string) => void;
+  /** Fired after a successful re-derive so the parent can hydrate the trading
+      layer (burnerAddress) and persist the address — without a page refresh. */
+  onBurnerRecovered?: (veloAddress: `0x${string}`) => void;
 }
 
-export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend, profile, onEmailSaved }) => {
+export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend, profile, onEmailSaved, onBurnerRecovered }) => {
   const { address: ownerAddress, connector } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -119,6 +122,9 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
     try {
       const b = await rederiveVeloBurner(ownerAddress as `0x${string}`, signMessageAsync as any);
       setBurner(b); setBusy(false);
+      // Hydrate the parent app's trading layer (burnerAddress) + persist, so the
+      // dashboard/trading work immediately without a page refresh.
+      onBurnerRecovered?.(b.veloAddress as `0x${string}`);
     } catch (e: any) {
       setBusy(false);
       setError(e?.message?.includes('rejected') ? 'You cancelled the signature.' : (e?.message || 'Could not re-derive wallet.'));
@@ -287,9 +293,28 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                 {error && <ErrNote style={{ marginTop:8 }}>{error}</ErrNote>}
               </Sect>
             </>) : (
-              <div style={{ padding:24, borderRadius:16, background:'var(--chip-bg)', border:'1px dashed var(--hairline-strong)', ...F.sans, fontSize:13, color:'var(--fg-muted)', textAlign:'center' as const, lineHeight:1.6 }}>
-                No Velo trading wallet yet.<br/>Click <strong style={{ color:'var(--fg)' }}>Deposit</strong> on the dashboard to set one up.
-              </div>
+              <>
+                <div style={{ padding:24, borderRadius:16, background:'var(--chip-bg)', border:'1px dashed var(--hairline-strong)', ...F.sans, fontSize:13, color:'var(--fg-muted)', textAlign:'center' as const, lineHeight:1.6 }}>
+                  No Velo trading wallet on this device.<br/>If you've used Velo before, <strong style={{ color:'var(--fg)' }}>recover</strong> it below — otherwise click <strong style={{ color:'var(--fg)' }}>Deposit</strong> on the dashboard to set one up.
+                </div>
+
+                {/* Recovery — available WITHOUT an existing burner. The Velo wallet is
+                    derived deterministically from a main-wallet signature, so signing
+                    again on a new device or after clearing browser data regenerates the
+                    exact same trading wallet (and funds). This block must render in the
+                    no-burner state — that's precisely when recovery is needed. */}
+                <Sect>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                    <RefreshCw size={13} style={{ color:'var(--fg-muted)' }} />
+                    <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const }}>Recover trading wallet</span>
+                  </div>
+                  <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>Already have a Velo trading wallet? Sign once with your main wallet to re-derive it on this device — useful on a new browser or after clearing data. Always returns the same wallet.</p>
+                  <GhostBtn onClick={handleRederive} disabled={busy} style={{ opacity:busy?0.5:1, cursor:busy?'wait':'pointer' }}>
+                    <RefreshCw size={11}/> {busy ? 'Waiting for signature…' : 'Re-derive from Main Wallet'}
+                  </GhostBtn>
+                  {error && <ErrNote style={{ marginTop:8 }}>{error}</ErrNote>}
+                </Sect>
+              </>
             )}
           </div>
         </div>
