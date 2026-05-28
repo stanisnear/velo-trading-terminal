@@ -730,17 +730,34 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             )}
 
             {/* Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
-                {TABS.map(({ k, label, n }) => (
-                    <button key={k} onClick={() => setTab(k)} style={{
-                        padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const,
-                        borderBottom: `2px solid ${tab === k ? 'var(--iris-violet)' : 'transparent'}`,
-                        color: tab === k ? 'var(--fg)' : 'var(--fg-subtle)',
-                        ...S.label, fontSize: 10, transition: 'all 0.12s',
-                    }}>
-                        {label} <span style={{ opacity: 0.4, marginLeft: 2 }}>· {n}</span>
-                    </button>
-                ))}
+            <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', flex: 1 }}>
+                    {TABS.map(({ k, label, n }) => (
+                        <button key={k} onClick={() => setTab(k)} style={{
+                            padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const,
+                            borderBottom: `2px solid ${tab === k ? 'var(--iris-violet)' : 'transparent'}`,
+                            color: tab === k ? 'var(--fg)' : 'var(--fg-subtle)',
+                            ...S.label, fontSize: 10, transition: 'all 0.12s',
+                        }}>
+                            {label} <span style={{ opacity: 0.4, marginLeft: 2 }}>· {n}</span>
+                        </button>
+                    ))}
+                </div>
+                {/* Close All — one click to flatten every open position at market.
+                    Only on POSITIONS tab with >1 positions to avoid noise. */}
+                {tab === 'POSITIONS' && positions.length > 1 && (
+                    <button
+                        onClick={() => {
+                            positions.forEach((p: Position, i: number) => {
+                                setTimeout(() => onClosePosition(p.id), i * 550);
+                            });
+                        }}
+                        style={{ marginRight: 10, padding: '3px 9px', borderRadius: 6, background: 'oklch(0.66 0.22 25/0.1)', border: '1px solid oklch(0.66 0.22 25/0.25)', ...S.mono, fontSize: 9, color: 'var(--pnl-down)', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}
+                        title="Close every open position at market"
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.18)'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.1)'}
+                    >Close All</button>
+                )}
             </div>
 
             {/* Body */}
@@ -1675,7 +1692,7 @@ export const TradeView = ({
                             </div>
                         )}
 
-                        <div style={{ padding: isMobile ? '8px 12px' : '6px 10px', paddingBottom: isMobile ? '8px' : '10px', display: 'flex', flexDirection: 'column', gap: isMobile ? 7 : 8, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
+                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
@@ -1830,7 +1847,7 @@ export const TradeView = ({
                             </div>
 
                             {/* Summary rows */}
-                            <div style={{ paddingTop: isMobile ? 7 : 5, borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: isMobile ? 3 : 2 }}>
+                            <div style={{ paddingTop: 8, marginTop: 2, borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: 5 }}>
                                 {(marginMode === 'ISOLATED' ? [
                                     ['Est. Liq. Price', `$${formatPrice(estLiqPrice)}`, '#f97316'],
                                     ['Margin Risk', riskLevel, riskColor],
@@ -1841,20 +1858,20 @@ export const TradeView = ({
                                     ['Cross Pool', `$${formatMoney(crossBuyingPower)}`, crossBuyingPower > 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'],
                                 ]).map(([label, val, color]) => (
                                     <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ ...S.label, fontSize: 9 }}>{label}</span>
-                                        <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, color: color as string }}>{val}</span>
+                                        <span style={{ ...S.label, fontSize: 9.5 }}>{label}</span>
+                                        <span style={{ ...S.mono, fontSize: 10.5, fontWeight: 700, color: color as string }}>{val}</span>
                                     </div>
                                 ))}
                             </div>
 
                             {/* Submit button */}
                             <button onClick={handleSubmit} disabled={parseFloat(sizeAmount) <= 0} style={{
-                                width: '100%', padding: isMobile ? '11px 0' : '9px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
+                                width: '100%', padding: isMobile ? '12px 0' : '11px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
                                 opacity: parseFloat(sizeAmount) <= 0 ? 0.35 : 1,
                                 background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
                                 color: side === 'LONG' ? '#0a1a10' : '#fff',
                                 boxShadow: side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
-                                marginTop: isMobile ? 0 : 'auto',
+                                marginTop: 2,
                             }}>
                                 {user ? (
                                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
@@ -1868,7 +1885,7 @@ export const TradeView = ({
                             {/* Subtle demo notice only — live mode no longer needs a label,
                                 the user already knows they connected a wallet. */}
                             {user && !isLiveMode && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 6, padding: '4px 0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '2px 0' }}>
                                     <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block' }} />
                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--fg-subtle)', letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
                                         Demo · Simulated

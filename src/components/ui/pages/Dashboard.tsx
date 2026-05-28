@@ -334,7 +334,30 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
             <Ico3D bg={iconBg.violet}><Activity size={13}/></Ico3D>
             <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>All active positions</span>
           </div>
-          <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: positions.length > 0 ? 'oklch(0.68 0.22 295/0.15)' : 'var(--chip-bg)', border: `1px solid ${positions.length > 0 ? 'oklch(0.68 0.22 295/0.3)' : 'var(--hairline-strong)'}`, color: positions.length > 0 ? 'var(--iris-violet)' : 'var(--fg-muted)' }}>{positions.length} Open</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Close All — one click to flatten every open position at market.
+                Loops handleClosePosition over the position list; each call goes
+                through the normal on-chain close path (100% market close on
+                VeloPerps). Hidden when there are no positions. */}
+            {positions.length > 1 && (
+              <button
+                onClick={() => {
+                  positions.forEach((p: Position, i: number) => {
+                    // Stagger by 250ms so the per-tx lock in handleClosePosition
+                    // doesn't silently drop the 2nd…Nth calls. The lock is 500ms
+                    // but we want each close to actually fire its tx; 250ms is
+                    // enough for the first call to register its processingId.
+                    setTimeout(() => handleClosePosition(p.id), i * 550);
+                  });
+                }}
+                style={{ padding: '4px 10px', borderRadius: 6, background: 'oklch(0.66 0.22 25/0.1)', border: '1px solid oklch(0.66 0.22 25/0.25)', ...S.mono, fontSize: 10, color: 'var(--pnl-down)', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}
+                title="Close every open position at market"
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.18)'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.1)'}
+              >Close All</button>
+            )}
+            <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: positions.length > 0 ? 'oklch(0.68 0.22 295/0.15)' : 'var(--chip-bg)', border: `1px solid ${positions.length > 0 ? 'oklch(0.68 0.22 295/0.3)' : 'var(--hairline-strong)'}`, color: positions.length > 0 ? 'var(--iris-violet)' : 'var(--fg-muted)' }}>{positions.length} Open</span>
+          </div>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="dash-positions-table" style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>

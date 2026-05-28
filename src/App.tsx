@@ -6506,18 +6506,23 @@ const App = () => {
             const currentPrice = marketPrices[pairId];
 
             // ── Pure leverage-only change (size=0, same side) ──────────────────
-            // Bypass the confirmation modal and the isProcessing lock — this is a
-            // direct dropdown adjustment, not a new order. The tradeLock is also
-            // relaxed (100ms) so rapid lever changes work without silently dropping.
-            if (size === 0 && existingPosition && existingPosition.side === side) {
+            // Demo / non-live only. On VeloPerps the contract has no setLeverage
+            // — leverage is fixed at openPosition time. A local-only update would
+            // diverge from on-chain state on the next 5s poll. If the user wants
+            // a different leverage they should open a new position at it.
+            if (!isLiveMode && size === 0 && existingPosition && existingPosition.side === side) {
                 if (existingPosition.leverage === leverage) return; // already at this lever — no-op
-                // Apply immediately — executeTrade handles margin delta + DB sync
                 executeLeverageUpdate(pairId, side, leverage, currentPrice, marginMode, existingPosition);
                 return;
             }
 
             // ── New order with mismatched leverage → show confirmation modal ──
-            if (existingPosition && existingPosition.side === side && existingPosition.leverage !== leverage) {
+            // Only on demo / non-live mode. VeloPerps tracks each open as its
+            // own tradeId, so "open at 20x while a 10x exists" just opens a
+            // second position — there's nothing to confirm. The legacy modal
+            // existed for Orderly's netting model where changing leverage
+            // re-priced and reallocated the single net position.
+            if (!isLiveMode && existingPosition && existingPosition.side === side && existingPosition.leverage !== leverage) {
                 setPendingTrade({ pairId, side, size, leverage, type, price, tp, sl, marginMode });
                 setLeverageModalOpen(true);
                 return;
@@ -6857,15 +6862,16 @@ const App = () => {
         const p = positionsRef.current.find(x => x.id === id);
         if (!p || !user) return;
 
-        // For on-chain V2 positions, open the manage modal at the "Close %" tab
-        // so the user can choose how much of the position to close. This replaces
-        // the old one-click full-close behaviour with a proper partial-close UX.
-        const isOnChainV2 = (p as any).onChain && p.id.startsWith('velo_') && p.onChainTradeId;
-        if (isOnChainV2) {
-            setManagingPositionTab('PARTIAL');
-            setManagingPosition(p);
-            return;
-        }
+        // Close = instant 100% market close. The Manage modal (partial close,
+        // add margin, TP/SL edit) is still reachable via the Edit/Manage
+        // button which calls handleEditPosition. Stan's preference: one click
+        // on the dashboard or on the position row closes the full position
+        // immediately at market — no extra confirmation step.
+        //
+        // (The V2 on-chain branch below already calls
+        // veloPerpsTrading.closePosition which is a 100% market close on the
+        // contract; the partial-close UX lives in the Manage modal's PARTIAL
+        // tab, reached separately via the Edit button.)
 
         processingIds.current.add(id);
 
