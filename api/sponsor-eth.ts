@@ -20,13 +20,16 @@ import { createWalletClient, createPublicClient, http, parseEther, formatEther, 
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 
-const SPONSOR_AMOUNT_ETH = '0.005';
-const MIN_TOPUP_THRESHOLD_ETH = '0.002'; // only sponsor if recipient has less than this
+// Send 0.01 ETH per top-up — enough for ~50+ faucet+username txs at Base Sepolia prices.
+const SPONSOR_AMOUNT_ETH = '0.01';
+// Only sponsor if recipient has less than 0.003 ETH (leaves headroom for the
+// username claim tx that fires right after the faucet mint).
+const MIN_TOPUP_THRESHOLD_ETH = '0.003';
 
-// Simple in-memory rate limiter. Resets on cold start, which is fine —
-// determined attackers can be defeated by the threshold check above.
+// Rate-limit per burner address (not IP) — prevents the same burner from
+// draining the sponsor, while allowing multiple new users behind the same NAT.
 const recentRequests = new Map<string, number>();
-const RATE_LIMIT_MS = 60_000;
+const RATE_LIMIT_MS = 300_000; // 5 minutes per address
 
 export default async function handler(req: any, res: any) {
   // CORS — allow the production frontend to hit this from the browser
@@ -42,14 +45,8 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const ip = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown') as string;
-  const ipKey = ip.split(',')[0].trim();
-  const last = recentRequests.get(ipKey);
-  if (last && Date.now() - last < RATE_LIMIT_MS) {
-    res.status(429).json({ error: 'Rate limited — try again in a minute' });
-    return;
-  }
-
+  // Rate-limit by burner address, not IP — lets multiple new users share a NAT
+  // without blocking each other. Parse body early just for the key check.
   let burnerAddress: string;
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -58,9 +55,14 @@ export default async function handler(req: any, res: any) {
     res.status(400).json({ error: 'Invalid JSON body' });
     return;
   }
-
   if (!burnerAddress || !isAddress(burnerAddress)) {
     res.status(400).json({ error: 'Invalid burnerAddress' });
+    return;
+  }
+  const addrKey = burnerAddress.toLowerCase();
+  const last = recentRequests.get(addrKey);
+  if (last && Date.now() - last < RATE_LIMIT_MS) {
+    res.status(429).json({ error: 'Rate limited — try again in 5 minutes' });
     return;
   }
 
@@ -94,7 +96,7 @@ export default async function handler(req: any, res: any) {
 
     // Mark this IP as having requested before we actually send, so a stuck
     // tx doesn't let them retry instantly.
-    recentRequests.set(ipKey, Date.now());
+    recentRequests.set(addrKey, Date.now());
 
     const txHash = await walletClient.sendTransaction({
       account,

@@ -24,6 +24,7 @@ import {
   type VeloBurnerWallet,
 } from '../services/veloBurnerWallet';
 import { VELO_USDC_BASE as USDC_BASE_SEPOLIA } from '../services/veloPerpsService';
+import { isConfigured as isSupabaseConfigured, supabase } from '../services/supabaseStore';
 
 const ERC20_BAL_ABI = [
   { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'a', type: 'address' }], outputs: [{ type: 'uint256' }] },
@@ -54,9 +55,13 @@ interface Props {
   onOpenBridge?: () => void;
   onOpenUsername?: () => void;
   onOpenSend?: () => void;
+  /** Current user profile from Supabase — used to show/edit the email field. */
+  profile?: { id?: string; email?: string; username?: string } | null;
+  /** Called with the new email address after a successful save, so App.tsx can update local user state. */
+  onEmailSaved?: (email: string) => void;
 }
 
-export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend }) => {
+export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend, profile, onEmailSaved }) => {
   const { address: ownerAddress, connector } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -72,12 +77,21 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
   const [movingFunds, setMovingFunds] = useState(false);
   const [moveError, setMoveError] = useState('');
 
+  // Email editing state
+  const [emailInput, setEmailInput] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const supabaseReady = isSupabaseConfigured();
+
   // Reload burner whenever the modal opens
   useEffect(() => {
     if (!isOpen) return;
     setError(''); setRevealed(false); setConfirming(false);
+    setEmailSaved(false); setEmailError('');
+    setEmailInput(profile?.email || '');
     if (ownerAddress) setBurner(loadStoredBurner(ownerAddress));
-  }, [isOpen, ownerAddress]);
+  }, [isOpen, ownerAddress, profile]);
 
   // Owner balances
   const { data: ownerEthData } = useBalance({
@@ -376,6 +390,75 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                     </button>
                   )}
                 </div>
+
+                {/* Email notification section */}
+                {supabaseReady && profile !== undefined && (
+                  <div style={{
+                    padding: 16, borderRadius: 14,
+                    background: 'oklch(1 0 0 / 0.02)',
+                    border: '1px solid oklch(1 0 0 / 0.06)',
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
+                      <span style={{ ...F.label }}>Notification Email</span>
+                      {profile?.email && <span style={{ ...F.mono, fontSize: 9, color: 'var(--fg-muted)', marginLeft: 'auto' }}>Saved</span>}
+                      {!profile?.email && <span style={{ ...F.mono, fontSize: 9, color: 'oklch(0.74 0.18 30)', marginLeft: 'auto' }}>Not set</span>}
+                    </div>
+                    <p style={{ ...F.sans, fontSize: 11, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.55 }}>
+                      {profile?.email
+                        ? 'Get notified when positions are filled, liquidated, or copied.'
+                        : 'You skipped this during signup. Add it now to receive position alerts.'}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="email"
+                        value={emailInput}
+                        onChange={e => { setEmailInput(e.target.value); setEmailError(''); setEmailSaved(false); }}
+                        placeholder={profile?.email || 'your@email.com'}
+                        style={{
+                          flex: 1, padding: '10px 12px',
+                          background: 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${emailError ? 'oklch(0.62 0.22 25)' : 'var(--hairline-strong)'}`,
+                          borderRadius: 10, ...F.mono, fontSize: 12,
+                          color: 'var(--fg)', outline: 'none',
+                        }}
+                      />
+                      <button
+                        disabled={emailSaving || !emailInput.trim() || emailInput.trim() === profile?.email}
+                        onClick={async () => {
+                          const em = emailInput.trim().toLowerCase();
+                          if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+                            setEmailError('Enter a valid email address'); return;
+                          }
+                          setEmailSaving(true); setEmailError('');
+                          try {
+                            // Check uniqueness
+                            const { data: dup } = await supabase!.from('profiles').select('id').eq('email', em).maybeSingle();
+                            if (dup && dup.id !== profile?.id) { setEmailError('Email already used by another account'); return; }
+                            const { data: { user } } = await supabase!.auth.getUser();
+                            if (user) await supabase!.from('profiles').update({ email: em }).eq('id', user.id);
+                            setEmailSaved(true);
+                            onEmailSaved?.(em);
+                          } catch { setEmailError('Failed to save — please try again.'); }
+                          finally { setEmailSaving(false); }
+                        }}
+                        style={{
+                          padding: '10px 14px', borderRadius: 10,
+                          background: emailSaved ? 'oklch(0.78 0.18 150 / 0.15)' : 'rgba(255,255,255,0.06)',
+                          border: `1px solid ${emailSaved ? 'oklch(0.78 0.18 150 / 0.3)' : 'var(--hairline-strong)'}`,
+                          ...F.mono, fontSize: 11, fontWeight: 700,
+                          color: emailSaved ? 'oklch(0.78 0.18 150)' : 'var(--fg)',
+                          cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+                          opacity: (emailSaving || !emailInput.trim() || emailInput.trim() === profile?.email) ? 0.4 : 1,
+                        }}
+                      >
+                        {emailSaving ? '…' : emailSaved ? '✓ Saved' : 'Save'}
+                      </button>
+                    </div>
+                    {emailError && <p style={{ ...F.mono, fontSize: 11, color: 'oklch(0.62 0.22 25)', margin: 0 }}>{emailError}</p>}
+                  </div>
+                )}
 
                 {/* Private key section */}
                 <div style={{

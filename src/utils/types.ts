@@ -85,6 +85,8 @@ export interface UserProfile {
   reposts: string[];
   /** Connected EVM wallet address, attached at login for modal display. */
   walletAddress?: string;
+  /** Notification email — optional, can be added after signup in Settings. */
+  email?: string;
 }
 
 export type NotificationType =

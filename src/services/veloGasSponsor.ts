@@ -14,12 +14,12 @@
 
 import type { Address, PublicClient } from 'viem';
 
-/** Minimum ETH the burner should hold before any tx. 0.0015 ETH covers
- *  even multi-step trades (approve + open + pyth fee). */
-export const MIN_BURNER_GAS_WEI = 1_500_000_000_000_000n; // 0.0015 ETH
+/** Minimum ETH the burner should hold before any tx. 0.003 ETH covers
+ *  faucet mint + username claim + several trades at Base Sepolia gas prices. */
+export const MIN_BURNER_GAS_WEI = 3_000_000_000_000_000n; // 0.003 ETH
 
 /** What the sponsor server tops up to in a single call (matches api/sponsor-eth.ts). */
-export const SPONSOR_TOP_UP_WEI = 5_000_000_000_000_000n; // 0.005 ETH
+export const SPONSOR_TOP_UP_WEI = 10_000_000_000_000_000n; // 0.01 ETH
 
 export interface SponsorResult {
   /** True if the wallet was topped up (or didn't need one). False if it failed. */

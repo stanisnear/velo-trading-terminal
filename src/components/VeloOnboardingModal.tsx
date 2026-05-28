@@ -268,9 +268,14 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   // Open/close
   useEffect(() => {
     if (isOpen) {
-      setStep('WELCOME'); setUsername(''); setEmail(''); setFallbackInput('');
+      // If wallet is already connected when the modal opens, skip the splash
+      // and go straight to CHECKING — avoids showing WELCOME on every refresh.
+      const initialStep: Step = (isConnected && address) ? 'CHECKING' : 'WELCOME';
+      setStep(initialStep); setUsername(''); setEmail(''); setFallbackInput('');
       setFieldError(''); setGlobalError(''); setReturningName('');
-      setWrongWalletInfo(null); setSplashPhase(0);
+      setWrongWalletInfo(null); setSplashPhase(initialStep === 'WELCOME' ? 0 : 1);
+      // When skipping to CHECKING, also reset the checkedRef so the wallet
+      // effect runs again to re-verify the session.
       checkedRef.current = null; completedRef.current = false;
       usernameCheckRef.current = null; flowAbortedRef.current = false;
       setClaimTxHash(null); setBurnerAddr(null); setClaimBalance(0);
@@ -278,7 +283,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     } else {
       setVisible(false);
     }
-  }, [isOpen]);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // AppKit closes without connecting → restore visibility
   useEffect(() => {
@@ -289,7 +294,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   // Wallet connected → check returning vs new
   useEffect(() => {
     if (!isOpen || !isConnected || !address) return;
-    if (step !== 'CONNECT') return;
+    // Allow triggering from both CONNECT (user just connected) and CHECKING
+    // (modal opened with wallet already connected — we skipped WELCOME/CONNECT)
+    if (step !== 'CONNECT' && step !== 'CHECKING') return;
     if (checkedRef.current === address) return;
     checkedRef.current = address;
 
@@ -444,13 +451,23 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       setBurnerAddr(result.burner.veloAddress);
       setClaimTxHash(result.faucetTxHash ?? null);
 
-      // Phase 3: On-chain username claim
+      // Phase 3: On-chain username claim — uses the burner wallet so MetaMask
+      // is never asked for ETH. The burner was already funded by the sponsor.
       if (uname) {
         try {
           const existing = await fetchUsernameForAddress(publicClient, address);
           if (!existing) {
-            await ensureBurnerGas(publicClient, address);
-            const unameTx = await claimUsername(walletClient as any, uname);
+            // Confirm burner still has gas (top-up if needed)
+            await ensureBurnerGas(publicClient, result.burner.veloAddress as `0x${string}`);
+            // Build a burner-signed wallet client — no MetaMask popup
+            const { createWalletClient: mkWc, http: mkHttp } = await import('viem');
+            const { privateKeyToAccount: pkToAcc } = await import('viem/accounts');
+            const { baseSepolia: bSep } = await import('viem/chains');
+            const BASE_RPC = import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+            const burnerAcc = pkToAcc(result.burner.privateKey);
+            const burnerWc = mkWc({ account: burnerAcc, chain: bSep, transport: mkHttp(BASE_RPC) });
+            const unameTx = await claimUsername(burnerWc as any, uname);
+            await publicClient.waitForTransactionReceipt({ hash: unameTx });
             onUsernameClaimed?.(uname, unameTx);
           }
         } catch (e) { console.warn('[velo] on-chain username claim skipped:', e); }

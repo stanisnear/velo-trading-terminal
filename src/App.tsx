@@ -7877,6 +7877,8 @@ const App = () => {
               // not a separate top-level concept.
               onOpenUsername={() => { setSettingsOpen(false); setVeloUsernameOpen(true); }}
               onOpenSend={() => { setSettingsOpen(false); setVeloSendOpen(true); }}
+              profile={user ? { id: user.id, email: user.email || '', username: user.username } : null}
+              onEmailSaved={(email: string) => setUser(prev => prev ? { ...prev, email } : null)}
             />
             {/* ── Orderly Deposit / Withdraw Modal (post-onboarding) ── */}
             <DepositWithdrawModal

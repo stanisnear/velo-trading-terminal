@@ -57,8 +57,8 @@ export interface BurnerSetupResult {
   ethFundSource: 'sponsor' | 'main_wallet' | 'skipped';
 }
 
-const FALLBACK_ETH_FUND = 0.005;
-const MIN_BURNER_ETH_REQUIRED = 0.002;
+const FALLBACK_ETH_FUND = 0.01;   // matches SPONSOR_AMOUNT_ETH
+const MIN_BURNER_ETH_REQUIRED = 0.003; // matches MIN_TOPUP_THRESHOLD_ETH
 
 export async function setupBurnerWallet(args: BurnerSetupArgs): Promise<BurnerSetupResult> {
   const { walletClient, publicClient, ownerAddress, onStep } = args;

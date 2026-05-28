@@ -201,6 +201,7 @@ export function dbProfileToUserProfile(row: any): UserProfile {
     joinedDate:          row.created_at  || new Date().toISOString(),
     likes:               [],
     reposts:             [],
+    email:               row.email || '',
   };
 }
 
