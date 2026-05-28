@@ -6247,6 +6247,7 @@ const App = () => {
         if (isSupabaseConfigured()) await supabaseSignOut();
         userLoadedFromDB.current = false;
         sessionRestoredRef.current = false;
+        setLoginReturningName(''); // reset so modal doesn't skip to SUCCESS_RETURNING on next login
         setUser(null);
         setPositions([]);
         setOpenOrders([]);
