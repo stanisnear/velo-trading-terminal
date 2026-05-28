@@ -4722,11 +4722,17 @@ const App = () => {
     const sessionRestoredRef = useRef(false);
     // Guard: a restore is currently running (released on early-return/error so retries work)
     const restoreInFlightRef = useRef(false);
+    // Ref to the current wallet address — lets restoreSession (in a [] effect) read the
+    // latest walletAddress without capturing a stale closure value from mount time.
+    const walletAddressRef = useRef<string | undefined>(undefined);
 
     // Guard: user explicitly logged out — block all automatic session restores until next manual login
     const intentionalLogoutRef = useRef(false);
     // Callback to hydrate app state on silent login (wallet reconnect → existing account)
     const silentLoginCallbackRef = useRef<((authUser: any, profile: any) => void) | null>(null);
+
+    // Keep walletAddressRef current so restoreSession (a [] effect) always sees the latest wallet
+    useEffect(() => { walletAddressRef.current = walletAddress; }, [walletAddress]);
 
     // Keep silentLoginCallbackRef current — restores session from silent wallet reconnect
     useEffect(() => {
@@ -4770,6 +4776,13 @@ const App = () => {
           userLoadedFromDB.current = true;
           if (walletAddress) restoredUser.walletAddress = walletAddress;
           setUser(restoredUser);
+          // Restore burner alongside user so the trading layer is ready immediately
+          if (walletAddress) {
+            const cachedBurner = loadStoredBurner(walletAddress);
+            if (cachedBurner?.veloAddress) {
+              setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
+            }
+          }
           recordSessionWallet();
           setPositions(positions);
           setOpenOrders(orders);
@@ -5063,6 +5076,19 @@ const App = () => {
                 // Mark as fully restored ONLY now that a user is actually set. This is
                 // what makes the guard "stick" so duplicate events become no-ops.
                 sessionRestoredRef.current = true;
+                // Restore burner wallet from localStorage. walletAddressRef holds the
+                // current MetaMask address even inside this [] effect closure.
+                // If localStorage was cleared but the DB has velo_wallet_address, we
+                // at least know a burner should exist — the SettingsModal re-derive
+                // path will recover it. Either way, set whatever we have so the
+                // trading layer initialises correctly without needing a page refresh.
+                const currentWalletAddr = walletAddressRef.current;
+                if (currentWalletAddr) {
+                    const cachedBurner = loadStoredBurner(currentWalletAddr);
+                    if (cachedBurner?.veloAddress) {
+                        setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
+                    }
+                }
                 recordSessionWallet();
                 setPositions(positions);
                 setOpenOrders(orders);
