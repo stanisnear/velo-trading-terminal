@@ -342,7 +342,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
         auth_method: 'WALLET',
         ...(contactEmail ? { email: contactEmail } : {}),
       }).eq('id', authUser.id);
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+      let { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
 
       setStep('BURNER_SIGN');
       const result = await setupBurnerWallet({
@@ -356,6 +356,13 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       });
       setBurnerAddr(result.burner.veloAddress);
       setClaimTxHash(result.faucetTxHash ?? null);
+      const { data: profileWithBurner } = await supabase
+        .from('profiles')
+        .update({ velo_wallet_address: result.burner.veloAddress.toLowerCase() })
+        .eq('id', authUser.id)
+        .select()
+        .single();
+      if (profileWithBurner) profile = profileWithBurner;
 
       if (uname) {
         try {

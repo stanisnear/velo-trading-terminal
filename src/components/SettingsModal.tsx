@@ -12,7 +12,7 @@ import {
   ShieldCheck, Wallet, Network, ExternalLink, Send, AtSign,
 } from 'lucide-react';
 import {
-  loadStoredBurner, exportPrivateKey, rederiveVeloBurner,
+  loadStoredBurner, loadStoredBurnerForVeloAddress, exportPrivateKey, rederiveVeloBurner,
   type VeloBurnerWallet,
 } from '../services/veloBurnerWallet';
 import { VELO_USDC_BASE as USDC_BASE_SEPOLIA } from '../services/veloPerpsService';
@@ -40,7 +40,7 @@ const VELO_STRIPE = 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 
 interface Props {
   isOpen: boolean; onClose: () => void;
   onOpenBridge?: () => void; onOpenUsername?: () => void; onOpenSend?: () => void;
-  profile?: { id?: string; email?: string; username?: string; walletAddress?: string | null } | null;
+  profile?: { id?: string; email?: string; username?: string; walletAddress?: string | null; veloWalletAddress?: string | null } | null;
   onEmailSaved?: (email: string) => void;
 }
 
@@ -71,7 +71,10 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
     setError(''); setRevealed(false); setConfirming(false);
     setEmailSaved(false); setEmailError('');
     setEmailInput(profile?.email || '');
-    setBurner(ownerAddress ? loadStoredBurner(ownerAddress) : null);
+    setBurner(
+      (ownerAddress ? loadStoredBurner(ownerAddress) : null)
+        || (profile?.veloWalletAddress ? loadStoredBurnerForVeloAddress(profile.veloWalletAddress) : null)
+    );
   }, [isOpen, ownerAddress, profile]);
 
   const { data: ownerEthData }  = useBalance({ address: ownerAddress, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });

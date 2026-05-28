@@ -130,6 +130,26 @@ export function loadStoredBurner(ownerAddress: string): VeloBurnerWallet | null 
   }
 }
 
+export function loadStoredBurnerForVeloAddress(veloAddress: string): VeloBurnerWallet | null {
+  const target = veloAddress.toLowerCase();
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(STORAGE_PREFIX)) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as VeloBurnerWallet;
+      if (parsed?.veloAddress?.toLowerCase() !== target) continue;
+      const account = privateKeyToAccount(parsed.privateKey);
+      if (account.address.toLowerCase() !== target) continue;
+      return parsed;
+    }
+  } catch (e) {
+    console.warn('[velo-burner] failed to scan cached burners:', e);
+  }
+  return null;
+}
+
 export function storeBurner(burner: VeloBurnerWallet): void {
   localStorage.setItem(storageKey(burner.ownerAddress), JSON.stringify(burner));
 }

@@ -203,6 +203,7 @@ export function dbProfileToUserProfile(row: any): UserProfile {
     reposts:             [],
     email:               row.email || '',
     walletAddress:       row.wallet_address || null,
+    veloWalletAddress:   row.velo_wallet_address || null,
     verifiedReason:      row.verified_reason ?? null,
   };
 }

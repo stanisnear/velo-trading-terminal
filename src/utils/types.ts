@@ -85,6 +85,8 @@ export interface UserProfile {
   reposts: string[];
   /** Connected EVM wallet address, attached at login for modal display. */
   walletAddress?: string;
+  /** Derived Velo trading wallet address stored in Supabase, if present. */
+  veloWalletAddress?: string | null;
   /** Notification email — optional, can be added after signup in Settings. */
   email?: string;
   /** Admin-assigned verification reason (build 80+). NULL = unverified. */

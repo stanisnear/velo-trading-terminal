@@ -39,7 +39,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
-import { loadStoredBurner } from './services/veloBurnerWallet';
+import { loadStoredBurner, loadStoredBurnerForVeloAddress } from './services/veloBurnerWallet';
 import {
   usePendingDeposits, usePendingDepositCount, updatePendingDeposit, reapStaleDeposits,
 } from './services/pendingDeposits';
@@ -118,6 +118,16 @@ function resolveOwnerWalletAddress(authUser?: any, profile?: any, fallback?: unk
         ?? normalizeWalletAddress(authUser?.user_metadata?.wallet_address)
         ?? walletAddressFromAuthEmail(authUser?.email)
         ?? normalizeWalletAddress(fallback);
+}
+
+function loadBurnerForProfile(authUser?: any, profile?: any, fallback?: unknown) {
+    const ownerAddress = resolveOwnerWalletAddress(authUser, profile, fallback);
+    const burnerByOwner = ownerAddress ? loadStoredBurner(ownerAddress) : null;
+    if (burnerByOwner) return { ownerAddress, burner: burnerByOwner };
+
+    const veloAddress = normalizeWalletAddress(profile?.velo_wallet_address);
+    const burnerByVelo = veloAddress ? loadStoredBurnerForVeloAddress(veloAddress) : null;
+    return { ownerAddress: ownerAddress ?? burnerByVelo?.ownerAddress, burner: burnerByVelo };
 }
 
 async function loadUserHydration(userId: string) {
@@ -4222,6 +4232,8 @@ const App = () => {
     });
     const prefsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLoginOpen, setLoginOpen] = useState(false);
+    const isLoginOpenRef = useRef(false);
+    useEffect(() => { isLoginOpenRef.current = isLoginOpen; }, [isLoginOpen]);
     // Username for SUCCESS_RETURNING screen — set by silent login in socialLoginHandledRef effect
     const [loginReturningName, setLoginReturningName] = useState<string>('');
     const [isResetPasswordOpen, setResetPasswordOpen] = useState(false);
@@ -4813,15 +4825,12 @@ const App = () => {
             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
           });
           userLoadedFromDB.current = true;
-          const ownerForAuth = resolveOwnerWalletAddress(authUser, profile, walletAddressRef.current);
+          const { ownerAddress: ownerForAuth, burner: cachedBurner } = loadBurnerForProfile(authUser, profile, walletAddressRef.current);
           if (ownerForAuth) restoredUser.walletAddress = ownerForAuth;
           setUser(restoredUser);
           // Restore burner alongside user so the trading layer is ready immediately
-          if (ownerForAuth) {
-            const cachedBurner = loadStoredBurner(ownerForAuth);
-            if (cachedBurner?.veloAddress) {
-              setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
-            }
+          if (cachedBurner?.veloAddress) {
+            setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
           }
           recordSessionWallet(ownerForAuth);
           setPositions(positions);
@@ -5105,7 +5114,7 @@ const App = () => {
                     .from('follows').select('follower_id').eq('following_id', session.user.id);
                 restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
                 userLoadedFromDB.current = true;
-                const ownerForSession = resolveOwnerWalletAddress(session.user, profile, walletAddressRef.current);
+                const { ownerAddress: ownerForSession, burner: cachedBurner } = loadBurnerForProfile(session.user, profile, walletAddressRef.current);
                 if (ownerForSession) restoredUser.walletAddress = ownerForSession;
                 setUser(restoredUser);
                 // Mark as fully restored ONLY now that a user is actually set. This is
@@ -5115,11 +5124,8 @@ const App = () => {
                 // The burner cache is keyed by the main wallet. Older rows can miss
                 // profile.wallet_address, so fall back to Supabase auth metadata/email
                 // before relying on live Wagmi state.
-                if (ownerForSession) {
-                    const cachedBurner = loadStoredBurner(ownerForSession);
-                    if (cachedBurner?.veloAddress) {
-                        setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
-                    }
+                if (cachedBurner?.veloAddress) {
+                    setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
                 }
                 recordSessionWallet(ownerForSession);
                 setPositions(positions);
@@ -5160,16 +5166,14 @@ const App = () => {
                 });
                 setActiveTab(TabView.TRADE);
                 setAuthChecked(true);
-            } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-                // Fired on page load when a stored session exists — restore without double-loading
+            } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+                if (event === 'SIGNED_IN' && isLoginOpenRef.current) {
+                    setAuthChecked(true);
+                    return;
+                }
+                if (event === 'SIGNED_IN') intentionalLogoutRef.current = false;
                 await restoreSession(session);
             }
-            // SIGNED_IN is intentionally NOT handled here. Every login in this app
-            // (email, wallet, and AppKit social → wallet → pseudo-email) resolves to
-            // a wallet/pseudo-email signInWithPassword, which is fully hydrated by
-            // AuthModal's onAuth or the wallet silent-login effect (both of which load
-            // the wallet-aware balance). Re-running restoreSession on SIGNED_IN here
-            // competed with those paths and left the app "logged in but empty".
         });
         
         // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession
@@ -7810,14 +7814,11 @@ const App = () => {
                             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
                         });
                         userLoadedFromDB.current = true;
-                        const ownerForAuth = resolveOwnerWalletAddress(authUser, p, walletAddressRef.current);
+                        const { ownerAddress: ownerForAuth, burner: cachedBurner } = loadBurnerForProfile(authUser, p, walletAddressRef.current);
                         if (ownerForAuth) restoredUser.walletAddress = ownerForAuth;
                         setUser(restoredUser);
-                        if (ownerForAuth) {
-                            const cachedBurner = loadStoredBurner(ownerForAuth);
-                            if (cachedBurner?.veloAddress) {
-                                setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
-                            }
+                        if (cachedBurner?.veloAddress) {
+                            setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
                         }
                         recordSessionWallet(ownerForAuth);
                         setPositions(positions);
@@ -8096,7 +8097,7 @@ const App = () => {
               // not a separate top-level concept.
               onOpenUsername={() => { setSettingsOpen(false); setVeloUsernameOpen(true); }}
               onOpenSend={() => { setSettingsOpen(false); setVeloSendOpen(true); }}
-              profile={user ? { id: user.id, email: user.email || '', username: user.username, walletAddress: user.walletAddress || null } : null}
+              profile={user ? { id: user.id, email: user.email || '', username: user.username, walletAddress: user.walletAddress || null, veloWalletAddress: user.veloWalletAddress || burnerAddress || null } : null}
               onEmailSaved={(email: string) => setUser(prev => prev ? { ...prev, email } : null)}
             />
             {/* ── Orderly Deposit / Withdraw Modal (post-onboarding) ── */}
