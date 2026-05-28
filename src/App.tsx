@@ -6469,21 +6469,37 @@ const App = () => {
         // logged-out instantly even if either of those takes seconds to
         // complete (or fails on the network).
         clearSessionCache();
-        // Also drop ANY other Velo-scoped localStorage entries we know about —
-        // belt and braces against stale cross-tab data on the next session.
+        // Comprehensive localStorage purge — allowlist approach. Anything not
+        // in this set gets wiped, including wagmi.*, wc@*, appkit*, sb-*,
+        // walletconnect-* and every other session-shaped key the connectors
+        // and Supabase scatter across storage. The user explicitly asked for
+        // logout to clear ALL cache; we honor that, while preserving the
+        // bare-minimum that survives logout in every comparable product:
+        //   - velo_burner_*   — deterministic sub-account; nuking it forces
+        //                       a fresh personal_sign on every re-login,
+        //                       which neither Hyperliquid nor Lyra do.
+        //   - velo_theme      — UI pref, not session.
+        //   - velo_fav_markets — UI pref, not session.
+        //   - orderly_kp_*    — Orderly trading keypair (same logic as burner).
         try {
-            // Burner stays (deterministic sub-account, re-derivable). Theme
-            // and watchlist stay (UI prefs, not session). Everything else
-            // session-shaped goes.
-            const keysToWipe: string[] = [];
+            const KEEP_EXACT  = new Set(['velo_theme', 'velo_fav_markets']);
+            const KEEP_PREFIX = ['velo_burner_', 'orderly_kp_'];
+            const toWipe: string[] = [];
             for (let i = 0; i < localStorage.length; i++) {
                 const k = localStorage.key(i);
                 if (!k) continue;
-                if (k.startsWith('velo_session')) keysToWipe.push(k);
-                if (k.startsWith('velo_pending_deposits')) keysToWipe.push(k);
+                if (KEEP_EXACT.has(k)) continue;
+                if (KEEP_PREFIX.some(p => k.startsWith(p))) continue;
+                toWipe.push(k);
             }
-            for (const k of keysToWipe) localStorage.removeItem(k);
+            for (const k of toWipe) {
+                try { localStorage.removeItem(k); } catch {}
+            }
         } catch {}
+        // sessionStorage is ephemeral by design but some connectors stash
+        // intermediate auth state there during OAuth/WalletConnect round-trips.
+        // Clear it wholesale — nothing in there is meant to outlive a session.
+        try { sessionStorage.clear(); } catch {}
 
         // Wagmi disconnect — wagmi v2's disconnect returns a Promise that
         // settles when the connector has finished tearing down. Earlier
