@@ -1,148 +1,124 @@
-# Build 103 — Auth/logout reliability + peer-to-peer transfer UX
+# Build 104 — Bulletproof logout + reliable receiver-side notifications
 
 Files changed:
 
 ```
 src/App.tsx
-src/services/supabaseStore.ts
-src/components/AuthModal.tsx
-src/components/SettingsModal.tsx
-src/components/ui/OrderDetailsModal.tsx
-SUPABASE_MIGRATION_BUILD81.sql   (new)
 ```
 
-`vite build` clean.
+No SQL changes. The build81 migration is still the only one you need for cross-user transfers.
 
-You **must apply `SUPABASE_MIGRATION_BUILD81.sql`** in Supabase SQL editor before
-this build's send/receive UX works end-to-end. The frontend falls back to
-direct inserts if the RPCs aren't present, but those will be rejected by RLS
-in production-mode RLS policies — which the migration also tightens.
+`vite build` clean. No new TypeScript errors versus baseline.
 
 ---
 
-## 1. Logout is now actually a logout
+## 1. Logout — hard navigation as the final step
 
-**The bug:** `handleLogout` cleared React state but never cleared the
-`velo_session_v1` localStorage snapshot. On next page load `readSessionCache()`
-hydrated `user` from stale data **before** Supabase confirmed there was no
-session. With two Chrome profiles racing on the same hosted page, the older
-profile would render as logged-in for ~1s and ended up displaying a frozen
-view of an account that had since been signed out elsewhere. Logout looked
-"sometimes broken" because it was: the in-memory state was correct, the on-disk
-cache wasn't.
+**The bug:** clicking Logout left the UI showing the prior user (velo6, $0.00,
+trading wallet still rendered). React state was being set to null, the
+session cache was being cleared, but the dashboard kept rendering. Two
+contributing race conditions:
 
-**The fix:** centralised the cache-clear into the `signOut` helper in
-`supabaseStore.ts`, called atomically before `supabase.auth.signOut()`. The
-helper also drops every active realtime channel so the next session starts on
-a clean slate. `handleLogout` now follows a strict order: `intentionalLogoutRef`
-→ `clearSessionCache()` → wagmi disconnect → supabase signOut → React state
-reset → redirect to Trade.
+  a. `walletDisconnectRef.current?.()` was fire-and-forget. wagmi v2's
+     `disconnect` is async; the connector hasn't actually finished tearing
+     down when the next line of code runs. There's a window where
+     `useAccount().isConnected` is still true after `setUser(null)`.
+  b. The SIGNED_OUT handler arms a 1200ms timer to re-evaluate the
+     socialLoginEffect (so a fresh wallet connect right after logout still
+     opens onboarding). If the wagmi connector is still alive when that
+     timer fires — possible thanks to (a) — and the connector's storage
+     replay momentarily flips `freshWalletConnectRef.current` true via the
+     'connecting' transition, the effect silently signs the user back in
+     using the same wallet/Supabase session that supposedly just signed
+     out. The user ends up on the dashboard again, often before the
+     LOGOUT animation overlay finishes fading.
 
-For belt-and-suspenders, the `SIGNED_OUT` event handler also clears the cache —
-covers Supabase-side session expiry and cross-tab `signOut` (one tab logs out,
-the other tab's `onAuthStateChange` fires). The AuthModal "Switch to current"
-path got the same treatment.
+**The fix:** mirror what Twitter, Binance, and Hyperliquid do — every
+logout ends with a hard navigation to the unauthenticated root. After all
+the React-state and localStorage clears, we wait 1200ms (long enough for
+the LOGOUT overlay to be visibly recognised) and call
+`window.location.replace('/')`. The new page tree starts with a clean
+module load — no in-flight Promises from the prior session can resurrect
+state, the back button can't reach the authed view, and any wagmi
+auto-reconnect attempt re-enters from a clean slate.
 
-The burner-wallet localStorage entry (`velo_burner_<owner>`) is intentionally
-**not** cleared on logout — it's a deterministic sub-account derived from the
-owner's signature, so wiping it would force a fresh personal_sign on every
-re-login. Closest industry analog is Hyperliquid's API wallet, which behaves
-identically.
+While we're here:
 
-## 2. Send button — always visible, disabled when balance is 0
+- `walletDisconnectRef.current?.()` is now awaited if it returns a
+  Promise. Closes the race in (a) for any code path that doesn't fall
+  through to the hard navigation.
+- localStorage cleanup is expanded: any `velo_session*` and
+  `velo_pending_deposits*` keys are wiped alongside `velo_session_v1`.
+  Burner-wallet entries (`velo_burner_<owner>`) deliberately survive —
+  they're deterministic sub-accounts, not session state.
 
-**The bug:** in Settings, the Send action was hidden when `veloUsdc <= 0`. With
-two browser profiles where one had funds and one didn't, the empty profile
-looked like Send was broken — there was no UI affordance to explain *why* it
-wasn't there.
+If you still see "stuck on logged-in dashboard after click" after this
+build, capture a console log and a screenshot of localStorage at that
+moment — the only remaining failure mode would be the navigation itself
+being blocked (CSP / sandboxed iframe), and the `try/catch` fallback to
+`window.location.href = '/'` handles even that.
 
-**The fix:** `ActBtn` got a `disabled` prop. Send always renders; when
-balance is 0 it's greyed out with a tooltip ("Deposit mUSDC to your trading
-wallet first"). Matches Binance and Hyperliquid: action lives where you
-expect it, the disabled state tells you the precondition. The dashboard
-Send button was already always-visible.
+## 2. Receiver-side notification + activity row — sequential lookup
 
-## 3. Peer-to-peer transfers — receiver gets notified AND sees the activity
+**The bug:** transfers were on-chain succeeding, the sender saw their
+SEND row, but the receiver got no `TRANSFER_RECEIVED` notification and
+no `RECEIVE` activity row. The build103 receiver lookup used a single
+`.or()` filter against `profiles` joining handle, username, wallet_address
+and velo_wallet_address. PostgREST's `.or()` is a *string-format* filter
+and a wallet's full hex address inside a comma-separated `.ilike.<value>`
+fragment is a known footgun — it parses inconsistently and silently
+returns zero rows when a comma-escape isn't applied to the embedded
+value. So `recipientProfile` came back null, the whole "if receiver is a
+Velo user" branch was skipped, and the receiver app got nothing.
 
-**The bugs:** the original send flow only created a receiver-side notification
-when the sender typed a `@username`. Sending by raw 0x address — even to a
-Velo user — never notified them. And even when it *did* fire, the receiver's
-Recent Activity didn't update until the next focus refetch, so clicking the
-notification dumped them on the Dashboard with no matching row to show. To
-top it off, the notification handler had no `TRANSFER_SENT`/`TRANSFER_RECEIVED`
-case — the click did nothing useful.
+**The fix:** sequential, one-column-at-a-time lookups. We try in order:
 
-**The fixes, layered:**
+  1. `velo_wallet_address` ILIKE the sent-to address (this is what the
+     on-chain transfer actually went to — most-specific match first).
+  2. `wallet_address` ILIKE the sent-to address (covers users who haven't
+     activated a trading wallet yet).
+  3. `handle` ILIKE `<recipientHandle>` (typed `@user` without @).
+  4. `handle` ILIKE `@<recipientHandle>` (DB usually stores with @).
+  5. `username` ILIKE `<recipientHandle>`.
 
-- **Broadened recipient lookup.** Receiver-side notification + activity row
-  now resolve the recipient profile by `handle`, `username`, `wallet_address`,
-  or `velo_wallet_address` — any column that could match. A single `.or()`
-  query keeps it to one round-trip.
-- **Cross-user inserts via SECURITY DEFINER RPCs.** The sender's auth context
-  can't, under proper RLS, write a row owned by the recipient. New SQL RPCs
-  `create_notification_for_user` and `record_transaction_for_user` accept the
-  insert after server-side validation: caller is authenticated, target ≠ self,
-  type is on a small allowlist (`TRANSFER_RECEIVED` / `TRANSFER_SENT`),
-  amount > 0, tx_hash idempotency (no duplicate RECEIVE rows for the same
-  hash). The frontend helpers fall back to a direct insert if the RPCs aren't
-  deployed yet (early-dev environments with permissive RLS), so this build
-  doesn't hard-break on rollback.
-- **Realtime transactions.** New `subscribeUserTransactions` channel + a SQL
-  `alter publication supabase_realtime add table public.transactions` so the
-  receiver's app sees the RECEIVE row appear in Recent Activity the instant
-  the SEND lands. Local dedup by `id` prevents the sender's optimistic row
-  from doubling up with the realtime echo of the same row.
-- **Notification routing.** `TRANSFER_SENT` / `TRANSFER_RECEIVED` now open
-  the `OrderDetailsModal` in `TRANSACTION` mode, with full counterparty + tx
-  hash + BaseScan link. If the row isn't in local state yet (realtime race),
-  it's fetched directly from Supabase by `tx_hash` and spliced in.
-- **Transaction details modal upgrade.** `OrderDetailsModal` was DEPOSIT/
-  WITHDRAW only. Now renders four kinds (Deposit / Withdrawal / Sent /
-  Received) with the right hero label, direction-aware colors, and a "To" /
-  "From" counterparty row showing the @handle or short address. Header pill
-  shows the actual transaction type.
+Stop on first hit. Each attempt logs its own warning if Supabase returns
+an error, so the sender's console tells you exactly which column matched
+or which one failed.
 
-## 4. SQL migration — what it does
-
-`SUPABASE_MIGRATION_BUILD81.sql`:
-
-1. Creates `create_notification_for_user(uuid, text, text, text)` —
-   SECURITY DEFINER RPC, granted to `authenticated`. Allowlist on `type`,
-   message length bounded, blocks self-targeting (use direct insert for
-   self).
-2. Creates `record_transaction_for_user(uuid, text, numeric, text, text, boolean)` —
-   SECURITY DEFINER RPC. Only `RECEIVE` is allowed cross-user. Idempotency
-   guard: if a `RECEIVE` with the same `tx_hash` already exists for the
-   target, returns early — protects against double-tap and sender retry.
-3. Adds `public.transactions` to the `supabase_realtime` publication
-   (idempotent — checks `pg_publication_tables` first).
-4. Tightens RLS on `notifications` and `transactions` — strict self-only
-   insert via the `*_insert_self` policies. Cross-user writes can only come
-   through the two RPCs.
-
-Idempotent. Safe to re-run.
+Errors from the cross-user RPCs (`createNotificationForUser`,
+`recordTransactionForUser`) now surface as ERROR toasts on the sender's
+screen rather than getting buried in `console.warn`. If the receiver
+isn't getting anything, the sender now sees *why*. Same treatment for
+the sender's own activity-row insert — if their `recordTransaction`
+throws (RLS misconfig, schema mismatch, network blip), they see "Couldn't
+save your activity row: \<reason\>" instead of believing the transfer
+fully succeeded only to find the row missing on refresh. This also
+explains the build103 "activity wiped on refresh" report: the sender's
+insert was failing silently. Now it can't.
 
 ---
 
 ## Verify
 
-1. **Logout cleanly clears everything.** Log in, open DevTools Application
-   tab → localStorage → confirm `velo_session_v1` is present. Click Logout.
-   Confirm `velo_session_v1` is gone, the page redirects to Trade, the
-   navbar shows "Log In". Refresh — no flash of the previous user.
-2. **Two-profile sanity.** Open Chrome profile A and B side-by-side, log in
-   as two different accounts. Send mUSDC from A to B by typing B's
-   `@handle`. B's notification bell pulses within a second (realtime), the
-   Recent Activity row appears at the same time, clicking the notification
-   opens the OrderDetailsModal with "From @{A's handle}" and the BaseScan
-   link.
-3. **Address-only send.** Same as above but type B's raw `0x…` address
-   instead of their @handle. B still gets a notification and a RECEIVE row
-   (this was broken before — only @handle sends notified).
-4. **Send button never just vanishes.** Log in with an account that has 0
-   mUSDC in its trading wallet. Open Settings. Send is visible but greyed
-   out; hovering shows "Deposit mUSDC to your trading wallet first".
-   Deposit mUSDC, reopen Settings — Send is now active.
-5. **Notification click for deposits/withdraws** still opens
-   OrderDetailsModal (regression check — the new SEND/RECEIVE cases were
-   added alongside, not in place of, the existing DEPOSIT/WITHDRAW rendering).
+1. **Logout actually logs out.** From any tab, click your avatar →
+   Logout. The LOGOUT overlay shows for ~1.2s, then the page reloads
+   to `/` with the Trade tab visible and the "Log In" button in the
+   navbar. Open DevTools → Application → localStorage and confirm
+   `velo_session_v1` is gone. Hit Back — you stay on the unauthed
+   Trade view (we used `replace`, not `href`).
+
+2. **Receiver actually gets notified.** Same two-profile setup as
+   before. Send from A to B. Within ~1s of the on-chain receipt:
+   - B's notification bell pulses with a toast "@A sent you $X mUSDC".
+   - B's Recent Activity gets a new RECEIVE row.
+   - Clicking the notification opens OrderDetailsModal showing "From
+     @A" and the BaseScan link.
+   If any of these *don't* happen, the SENDER's console will now have
+   verbose `[velo] recipient lookup by <col>=<val> failed:` lines
+   pinpointing which column failed.
+
+3. **Failed-insert visibility.** If your Supabase RLS / RPC isn't
+   configured for the build81 migration, you'll now see ERROR toasts
+   on the sender — "Recipient lookup ok but notification insert
+   failed: ..." or "Couldn't save your activity row: ...". Previously
+   these errors were silent.

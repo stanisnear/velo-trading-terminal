@@ -72,16 +72,19 @@ import {
   insertTradeHistory,
   fetchTransactions,
   recordTransaction,
+  recordTransactionForUser,
   fetchNotifications,
   syncUserFinancials,
   subscribeSocialFeed,
   subscribeUserNotifications,
+  subscribeUserTransactions,
   subscribeLeaderboard,
   subscribeUserPositions,
   subscribeUserOrders,
   fetchPreferences,
   savePreferences,
   createNotification,
+  createNotificationForUser,
   markAllNotificationsRead,
   UserPreferences,
   DEFAULT_PREFERENCES,
@@ -5229,6 +5232,12 @@ const App = () => {
                 userLoadedFromDB.current = false;
                 autoRecoverAttemptedRef.current = false;
                 freshWalletConnectRef.current = false;
+                // Always wipe the cached session snapshot. SIGNED_OUT fires
+                // from both our explicit handleLogout AND any Supabase-side
+                // session expiry / cross-tab signOut. Either way the snapshot
+                // is no longer valid and must not be allowed to hydrate user
+                // state on the next page load.
+                clearSessionCache();
                 setUser(null);
                 setPositions([]);
                 setOpenOrders([]);
@@ -6094,6 +6103,33 @@ const App = () => {
             playSound('CLICK');
         });
 
+        // Real-time transactions for the logged-in user. Fires the moment
+        // someone sends mUSDC to this user (or any cross-tab write to their
+        // activity row lands). Without this, the receiver only sees the
+        // SEND row appear on next focus-refetch, which made transfers feel
+        // broken even though the notification arrived instantly.
+        const txCh = subscribeUserTransactions(user.id, (rawTx: any) => {
+            const incoming: any = {
+                id: rawTx.id,
+                type: rawTx.type,
+                amount: Number(rawTx.amount) || 0,
+                timestamp: new Date(rawTx.created_at).getTime(),
+                status: rawTx.status,
+                onChain: rawTx.on_chain || false,
+                txHash: rawTx.tx_hash || undefined,
+                withdrawNonce: rawTx.withdraw_nonce != null ? Number(rawTx.withdraw_nonce) : undefined,
+                counterparty: rawTx.counterparty || undefined,
+            };
+            setUser(prev => {
+                if (!prev) return prev;
+                const history = prev.transactionHistory ?? [];
+                // Skip if we've already inserted this id (sender's optimistic
+                // row, or a duplicate realtime delivery).
+                if (history.some((t: any) => t.id === incoming.id)) return prev;
+                return { ...prev, transactionHistory: [incoming, ...history] };
+            });
+        });
+
         // Real-time: update current user's followers when someone follows/unfollows them
         const followCh = supabase.channel(`velo-follows-${user.id}`)
             .on('postgres_changes', {
@@ -6126,6 +6162,7 @@ const App = () => {
 
         return () => {
             supabase.removeChannel(ch);
+            supabase.removeChannel(txCh);
             supabase.removeChannel(followCh);
         };
     }, [user?.id]);
@@ -6421,21 +6458,103 @@ const App = () => {
     const handleLogout = async () => {
         const name = user?.username;
         triggerAnim('LOGOUT', name ? `See you, ${name}` : undefined);
+
+        // Block any in-flight session restore / socialLogin effect from
+        // immediately re-hydrating us into the account we're leaving. Set this
+        // FIRST so anything that fires during teardown sees it.
         intentionalLogoutRef.current = true;
-        walletDisconnectRef.current?.();
-        if (isSupabaseConfigured()) await supabaseSignOut();
+
+        // ── Step 1: nuke client-side state synchronously. ────────────────────
+        // We do this before awaiting wagmi/supabase so that the UI flips to
+        // logged-out instantly even if either of those takes seconds to
+        // complete (or fails on the network).
+        clearSessionCache();
+        // Also drop ANY other Velo-scoped localStorage entries we know about —
+        // belt and braces against stale cross-tab data on the next session.
+        try {
+            // Burner stays (deterministic sub-account, re-derivable). Theme
+            // and watchlist stay (UI prefs, not session). Everything else
+            // session-shaped goes.
+            const keysToWipe: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k) continue;
+                if (k.startsWith('velo_session')) keysToWipe.push(k);
+                if (k.startsWith('velo_pending_deposits')) keysToWipe.push(k);
+            }
+            for (const k of keysToWipe) localStorage.removeItem(k);
+        } catch {}
+
+        // Wagmi disconnect — wagmi v2's disconnect returns a Promise that
+        // settles when the connector has finished tearing down. Earlier
+        // versions of this handler fire-and-forgot it; that left a tiny
+        // window where `useAccount().isConnected` was still true after
+        // setUser(null), and the socialLoginEffect re-armed by retryAuthTick
+        // could observe a live wallet and silently sign the user back in.
+        // Awaiting closes that window for good.
+        try {
+            const result = walletDisconnectRef.current?.() as unknown as Promise<unknown> | void;
+            if (result && typeof (result as any).then === 'function') {
+                await (result as Promise<unknown>);
+            }
+        } catch (e) {
+            console.warn('[velo] wagmi disconnect threw (continuing logout):', e);
+        }
+
+        // Supabase signOut. Wrapped so a network hiccup doesn't strand us in
+        // a half-logged-out state — the hard navigation at the end is the
+        // last-resort guarantee that any stuck state gets wiped.
+        if (isSupabaseConfigured()) {
+            try { await supabaseSignOut(); } catch (e) {
+                console.warn('[velo] signOut error (continuing logout):', e);
+            }
+        }
+
+        // ── Step 2: clear all session-bound React state. ────────────────────
         userLoadedFromDB.current = false;
         sessionRestoredRef.current = false;
         autoRecoverAttemptedRef.current = false;
-        freshWalletConnectRef.current = false; // will be re-set if user connects fresh via AppKit
-        setLoginReturningName(''); // reset so modal doesn't skip to SUCCESS_RETURNING on next login
+        freshWalletConnectRef.current = false;
+        socialLoginHandledRef.current = false;
+        setLoginReturningName('');
         setUser(null);
         setPositions([]);
         setOpenOrders([]);
         setNotifications([]);
-        // Redirect to Trade — never open the login modal automatically on logout
+        setChartPrefs({
+            chartTf:    DEFAULT_PREFERENCES.chartTf,
+            chartStyle: DEFAULT_PREFERENCES.chartStyle,
+            indicators: DEFAULT_PREFERENCES.indicators,
+            overlays:   DEFAULT_PREFERENCES.overlays,
+        });
+        setAppOrderDetails(null);
+        setNotifOpen(false);
         setActiveTab(TabView.TRADE);
         playSound('CLOSE');
+
+        // ── Step 3: hard navigation as the ultimate state-reset. ────────────
+        // Twitter, Binance and Hyperliquid all do this — a logout click ends
+        // with a full navigation away from the authenticated route to a clean
+        // entry point. We mirror that: a real reload guarantees that no async
+        // continuation (a Supabase token refresh in flight, a wagmi reconnect
+        // attempt scheduled by a connector, a realtime channel that hasn't
+        // finished unsubscribing) can resurrect the prior session in the next
+        // microtask. The animation overlay covers the brief blank flash.
+        //
+        // We delay long enough for the LOGOUT animation to register visually
+        // (the overlay runs ~1800ms; navigating at 1200ms keeps the user from
+        // seeing a half-torn-down dashboard while still feeling snappy).
+        setTimeout(() => {
+            try {
+                // replace, not href: the back button must not re-enter the
+                // authed view we just left. Always land at the root, never
+                // a deep path that requires auth (e.g. /dashboard) — the
+                // unauthed entry point is the Trade tab at '/'.
+                window.location.replace('/');
+            } catch {
+                window.location.href = '/';
+            }
+        }, 1200);
     };
     const handleDeposit = async (a: number) => {
         if (!user || a <= 0) return;
@@ -8082,23 +8201,92 @@ const App = () => {
                 setUser(prev => prev ? { ...prev, transactionHistory: [optimisticTx, ...(prev.transactionHistory ?? [])] } : null);
 
                 if (user?.id && isSupabaseConfigured()) {
-                  // 1. Notification + activity row for the sender
+                  // ── Sender side: notification + activity row ──────────────
                   try {
                     await createNotification(user.id, 'TRANSFER_SENT', `You sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, txHash);
                     await recordTransaction(user.id, 'SEND', amount, { txHash, onChain: true, counterparty: toLabel });
                     const txns = await fetchTransactions(user.id);
                     setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
-                  } catch (e) { console.warn('[velo] sender notif/tx failed', e); }
-                  // 2. If the recipient is a Velo user, create receiver-side rows too.
-                  if (recipientHandle) {
+                  } catch (e: any) {
+                    console.warn('[velo] sender notif/tx failed', e);
+                    setToast({ message: `Couldn't save your activity row: ${e?.message || 'unknown error'}`, type: 'ERROR' });
+                  }
+
+                  // ── Receiver side: resolve their profile, then notify ─────
+                  // Earlier builds used a single .or() across handle, username,
+                  // wallet_address and velo_wallet_address. PostgREST's filter
+                  // string format silently dropped matches when the @-prefixed
+                  // handle or the long hex address tripped its parser, so the
+                  // receiver never got their TRANSFER_RECEIVED row. We now run
+                  // sequential queries: cheapest+most-specific first (trading
+                  // wallet, which is what the on-chain transfer actually went
+                  // to), then main wallet, then handle, then username. Stop on
+                  // first hit. Verbose-log each attempt so the sender's console
+                  // shows exactly why a Velo recipient didn't get notified.
+                  const addrLower = recipientAddress.toLowerCase();
+                  let recipientProfile: { id: string; handle?: string; username?: string } | null = null;
+                  const tryLookup = async (col: string, val: string) => {
+                    if (recipientProfile) return;
+                    if (!val) return;
                     try {
-                      const { data: profile } = await supabase.from('profiles').select('id').eq('handle', recipientHandle).maybeSingle();
-                      if (profile?.id) {
-                        const fromLabel = user.handle ? `@${user.handle.replace(/^@/, '')}` : 'a Velo user';
-                        await createNotification(profile.id, 'TRANSFER_RECEIVED', `${fromLabel} sent you $${amount.toFixed(2)} mUSDC`, txHash);
-                        await recordTransaction(profile.id, 'RECEIVE', amount, { txHash, onChain: true, counterparty: fromLabel });
+                      const { data, error } = await supabase
+                        .from('profiles')
+                        .select('id, handle, username')
+                        .ilike(col, val)
+                        .limit(1)
+                        .maybeSingle();
+                      if (error) {
+                        console.warn(`[velo] recipient lookup by ${col}=${val} failed:`, error.message);
+                        return;
                       }
-                    } catch (e) { console.warn('[velo] receiver notif/tx failed', e); }
+                      if (data?.id && data.id !== user.id) recipientProfile = data;
+                    } catch (e: any) {
+                      console.warn(`[velo] recipient lookup by ${col}=${val} threw:`, e?.message);
+                    }
+                  };
+                  await tryLookup('velo_wallet_address', addrLower);
+                  await tryLookup('wallet_address',      addrLower);
+                  if (recipientHandle) {
+                    await tryLookup('handle',   recipientHandle);
+                    await tryLookup('handle',   `@${recipientHandle}`);
+                    await tryLookup('username', recipientHandle);
+                  }
+
+                  if (recipientProfile) {
+                    const fromLabel = user.handle
+                      ? (user.handle.startsWith('@') ? user.handle : `@${user.handle}`)
+                      : (user.username ? `@${user.username}` : 'a Velo user');
+                    try {
+                      await createNotificationForUser(
+                        recipientProfile.id,
+                        'TRANSFER_RECEIVED',
+                        `${fromLabel} sent you $${amount.toFixed(2)} mUSDC`,
+                        txHash,
+                      );
+                    } catch (e: any) {
+                      console.warn('[velo] receiver notification failed', e);
+                      setToast({ message: `Recipient lookup ok but notification insert failed: ${e?.message || 'unknown'}`, type: 'ERROR' });
+                    }
+                    try {
+                      await recordTransactionForUser(
+                        recipientProfile.id,
+                        'RECEIVE',
+                        amount,
+                        { txHash, onChain: true, counterparty: fromLabel },
+                      );
+                    } catch (e: any) {
+                      console.warn('[velo] receiver activity row failed', e);
+                      setToast({ message: `Recipient activity row insert failed: ${e?.message || 'unknown'}`, type: 'ERROR' });
+                    }
+                  } else {
+                    // Send still succeeded on-chain; we just couldn't find a
+                    // Velo profile for the recipient (they may not be signed
+                    // up). Log it so debugging is one click away, but don't
+                    // alarm the sender — the transfer itself worked.
+                    console.info(
+                      '[velo] no Velo profile found for recipient',
+                      { addr: addrLower, handle: recipientHandle || '(none)' },
+                    );
                   }
                 }
                 // Refresh the burner balance so the dashboard's TOTAL EQUITY
@@ -8379,6 +8567,55 @@ const App = () => {
                     } else if (t === 'DEPOSIT' || t === 'WITHDRAW' || t === 'EARN') {
                         // Account / balance events — Dashboard is the right home
                         setActiveTab(TabView.DASHBOARD);
+                    } else if (t === 'TRANSFER_SENT' || t === 'TRANSFER_RECEIVED') {
+                        // Peer-to-peer mUSDC transfer — open the matching
+                        // transaction row in OrderDetailsModal. `rid` is the
+                        // tx_hash we passed to createNotification. We match by
+                        // txHash first (authoritative); if local state hasn't
+                        // hydrated the row yet (realtime race), fetch it.
+                        const findInHistory = () => (user?.transactionHistory ?? []).find((tx: any) =>
+                            tx.txHash === rid || tx.tx_hash === rid || tx.id === rid,
+                        );
+                        const local = findInHistory();
+                        if (local) {
+                            setAppOrderDetails({ kind: 'TRANSACTION', item: local } as any);
+                            setActiveTab(TabView.DASHBOARD);
+                        } else if (isSupabaseConfigured() && user && rid) {
+                            (async () => {
+                                try {
+                                    const { data } = await supabase
+                                        .from('transactions')
+                                        .select('*')
+                                        .eq('user_id', user.id)
+                                        .eq('tx_hash', rid)
+                                        .maybeSingle();
+                                    if (data) {
+                                        const item: any = {
+                                            id: data.id,
+                                            type: data.type,
+                                            amount: Number(data.amount) || 0,
+                                            timestamp: new Date(data.created_at).getTime(),
+                                            status: data.status,
+                                            onChain: data.on_chain || false,
+                                            txHash: data.tx_hash || undefined,
+                                            counterparty: data.counterparty || undefined,
+                                        };
+                                        // Also splice it into local history so
+                                        // subsequent clicks resolve locally.
+                                        setUser(prev => prev ? {
+                                            ...prev,
+                                            transactionHistory: prev.transactionHistory?.some((x: any) => x.id === item.id)
+                                                ? prev.transactionHistory
+                                                : [item, ...(prev.transactionHistory ?? [])],
+                                        } : null);
+                                        setAppOrderDetails({ kind: 'TRANSACTION', item } as any);
+                                    }
+                                } catch (_) { /* swallow — toast already told them what happened */ }
+                                setActiveTab(TabView.DASHBOARD);
+                            })();
+                        } else {
+                            setActiveTab(TabView.DASHBOARD);
+                        }
                     } else {
                         // SUCCESS / ERROR / INFO and anything unknown — no route, the toast already said it.
                     }
