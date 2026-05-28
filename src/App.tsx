@@ -1199,10 +1199,10 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
         .filter((t: any) => {
             if (!t || !t.id) return false;
             if (!t.username || t.username === 'Trader') return false;
-            // Current user — wallet check via prop (may not be in trader object yet)
-            if (user && t.id === user.id) return !!walletAddress;
-            // All other traders — must have a wallet_address persisted
-            if (!t.walletAddress) return false;
+            // Current user — always show if logged in
+            if (user && t.id === user.id) return true;
+            // Other traders — show if they have any activity (wallet address not required
+            // since some users may not have it persisted yet)
             const hasActivity = (t.pnl ?? 0) !== 0 || (t.followers?.length ?? 0) > 0;
             return hasActivity;
         })
@@ -5109,8 +5109,11 @@ const App = () => {
             } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                 // Fired on page load when a stored session exists — restore without double-loading
                 await restoreSession(session);
+            } else if (event === 'SIGNED_IN' && !sessionRestoredRef.current) {
+                // Handles GitHub OAuth redirect and any login path where onAuth wasn't called.
+                // sessionRestoredRef guards against double-hydration if onAuth already ran first.
+                await restoreSession(session);
             }
-            // SIGNED_IN on fresh login is handled in AuthModal onAuth to avoid race conditions.
         });
         
         // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession
@@ -7696,7 +7699,8 @@ const App = () => {
                     if (!authUser) return;
                     intentionalLogoutRef.current = false;
                     freshSignupRef.current = !!isNewAccount;
-                    if (isNewAccount) socialLoginHandledRef.current = true;
+                    socialLoginHandledRef.current = true; // prevent socialLoginEffect re-firing for both new and returning users
+                    sessionRestoredRef.current = true; // prevent SIGNED_IN handler from double-hydrating
                     setLoginReturningName('');
                     setLoginOpen(false);
                     setActiveTab(TabView.DASHBOARD);
