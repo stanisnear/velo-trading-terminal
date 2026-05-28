@@ -72,10 +72,14 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       handleScroll: false,
     });
 
+    // lightweight-charts (v4) does not parse modern OKLCH color syntax — it
+    // expects hex / rgb / rgba and throws "Failed to parse color" otherwise,
+    // crashing every animation frame and spamming the console. We hardcode
+    // the rgba equivalent of `oklch(0.68 0.22 295)` (Velo iris violet) here.
     const series = chart.addSeries(AreaSeries, {
-        lineColor: 'oklch(0.68 0.22 295)',
-        topColor: 'oklch(0.68 0.22 295 / 0.35)',
-        bottomColor: 'oklch(0.68 0.22 295 / 0.0)',
+        lineColor: 'rgb(153, 102, 255)',
+        topColor: 'rgba(153, 102, 255, 0.35)',
+        bottomColor: 'rgba(153, 102, 255, 0.0)',
         lineWidth: 2,
     });
 

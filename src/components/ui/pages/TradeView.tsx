@@ -680,7 +680,12 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
     };
     const pos  = page(positions, 'POSITIONS');
     const ord  = page(openOrders, 'ORDERS');
-    const closedHistory = (user?.tradeHistory || []).filter((t: TradeHistoryItem) => t.action === 'CLOSE');
+    // History shows ALL trade events the user has taken — opens, closes,
+    // liquidations. Filtering to CLOSE-only hid every new OPEN, leaving the tab
+    // empty until something closed (which never happens for users still building
+    // positions). The variable name is kept as `closedHistory` to minimise diff
+    // size in downstream references, but it contains every row.
+    const closedHistory = (user?.tradeHistory || []);
     const hist = page(closedHistory, 'HISTORY');
 
     const TABS = [
@@ -985,11 +990,42 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                           <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>{t.pair} </span>
                                           <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: t.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.side}</span>
+                                          {/* Action badge — distinguishes OPEN from CLOSE at a glance.
+                                              History used to be CLOSE-only so this was implicit; now
+                                              that all events show, the badge prevents confusion. */}
+                                          {t.action && (
+                                            <span style={{
+                                              ...S.mono, fontSize: 8.5, fontWeight: 700,
+                                              padding: '1px 5px', borderRadius: 4,
+                                              letterSpacing: '0.05em',
+                                              color: t.action === 'CLOSE'
+                                                ? (t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)')
+                                                : 'var(--iris-violet)',
+                                              background: t.action === 'CLOSE'
+                                                ? (t.pnl >= 0 ? 'oklch(0.78 0.18 150 / 0.12)' : 'oklch(0.62 0.22 25 / 0.12)')
+                                                : 'oklch(0.68 0.22 295 / 0.12)',
+                                              border: t.action === 'CLOSE'
+                                                ? (t.pnl >= 0 ? '1px solid oklch(0.78 0.18 150 / 0.28)' : '1px solid oklch(0.62 0.22 25 / 0.28)')
+                                                : '1px solid oklch(0.68 0.22 295 / 0.28)',
+                                            }}>{t.action}</span>
+                                          )}
                                           {t.onChain && (
                                             <span title="On-chain order (Velo Perps)" style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.3)', letterSpacing: '0.05em' }}>⛓ LIVE</span>
                                           )}
                                         </div>
-                                        <span style={{ ...S.label, fontSize: 9 }}>PnL: <span style={{ color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 700 }}>${formatMoney(t.pnl)}</span></span>
+                                        {/* Adapt the secondary line to the event type:
+                                            – OPEN: show entry price and notional size (PnL is 0 / meaningless)
+                                            – CLOSE: show PnL (the user's primary signal for a closed trade) */}
+                                        {t.action === 'OPEN' ? (
+                                          <span style={{ ...S.label, fontSize: 9 }}>
+                                            Entry: <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>${formatPrice(t.entryPrice)}</span>
+                                            <span style={{ opacity: 0.5, margin: '0 4px' }}>·</span>
+                                            Size: <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>${formatMoney(t.size)}</span>
+                                            {t.leverage ? <> · <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>{t.leverage}×</span></> : null}
+                                          </span>
+                                        ) : (
+                                          <span style={{ ...S.label, fontSize: 9 }}>PnL: <span style={{ color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 700 }}>${formatMoney(t.pnl)}</span></span>
+                                        )}
                                     </div>
                                     <div style={{ textAlign: 'right', ...S.mono, fontSize: 10, color: 'var(--fg-subtle)' }}>
                                         <div>{new Date(t.timestamp).toLocaleDateString()}</div>

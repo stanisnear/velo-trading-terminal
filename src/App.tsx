@@ -4280,7 +4280,45 @@ const App = () => {
             fetchTransactions(user.id),
           ]);
           if (!isMounted) return;
-          setUser(prev => prev ? { ...prev, tradeHistory: history, transactionHistory: txns } : prev);
+          // MERGE, don't clobber. A naive `tradeHistory: history` overwrites any
+          // local optimistic rows that the server hasn't acknowledged yet — so a
+          // freshly-opened position vanishes from History/Recent Activity if a
+          // visibilitychange or user-id-change triggers a refetch before the
+          // insert round-trip completes. Same risk for transactions.
+          //
+          // Matching strategy: server rows take precedence on id. For each local
+          // row not matched by id, check if a server row covers it (same pair,
+          // side, action, within 10s) — if yes, drop the local row (the server
+          // version is authoritative). If no, keep the local row as a placeholder
+          // until a future refetch confirms it.
+          setUser(prev => {
+            if (!prev) return prev;
+            const serverHistIds = new Set(history.map(h => h.id));
+            const matchesServerHist = (local: TradeHistoryItem) => history.some(s =>
+              s.pair === local.pair &&
+              s.side === local.side &&
+              (s.action || 'OPEN') === (local.action || 'OPEN') &&
+              Math.abs(s.timestamp - local.timestamp) < 10_000
+            );
+            const localOnlyHist = prev.tradeHistory.filter(local =>
+              !serverHistIds.has(local.id) && !matchesServerHist(local)
+            );
+            // Sort newest first to keep ordering consistent across sources.
+            const mergedHist = [...localOnlyHist, ...history].sort((a, b) => b.timestamp - a.timestamp);
+
+            const serverTxIds = new Set(txns.map(t => t.id));
+            const matchesServerTx = (local: any) => txns.some(s =>
+              s.type === local.type &&
+              Math.abs(s.amount - local.amount) < 0.005 &&
+              Math.abs(s.timestamp - local.timestamp) < 10_000
+            );
+            const localOnlyTx = (prev.transactionHistory || []).filter(local =>
+              !serverTxIds.has(local.id) && !matchesServerTx(local)
+            );
+            const mergedTx = [...localOnlyTx, ...txns].sort((a, b) => b.timestamp - a.timestamp);
+
+            return { ...prev, tradeHistory: mergedHist, transactionHistory: mergedTx };
+          });
         } catch (e) {
           console.warn('[velo] activity refetch failed:', e);
         }
@@ -4364,8 +4402,20 @@ const App = () => {
         const mm: MarginMode = (p.marginMode === 'CROSS' || p.marginMode === 'ISOLATED')
           ? p.marginMode
           : 'ISOLATED';
+        const tradeIdKey = p.tradeId.toString();
+        // Overlay any pending TP/SL set at open time that the contract hasn't
+        // surfaced yet (gap between setTriggers mining and the next 5s poll).
+        // If the contract already returned a non-zero TP/SL, prefer that and
+        // clear the pending entry — they agree, the optimistic state served
+        // its purpose.
+        const pending = pendingTriggers.current.get(tradeIdKey);
+        if (pending && p.takeProfit && pending.takeProfit && Math.abs(p.takeProfit - pending.takeProfit) < 0.01) {
+          pendingTriggers.current.delete(tradeIdKey);
+        }
+        const overlayTp = p.takeProfit || pending?.takeProfit;
+        const overlaySl = p.stopLoss   || pending?.stopLoss;
         return {
-          id: `velo_${p.tradeId.toString()}`,
+          id: `velo_${tradeIdKey}`,
           pair: uiPair,
           side: p.isLong ? 'LONG' : 'SHORT',
           entryPrice: p.entryPrice,
@@ -4380,9 +4430,9 @@ const App = () => {
           // ── V2 fields required for manage modal routing ──────────────────────
           // Without onChainTradeId the manage modal can't be reached — the UI
           // falls back to the legacy EditPositionModal which only saves to Supabase.
-          onChainTradeId: p.tradeId.toString(),
-          takeProfit: p.takeProfit,
-          stopLoss: p.stopLoss,
+          onChainTradeId: tradeIdKey,
+          takeProfit: overlayTp,
+          stopLoss: overlaySl,
           // Reuse the orderly fields for tx link surfacing (modal already reads them).
           orderlyOrderId: undefined,
           orderlyOrderUrl: p.openTxHash ? `https://sepolia.basescan.org/tx/${p.openTxHash}` : undefined,
@@ -4648,6 +4698,13 @@ const App = () => {
     // Tracks DB UUIDs deleted by THIS tab — so the realtime onDelete
     // subscriber can skip them (balance already credited locally).
     const ownDeletedPositionIds = useRef<Set<string>>(new Set());
+
+    // Tracks TP/SL that were requested at open time via setTriggers but haven't
+    // yet been reflected in the contract's openPositions[] response. The sync
+    // effect overlays these onto the local Position rows so the TP/SL column
+    // appears immediately, not 5s later after the next poll. Cleared once the
+    // contract response includes the value (or differs from what we expect).
+    const pendingTriggers = useRef<Map<string, { takeProfit?: number; stopLoss?: number }>>(new Map());
 
     // Always-fresh market prices ref so realtime onDelete can compute PnL correctly
     // even though the useEffect capturing the subscription only runs once per user.id.
@@ -6245,11 +6302,12 @@ const App = () => {
                     stopLoss: sl || existingPosition.stopLoss,
                 };
                 setPositions(prev => prev.map(p => p.id === existingPosition.id ? updatedPos : p));
+                const addOpenHistory: TradeHistoryItem = { id: `trade_${uniqueId}`, pair: pairId, side, entryPrice: price, exitPrice: 0, size, pnl: 0, timestamp: Date.now(), action: 'OPEN', leverage, marginMode, positionId: existingPosition.id };
                 setUser(prev => prev ? {
                     ...prev,
                     // When Orderly holds real funds, don't touch local sim balance — it would go negative.
                     balance: orderly.isReady ? prev.balance : prev.balance - marginDelta,
-                    tradeHistory: [{ id: `trade_${uniqueId}`, pair: pairId, side, entryPrice: price, exitPrice: 0, size, pnl: 0, timestamp: Date.now(), action: 'OPEN', leverage, marginMode, positionId: existingPosition.id }, ...prev.tradeHistory]
+                    tradeHistory: [addOpenHistory, ...prev.tradeHistory]
                 } : null);
                 // Persist
                 if (isSupabaseConfigured() && user) {
@@ -6259,7 +6317,9 @@ const App = () => {
                         take_profit: tp || existingPosition.takeProfit || null,
                         stop_loss: sl || existingPosition.stopLoss || null,
                     }).catch(() => {});
-                    // OPEN entries are not persisted to DB — only CLOSE entries go to trade_history table
+                    // Persist the OPEN event so it appears in Recent Activity and the
+                    // History tab after page reload / on other devices.
+                    insertTradeHistory(user.id, addOpenHistory).catch(e => console.warn("[velo] insertTradeHistory (add) failed:", e));
                 }
                 setToast({message:'Position Updated', type:'SUCCESS'}); playSound('OPEN');
                 triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `$${formatMoney(size)} @ $${formatPrice(price)}`);
@@ -6343,7 +6403,8 @@ const App = () => {
                                 )
                             } : null);
                         }).catch(() => {});
-                        // OPEN (flip) entries are not persisted to DB — only CLOSE entries go to trade_history table
+                        // Persist the flip OPEN event so it appears in Recent Activity / History.
+                        insertTradeHistory(user.id, flipHistory).catch(e => console.warn("[velo] insertTradeHistory (flip) failed:", e));
                     }
                     setToast({message:'Position Flipped', type:'SUCCESS'}); playSound('OPEN');
                     triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `$${formatMoney(remainingSize)} @ $${formatPrice(price)}`);
@@ -6420,7 +6481,8 @@ const App = () => {
                         dbOrds.forEach(o => saveOpenOrder(capturedUser.id, o).catch(e => console.error('[velo] saveOpenOrder error:', e)));
                     }
                 }).catch(e => console.error('[velo] savePosition threw:', e));
-                // OPEN entries are not persisted to DB — only CLOSE entries go to trade_history table
+                // Persist the OPEN event so it appears in Recent Activity / History.
+                insertTradeHistory(capturedUser.id, openHistory).catch(e => console.warn("[velo] insertTradeHistory (new) failed:", e));
             }
             setToast({message:'Market Order Filled', type:'SUCCESS'}); playSound('OPEN');
             triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `$${formatMoney(size)} @ $${formatPrice(price)}`);
@@ -6605,6 +6667,91 @@ const App = () => {
                 triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `${leverage}× · $${formatMoney(size)} @ $${formatPrice(result.entryPrice)}`);
                 playSound('CLICK');
                 releaseLock();
+
+                // ── Attach TP/SL on-chain via setTriggers ─────────────────────
+                // The order form lets the user set TP/SL at open time. The contract's
+                // openPosition() doesn't accept triggers as args, so we set them in a
+                // follow-up tx. While the tx is in flight we paint TP/SL onto the
+                // local position via the pendingTriggers ref (the sync effect overlays
+                // it) — otherwise the user opens with TP=85 and sees `- / -` until the
+                // next 5s poll picks up the actual value, by which time they think it
+                // didn't work and close the position.
+                const hasTp = typeof tp === 'number' && tp > 0;
+                const hasSl = typeof sl === 'number' && sl > 0;
+                if (hasTp || hasSl) {
+                  const tradeIdKey = result.tradeId.toString();
+                  const newPosId = `velo_${tradeIdKey}`;
+                  // 1. Optimistic overlay onto the position (right-side panel,
+                  //    Manage modal, position row TP/SL column).
+                  pendingTriggers.current.set(tradeIdKey, {
+                    takeProfit: hasTp ? tp : undefined,
+                    stopLoss:   hasSl ? sl : undefined,
+                  });
+                  // Force a re-render so the overlay paints immediately even
+                  // before the next poll. Using setPositions with the same
+                  // shape would no-op; instead, nudge state through a tiny
+                  // mutation that React will pick up.
+                  setPositions((prev: any[]) => prev.map((p: any) =>
+                    p.id === newPosId
+                      ? { ...p, takeProfit: hasTp ? tp : p.takeProfit, stopLoss: hasSl ? sl : p.stopLoss }
+                      : p
+                  ));
+                  // 2. Optimistic synthetic TP/SL rows in Open Orders so the
+                  //    user can see and cancel them. These are local-only —
+                  //    the contract stores TP/SL on the position struct, not
+                  //    as separate orders — so the sync effect (which only
+                  //    filters keys starting with `velo_ord_`) leaves them alone.
+                  setOpenOrders((prevOrders: any[]) => {
+                    const filtered = prevOrders.filter((o: any) => o.relatedPositionId !== newPosId);
+                    const closeSide = side === 'LONG' ? 'SHORT' : 'LONG';
+                    const newOrds: any[] = [];
+                    if (hasTp) newOrds.push({
+                      id: `ord_tp_${newPosId}_${Date.now()}`,
+                      pair: pairId, side: closeSide, type: 'TAKE_PROFIT',
+                      price: tp, size, leverage,
+                      timestamp: Date.now(), relatedPositionId: newPosId,
+                    });
+                    if (hasSl) newOrds.push({
+                      id: `ord_sl_${newPosId}_${Date.now()}`,
+                      pair: pairId, side: closeSide, type: 'STOP_LOSS',
+                      price: sl, size, leverage,
+                      timestamp: Date.now(), relatedPositionId: newPosId,
+                    });
+                    return [...filtered, ...newOrds];
+                  });
+                  // 3. Fire the on-chain setTriggers tx. Pass 0 for the unset
+                  //    side so the contract leaves it cleared. On success,
+                  //    refresh immediately (instead of waiting for the 5s
+                  //    poll) so the contract-confirmed TP/SL replaces the
+                  //    optimistic overlay ASAP.
+                  veloPerpsTrading.setTriggers(
+                    result.tradeId,
+                    hasTp ? tp : 0,
+                    hasSl ? sl : 0,
+                  ).then(async () => {
+                    setToast({
+                      message: `Triggers set on-chain · ${hasTp ? `TP $${formatPrice(tp!)}` : ''}${hasTp && hasSl ? ' · ' : ''}${hasSl ? `SL $${formatPrice(sl!)}` : ''}`,
+                      type: 'SUCCESS',
+                    });
+                    // Force a refresh so the contract-confirmed values flow in
+                    // and replace the optimistic overlay. The sync effect's
+                    // pending-vs-contract check then clears the ref entry.
+                    try { await veloPerpsTrading.refresh(); } catch {}
+                  }).catch((e: any) => {
+                    const msg = e?.shortMessage || e?.message || 'setTriggers failed';
+                    console.error('[velo] setTriggers failed:', e);
+                    setToast({ message: `Triggers failed: ${msg}`, type: 'ERROR' });
+                    // Roll back: clear the pending overlay AND the synthetic
+                    // openOrders rows so the user sees the truth (no TP/SL set).
+                    pendingTriggers.current.delete(tradeIdKey);
+                    setPositions((prev: any[]) => prev.map((p: any) =>
+                      p.id === newPosId ? { ...p, takeProfit: undefined, stopLoss: undefined } : p
+                    ));
+                    setOpenOrders((prevOrders: any[]) =>
+                      prevOrders.filter((o: any) => o.relatedPositionId !== newPosId)
+                    );
+                  });
+                }
               }).catch((e) => {
                 const msg = e?.shortMessage || e?.message || 'Order failed';
                 setToast({ message: `Order failed: ${msg}`, type: 'ERROR' });
@@ -6651,6 +6798,26 @@ const App = () => {
                 collateralUSDC: collateral,
                 reduceOnly: false,
               }).then((r) => {
+                // Optimistic local echo: the sync effect mirrors veloPerpsTrading.conditionalOrders
+                // into openOrders, but that runs on the next refresh tick. Insert the order
+                // locally now so the Open Orders tab updates the instant the tx mines.
+                // The sync effect uses the same `velo_ord_<id>` key, so it will dedupe.
+                const optimistic: OpenOrder = {
+                  id: `velo_ord_${r.orderId.toString()}`,
+                  pair: pairId,
+                  side,
+                  type,
+                  price,
+                  size,
+                  leverage,
+                  timestamp: Date.now(),
+                  onChain: true,
+                  orderlyOrderUrl: r.explorerUrl,
+                } as OpenOrder;
+                setOpenOrders((prev) => {
+                  if (prev.some((o) => o.id === optimistic.id)) return prev;
+                  return [...prev, optimistic];
+                });
                 setToast({ message: `${type} order placed on-chain (#${r.orderId.toString()})`, type: 'SUCCESS' });
                 playSound('CLICK');
               }).catch((e) => {
