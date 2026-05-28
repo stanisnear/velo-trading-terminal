@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { AuthModal, useOnboardingGuard } from './components/AuthModal';
+import { VeloOnboardingModal, useOnboardingGuard } from './components/VeloOnboardingModal';
 import { 
   Wallet, Users, Bot, TrendingUp, Bell, Menu, X, ArrowRightLeft, 
   Copy, ThumbsUp, MessageCircle, Share2, Cpu, Zap, Settings, 
@@ -21,7 +21,7 @@ import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient } from 'wagmi';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
-import { VeloWelcomeModal, shouldShowVeloWelcome } from './components/VeloWelcomeModal';
+// VeloWelcomeModal merged into VeloOnboardingModal
 import { VeloBridgeModal } from './components/VeloBridgeModal';
 import { VeloDepositModal } from './components/VeloDepositModal';
 import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
@@ -4358,6 +4358,9 @@ const App = () => {
       if (user) return;            // already authenticated
       if (isLoginOpen) return;     // AuthModal already open
       if (socialLoginHandledRef.current) return; // already triggered
+      // CRITICAL: if a fresh signup just completed, DON'T re-open AuthModal.
+      // Doing so causes success_returning to flash for a brand-new account.
+      if (freshSignupRef.current) return;
       socialLoginHandledRef.current = true;
       // Small delay so AppKit modal fully closes before AuthModal opens
       setTimeout(() => {
@@ -4376,19 +4379,12 @@ const App = () => {
       if (!isWalletConnected) return;                             // and a wallet
       if (isLoginOpen) return;                                    // auth still in progress
       if (!freshSignupRef.current) return;                        // returning/registered → never
-      if (veloPerpsTrading.isInitialLoading) return;              // wait until balance read
       if (isVeloWelcomeOpen) return;                              // already open
-      if (veloPerpsTrading.openPositions.length > 0) return;      // returning trader
-      const should = shouldShowVeloWelcome({
-        isConnected: isWalletConnected,
-        chainId,
-        usdcBalance: veloPerpsTrading.usdcBalance,
-        hasBurner: veloPerpsTrading.usingBurner,
-        address: walletAddress,
-        isRegistered: false, // freshSignupRef already guarantees brand-new
-      });
-      if (should) setVeloWelcomeOpen(true);
-    }, [user, isWalletConnected, isLoginOpen, veloPerpsTrading.isInitialLoading, veloPerpsTrading.usdcBalance, veloPerpsTrading.openPositions.length, veloPerpsTrading.usingBurner, chainId, isVeloWelcomeOpen, walletAddress]);
+      // For brand-new accounts don’t gate on isInitialLoading — they have no
+      // balance yet so it may spin for seconds. Open the welcome modal immediately.
+      if (veloPerpsTrading.openPositions.length > 0) return;      // safety: returning trader
+      setVeloWelcomeOpen(true);
+    }, [user, isWalletConnected, isLoginOpen, veloPerpsTrading.openPositions.length, isVeloWelcomeOpen, walletAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── VeloPerps → local positions sync (Phase 3) ─────────────────────────
     // The contract is the source of truth for positions. We translate VeloPosition
@@ -4869,6 +4865,12 @@ const App = () => {
             setAuthChecked(true);
             return;
         }
+
+        // Safety net: if auth check takes more than 8s (network stall, Supabase cold start),
+        // unblock the loading screen so the user doesn't get stuck forever.
+        const authTimeout = setTimeout(() => {
+            setAuthChecked(true);
+        }, 8000);
         
         // Detect redirect back from password-reset email
         const params = new URLSearchParams(window.location.search);
@@ -4979,7 +4981,7 @@ const App = () => {
             await restoreSession(session);
         });
         
-        return () => subscription.unsubscribe();
+        return () => { subscription.unsubscribe(); clearTimeout(authTimeout); };
     }, []);
 
     useEffect(() => {
@@ -7540,23 +7542,23 @@ const App = () => {
             <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, background: 'var(--ambient)', opacity: 0.35 }} />
             <VeloAnimation kind={anim?.kind ?? null} label={anim?.label} sublabel={anim?.sublabel} onDone={() => setAnim(null)} />
             {toast && <ToastNotification message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-            <AuthModal 
-             isOpen={isLoginOpen}
-             required={!user}
-             disconnectRef={walletDisconnectRef}
-             onClose={() => setLoginOpen(false)} 
-             onAuth={async (authUser, passedProfile, isNewAccount) => {
+            <VeloOnboardingModal
+              isOpen={isLoginOpen}
+              required={!user}
+              disconnectRef={walletDisconnectRef}
+              onClose={() => {
+                freshSignupRef.current = false;
+                setVeloWelcomeOpen(false);
+                setLoginOpen(false);
+              }}
+              onAuth={async (authUser, passedProfile, isNewAccount) => {
                     if (!authUser) return;
                     intentionalLogoutRef.current = false;
-                    // Mark a brand-new signup so the first-run faucet/welcome
-                    // flow may run exactly once. Returning logins clear it so the
-                    // faucet never reopens for already-registered accounts.
                     freshSignupRef.current = !!isNewAccount;
+                    if (isNewAccount) socialLoginHandledRef.current = true;
                     setLoginOpen(false);
                     setActiveTab(TabView.DASHBOARD);
                     try {
-                        // AuthModal already fetched the profile for wallet logins — use it
-                        // directly to avoid a redundant round-trip and race conditions.
                         let p = passedProfile;
                         if (!p) {
                             const profilePromise = getProfile(authUser.id);
@@ -7564,13 +7566,9 @@ const App = () => {
                             const result = await Promise.race([profilePromise, timeout]) as any;
                             p = result?.profile ?? null;
                         }
-
-                        const isNewAccount = !p;
                         const username = p?.username || authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'Trader';
-
                         const restoredUser = p ? dbProfileToUserProfile(p) : {
-                            id: authUser.id,
-                            username,
+                            id: authUser.id, username,
                             handle: p?.handle || `@${username.replace(/\s+/g, '')}`,
                             bio: '', avatar: p?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authUser.id}`,
                             banner: '', balance: 0, pnlTotal: 0, realizedPnL: 0,
@@ -7579,8 +7577,6 @@ const App = () => {
                             tradeHistory: [], transactionHistory: [], pnlHistory: [],
                             joinedDate: new Date().toISOString(), likes: [], reposts: [],
                         } as UserProfile;
-
-                        // Load persisted data in parallel
                         const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
                             fetchPositions(authUser.id),
                             fetchOpenOrders(authUser.id),
@@ -7589,26 +7585,22 @@ const App = () => {
                             fetchNotifications(authUser.id),
                             fetchPosts(50),
                         ]);
-                        const { data: follows } = await supabase
-                            .from('follows').select('following_id').eq('follower_id', authUser.id);
+                        const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', authUser.id);
                         restoredUser.following = (follows || []).map((f: any) => f.following_id);
-                        const { data: myFollowers } = await supabase
-                            .from('follows').select('follower_id').eq('following_id', authUser.id);
+                        const { data: myFollowers } = await supabase.from('follows').select('follower_id').eq('following_id', authUser.id);
                         restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
                         restoredUser.tradeHistory = history;
                         restoredUser.transactionHistory = txns;
-                        const closedTradesLogin = history.filter((t: any) => t.action === 'CLOSE').sort((a: any, b: any) => a.timestamp - b.timestamp);
-                        const totalRealizedLogin = closedTradesLogin.reduce((acc: number, t: any) => acc + t.pnl, 0);
-                        const startingBalanceLogin = (restoredUser.balance || 0) - totalRealizedLogin;
-                        let runningPnlLogin = 0;
-                        restoredUser.pnlHistory = closedTradesLogin.map((t: any) => {
-                            runningPnlLogin += t.pnl;
+                        const closedTrades = history.filter((t: any) => t.action === 'CLOSE').sort((a: any, b: any) => a.timestamp - b.timestamp);
+                        const totalRealized = closedTrades.reduce((acc: number, t: any) => acc + t.pnl, 0);
+                        const startingBalance = (restoredUser.balance || 0) - totalRealized;
+                        let runningPnl = 0;
+                        restoredUser.pnlHistory = closedTrades.map((t: any) => {
+                            runningPnl += t.pnl;
                             const d = new Date(t.timestamp);
-                            return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalanceLogin + runningPnlLogin, timestamp: t.timestamp };
+                            return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
                         });
-
                         userLoadedFromDB.current = true;
-                        // Attach wallet address to user profile so popup/modal can show it
                         if (walletAddress) restoredUser.walletAddress = walletAddress;
                         setUser(restoredUser);
                         recordSessionWallet();
@@ -7635,25 +7627,13 @@ const App = () => {
                         });
                     }
                 }}
-                onFallbackLogin={handleLogin}
-            />
-            {/* ── Reset Password Modal ── */}
-            {isResetPasswordOpen && <ResetPasswordModal onClose={() => setResetPasswordOpen(false)} onSuccess={() => { setResetPasswordOpen(false); setToast({ message: 'Password updated! Please sign in.', type: 'SUCCESS' }); setLoginOpen(true); }} />}
-            {/* ── Velo Welcome Modal (Phase 2 — replaces Orderly onboarding) ── */}
-            <VeloWelcomeModal
-              isOpen={isVeloWelcomeOpen}
-              onClose={() => { freshSignupRef.current = false; setVeloWelcomeOpen(false); }}
-              desiredHandle={user?.handle?.replace(/^@/, '').toLowerCase()}
+              onFallbackLogin={handleLogin}
               onUsernameClaimed={(handle) => {
                 setToast({ message: `@${handle} registered on-chain`, type: 'SUCCESS' });
-              }}
-              onClaimed={() => {
-                setToast({ message: '1,000 mUSDC claimed', type: 'SUCCESS' });
               }}
               onBurnerReady={async ({ burnerAddress, amount, txHash }) => {
                 veloPerpsTrading.reloadBurner();
                 setToast({ message: 'Trading wallet ready — no more popups', type: 'SUCCESS' });
-                // Persist the burner address on the user's profile (used by audit/recovery).
                 if (user && isSupabaseConfigured()) {
                   supabase.from('profiles')
                     .update({ velo_wallet_address: burnerAddress.toLowerCase() })
@@ -7664,13 +7644,6 @@ const App = () => {
                       }
                     });
                 }
-                // Record the faucet credit as a DEPOSIT row so the dashboard's
-                // Recent Activity reflects the initial $1,000. The `faucet:`
-                // prefix on the txHash key makes recordTransaction idempotent
-                // — re-running setup never produces a second $1,000 row.
-                // Skip when txHash is null (modal short-circuited because the
-                // burner already had a balance from a prior session — that
-                // credit was already recorded then).
                 if (user && isSupabaseConfigured() && txHash && amount > 0) {
                   const faucetRef = `faucet:${txHash}`;
                   try {
@@ -7684,6 +7657,8 @@ const App = () => {
                 }
               }}
             />
+            {/* ── Reset Password Modal ── */}
+            {isResetPasswordOpen && <ResetPasswordModal onClose={() => setResetPasswordOpen(false)} onSuccess={() => { setResetPasswordOpen(false); setToast({ message: 'Password updated! Please sign in.', type: 'SUCCESS' }); setLoginOpen(true); }} />}
             {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ──
                 NOTE (batch 7): no longer wired to any UI button. Cross-chain
                 deposits/withdraws now live inside the unified Funds modal
