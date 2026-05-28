@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { Copy, X, Info, ExternalLink } from 'lucide-react';
+import { Copy, X, Info, ExternalLink, Share2 } from 'lucide-react';
 import { Button, formatMoney, formatPrice } from '@/components/ui/shared';
 import { Position, OpenOrder, TradeHistoryItem, Transaction } from '@/utils/types';
 
@@ -153,6 +153,8 @@ export const OrderDetailsModal = ({
   onClosePosition,
   onEditPosition,
   handleCancelOrder,
+  onShareHistory,
+  onSharePosition,
 }: {
   payload: DetailsPayload | null;
   onClose: () => void;
@@ -160,6 +162,8 @@ export const OrderDetailsModal = ({
   onClosePosition: (id: string) => void;
   onEditPosition: (p: Position) => void;
   handleCancelOrder: (id: string) => void;
+  onShareHistory?: (t: any) => void;
+  onSharePosition?: (p: any) => void;
 }) => {
   const [mounted, setMounted] = useState(false);
   const [isSmall, setIsSmall] = useState(false);
@@ -272,7 +276,12 @@ export const OrderDetailsModal = ({
         )}
       </>
     );
-    footer = <Button onClick={onClose} className="flex-1 h-9 text-[11px]">Close</Button>;
+    footer = onShareHistory ? (
+      <>
+        <Button onClick={() => { onShareHistory(t); onClose(); }} className="flex-1 h-9 text-[11px]" variant="secondary"><Share2 size={12}/> Share</Button>
+        <Button onClick={onClose} className="flex-1 h-9 text-[11px]">Close</Button>
+      </>
+    ) : <Button onClick={onClose} className="flex-1 h-9 text-[11px]">Close</Button>;
   }
 
   if (payload.kind === 'POSITION') {

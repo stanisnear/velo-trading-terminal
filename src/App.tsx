@@ -97,7 +97,7 @@ import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 
-import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe } from './utils/types';
+import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS, VerificationReason } from './utils/types';
 
 // --- Sound Service (Refined) ---
 const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
@@ -185,16 +185,29 @@ const calculateStats = (tradeHistory: TradeHistoryItem[]) => {
 };
 
 
-// Check if user is Supabase-verified (UUID format vs demo timestamp format)
-const isVerifiedUser = (userId: string) => {
-    // UUID format: 8-4-4-4-12 hex chars (Supabase auth UUIDs)
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+// Verification registry — maps userId → admin-assigned verification reason.
+// An account is verified ONLY when an admin sets verified_reason in Supabase
+// (surfaced on the Trader/UserProfile objects). Being a real Supabase user is
+// NOT sufficient. The app keeps this map in sync as traders/profile load.
+const verificationRegistry = new Map<string, VerificationReason>();
+export const syncVerification = (entries: Array<{ id: string; verifiedReason?: VerificationReason | null }>) => {
+    for (const e of entries) {
+        if (!e?.id) continue;
+        if (e.verifiedReason) verificationRegistry.set(e.id, e.verifiedReason);
+        else verificationRegistry.delete(e.id);
+    }
 };
-// Verified badge component — blue check for Supabase users, gray for bots/mock
+const getVerificationReason = (userId: string): VerificationReason | null =>
+    verificationRegistry.get(userId) ?? null;
+const isVerifiedUser = (userId: string) => getVerificationReason(userId) !== null;
+
+// Verified badge — only renders for accounts an admin has manually verified.
 const VerifiedBadge = ({ userId, size = 16 }: { userId: string, size?: number }) => {
-    if (!isVerifiedUser(userId)) return null;
+    const reason = getVerificationReason(userId);
+    if (!reason) return null;
+    const label = VERIFICATION_LABELS[reason] || 'Verified';
     return (
-        <span title="Verified Account" className="inline-flex items-center justify-center rounded-full shrink-0"
+        <span title={label} aria-label={`Verified — ${label}`} className="inline-flex items-center justify-center rounded-full shrink-0"
             style={{ width: size + 2, height: size + 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }}>
             <Check size={size * 0.6} style={{ color: '#0B0B0E' }} strokeWidth={3}/>
         </span>
@@ -1184,29 +1197,31 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
         window.addEventListener('resize', handler);
         return () => window.removeEventListener('resize', handler);
     }, []);
-    // Leaderboard rules (build 79+):
-    //   1. Wallet-only — every trader on the leaderboard must have a wallet_address
-    //      in their profile. Demo (email-only) users are excluded entirely so
-    //      the rankings reflect verifiable on-chain PnL.
-    //   2. The current user is included if AND ONLY IF they themselves have a
-    //      wallet connected (wallet_address may not yet be set in the trader
-    //      object for the current session, so we check `walletAddress` prop).
-    //   3. Exclude placeholder accounts (default username "Trader").
-    //   4. Require evidence of activity — non-zero PnL or a follower — to filter
-    //      out stale test accounts.
-    //   5. Sort by realized PnL desc.
+    // Leaderboard rules (build 81):
+    //   1. Must be a real account with a chosen username (exclude the "Trader"
+    //      placeholder and blank usernames).
+    //   2. The current user is always included so they can see their own rank.
+    //   3. Earlier builds required a persisted wallet_address AND non-zero PnL on
+    //      every other trader. In practice wallet_address is frequently absent on
+    //      profiles (social/email signups never wrote it), which silently removed
+    //      every trader except the current user. We no longer hard-require it.
+    //   4. Sort by PnL desc; ties fall back to follower count then username.
     const sortedTraders = [...traders]
         .filter((t: any) => {
             if (!t || !t.id) return false;
             if (!t.username || t.username === 'Trader') return false;
-            // Current user — wallet check via prop (may not be in trader object yet)
-            if (user && t.id === user.id) return !!walletAddress;
-            // All other traders — must have a wallet_address persisted
-            if (!t.walletAddress) return false;
-            const hasActivity = (t.pnl ?? 0) !== 0 || (t.followers?.length ?? 0) > 0;
-            return hasActivity;
+            // Always include the current user (wallet check via prop, since the
+            // trader object for the current session may not carry it yet).
+            if (user && t.id === user.id) return true;
+            return true;
         })
-        .sort((a: any, b: any) => (b.pnl ?? 0) - (a.pnl ?? 0));
+        .sort((a: any, b: any) => {
+            const pd = (b.pnl ?? 0) - (a.pnl ?? 0);
+            if (pd !== 0) return pd;
+            const fd = (b.followers?.length ?? 0) - (a.followers?.length ?? 0);
+            if (fd !== 0) return fd;
+            return (a.username || '').localeCompare(b.username || '');
+        });
     const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
     return (
         <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 80 }} className="animate-fade-in lb-view">
@@ -4751,6 +4766,7 @@ const App = () => {
             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
           });
           userLoadedFromDB.current = true;
+          sessionRestoredRef.current = true;
           if (walletAddress) restoredUser.walletAddress = walletAddress;
           setUser(restoredUser);
           recordSessionWallet();
@@ -5066,8 +5082,17 @@ const App = () => {
             } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                 // Fired on page load when a stored session exists — restore without double-loading
                 await restoreSession(session);
+            } else if (event === 'SIGNED_IN') {
+                // Fresh login. For email/password and wallet logins this is normally
+                // handled by AuthModal's onAuth (which sets sessionRestoredRef), so the
+                // guard inside restoreSession makes this a no-op in those cases.
+                // For OAuth / social (GitHub, Google, X, Discord) the popup/redirect
+                // completes WITHOUT AuthModal's onAuth ever firing, so without this the
+                // user object never populated until a manual page refresh. Calling
+                // restoreSession here closes that gap; the ref guard prevents any
+                // double-restore when onAuth already ran.
+                await restoreSession(session);
             }
-            // SIGNED_IN on fresh login is handled in AuthModal onAuth to avoid race conditions.
         });
         
         // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession
@@ -5082,6 +5107,12 @@ const App = () => {
         document.documentElement.classList.remove('light', 'dark');
         document.documentElement.classList.add(theme);
     }, [theme]);
+
+    // Keep the current user's verification status in the registry so their own
+    // badge renders correctly (only when an admin has verified them).
+    useEffect(() => {
+        if (user?.id) syncVerification([{ id: user.id, verifiedReason: user.verifiedReason }]);
+    }, [user?.id, user?.verifiedReason]);
 
 
     // Keyboard shortcuts
@@ -5490,7 +5521,9 @@ const App = () => {
                             bio:      p.bio        || '',
                             avatar:   p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`,
                             banner:   p.banner_url || '',
-                            pnl:      p.pnl_total  || 0,
+                            // Prefer realized PnL, fall back to pnl_total. Used for ranking
+                            // and for the leaderboard "has activity" check.
+                            pnl:      p.realized_pnl ?? p.pnl_total ?? 0,
                             followers:       followerIds,
                             following:       followingIds,
                             veloRewards:     p.velo_rewards || 0,
@@ -5502,9 +5535,15 @@ const App = () => {
                             // to filter out demo (email-only) accounts. NULL for demo.
                             walletAddress:   p.wallet_address || null,
                             authMethod:      p.auth_method    || null,
+                            // Admin-controlled verification (build 80+). Only set when
+                            // an admin assigned a role in the admin panel / Supabase.
+                            verifiedReason:  p.verified_reason ?? null,
                         };
                     });
                     setTraders(realTraders);
+                    // Keep the verification registry in sync so badges only show
+                    // for admin-verified accounts.
+                    syncVerification(realTraders.map(t => ({ id: t.id, verifiedReason: t.verifiedReason })));
                 }
             }).catch(e => console.warn('Failed to load profiles:', e));
 
@@ -7700,6 +7739,10 @@ const App = () => {
                             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
                         });
                         userLoadedFromDB.current = true;
+                        // Mark the session as restored so the onAuthStateChange
+                        // SIGNED_IN handler (which also fires on this login) becomes a
+                        // no-op and doesn't re-run the full restore.
+                        sessionRestoredRef.current = true;
                         if (walletAddress) restoredUser.walletAddress = walletAddress;
                         setUser(restoredUser);
                         recordSessionWallet();

@@ -87,6 +87,8 @@ export interface UserProfile {
   walletAddress?: string;
   /** Notification email — optional, can be added after signup in Settings. */
   email?: string;
+  /** Admin-assigned verification reason (build 80+). NULL = unverified. */
+  verifiedReason?: VerificationReason | null;
 }
 
 export type NotificationType =

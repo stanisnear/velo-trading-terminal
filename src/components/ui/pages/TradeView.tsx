@@ -1550,6 +1550,8 @@ export const TradeView = ({
                 onClosePosition={onClosePosition}
                 onEditPosition={onEditPosition}
                 handleCancelOrder={handleCancelOrder}
+                onShareHistory={onShareHistory}
+                onSharePosition={onSharePosition}
             />
 
             {/* Indicator Config Modal */}
