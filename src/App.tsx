@@ -4278,6 +4278,15 @@ const App = () => {
       }
     }, [walletAddress]);
 
+    // When wagmi finishes its async reconnect after page load, walletAddress
+    // becomes defined. If the user is already restored from Supabase but
+    // walletAddress was missing (used DB fallback), patch it in now.
+    useEffect(() => {
+      if (walletAddress && user && !user.walletAddress) {
+        setUser(prev => prev ? { ...prev, walletAddress } : null);
+      }
+    }, [walletAddress, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── Auto-recovery of the trading (burner) wallet ──────────────────────────
     // The burner private key lives only in this browser's localStorage. If the
     // user is logged in and their profile has a persisted velo_wallet_address (so
@@ -4426,13 +4435,17 @@ const App = () => {
             // Final guard after second await
             if (freshSignupRef.current) return;
             if (profile?.username) {
-              // Existing account — show welcome-back screen AND hydrate app state
+              // Existing account — hydrate app state silently without opening
+              // any modal. The user just reconnected their wallet; no need to
+              // show a welcome-back splash since they didn't explicitly log in.
               intentionalLogoutRef.current = false;
               freshSignupRef.current = false;
               socialLoginHandledRef.current = true;
-              setLoginReturningName(profile.username);
-              setLoginOpen(true);
-              // Hydrate app state directly — onAuth is the canonical path
+              // Mark session restored BEFORE the async hydration so the
+              // SIGNED_IN supabase event (fired by signInWithPassword above)
+              // does NOT race-trigger a second restoreSession call.
+              sessionRestoredRef.current = true;
+              // Hydrate app state directly without showing the modal
               silentLoginCallbackRef.current?.(data.user, profile);
               return;
             }
@@ -4794,7 +4807,11 @@ const App = () => {
             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
           });
           userLoadedFromDB.current = true;
+          // walletAddress from wagmi may not be hydrated yet if this callback
+          // fires during early reconnect. Fall back to the profile's stored
+          // wallet_address so the UI always shows the correct address.
           if (walletAddress) restoredUser.walletAddress = walletAddress;
+          else if (profile?.wallet_address) restoredUser.walletAddress = profile.wallet_address;
           setUser(restoredUser);
           recordSessionWallet();
           setPositions(positions);
@@ -5071,6 +5088,11 @@ const App = () => {
                     .from('follows').select('follower_id').eq('following_id', session.user.id);
                 restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
                 userLoadedFromDB.current = true;
+                // On page load wagmi reconnects asynchronously — walletAddress
+                // may be undefined here. Use the DB-stored wallet address as
+                // fallback so the UI shows the correct address immediately.
+                if (walletAddress) restoredUser.walletAddress = walletAddress;
+                else if (profile?.wallet_address) restoredUser.walletAddress = profile.wallet_address;
                 setUser(restoredUser);
                 recordSessionWallet();
                 setPositions(positions);
@@ -5108,10 +5130,13 @@ const App = () => {
                 setAuthChecked(true);
                 // Logout is fully complete — clear the intentional-logout guard so
                 // the next manual wallet connect flows through normally.
+                // Use a longer delay (1200ms) to ensure wagmi's disconnect has fully
+                // propagated (isWalletConnected → false) before we re-arm the
+                // socialLogin effect, preventing an immediate re-login on logout.
                 setTimeout(() => {
                     intentionalLogoutRef.current = false;
                     socialLoginHandledRef.current = false;
-                }, 500);
+                }, 1200);
             } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                 // Fired on page load when a stored session exists — restore without double-loading
                 await restoreSession(session);
@@ -7755,6 +7780,7 @@ const App = () => {
                         });
                         userLoadedFromDB.current = true;
                         if (walletAddress) restoredUser.walletAddress = walletAddress;
+                        else if (passedProfile?.wallet_address) restoredUser.walletAddress = passedProfile.wallet_address;
                         setUser(restoredUser);
                         recordSessionWallet();
                         setPositions(positions);
