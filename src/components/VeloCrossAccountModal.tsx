@@ -74,12 +74,8 @@ export const VeloCrossAccountModal: React.FC<Props> = ({
   const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16,
-    }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 16,
+    <div onClick={onClose} className="velo-modal-overlay">
+      <div onClick={(e) => e.stopPropagation()} className="velo-modal-card" style={{
         width: '100%', maxWidth: 420, padding: 20, color: 'var(--fg)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -94,15 +90,15 @@ export const VeloCrossAccountModal: React.FC<Props> = ({
 
         {/* Balance summary */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
-          <div style={{ padding: 10, borderRadius: 10, background: 'var(--glass-bg)', border: '1px solid var(--border)' }}>
+          <div style={{ padding: 10, borderRadius: 10, background: 'var(--glass-bg)', border: '1px solid var(--hairline-strong)' }}>
             <div style={S.label}>Free</div>
             <div style={{ ...S.mono, fontSize: 16, marginTop: 2 }}>${fmt(crossFree)}</div>
           </div>
-          <div style={{ padding: 10, borderRadius: 10, background: 'var(--glass-bg)', border: '1px solid var(--border)' }}>
+          <div style={{ padding: 10, borderRadius: 10, background: 'var(--glass-bg)', border: '1px solid var(--hairline-strong)' }}>
             <div style={S.label}>Locked</div>
             <div style={{ ...S.mono, fontSize: 16, marginTop: 2 }}>${fmt(crossLocked)}</div>
           </div>
-          <div style={{ padding: 10, borderRadius: 10, background: 'var(--glass-bg)', border: '1px solid var(--border)' }}>
+          <div style={{ padding: 10, borderRadius: 10, background: 'var(--glass-bg)', border: '1px solid var(--hairline-strong)' }}>
             <div style={S.label}>Total</div>
             <div style={{ ...S.mono, fontSize: 16, marginTop: 2 }}>${fmt(crossTotal)}</div>
           </div>
@@ -140,7 +136,7 @@ export const VeloCrossAccountModal: React.FC<Props> = ({
               placeholder="0.00"
               style={{
                 width: '100%', padding: '14px 56px 14px 14px', borderRadius: 10,
-                background: 'var(--glass-bg)', border: '1px solid var(--border)',
+                background: 'var(--glass-bg)', border: '1px solid var(--hairline-strong)',
                 color: 'var(--fg)', fontSize: 18, ...S.mono, outline: 'none',
               }}
             />

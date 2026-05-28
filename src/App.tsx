@@ -604,7 +604,7 @@ const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccount }: an
                         >Delete Account</button>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--pnl-down)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center' }}>⚠ This will permanently delete your account and all data</p>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--pnl-down)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center' }}>This will permanently delete your account and all data</p>
                             <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)', textAlign: 'center' }}>Type <strong style={{ color: 'var(--fg)' }}>DELETE</strong> to confirm</p>
                             <input
                                 value={deleteInput}
@@ -1506,7 +1506,7 @@ const LinkPreviewCard = ({ url }: { url: string }) => {
             ) : meta ? (
                 <div style={{ display: 'flex', gap: 0 }}>
                     {meta.image && (
-                        <div style={{ width: 100, flexShrink: 0, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
+                        <div style={{ width: 100, flexShrink: 0, background: 'var(--glass-bg-strong)', overflow: 'hidden' }}>
                             <img src={meta.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={e => { (e.currentTarget as HTMLElement).style.display = 'none'; }}/>
                         </div>
                     )}
@@ -3981,7 +3981,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                         <p style={{ ...S.mono, fontSize: 11, fontWeight: 700,
                                     color: marginDelta > 0 ? '#f97316' : 'var(--pnl-up)', margin: 0 }}>
                             {marginDelta > 0
-                                ? `⚠ $${formatMoney(marginDelta)} will be locked as additional margin`
+                                ? `$${formatMoney(marginDelta)} will be locked as additional margin`
                                 : `✓ $${formatMoney(Math.abs(marginDelta))} freed back to your balance`}
                         </p>
                     </div>
@@ -4168,6 +4168,10 @@ const App = () => {
     const [isOrderlyOnboardingOpen, setOrderlyOnboardingOpen] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
     const [isVeloWelcomeOpen, setVeloWelcomeOpen] = useState(false);
+    // True only for the window between a brand-new account being created this
+    // session and the first-run faucet/welcome flow completing. Returning,
+    // already-registered accounts keep this false so the faucet never reopens.
+    const freshSignupRef = useRef(false);
     const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
     const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
@@ -4363,13 +4367,15 @@ const App = () => {
     }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Velo Welcome onboarding (Phase 3) ─────────────────────────────────
-    // Opens ONLY AFTER account creation completes (i.e. `user` is set). This
-    // ensures the AuthModal "Hello → handle → email" flow runs first, then the
-    // claim flow runs second. Order matters — account first, faucet second.
+    // Opens ONLY AFTER a brand-new account is created this session (the
+    // AuthModal "Hello → handle → email" flow sets freshSignupRef). Returning
+    // / already-registered accounts never see the first-run faucet flow again,
+    // even if a contract address changed or local storage was cleared.
     useEffect(() => {
       if (!user) return;                                          // wait for account
       if (!isWalletConnected) return;                             // and a wallet
       if (isLoginOpen) return;                                    // auth still in progress
+      if (!freshSignupRef.current) return;                        // returning/registered → never
       if (veloPerpsTrading.isInitialLoading) return;              // wait until balance read
       if (isVeloWelcomeOpen) return;                              // already open
       if (veloPerpsTrading.openPositions.length > 0) return;      // returning trader
@@ -4378,9 +4384,11 @@ const App = () => {
         chainId,
         usdcBalance: veloPerpsTrading.usdcBalance,
         hasBurner: veloPerpsTrading.usingBurner,
+        address: walletAddress,
+        isRegistered: false, // freshSignupRef already guarantees brand-new
       });
       if (should) setVeloWelcomeOpen(true);
-    }, [user, isWalletConnected, isLoginOpen, veloPerpsTrading.isInitialLoading, veloPerpsTrading.usdcBalance, veloPerpsTrading.openPositions.length, veloPerpsTrading.usingBurner, chainId, isVeloWelcomeOpen]);
+    }, [user, isWalletConnected, isLoginOpen, veloPerpsTrading.isInitialLoading, veloPerpsTrading.usdcBalance, veloPerpsTrading.openPositions.length, veloPerpsTrading.usingBurner, chainId, isVeloWelcomeOpen, walletAddress]);
 
     // ── VeloPerps → local positions sync (Phase 3) ─────────────────────────
     // The contract is the source of truth for positions. We translate VeloPosition
@@ -4600,14 +4608,14 @@ const App = () => {
           return;
         }
 
-        setToast({ message: '⚡ Faucet accepted — checking trading account…', type: 'INFO' });
+        setToast({ message: 'Faucet accepted — checking trading account…', type: 'INFO' });
 
         const startBal = orderly.orderlyBalance;
         for (let i = 0; i < 20; i++) {
           await new Promise(ok => setTimeout(ok, 3000));
           const newBal = await refreshOrderlyBalance().catch(() => null);
           if (newBal != null && newBal > startBal) {
-            setToast({ message: `🟢 +$${(newBal - startBal).toFixed(2)} USDC credited — ready to trade`, type: 'SUCCESS' });
+            setToast({ message: `+$${(newBal - startBal).toFixed(2)} USDC credited — ready to trade`, type: 'SUCCESS' });
             setClaimingFaucet(false);
             return;
           }
@@ -4634,7 +4642,7 @@ const App = () => {
           if (d.status !== 'CONFIRMED_AWAITING_CREDIT' && d.status !== 'PENDING_CONFIRM') continue;
           if (newBal >= d.balanceBefore + d.amount * 0.99) {
             updatePendingDeposit(d.id, { status: 'CREDITED' });
-            setToast({ message: `🟢 Deposit credited — $${d.amount.toFixed(2)} USDC ready to trade`, type: 'SUCCESS' });
+            setToast({ message: `Deposit credited — $${d.amount.toFixed(2)} USDC ready to trade`, type: 'SUCCESS' });
           }
         }
         reapStaleDeposits();
@@ -5469,7 +5477,7 @@ const App = () => {
                 deleteOrdersForPosition(pos.id).catch(() => {});
                 insertTradeHistory(user.id, liqHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
                 createNotification(user.id, 'LIQUIDATION',
-                    `🔴 Liquidated: ${pos.pair} ${pos.side} — -$${formatMoney(marginLost)}`, pos.id)
+                    `Liquidated: ${pos.pair} ${pos.side} — -$${formatMoney(marginLost)}`, pos.id)
                     .catch(() => {});
             }
             setToast({ message: `Liquidated: ${pos.pair} ${pos.side} — -$${formatMoney(marginLost)}`, type: 'ERROR' });
@@ -5606,12 +5614,12 @@ const App = () => {
                          }));
                          const isTp = h.pnl > 0;
                          const notifMsg = isTp
-                             ? `✅ Take Profit hit on ${h.pair} ${h.side} — +$${Math.abs(h.pnl).toFixed(2)}`
-                             : `🔴 Stop Loss hit on ${h.pair} ${h.side} — -$${Math.abs(h.pnl).toFixed(2)}`;
+                             ? `Take Profit hit on ${h.pair} ${h.side} — +$${Math.abs(h.pnl).toFixed(2)}`
+                             : `Stop Loss hit on ${h.pair} ${h.side} — -$${Math.abs(h.pnl).toFixed(2)}`;
                          createNotification(user.id, isTp ? 'TAKE_PROFIT' : 'STOP_LOSS', notifMsg, h.id)
                              .catch(e => console.warn('TP/SL notification failed:', e));
                          // Also show local toast
-                         setToast({ message: notifMsg.replace(/^[✅🔴] /, ''), type: isTp ? 'SUCCESS' : 'ERROR' });
+                         setToast({ message: notifMsg, type: isTp ? 'SUCCESS' : 'ERROR' });
                      });
                  }
             }
@@ -7537,9 +7545,13 @@ const App = () => {
              required={!user}
              disconnectRef={walletDisconnectRef}
              onClose={() => setLoginOpen(false)} 
-             onAuth={async (authUser, passedProfile) => {
+             onAuth={async (authUser, passedProfile, isNewAccount) => {
                     if (!authUser) return;
                     intentionalLogoutRef.current = false;
+                    // Mark a brand-new signup so the first-run faucet/welcome
+                    // flow may run exactly once. Returning logins clear it so the
+                    // faucet never reopens for already-registered accounts.
+                    freshSignupRef.current = !!isNewAccount;
                     setLoginOpen(false);
                     setActiveTab(TabView.DASHBOARD);
                     try {
@@ -7630,7 +7642,11 @@ const App = () => {
             {/* ── Velo Welcome Modal (Phase 2 — replaces Orderly onboarding) ── */}
             <VeloWelcomeModal
               isOpen={isVeloWelcomeOpen}
-              onClose={() => setVeloWelcomeOpen(false)}
+              onClose={() => { freshSignupRef.current = false; setVeloWelcomeOpen(false); }}
+              desiredHandle={user?.handle?.replace(/^@/, '').toLowerCase()}
+              onUsernameClaimed={(handle) => {
+                setToast({ message: `@${handle} registered on-chain`, type: 'SUCCESS' });
+              }}
               onClaimed={() => {
                 setToast({ message: '1,000 mUSDC claimed', type: 'SUCCESS' });
               }}
@@ -7851,7 +7867,7 @@ const App = () => {
                 activateOrderly(kp, bal);
                 setOrderlyOnboardingOpen(false);
                 setOnboardingDismissed(true);
-                setToast({ message: `🟢 Velo Wallet active — $${bal.toFixed(2)} USDC ready`, type: 'SUCCESS' });
+                setToast({ message: `Velo Wallet active — $${bal.toFixed(2)} USDC ready`, type: 'SUCCESS' });
                 // Persist velo_wallet_address to the profile so it's visible
                 // for audit / recovery (the keypair stays in localStorage).
                 if (user && isSupabaseConfigured()) {
@@ -8018,7 +8034,7 @@ const App = () => {
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (60px height + 12px gap + 12px top = 84px) */}
             <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 84 : 'calc(84px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
-                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme}
+                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
                     if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);

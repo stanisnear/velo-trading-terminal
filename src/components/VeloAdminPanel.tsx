@@ -794,7 +794,7 @@ export const VeloAdminPanel: React.FC = () => {
 
         {!keeperAddress ? (
           <div style={{ padding: 14, borderRadius: 10, background: 'rgba(255,180,60,0.08)', border: '1px solid rgba(255,180,60,0.25)', ...S.mono, fontSize: 11, color: 'rgba(255,180,60,0.9)' }}>
-            ⚠ VITE_KEEPER_ADDRESS not set — add it in Vercel environment variables to monitor keeper ETH balance here.
+            VITE_KEEPER_ADDRESS not set — add it in Vercel environment variables to monitor keeper ETH balance here.
             <br /><br />
             To find it: <code style={{ opacity: 0.8 }}>cast wallet address --private-key $VELO_SPONSOR_PRIVATE_KEY</code>
           </div>
@@ -830,7 +830,7 @@ export const VeloAdminPanel: React.FC = () => {
                   target="_blank" rel="noopener noreferrer"
                   style={{ ...S.label, fontSize: 9, padding: '4px 10px', borderRadius: 7, background: 'rgba(62,207,142,0.10)', border: '1px solid rgba(62,207,142,0.25)', color: 'var(--pnl-up)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
-                  ⛽ Faucet →
+                  Faucet →
                 </a>
               </div>
             </div>

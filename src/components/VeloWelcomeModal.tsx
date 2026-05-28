@@ -34,9 +34,23 @@ import {
 } from '@/services/veloUsdcService';
 import { VELO_USDC_BASE, VELO_PERPS_ADDRESS, baseScanTxUrl, baseScanAddressUrl } from '@/services/veloPerpsService';
 import { setupBurnerWallet } from '@/services/veloBurnerSetup';
+import { claimUsername, fetchUsernameForAddress, validateUsername } from '@/services/usernameService';
+import { ensureBurnerGas } from '@/services/veloGasSponsor';
 
 const BASE_SEPOLIA_ID = 84532;
+// Per-account dismissal so the modal never reappears for a given wallet once
+// setup has run — even across browser refreshes or if the global flag is
+// cleared. The legacy global key is still honoured for backwards compat.
 const STORAGE_KEY_DISMISSED = 'velo:welcomeDismissed';
+function dismissedKeyFor(addr?: string | null): string {
+  return addr ? `velo:welcomeDismissed:${addr.toLowerCase()}` : STORAGE_KEY_DISMISSED;
+}
+function markWelcomeDismissed(addr?: string | null) {
+  try {
+    localStorage.setItem(STORAGE_KEY_DISMISSED, '1');
+    if (addr) localStorage.setItem(dismissedKeyFor(addr), '1');
+  } catch {}
+}
 
 const S = {
   display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
@@ -47,8 +61,8 @@ const S = {
 
 const cardStyle: React.CSSProperties = {
   width: 'min(440px, calc(100vw - 32px))',
-  background: 'var(--bg-base-2)',
-  border: '1px solid var(--hairline)',
+  background: 'var(--glass-bg-strong)',
+  border: '1px solid var(--glass-border)',
   borderRadius: 24,
   boxShadow: '0 32px 96px -16px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255,255,255,0.04) inset',
   backdropFilter: 'blur(40px) saturate(1.3)',
@@ -83,6 +97,15 @@ interface Props {
   onClose: () => void;
   onClaimed?: () => void;
   /**
+   * The @handle the user chose during signup (AuthModal name step). The setup
+   * flow registers it on-chain in VeloRegistry automatically so the user never
+   * has to claim it from a separate modal afterwards. Signed by the main
+   * wallet (identity must survive a burner reset).
+   */
+  desiredHandle?: string;
+  /** Fires after the handle is successfully registered on-chain. */
+  onUsernameClaimed?: (handle: string, txHash: `0x${string}`) => void;
+  /**
    * Fires when the burner setup completes (so App can refresh the hook).
    * If the setup ran a faucet mint, the args carry the credited amount and
    * the on-chain proof so the host can write a DEPOSIT row to Supabase and
@@ -97,7 +120,7 @@ interface Props {
   }) => void;
 }
 
-export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, onBurnerReady }) => {
+export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, onBurnerReady, desiredHandle, onUsernameClaimed }) => {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -124,7 +147,7 @@ export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, 
   if (!isOpen) return null;
 
   const dismiss = () => {
-    try { localStorage.setItem(STORAGE_KEY_DISMISSED, '1'); } catch {}
+    markWelcomeDismissed(address);
     onClose();
   };
 
@@ -167,7 +190,7 @@ export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, 
             setPostClaimBalance(bal);
             setBurnerAddress(burnerAddr);
             setStep('SUCCESS');
-            try { localStorage.setItem(STORAGE_KEY_DISMISSED, '1'); } catch {}
+            markWelcomeDismissed(address);
             onBurnerReady?.({ burnerAddress: burnerAddr, amount: bal, txHash: null });
             return;
           }
@@ -199,6 +222,27 @@ export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, 
       });
       setBurnerAddress(result.burner.veloAddress);
       setClaimTxHash(result.faucetTxHash);
+      // ── Register the chosen @handle on-chain (VeloRegistry) ──────────────
+      // Done here, as part of one cohesive setup flow, so the handle the user
+      // picked at signup becomes their permanent on-chain identity without a
+      // separate confusing "claim" step later. Signed by the MAIN wallet (not
+      // the burner) so the identity survives a burner reset. Best-effort:
+      // failures here never block the faucet/setup from completing.
+      if (desiredHandle && walletClient && address) {
+        try {
+          const normalized = desiredHandle.startsWith('@') ? desiredHandle.slice(1) : desiredHandle;
+          if (!validateUsername(normalized)) {
+            const existing = await fetchUsernameForAddress(publicClient, address);
+            if (!existing) {
+              await ensureBurnerGas(publicClient, address);
+              const unameTx = await claimUsername(walletClient as any, normalized);
+              onUsernameClaimed?.(normalized, unameTx);
+            }
+          }
+        } catch (e) {
+          console.warn('[velo] on-chain username claim skipped:', e);
+        }
+      }
       // Read the burner's balance so we can show it in the success card
       let postBalance = 1000;
       try {
@@ -207,7 +251,7 @@ export const VeloWelcomeModal: React.FC<Props> = ({ isOpen, onClose, onClaimed, 
         setPostClaimBalance(bal);
       } catch { setPostClaimBalance(1000); /* faucet amount */ }
       setStep('SUCCESS');
-      try { localStorage.setItem(STORAGE_KEY_DISMISSED, '1'); } catch {}
+      markWelcomeDismissed(address);
       onClaimed?.();
       // Forward the faucet credit so App.tsx can write a DEPOSIT row to
       // Supabase. The Recent Activity feed reads from that table, so without
@@ -615,12 +659,22 @@ export function shouldShowVeloWelcome(args: {
   chainId: number | undefined;
   usdcBalance: number;
   hasBurner: boolean;
+  address?: string | null;
+  /** True if this account is already registered on Velo (profile exists with a
+   *  persisted Velo wallet / username). Registered accounts never see the
+   *  first-run faucet/welcome flow again, regardless of local storage state. */
+  isRegistered?: boolean;
 }): boolean {
   if (!args.isConnected) return false;
   if (args.chainId !== BASE_SEPOLIA_ID) return false;
+  // Already registered on Velo → setup happened on a prior session. Never show
+  // the first-run claim flow again even if the burner/balance read is stale or
+  // a contract address changed.
+  if (args.isRegistered) return false;
   // If already has burner AND USDC balance > 0 → setup complete, no need to show
   if (args.hasBurner && args.usdcBalance > 0) return false;
   try {
+    if (localStorage.getItem(dismissedKeyFor(args.address)) === '1') return false;
     if (localStorage.getItem(STORAGE_KEY_DISMISSED) === '1') return false;
   } catch {}
   return true;

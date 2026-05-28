@@ -50,9 +50,9 @@ export const TV_INTERVALS: Record<string, string> = {
 export type ChartStyleCode = '0' | '1' | '2' | '3' | '4' | '5' | '8' | '9' | '10';
 
 export const CHART_STYLES: { label: string; code: ChartStyleCode; icon: string }[] = [
-  { label: 'Candles',        code: '1',  icon: '🕯️' },
+  { label: 'Candles',        code: '1',  icon: '▮'  },
   { label: 'Hollow Candles', code: '9',  icon: '□'  },
-  { label: 'Heikin Ashi',    code: '8',  icon: '⬛' },
+  { label: 'Heikin Ashi',    code: '8',  icon: '▦'  },
   { label: 'Bars',           code: '0',  icon: '▥'  },
   { label: 'Line',           code: '2',  icon: '╱'  },
   { label: 'Area',           code: '3',  icon: '△'  },

@@ -114,7 +114,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                             <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>{p.id}</span>
                                             {!isLiveMode && isLive && (
-                                                <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.78 0.18 150 / 0.12)', border: '1px solid oklch(0.78 0.18 150 / 0.25)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--pnl-up)', letterSpacing: '0.06em' }}>⛓ LIVE</span>
+                                                <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.78 0.18 150 / 0.12)', border: '1px solid oklch(0.78 0.18 150 / 0.25)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--pnl-up)', letterSpacing: '0.06em' }}>LIVE</span>
                                             )}
                                             {isDemo && (
                                                 <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
@@ -906,7 +906,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                     rel="noopener noreferrer"
                                                     onClick={e => e.stopPropagation()}
                                                     style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.78 0.18 150 / 0.1)', border: '1px solid oklch(0.78 0.18 150 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--pnl-up)', textDecoration: 'none', letterSpacing: '0.04em' }}>
-                                                    ⛓ LIVE ↗
+                                                    LIVE ↗
                                                 </a>
                                             )}
                                         </div>
@@ -1027,7 +1027,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             }}>{t.action}</span>
                                           )}
                                           {t.onChain && (
-                                            <span title="On-chain order (Velo Perps)" style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.3)', letterSpacing: '0.05em' }}>⛓ LIVE</span>
+                                            <span title="On-chain order (Velo Perps)" style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.3)', letterSpacing: '0.05em' }}>LIVE</span>
                                           )}
                                         </div>
                                         {/* Adapt the secondary line to the event type:
@@ -1054,7 +1054,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             rel="noopener noreferrer"
                                             onClick={e => e.stopPropagation()}
                                             style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--pnl-up)', fontSize: 9, fontWeight: 700, textDecoration: 'none', padding: '1px 5px', borderRadius: 4, background: 'oklch(0.78 0.18 150 / 0.1)', border: '1px solid oklch(0.78 0.18 150 / 0.25)', letterSpacing: '0.04em' }}>
-                                            ⛓ #{t.orderlyOrderId} ↗
+                                            #{t.orderlyOrderId} ↗
                                           </a>
                                         )}
                                         {t.txHash && (

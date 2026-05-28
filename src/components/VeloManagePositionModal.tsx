@@ -522,7 +522,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                 const tooLow = remaining < collateral * 0.2;
                 return (
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', marginTop: 8, borderRadius: 10, background: tooLow ? 'oklch(0.65 0.22 15 / 0.06)' : 'oklch(0.68 0.22 295 / 0.06)', border: `1px solid ${tooLow ? 'oklch(0.65 0.22 15 / 0.3)' : 'oklch(0.68 0.22 295 / 0.18)'}`, animation: 'velo-pnl-in 0.2s ease' }}>
-                    <span style={{ ...S.label, fontSize: 9 }}>{tooLow ? '⚠ Below min buffer' : 'Remaining collateral'}</span>
+                    <span style={{ ...S.label, fontSize: 9 }}>{tooLow ? 'Below min buffer' : 'Remaining collateral'}</span>
                     <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: tooLow ? 'var(--pnl-down)' : 'var(--iris-violet)' }}>
                       ${remaining.toFixed(2)}
                     </span>

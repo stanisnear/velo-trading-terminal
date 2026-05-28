@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, ArrowDownCircle, ArrowUpCircle, Copy, Edit, History, TrendingUp, TrendingDown, User, Users, Zap, Star, Loader2, ExternalLink, Clock, AlertCircle, CheckCircle2, X, Link2 } from 'lucide-react';
+import { Activity, ArrowDownCircle, ArrowUpCircle, Copy, Edit, History, TrendingUp, TrendingDown, User, Star, Loader2, ExternalLink, Clock, AlertCircle, CheckCircle2, X, Link2 } from 'lucide-react';
 import { PortfolioChart } from '@/components/PortfolioChart';
 import { formatMoney, formatPrice, calculateStats } from '@/components/ui/shared';
 import { Position } from '@/utils/types';
 import { OrderDetailsModal } from '@/components/ui/OrderDetailsModal';
+import { baseScanAddressUrl, VELO_PERPS_ADDRESS } from '@/services/veloPerpsService';
 
 const S = {
   display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
@@ -56,7 +57,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
 
 // Fake deposit/withdraw modal removed — all funds flow through Orderly on-chain
 
-export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark' }: any) => {
+export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
   const [chartPeriod, setChartPeriod] = useState<'1D'|'1W'|'1M'|'1Y'|'ALL'>('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
@@ -271,55 +272,67 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
             </div>
           </div>
 
-          {/* Active Strategies */}
+          {/* On-chain account — reinforces Velo's "real, verifiable on-chain
+              trades" narrative. Shows the trading wallet + a BaseScan link. */}
           <div style={{ ...panel, flex: 1 }}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Ico3D bg={iconBg.lime}><Zap size={13}/></Ico3D>
-                <span style={S.label}>Copying</span>
+                <Ico3D bg={iconBg.lime}><Link2 size={13}/></Ico3D>
+                <span style={S.label}>On-chain account</span>
+                <span style={{ marginLeft: 'auto', ...S.label, fontSize: 8.5, background: 'oklch(0.68 0.22 295/0.12)', color: 'var(--iris-violet)', padding: '2px 7px', borderRadius: 999, border: '1px solid oklch(0.68 0.22 295/0.25)' }}>Base Sepolia</span>
               </div>
-              {(user.copying?.length ?? 0) === 0 ? (
-                <div>
-                  <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 12 }}>You aren't copying any traders yet.</p>
-                  <p style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', opacity: 0.7 }}>Visit the Leaderboard to find a trader to copy.</p>
+              {tradingWalletAddress ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div>
+                    <p style={S.label}>Trading wallet</p>
+                    <a href={baseScanAddressUrl(tradingWalletAddress)} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4, ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)', textDecoration: 'none' }}>
+                      {tradingWalletAddress.slice(0, 6)}…{tradingWalletAddress.slice(-4)}
+                      <ExternalLink size={11} style={{ color: 'var(--fg-subtle)' }}/>
+                    </a>
+                  </div>
+                  <div style={{ height: 1, background: 'var(--hairline)' }}/>
+                  <div>
+                    <p style={S.label}>Perps contract</p>
+                    <a href={baseScanAddressUrl(VELO_PERPS_ADDRESS)} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4, ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', textDecoration: 'none' }}>
+                      {VELO_PERPS_ADDRESS.slice(0, 6)}…{VELO_PERPS_ADDRESS.slice(-4)}
+                      <ExternalLink size={10} style={{ color: 'var(--fg-subtle)' }}/>
+                    </a>
+                  </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {(user.copying ?? []).map((traderId: string) => {
-                    const trader = traders.find((t: any) => t.id === traderId);
-                    return trader ? (
-                      <div key={traderId} onClick={() => onViewProfile(trader)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 9px', borderRadius: 9, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', cursor: 'pointer', transition: 'background 0.1s' }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg-hover)'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                          <img src={trader.avatar} style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }}/>
-                          <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)' }}>{trader.username}</span>
-                        </div>
-                        <span style={{ ...S.label, fontSize: 9, background: 'oklch(0.68 0.22 295/0.1)', color: 'var(--iris-violet)', padding: '2px 6px', borderRadius: 5, border: '1px solid oklch(0.68 0.22 295/0.2)' }}>Copying</span>
-                      </div>
-                    ) : null;
-                  })}
-                </div>
+                <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', lineHeight: 1.6 }}>
+                  Set up your trading wallet to start placing verifiable on-chain trades.
+                </p>
               )}
             </div>
           </div>
 
-          {/* Signal Stats */}
+          {/* Margin & exposure — practical at-a-glance risk view, replaces the
+              copy-trading signal stats that aren't in use yet. */}
           <div style={panel}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Ico3D bg={iconBg.magenta}><Users size={13}/></Ico3D>
-                <span style={S.label}>Signal Stats</span>
+                <Ico3D bg={iconBg.magenta}><Activity size={13}/></Ico3D>
+                <span style={S.label}>Margin & exposure</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <p style={S.label}>Copiers</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}>{user.copierCount || 0}</p>
+                  <p style={S.label}>Margin in use</p>
+                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}>${formatMoney(totalMarginUsed)}</p>
                 </div>
                 <div>
-                  <p style={S.label}>Fees Earned</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--pnl-up)', marginTop: 3 }}>${formatMoney(user.earnedFees || 0)}</p>
+                  <p style={S.label}>Open positions</p>
+                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}>{positions.length}</p>
+                </div>
+                <div>
+                  <p style={S.label}>Unrealized PnL</p>
+                  <p style={{ ...S.display, fontSize: 22, color: allPositionsPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3 }}>${formatMoney(allPositionsPnl)}</p>
+                </div>
+                <div>
+                  <p style={S.label}>Buying power</p>
+                  <p style={{ ...S.display, fontSize: 22, color: 'var(--fg)', marginTop: 3 }}>${formatMoney(buyingPowerProp !== undefined ? buyingPowerProp : user.balance)}</p>
                 </div>
               </div>
             </div>
@@ -610,7 +623,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                           {isOpen && <TrendingUp size={11}/>}
                           {isClose && <History size={11}/>}
                           {isTx ? t.type : (isOpen ? 'OPEN' : 'CLOSE')}
-                          {t.onChain && <span title="On-chain" style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.25)', fontWeight: 700, letterSpacing: '0.04em' }}>⛓</span>}
+                          {t.onChain && <span title="On-chain" style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.25)', fontWeight: 700, letterSpacing: '0.04em' }}>LIVE</span>}
                         </span>
                       </td>
                       <td style={{ padding: '9px 14px', ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>
@@ -800,7 +813,7 @@ const FailedDepositPill: React.FC<{ deposit: any; onClaimTestnetUsdc?: () => voi
       >
         {claimingFaucet
           ? <><Loader2 size={12} style={{ animation: 'velo-pill-spin 1s linear infinite' }} /> Claiming…</>
-          : <>⚡ Claim 1,000 USDC instantly (testnet)</>}
+          : <>Claim 1,000 USDC instantly (testnet)</>}
       </button>
     )}
   </div>

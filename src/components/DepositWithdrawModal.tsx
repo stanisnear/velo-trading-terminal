@@ -277,7 +277,7 @@ export const DepositWithdrawModal: React.FC<Props> = ({
                   ? '2 wallet prompts: approve + deposit. Requires Base Sepolia ETH for gas.'
                   : 'Allowance already set. 1 wallet prompt for the deposit. Requires Base Sepolia ETH for gas.'}
               </p>
-              {ethNum < 0.00005 && <p style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', margin: '6px 0 0' }}>⚠ Low ETH balance — top up before depositing.</p>}
+              {ethNum < 0.00005 && <p style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', margin: '6px 0 0' }}>Low ETH balance — top up before depositing.</p>}
             </div>
           ) : (
             <div style={{ padding: '10px 12px', background: 'var(--chip-bg)', borderRadius: 10, border: '1px solid var(--hairline)' }}>

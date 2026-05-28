@@ -555,7 +555,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                     </div>
                   )}
                   <div style={{ ...S.mono, fontSize: 10, color: 'rgba(255,180,60,0.85)', lineHeight: 1.45 }}>
-                    ⚠ Your main wallet must hold a small amount of ETH on {CHAIN_LABEL[depositChain]} to pay this fee. Velo only gas-sponsors Base Sepolia.
+                    Your main wallet must hold a small amount of ETH on {CHAIN_LABEL[depositChain]} to pay this fee. Velo only gas-sponsors Base Sepolia.
                   </div>
                 </div>
               )}
@@ -619,7 +619,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                         </button>
                       </div>
                       <div style={{ ...S.mono, fontSize: 10, color: 'rgba(255,180,60,0.8)', marginTop: 8 }}>
-                        ⚠ Base Sepolia only · mUSDC only · Sending other assets will be lost
+                        Base Sepolia only · mUSDC only · Sending other assets will be lost
                       </div>
                     </div>
                   ) : (

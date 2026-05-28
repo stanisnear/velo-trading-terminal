@@ -315,7 +315,7 @@ export const OrderDetailsModal = ({
     );
     body = (
       <>
-        <R label="Entry Price"       value={p.entryPrice < 0.001 ? '⚠ Corrupt (stale oracle)' : `$${formatPrice(p.entryPrice)}`} valueColor={p.entryPrice < 0.001 ? 'var(--pnl-down)' : 'var(--fg)'} tip="Entry price. A warning means the position was opened with stale Pyth data — close it." />
+        <R label="Entry Price"       value={p.entryPrice < 0.001 ? 'Corrupt (stale oracle)' : `$${formatPrice(p.entryPrice)}`} valueColor={p.entryPrice < 0.001 ? 'var(--pnl-down)' : 'var(--fg)'} tip="Entry price. A warning means the position was opened with stale Pyth data — close it." />
         <R label="Mark Price"        value={`$${formatPrice(mark)}`}          tip="Current fair-value price used to calculate PnL and liquidation. Updates every tick." />
         <R label="Price Change"      value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in mark price since entry." />
         <R label="Liquidation Price" value={`$${formatPrice(displayLiqPrice)}`} valueColor={bufferColor}
@@ -324,8 +324,8 @@ export const OrderDetailsModal = ({
              : `ISOLATED mode: if mark price reaches this level, your position is force-closed and you lose the margin committed (${formatMoney(marginUsed)} USDT). Only this position's margin is at risk.`} />
         <R label="Liq. Buffer"       value={`${buffer.toFixed(2)}%`} valueColor={bufferColor}
            tip={isCross
-             ? `Distance between current price and estimated liquidation price as a % of mark price. CROSS: reflects shared pool health — all cross positions contribute. ${buffer < 10 ? '⚠️ Consider reducing exposure.' : ''}`
-             : `How far price must move before liquidation triggers. ${buffer < 5 ? '⚠️ Very close — consider adding margin or closing.' : buffer < 10 ? 'Moderate risk.' : 'Safe distance.'}`} />
+             ? `Distance between current price and estimated liquidation price as a % of mark price. CROSS: reflects shared pool health — all cross positions contribute. ${buffer < 10 ? 'Consider reducing exposure.' : ''}`
+             : `How far price must move before liquidation triggers. ${buffer < 5 ? 'Very close — consider adding margin or closing.' : buffer < 10 ? 'Moderate risk.' : 'Safe distance.'}`} />
         <R label="Position Size"     value={`$${formatMoney(p.size)}`}        tip="Total notional value of your position (margin × leverage). This is the actual exposure, not just the collateral." />
         <R label="Leverage"          value={`${p.leverage}×`}                 tip={`${p.leverage}× leverage means a 1% price move = ${p.leverage}% gain or loss on your margin.`} />
         <R label="Margin Used"       value={`$${formatMoney(marginUsed)}`}    tip={isCross ? "Margin committed from your account to back this position. In CROSS mode, your full balance can cover losses beyond this amount." : "Maximum you can lose on this position. In ISOLATED mode, losses are capped at this amount."} />
@@ -488,10 +488,12 @@ export const OrderDetailsModal = ({
           width: '100%', maxWidth: isSmall ? '100%' : 460,
           maxHeight: isSmall ? '92dvh' : '88vh',
           display: 'flex', flexDirection: 'column',
-          borderRadius: isSmall ? '20px 20px 0 0' : 20,
-          background: 'var(--modal-bg, var(--bg-base-2))',
-          border: '1px solid var(--hairline-strong)',
-          boxShadow: 'var(--glass-shadow)',
+          borderRadius: isSmall ? '24px 24px 0 0' : 24,
+          background: 'var(--glass-bg-strong)',
+          border: '1px solid var(--glass-border)',
+          boxShadow: '0 32px 96px -16px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset',
+          backdropFilter: 'blur(40px) saturate(1.35)',
+          WebkitBackdropFilter: 'blur(40px) saturate(1.35)',
           overflow: 'hidden', position: 'relative',
         }}
       >
@@ -526,7 +528,7 @@ export const OrderDetailsModal = ({
 
         {hero}
 
-        <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, background: 'var(--bg-base)' }}>
+        <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, background: 'transparent' }}>
           {body}
         </div>
 

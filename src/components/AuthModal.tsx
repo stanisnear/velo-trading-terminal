@@ -12,7 +12,7 @@ const EXPECTED_CHAIN_ID = 84532;
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuth: (user: any, profile: any) => void;
+  onAuth: (user: any, profile: any, isNewAccount?: boolean) => void;
   onFallbackLogin?: (username: string) => void;
   required?: boolean;
   disconnectRef?: React.MutableRefObject<(() => void) | null>;
@@ -245,7 +245,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       if (!supabaseReady) {
         const shortAddr = `${address.slice(0, 6)}...${address.slice(-4)}`;
-        onAuth({ id: address, user_metadata: { username: shortAddr, wallet_address: address } }, null);
+        onAuth({ id: address, user_metadata: { username: shortAddr, wallet_address: address } }, null, false);
         onClose();
         return;
       }
@@ -267,7 +267,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             setTimeout(() => {
               if (completedRef.current) return;
               completedRef.current = true;
-              onAuth(existingSession.user, profile); onClose();
+              onAuth(existingSession.user, profile, false); onClose();
             }, 2200);
             return;
           }
@@ -285,7 +285,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             setTimeout(() => {
               if (completedRef.current) return;
               completedRef.current = true;
-              onAuth(data.user, profile); onClose();
+              onAuth(data.user, profile, false); onClose();
             }, 2200);
             return;
           }
@@ -406,7 +406,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setTimeout(() => {
             if (completedRef.current) return;
             completedRef.current = true;
-            onAuth(signInData.user, { ...profile, username: uname, handle: `@${uname}` }); onClose();
+            onAuth(signInData.user, { ...profile, username: uname, handle: `@${uname}` }, true); onClose();
           }, 2400);
           return;
         }
@@ -424,7 +424,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setTimeout(() => {
         if (completedRef.current) return;
         completedRef.current = true;
-        onAuth(signInData.user, profile || { id: signInData.user.id, username: uname, handle: `@${uname}`, balance: 0 }); onClose();
+        onAuth(signInData.user, profile || { id: signInData.user.id, username: uname, handle: `@${uname}`, balance: 0 }, true); onClose();
       }, 2400);
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -478,10 +478,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         style={{
           position: 'relative',
           width: '100%', maxWidth: 460,
-          background: 'var(--bg-base-2)',
+          background: 'var(--glass-bg-strong)',
           borderRadius: 24,
-          border: '1px solid oklch(1 0 0 / 0.08)',
+          border: '1px solid var(--glass-border)',
           boxShadow: '0 30px 90px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.04) inset',
+          backdropFilter: 'blur(40px) saturate(1.35)',
+          WebkitBackdropFilter: 'blur(40px) saturate(1.35)',
           overflow: 'hidden',
           transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.97)',
           transition: 'transform 0.38s cubic-bezier(0.22, 1, 0.36, 1)',
@@ -656,6 +658,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 hint="3–20 characters · letters, numbers, underscores"
                 onKeyDown={e => e.key === 'Enter' && advance()}
               />
+              {/* On-chain identity note — the handle is registered in the
+                  VeloRegistry contract during setup, not as a separate step. */}
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+                padding: '10px 12px', borderRadius: 12,
+                background: 'oklch(0.68 0.22 295 / 0.08)',
+                border: '1px solid oklch(0.68 0.22 295 / 0.18)',
+              }}>
+                <span style={{ color: 'var(--iris-violet)', marginTop: -1, flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, lineHeight: 1.4 }}>@</span>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.55, letterSpacing: '0.01em' }}>
+                  Your handle is registered <span style={{ color: 'var(--iris-violet)', fontWeight: 700 }}>on-chain</span> in the Velo Registry and tied to your wallet — it becomes your permanent on-chain identity.
+                </p>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <HoloButton onClick={advance} disabled={!username.trim()}>Continue →</HoloButton>
                 <GhostButton onClick={back}>← Back</GhostButton>

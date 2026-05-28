@@ -859,7 +859,7 @@ export async function openPosition(
   // This is a Base Sepolia testnet Pyth quirk — the position exists on-chain and
   // can still be closed. The UI shows the warning banner separately.
   if (entryPrice > 0 && entryPrice < 0.0001) {
-    console.warn(`[velo] ⚠️ Corrupt entry price detected: $${entryPrice} — Pyth oracle cache was stale on-chain. Position opened but entry price is invalid.`);
+    console.warn(`[velo] Corrupt entry price detected: $${entryPrice} — Pyth oracle cache was stale on-chain. Position opened but entry price is invalid.`);
   }
   return { txHash, tradeId, entryPrice };
 }

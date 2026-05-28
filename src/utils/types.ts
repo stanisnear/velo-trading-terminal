@@ -83,6 +83,8 @@ export interface UserProfile {
   joinedDate: string;
   likes: string[];
   reposts: string[];
+  /** Connected EVM wallet address, attached at login for modal display. */
+  walletAddress?: string;
 }
 
 export type NotificationType =

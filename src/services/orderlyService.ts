@@ -79,23 +79,23 @@ export const ETH_FAUCETS = [
 //
 // Honest accounting of what's verifiable from outside the app:
 //
-//   ✓ Real USDC deposits to the Orderly vault on Base Sepolia produce a
+//    Real USDC deposits to the Orderly vault on Base Sepolia produce a
 //     transaction hash you can look up at sepolia.basescan.org/tx/<hash>.
-//   ✓ The Orderly vault contract on Base Sepolia has a public address page:
+//    The Orderly vault contract on Base Sepolia has a public address page:
 //     sepolia.basescan.org/address/0xdc7348975aE9334DbdcB944DDa9163Ba8406a0ec
 //     — you can confirm it exists and see all deposits/withdrawals to it.
-//   ✓ Your burner wallet address can be inspected at sepolia.basescan.org
+//    Your burner wallet address can be inspected at sepolia.basescan.org
 //     to see its on-chain history.
 //
 // What's NOT verifiable from outside:
 //
-//   ✗ The Orderly testnet faucet is server-side. It credits your Orderly
+//    The Orderly testnet faucet is server-side. It credits your Orderly
 //     account database directly without producing a Base Sepolia tx. There
 //     is no on-chain proof of a faucet credit.
-//   ✗ Orders are matched off-chain on Orderly's L2 rollup. Individual orders
+//    Orders are matched off-chain on Orderly's L2 rollup. Individual orders
 //     don't have public URLs anywhere — only deposits/withdrawals settle
 //     on Base Sepolia and are publicly verifiable.
-//   ✗ WOOFi Pro testnet (testnet-dex-evm.woo.org) runs on Arbitrum Sepolia,
+//    WOOFi Pro testnet (testnet-dex-evm.woo.org) runs on Arbitrum Sepolia,
 //     not Base Sepolia. It can't see Velo's deposits even though both are
 //     "Orderly testnet" — different settlement chains.
 

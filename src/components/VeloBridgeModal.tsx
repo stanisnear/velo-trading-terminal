@@ -38,10 +38,12 @@ const S = {
 
 const cardStyle: React.CSSProperties = {
   width: 'min(440px, calc(100vw - 32px))',
-  background: 'var(--bg-base-2)',
-  border: '1px solid var(--hairline)',
+  background: 'var(--glass-bg-strong)',
+  border: '1px solid var(--glass-border)',
   borderRadius: 24,
   boxShadow: '0 32px 96px -16px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255,255,255,0.04) inset',
+  backdropFilter: 'blur(40px) saturate(1.35)',
+  WebkitBackdropFilter: 'blur(40px) saturate(1.35)',
   position: 'relative',
   overflow: 'hidden',
 };

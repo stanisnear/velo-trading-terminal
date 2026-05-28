@@ -193,32 +193,19 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
 
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'oklch(0 0 0 / 0.72)',
-          backdropFilter: 'blur(14px) saturate(140%)',
-          WebkitBackdropFilter: 'blur(14px) saturate(140%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20, overflowY: 'auto',
-        }}
+        className="velo-modal-overlay"
+        style={{ overflowY: 'auto' }}
       >
         <div
           onClick={e => e.stopPropagation()}
-          className="settings-card mode-dark"
+          className="settings-card mode-dark velo-modal-card"
           style={{
             position: 'relative',
             width: '100%', maxWidth: 520,
-            background: 'var(--bg-base-2)',
-            border: '1px solid oklch(1 0 0 / 0.08)',
-            borderRadius: 24,
             overflow: 'hidden',
-            boxShadow: '0 30px 90px oklch(0 0 0 / 0.5)',
             margin: 'auto',
           }}
         >
-          {/* Top accent line */}
-          <div style={{ height: 2, background: 'linear-gradient(90deg, oklch(0.78 0.18 295), oklch(0.82 0.16 200), oklch(0.85 0.15 30))', opacity: 0.85 }} />
-
           {/* Header */}
           <div style={{ padding: '22px 28px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
