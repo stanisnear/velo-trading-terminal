@@ -156,6 +156,66 @@ const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
 };
 
 // --- Helper Functions ---
+
+// ── Velo session cache ────────────────────────────────────────────────────────
+// Stores a minimal snapshot of the authenticated user in localStorage so the
+// UI can render immediately on page load without waiting for Supabase round-trips.
+// Supabase INITIAL_SESSION still runs in the background and overwrites with
+// fresh data — this just eliminates the blank "Log In" flash on every tab open.
+const VELO_SESSION_CACHE_KEY = 'velo_session_v1';
+
+function readSessionCache(): any | null {
+  try {
+    const raw = localStorage.getItem(VELO_SESSION_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Invalidate if older than 24h — Supabase JWT also expires around then
+    if (Date.now() - (parsed._cachedAt || 0) > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(VELO_SESSION_CACHE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+}
+
+function writeSessionCache(user: any): void {
+  try {
+    // Store only what's needed to render the UI immediately
+    const snapshot = {
+      id: user.id,
+      username: user.username,
+      handle: user.handle,
+      avatar: user.avatar,
+      banner: user.banner,
+      balance: user.balance,
+      pnlTotal: user.pnlTotal,
+      realizedPnL: user.realizedPnL,
+      veloRewards: user.veloRewards,
+      walletAddress: user.walletAddress,
+      veloWalletAddress: user.veloWalletAddress,
+      joinedDate: user.joinedDate,
+      bio: user.bio,
+      following: user.following || [],
+      followers: user.followers || [],
+      copying: user.copying || [],
+      copierCount: user.copierCount || 0,
+      earnedFees: user.earnedFees || 0,
+      tradeHistory: [],
+      transactionHistory: [],
+      pnlHistory: [],
+      likes: [],
+      reposts: [],
+      _cachedAt: Date.now(),
+    };
+    localStorage.setItem(VELO_SESSION_CACHE_KEY, JSON.stringify(snapshot));
+  } catch { /* storage full or unavailable */ }
+}
+
+function clearSessionCache(): void {
+  try { localStorage.removeItem(VELO_SESSION_CACHE_KEY); } catch {}
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const formatMoney = (amount: number | undefined | null) => {
     if (amount === undefined || amount === null) return '0.00';
     return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -4096,9 +4156,14 @@ const ResetPasswordModal = ({ onClose, onSuccess }: { onClose: () => void; onSuc
 
 const App = () => {
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('velo_theme') as 'light' | 'dark') || 'dark');
-    const [user, setUser] = useState<UserProfile | null>(null);
+    // Initialize from localStorage cache immediately — eliminates the "Log In" flash
+    // on every page load while Supabase session restore runs in the background.
+    // Supabase INITIAL_SESSION overwrites this with fresh data once it resolves.
+    const [user, setUser] = useState<UserProfile | null>(() => readSessionCache());
     // Tracks whether the initial auth check is complete — prevents flash of "not logged in" on refresh
-    const [authChecked, setAuthChecked] = useState(false);
+    // If we have a cached user, skip the loading screen — Supabase refreshes in background.
+    // If no cache, show loading until session restore completes.
+    const [authChecked, setAuthChecked] = useState(() => readSessionCache() !== null);
     // Bumped after intentional logout clears, to re-arm socialLoginEffect when wallet stays connected
     const [retryAuthTick, setRetryAuthTick] = useState(0);
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
@@ -4176,6 +4241,10 @@ const App = () => {
     // session and the first-run faucet/welcome flow completing. Returning,
     // already-registered accounts keep this false so the faucet never reopens.
     const freshSignupRef = useRef(false);
+    // Tracks whether the wallet connected via a genuine user action this session
+    // (AppKit connect flow), as opposed to wagmi's silent auto-reconnect on page reload.
+    // socialLoginEffect only runs the sign-in/onboard flow for genuine connects.
+    const freshWalletConnectRef = useRef(false);
     const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
     const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
@@ -4201,7 +4270,7 @@ const App = () => {
       burnerAddress,
     );
     const chainId = useChainId();
-    const { address: walletAddress, isConnected: isWalletConnected } = useAccount();
+    const { address: walletAddress, isConnected: isWalletConnected, status: wagmiStatus } = useAccount();
     const { open: openAppKitModal } = useAppKit();
     const publicClient = usePublicClient();
     const { signMessageAsync } = useSignMessage();
@@ -4406,53 +4475,62 @@ const App = () => {
     // guard, a returning logged-in user would see the login modal pop up on
     // every refresh (user is null during the async restore window).
     const socialLoginHandledRef = useRef(false);
+
+    // When wagmiStatus transitions through 'connecting' it means the user actively
+    // opened AppKit and chose a wallet. Page-reload reconnects go straight from
+    // 'reconnecting' → 'connected' and never hit 'connecting', so this reliably
+    // distinguishes the two cases without any setTimeout hacks.
+    useEffect(() => {
+      if (wagmiStatus === 'connecting') {
+        freshWalletConnectRef.current = true;
+      }
+      if (wagmiStatus === 'disconnected') {
+        freshWalletConnectRef.current = false;
+        socialLoginHandledRef.current = false;
+      }
+    }, [wagmiStatus]);
+    // ── Social login / onboarding trigger ─────────────────────────────────
+    // Fires ONLY when the user actively connected their wallet this session
+    // (freshWalletConnectRef=true, set when wagmiStatus passes through 'connecting').
+    // Page-reload auto-reconnects (wagmiStatus goes 'reconnecting'→'connected',
+    // never touching 'connecting') are completely excluded — Supabase INITIAL_SESSION
+    // handles those. This eliminates the race between restoreSession and this effect.
     useEffect(() => {
       if (!isWalletConnected || !walletAddress) {
-        socialLoginHandledRef.current = false; // reset on disconnect
+        socialLoginHandledRef.current = false;
         return;
       }
-      if (!authChecked) return;    // wait for Supabase session restore to complete
-      if (user) return;            // already authenticated
-      if (isLoginOpen) return;     // modal already open
-      if (socialLoginHandledRef.current) return; // already triggered
-      if (freshSignupRef.current) return; // brand-new account just created
+      // KEY GUARD: page-reload reconnects must never trigger this flow.
+      // Only a genuine user-initiated AppKit connect sets this flag.
+      if (!freshWalletConnectRef.current) return;
+      if (!authChecked) return;
+      if (user) return;
+      if (isLoginOpen) return;
+      if (socialLoginHandledRef.current) return;
+      if (freshSignupRef.current) return;
       socialLoginHandledRef.current = true;
 
-      // Wallet connected and no Supabase session yet — check if this wallet
-      // has an existing Velo account. If yes: silent login + SUCCESS_RETURNING.
-      // If no: open onboarding modal at USERNAME step (new user flow).
       setTimeout(async () => {
-        // Guard: re-check after async gap — onAuth may have fired while we waited
         if (freshSignupRef.current) return;
         if (intentionalLogoutRef.current) return;
         try {
-          // Try to sign in with the deterministic wallet-derived credentials
           const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
           const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
           const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-          // Guard again after await — new account may have been created during Supabase round-trip
           if (freshSignupRef.current) return;
           if (data?.user && !signInErr) {
             const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-            // Final guard after second await
             if (freshSignupRef.current) return;
             if (profile?.username) {
-              // Existing account — hydrate app state silently without opening
-              // any modal. The user just reconnected their wallet; no need to
-              // show a welcome-back splash since they didn't explicitly log in.
               intentionalLogoutRef.current = false;
               freshSignupRef.current = false;
               socialLoginHandledRef.current = true;
-              // Mark session restored BEFORE the async hydration so the
-              // SIGNED_IN supabase event (fired by signInWithPassword above)
-              // does NOT race-trigger a second restoreSession call.
               sessionRestoredRef.current = true;
-              // Hydrate app state directly without showing the modal
               silentLoginCallbackRef.current?.(data.user, profile);
               return;
             }
           }
-          // No existing account — open onboarding for new-user registration
+          // No existing account — open onboarding
           socialLoginHandledRef.current = false;
           setLoginReturningName('');
           setLoginOpen(true);
@@ -4724,6 +4802,16 @@ const App = () => {
     // Mark stale deposits as FAILED on app boot
     useEffect(() => { reapStaleDeposits(); }, []);
 
+    // Keep localStorage session cache in sync with user state.
+    // Written on every successful login/restore, cleared on logout.
+    useEffect(() => {
+      if (user) {
+        writeSessionCache(user);
+      } else {
+        clearSessionCache();
+      }
+    }, [user]);
+
     // Poll Orderly balance frequently while any deposits are in flight
     useEffect(() => {
       if (!hasInFlightDeposits || !orderly.keypair) return;
@@ -4762,6 +4850,8 @@ const App = () => {
     const pendingTradeOps = useRef(0);
 
     // Guard: prevent double-restore from INITIAL_SESSION + getSession() fallback firing simultaneously
+    // Always start false so INITIAL_SESSION refreshes data from Supabase on every load.
+    // The localStorage cache handles instant display; Supabase provides fresh data.
     const sessionRestoredRef = useRef(false);
 
     // Guard: user explicitly logged out — block all automatic session restores until next manual login
@@ -5039,10 +5129,13 @@ const App = () => {
         // Track whether we've already done the first restore so we don't double-load
         const restoreSession = async (session: any, isGetSessionFallback = false) => {
             if (!session?.user) {
-                // Only mark authChecked from the authoritative getSession() call,
-                // not from INITIAL_SESSION which can fire with null before the
-                // stored token is validated on cold starts.
-                if (isGetSessionFallback) setAuthChecked(true);
+                // Supabase confirmed there's no valid session.
+                // If we pre-loaded a cached user, clear it — the session expired.
+                if (isGetSessionFallback) {
+                    clearSessionCache();
+                    setUser(null);
+                    setAuthChecked(true);
+                }
                 return;
             }
             // Block restore if user explicitly logged out this session
@@ -5134,7 +5227,8 @@ const App = () => {
                 intentionalLogoutRef.current = true;
                 sessionRestoredRef.current = false;
                 userLoadedFromDB.current = false;
-                autoRecoverAttemptedRef.current = false; // allow re-derivation on next login
+                autoRecoverAttemptedRef.current = false;
+                freshWalletConnectRef.current = false;
                 setUser(null);
                 setPositions([]);
                 setOpenOrders([]);
@@ -6332,7 +6426,8 @@ const App = () => {
         if (isSupabaseConfigured()) await supabaseSignOut();
         userLoadedFromDB.current = false;
         sessionRestoredRef.current = false;
-        autoRecoverAttemptedRef.current = false; // allow auto-recovery to fire again on next login
+        autoRecoverAttemptedRef.current = false;
+        freshWalletConnectRef.current = false; // will be re-set if user connects fresh via AppKit
         setLoginReturningName(''); // reset so modal doesn't skip to SUCCESS_RETURNING on next login
         setUser(null);
         setPositions([]);
