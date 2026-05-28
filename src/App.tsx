@@ -7613,6 +7613,7 @@ const App = () => {
               onClose={() => { setManagingPosition(null); setManagingPositionTab('ADD'); }}
               position={managingPosition}
               currentPrice={managingPosition ? (marketPrices[managingPosition.pair] || managingPosition.entryPrice) : 0}
+              userBalance={veloPerpsTrading.usdcBalance ?? user?.balance ?? 0}
               initialTab={managingPositionTab}
               actions={{
                 addMargin: async (tradeId, amt) => {
@@ -7635,6 +7636,23 @@ const App = () => {
                 setTriggers: async (tradeId, tp, sl) => {
                   const r = await veloPerpsTrading.setTriggers(tradeId, tp, sl);
                   setToast({ message: `Triggers updated on-chain`, type: 'SUCCESS' });
+                  // Sync local position tp/sl so chart lines update immediately
+                  if (managingPosition) {
+                    const pos = managingPosition;
+                    setPositions((prev: any[]) => prev.map((p: any) =>
+                      p.id === pos.id ? { ...p, takeProfit: tp || undefined, stopLoss: sl || undefined } : p
+                    ));
+                    // Sync openOrders: replace any existing TP/SL orders for this position
+                    const id = pos.id;
+                    setOpenOrders((prevOrders: any[]) => {
+                      const filtered = prevOrders.filter((o: any) => o.relatedPositionId !== id);
+                      const closeSide = pos.side === 'LONG' ? 'SHORT' : 'LONG';
+                      const newOrds: any[] = [];
+                      if (tp) newOrds.push({ id: `ord_tp_${id}_${Date.now()}`, pair: pos.pair, side: closeSide, type: 'TAKE_PROFIT', price: tp, size: pos.size, leverage: pos.leverage, timestamp: Date.now(), relatedPositionId: id });
+                      if (sl) newOrds.push({ id: `ord_sl_${id}_${Date.now()}`, pair: pos.pair, side: closeSide, type: 'STOP_LOSS', price: sl, size: pos.size, leverage: pos.leverage, timestamp: Date.now(), relatedPositionId: id });
+                      return [...filtered, ...newOrds];
+                    });
+                  }
                   return r;
                 },
               }}

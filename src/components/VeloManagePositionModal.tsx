@@ -496,30 +496,39 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>${collateral.toFixed(2)}</span>
                   <button onClick={() => {
-                    const maxWithdraw = Math.max(0, collateral - 1);
+                    // Leave 20% of collateral as maintenance margin buffer
+                    const maxWithdraw = Math.max(0, collateral * 0.8);
                     setReduceAmount(maxWithdraw.toFixed(2));
-                  }} disabled={!ok || collateral <= 1} style={{ ...S.mono, fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'oklch(0.68 0.22 295 / 0.12)', color: 'var(--iris-violet)' }}>MAX</button>
+                  }} disabled={!ok || collateral <= 0} style={{ ...S.mono, fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'oklch(0.68 0.22 295 / 0.12)', color: 'var(--iris-violet)' }}>MAX</button>
                 </div>
               </div>
-              <div style={{ ...S.label, marginBottom: 6 }}>Amount (mUSDC)</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ ...S.label }}>Amount (mUSDC)</span>
+                <span style={{ ...S.mono, fontSize: 9, color: 'var(--fg-subtle)' }}>Max 80% · contract keeps 20% buffer</span>
+              </div>
               <PriceInput value={reduceAmount} onChange={setReduceAmount} placeholder="0.00" disabled={!ok} accent="violet" />
               <div style={{ display: 'flex', gap: 5, marginTop: 8, marginBottom: 2 }}>
                 {[25, 50, 75].map(pct => {
-                  const amt = (collateral * pct / 100);
+                  const maxSafe = collateral * 0.8;
+                  const amt = Math.min(collateral * pct / 100, maxSafe);
                   return (
                     <button key={pct} onClick={() => setReduceAmount(amt.toFixed(2))} disabled={!ok} style={{ flex: 1, padding: '6px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 0 1px var(--hairline) inset', color: 'var(--fg-muted)' }}>{pct}%</button>
                   );
                 })}
-                <button onClick={() => setReduceAmount(Math.max(0, collateral - 1).toFixed(2))} disabled={!ok} style={{ flex: 1, padding: '6px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 0 1px var(--hairline) inset', color: 'var(--fg-muted)' }}>MAX</button>
+                <button onClick={() => setReduceAmount((collateral * 0.8).toFixed(2))} disabled={!ok} style={{ flex: 1, padding: '6px 0', borderRadius: 9, border: 'none', cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 0 1px var(--hairline) inset', color: 'var(--fg-muted)' }}>MAX</button>
               </div>
-              {parseFloat(reduceAmount) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', marginTop: 8, borderRadius: 10, background: 'oklch(0.68 0.22 295 / 0.06)', border: '1px solid oklch(0.68 0.22 295 / 0.18)', animation: 'velo-pnl-in 0.2s ease' }}>
-                  <span style={{ ...S.label, fontSize: 9 }}>Remaining collateral</span>
-                  <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: (collateral - (parseFloat(reduceAmount) || 0)) < 5 ? 'var(--pnl-down)' : 'var(--iris-violet)' }}>
-                    ${Math.max(0, collateral - (parseFloat(reduceAmount) || 0)).toFixed(2)}
-                  </span>
-                </div>
-              )}
+              {parseFloat(reduceAmount) > 0 && (() => {
+                const remaining = Math.max(0, collateral - (parseFloat(reduceAmount) || 0));
+                const tooLow = remaining < collateral * 0.2;
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 12px', marginTop: 8, borderRadius: 10, background: tooLow ? 'oklch(0.65 0.22 15 / 0.06)' : 'oklch(0.68 0.22 295 / 0.06)', border: `1px solid ${tooLow ? 'oklch(0.65 0.22 15 / 0.3)' : 'oklch(0.68 0.22 295 / 0.18)'}`, animation: 'velo-pnl-in 0.2s ease' }}>
+                    <span style={{ ...S.label, fontSize: 9 }}>{tooLow ? '⚠ Below min buffer' : 'Remaining collateral'}</span>
+                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: tooLow ? 'var(--pnl-down)' : 'var(--iris-violet)' }}>
+                      ${remaining.toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })()}
               <ActionBtn busy={busy} disabled={!ok || !(parseFloat(reduceAmount) > 0)} onClick={() => handle('REDUCE')}
                 label={`Withdraw $${(parseFloat(reduceAmount) || 0).toFixed(2)}`} />
             </>

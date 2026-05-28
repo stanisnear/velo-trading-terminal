@@ -545,37 +545,34 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
 
                   // Click handler
                   const handleClick = () => {
-                    if (isClose) setDetailsItem({ kind: 'HISTORY', item: t });
-                    else if (isOpen) {
-                      // Only open the live position modal if positionId matches exactly,
-                      // or fall back to timestamp proximity (for legacy entries without positionId).
-                      // Never show a different position just because it shares pair/side.
+                    if (isClose) {
+                      setDetailsItem({ kind: 'HISTORY', item: t });
+                    } else if (isOpen) {
+                      // Try to find live position first
                       let livePos: any = undefined;
                       if (t.positionId) {
                         livePos = positions.find((p: any) => p.id === t.positionId);
                       } else {
-                        // Legacy: match by pair/side AND timestamp closeness (within 5 seconds)
                         livePos = positions.find((p: any) =>
                           p.pair === t.pair &&
                           p.side === t.side &&
                           Math.abs(p.timestamp - t.timestamp) < 5000
                         );
                       }
-                      if (livePos) setDetailsItem({ kind: 'POSITION', item: livePos });
-                      // If no matching live position, this OPEN entry belongs to an already-closed
-                      // trade cycle — do nothing (the row is still informational).
+                      if (livePos) {
+                        // Position still open — show live manage modal
+                        setDetailsItem({ kind: 'POSITION', item: livePos });
+                      } else {
+                        // Position already closed — show the OPEN entry as history context
+                        setDetailsItem({ kind: 'HISTORY', item: { ...t, action: 'OPEN' } });
+                      }
                     } else if (isTx) {
                       setDetailsItem({ kind: 'TRANSACTION', item: t } as any);
                     }
                   };
 
-                  // Determine if this row is clickable
-                  const hasLivePos = isOpen && (
-                    t.positionId
-                      ? positions.some((p: any) => p.id === t.positionId)
-                      : positions.some((p: any) => p.pair === t.pair && p.side === t.side && Math.abs(p.timestamp - t.timestamp) < 5000)
-                  );
-                  const isClickable = isClose || isTx || hasLivePos;
+                  // All rows are now clickable
+                  const isClickable = isClose || isOpen || isTx;
 
                   return (
                     <tr key={t.id}
