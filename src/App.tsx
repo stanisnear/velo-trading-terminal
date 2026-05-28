@@ -4099,6 +4099,8 @@ const App = () => {
     const [user, setUser] = useState<UserProfile | null>(null);
     // Tracks whether the initial auth check is complete — prevents flash of "not logged in" on refresh
     const [authChecked, setAuthChecked] = useState(false);
+    // Bumped after intentional logout clears, to re-arm socialLoginEffect when wallet stays connected
+    const [retryAuthTick, setRetryAuthTick] = useState(0);
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
     const [traders, setTraders] = useState<Trader[]>([]);
     const [posts, setPosts] = useState<Post[]>([]);
@@ -4410,7 +4412,6 @@ const App = () => {
         return;
       }
       if (!authChecked) return;    // wait for Supabase session restore to complete
-      if (sessionRestoredRef.current) return; // restore already ran (or in progress) — user will be set
       if (user) return;            // already authenticated
       if (isLoginOpen) return;     // modal already open
       if (socialLoginHandledRef.current) return; // already triggered
@@ -4461,7 +4462,7 @@ const App = () => {
           setLoginOpen(true);
         }
       }, 400);
-    }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked, retryAuthTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Velo Welcome onboarding (Phase 3) ─────────────────────────────────
     // Opens ONLY AFTER a brand-new account is created this session (the
@@ -5021,11 +5022,11 @@ const App = () => {
             return;
         }
 
-        // Safety net: if auth check takes more than 8s (network stall, Supabase cold start),
+        // Safety net: if auth check takes more than 4s (network stall, Supabase cold start),
         // unblock the loading screen so the user doesn't get stuck forever.
         const authTimeout = setTimeout(() => {
             setAuthChecked(true);
-        }, 8000);
+        }, 4000);
         
         // Detect redirect back from password-reset email
         const params = new URLSearchParams(window.location.search);
@@ -5046,14 +5047,16 @@ const App = () => {
             }
             // Block restore if user explicitly logged out this session
             if (intentionalLogoutRef.current) { setAuthChecked(true); return; }
-            // Prevent double-restore: INITIAL_SESSION fires, then getSession() fallback also fires
-            if (sessionRestoredRef.current) return;
+            // Prevent double-restore: INITIAL_SESSION fires, then getSession() fallback also fires.
+            // BUT: if the fallback is the one that hits this guard, we must still mark authChecked
+            // so the loading screen doesn't spin until the 4s safety timeout.
+            if (sessionRestoredRef.current) { if (isGetSessionFallback) setAuthChecked(true); return; }
             sessionRestoredRef.current = true;
             try {
                 let profileData = await getProfile(session.user.id);
                 // Retry once on failure (Supabase cold start / transient network blip)
                 if (!profileData?.profile) {
-                    await new Promise(r => setTimeout(r, 1200));
+                    await new Promise(r => setTimeout(r, 600));
                     profileData = await getProfile(session.user.id);
                 }
                 const profile = profileData?.profile;
@@ -5146,6 +5149,7 @@ const App = () => {
                 setTimeout(() => {
                     intentionalLogoutRef.current = false;
                     socialLoginHandledRef.current = false;
+                    setRetryAuthTick(t => t + 1); // force socialLoginEffect to re-evaluate
                 }, 1200);
             } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                 // Fired on page load when a stored session exists — restore without double-loading
@@ -6280,6 +6284,41 @@ const App = () => {
         recordSessionWallet();
         setLoginOpen(false);
         playSound('SUCCESS');
+    };
+    // Smart auth entry point — used by all "Log In" buttons in the UI.
+    // If the wallet is already connected, silently sign in with wallet credentials
+    // instead of reopening AppKit (which just shows the already-connected wallet info).
+    // Only open AppKit if there is no wallet connected at all.
+    const handleRequireAuth = async () => {
+        if (user) return;
+        if (isWalletConnected && walletAddress) {
+            // Manual click — clear all guards so this always succeeds.
+            intentionalLogoutRef.current = false;
+            socialLoginHandledRef.current = false;
+            socialLoginHandledRef.current = true; // lock against concurrent calls
+            try {
+                const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
+                const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
+                const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
+                if (data?.user && !signInErr) {
+                    const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+                    if (profile?.username) {
+                        intentionalLogoutRef.current = false;
+                        sessionRestoredRef.current = true;
+                        silentLoginCallbackRef.current?.(data.user, profile);
+                        return;
+                    }
+                }
+                socialLoginHandledRef.current = false;
+                setLoginReturningName('');
+                setLoginOpen(true);
+            } catch {
+                socialLoginHandledRef.current = false;
+                setLoginOpen(true);
+            }
+        } else {
+            openAppKitModal();
+        }
     };
     const handleLogout = async () => {
         const name = user?.username;
@@ -8123,8 +8162,8 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={() => openAppKitModal()} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={() => openAppKitModal()} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} onNotificationClick={(n: any) => {
+            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner}/>
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
                     if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
@@ -8256,7 +8295,7 @@ const App = () => {
                 {activeTab === TabView.TRADE && <>
 
 
-                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={() => openAppKitModal()} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
+                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
                     const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
                     const collateral = p.size / p.leverage;
@@ -8314,7 +8353,7 @@ const App = () => {
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
                     <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={async (id:string) => { setPosts(prev => prev.filter(p => p.id !== id)); if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e)); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={() => openAppKitModal()} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onDeletePost={async (id:string) => {
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onDeletePost={async (id:string) => {
                     setPosts(prev => prev.filter(p => p.id !== id));
                     if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
                 }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
@@ -8324,7 +8363,7 @@ const App = () => {
                     setPosts(prev => prev.filter(p => p.id !== id));
                     if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
                 }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
-                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={() => openAppKitModal()} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={async (id:string) => {
+                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={async (id:string) => {
                     setPosts(prev => prev.filter(p => p.id !== id));
                     if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
                 }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
