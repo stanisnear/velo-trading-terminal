@@ -1,15 +1,16 @@
 // VeloOnboardingModal — new-user registration only.
 //
 // Shown ONLY when a wallet connects and has NO existing Velo account.
-// Wallet connection is handled by Reown AppKit (triggered directly by the
-// Connect Wallet button). This modal never shows AppKit or a splash screen.
+// Wallet connection is handled by Reown AppKit. This modal does NOT open AppKit.
 //
-// New-user flow:
-//   USERNAME → EMAIL → REVIEW → CREATING → BURNER_SIGN → BURNER_SPONSOR
-//   → BURNER_CONFIRM → SUCCESS_NEW
-//
-// Returning users see SUCCESS_RETURNING (passed via `returningName` prop
-// from App.tsx after silent login) — auto-closes once, never twice.
+// Steps:
+//   HELLO          → Apple-style animated welcome splash
+//   USERNAME       → pick a handle
+//   EMAIL          → optional email
+//   REVIEW         → confirm + create account
+//   CREATING / BURNER_SIGN / BURNER_SPONSOR / BURNER_CONFIRM → progress
+//   SUCCESS_NEW    → funded, done
+//   SUCCESS_RETURNING → welcome back (auto-closes)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -53,11 +54,11 @@ export interface VeloOnboardingModalProps {
   onUsernameClaimed?: (handle: string, txHash: `0x${string}`) => void;
   required?: boolean;
   disconnectRef?: React.MutableRefObject<(() => void) | null>;
-  /** Set to the username for SUCCESS_RETURNING screen (app-level silent login) */
   returningName?: string;
 }
 
 type Step =
+  | 'HELLO'
   | 'USERNAME'
   | 'EMAIL'
   | 'REVIEW'
@@ -74,21 +75,8 @@ const PROGRESS_IDX: Partial<Record<Step, number>> = {
   CREATING: 2, BURNER_SIGN: 2, BURNER_SPONSOR: 2, BURNER_CONFIRM: 2,
 };
 
-// ─── Design tokens (modal always uses dark theme) ─────────────────────────────
-const T = {
-  fg:       '#F4F4F7',
-  fgMuted:  'rgba(244,244,247,0.55)',
-  fgSubtle: 'rgba(244,244,247,0.3)',
-  bg:       '#0e0e14',
-  hairline: 'rgba(255,255,255,0.07)',
-  violet:   'oklch(0.55 0.24 295)',
-  green:    '#34d399',
-  mono:     "'JetBrains Mono','Fira Code',monospace",
-  display:  'Georgia,serif',
-  sans:     '-apple-system,BlinkMacSystemFont,sans-serif',
-};
+// ─── Micro components — all use CSS vars for light/dark theme ────────────────
 
-// ─── Micro components ─────────────────────────────────────────────────────────
 const VLogo = ({ size = 48 }: { size?: number }) => (
   <div style={{
     width: size, height: size,
@@ -96,10 +84,10 @@ const VLogo = ({ size = 48 }: { size?: number }) => (
     background: 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     position: 'relative', overflow: 'hidden', flexShrink: 0,
-    boxShadow: `0 4px 20px oklch(0.55 0.24 295 / 0.45)`,
+    boxShadow: `0 4px 20px oklch(0.55 0.24 295 / 0.4)`,
   }}>
-    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 80% at 28% 8%, rgba(255,255,255,0.42), transparent 55%)' }} />
-    <span style={{ fontFamily: T.display, fontSize: size * 0.46, color: '#fff', fontStyle: 'italic', fontWeight: 700, lineHeight: 1, position: 'relative', zIndex: 1 }}>V</span>
+    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 80% at 28% 8%, rgba(255,255,255,0.38), transparent 55%)' }} />
+    <span style={{ fontFamily: 'Georgia,serif', fontSize: size * 0.46, color: '#fff', fontStyle: 'italic', fontWeight: 700, lineHeight: 1, position: 'relative', zIndex: 1 }}>V</span>
   </div>
 );
 
@@ -108,7 +96,7 @@ const HoloBar = ({ step, total = 3 }: { step: number; total?: number }) => (
     {Array.from({ length: total }).map((_, i) => (
       <div key={i} style={{
         height: 2.5, flex: 1, borderRadius: 2,
-        background: i <= step ? T.violet : 'rgba(255,255,255,0.08)',
+        background: i <= step ? 'oklch(0.55 0.24 295)' : 'var(--hairline, rgba(0,0,0,0.08))',
         opacity: i < step ? 0.4 : 1,
         transition: 'background 0.4s, opacity 0.4s',
       }} />
@@ -116,34 +104,36 @@ const HoloBar = ({ step, total = 3 }: { step: number; total?: number }) => (
   </div>
 );
 
-const HoloBtn = ({ onClick, children, disabled = false, variant = 'primary' }: {
-  onClick: () => void; children: React.ReactNode; disabled?: boolean; variant?: 'primary' | 'ghost';
-}) => variant === 'ghost' ? (
-  <button onClick={onClick} style={{
-    width: '100%', padding: 11, background: 'none', borderRadius: 12,
-    border: `1px solid rgba(255,255,255,0.1)`,
-    fontFamily: T.mono, fontSize: 11, fontWeight: 700,
-    color: 'rgba(255,255,255,0.4)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
-    transition: 'border-color 0.15s, color 0.15s',
-  }}
-  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.7)'; }}
-  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.4)'; }}
-  >{children}</button>
-) : (
+const PrimaryBtn = ({ onClick, children, disabled = false }: {
+  onClick: () => void; children: React.ReactNode; disabled?: boolean;
+}) => (
   <button onClick={onClick} disabled={disabled} style={{
     width: '100%', padding: 14,
-    background: disabled ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
+    background: disabled ? 'var(--chip-bg, rgba(0,0,0,0.05))' : 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
     border: 'none', borderRadius: 13,
-    fontFamily: T.mono, fontSize: 12, fontWeight: 700,
-    color: disabled ? 'rgba(255,255,255,0.25)' : '#fff',
+    fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, fontWeight: 700,
+    color: disabled ? 'var(--fg-subtle, rgba(0,0,0,0.3))' : '#fff',
     cursor: disabled ? 'not-allowed' : 'pointer',
-    letterSpacing: '0.08em', textTransform: 'uppercase',
-    boxShadow: disabled ? 'none' : `0 6px 24px -6px oklch(0.55 0.24 295 / 0.5)`,
+    letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+    boxShadow: disabled ? 'none' : '0 6px 24px -6px oklch(0.55 0.24 295 / 0.45)',
     transition: 'transform 0.14s, box-shadow 0.14s',
     opacity: disabled ? 0.5 : 1,
   }}
   onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; }}
+  >{children}</button>
+);
+
+const GhostBtn = ({ onClick, children }: { onClick: () => void; children: React.ReactNode }) => (
+  <button onClick={onClick} style={{
+    width: '100%', padding: 11, background: 'none', borderRadius: 12,
+    border: '1px solid var(--hairline-strong, rgba(0,0,0,0.1))',
+    fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, fontWeight: 700,
+    color: 'var(--fg-subtle)', cursor: 'pointer', letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const, transition: 'border-color 0.15s, color 0.15s',
+  }}
+  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'oklch(0.55 0.24 295)'; (e.currentTarget as HTMLElement).style.color = 'var(--fg)'; }}
+  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline-strong, rgba(0,0,0,0.1))'; (e.currentTarget as HTMLElement).style.color = 'var(--fg-subtle)'; }}
   >{children}</button>
 );
 
@@ -156,38 +146,39 @@ const Field = ({ label, value, onChange, placeholder, type = 'text', autoFocus, 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-        <span style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.fgSubtle }}>{label}</span>
-        {optional && <span style={{ fontFamily: T.mono, fontSize: 9, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Optional</span>}
+        <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' }}>{label}</span>
+        {optional && <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, opacity: 0.6 }}>Optional</span>}
       </div>
       <input type={type} value={value} placeholder={placeholder} autoFocus={autoFocus}
         onChange={e => onChange(e.target.value)} onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{
-          width: '100%', padding: '12px 14px', boxSizing: 'border-box',
-          background: 'rgba(255,255,255,0.04)',
-          border: `1.5px solid ${error ? 'oklch(0.62 0.22 25)' : focused ? T.violet : T.hairline}`,
-          borderRadius: 12, fontFamily: T.mono, fontSize: 14,
-          color: T.fg, outline: 'none', transition: 'border-color 0.18s',
+          width: '100%', padding: '12px 14px', boxSizing: 'border-box' as const,
+          background: 'var(--chip-bg, rgba(0,0,0,0.04))',
+          border: `1.5px solid ${error ? 'oklch(0.62 0.22 25)' : focused ? 'oklch(0.55 0.24 295)' : 'var(--hairline-strong)'}`,
+          borderRadius: 12,
+          fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 14,
+          color: 'var(--fg)', outline: 'none', transition: 'border-color 0.18s',
         }}
       />
-      {hint && !error && <p style={{ fontFamily: T.mono, fontSize: 10, color: 'rgba(255,255,255,0.3)', margin: '5px 0 0' }}>{hint}</p>}
-      {error && <p style={{ fontFamily: T.mono, fontSize: 11, color: 'oklch(0.62 0.22 25)', margin: '5px 0 0' }}>{error}</p>}
+      {hint && !error && <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', margin: '5px 0 0', opacity: 0.7 }}>{hint}</p>}
+      {error && <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'oklch(0.62 0.22 25)', margin: '5px 0 0' }}>{error}</p>}
     </div>
   );
 };
 
 const WalletPill = ({ address }: { address: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 13px', background: 'oklch(0.78 0.18 150 / 0.07)', border: '1px solid oklch(0.78 0.18 150 / 0.2)', borderRadius: 11 }}>
-    <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.green, flexShrink: 0 }} />
-    <span style={{ fontFamily: T.mono, fontSize: 12, color: T.fg, fontWeight: 600, flex: 1 }}>{address.slice(0, 10)}…{address.slice(-8)}</span>
-    <span style={{ fontFamily: T.mono, fontSize: 9, color: T.green, letterSpacing: '0.07em', textTransform: 'uppercase' }}>Connected</span>
+    <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'oklch(0.78 0.18 150)', flexShrink: 0 }} />
+    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: 'var(--fg)', fontWeight: 600, flex: 1 }}>{address.slice(0, 10)}…{address.slice(-8)}</span>
+    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'oklch(0.78 0.18 150)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>Connected</span>
   </div>
 );
 
 const SpinRing = () => (
   <div style={{ position: 'relative', width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `2px solid oklch(0.55 0.24 295 / 0.3)`, animation: 'vOnbPulseRing 1.5s ease-in-out infinite' }} />
-    <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.08)', borderTopColor: T.violet, animation: 'vOnbSpin 0.85s linear infinite' }} />
+    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid oklch(0.55 0.24 295)', opacity: 0.25, animation: 'vOnbPulseRing 1.5s ease-in-out infinite' }} />
+    <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--hairline-strong)', borderTopColor: 'oklch(0.55 0.24 295)', animation: 'vOnbSpin 0.85s linear infinite' }} />
   </div>
 );
 
@@ -207,8 +198,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   const socialEmail: string = (embeddedWalletInfo as any)?.user?.email ?? '';
   const supabaseReady = isSupabaseConfigured();
 
-  const [step, setStep] = useState<Step>('USERNAME');
+  const [step, setStep] = useState<Step>('HELLO');
   const [visible, setVisible] = useState(false);
+  const [helloPhase, setHelloPhase] = useState(0);
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -220,12 +212,20 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   const [claimBalance, setClaimBalance] = useState(0);
   const [burnerAddr, setBurnerAddr] = useState<string | null>(null);
 
-  // completedRef: guards against SUCCESS_RETURNING onClose firing twice
   const completedRef = useRef(false);
   const usernameCheckRef = useRef<string | null>(null);
   const flowAbortedRef = useRef(false);
 
   useEffect(() => { if (disconnectRef) disconnectRef.current = disconnect; }, [disconnect, disconnectRef]);
+
+  // HELLO splash animation — 3 phases
+  useEffect(() => {
+    if (!isOpen || step !== 'HELLO') return;
+    setHelloPhase(0);
+    const t1 = setTimeout(() => setHelloPhase(1), 500);
+    const t2 = setTimeout(() => setHelloPhase(2), 1100);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [step, isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -233,8 +233,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
         ? 'SUCCESS_RETURNING'
         : chainId !== EXPECTED_CHAIN_ID
         ? 'WRONG_NETWORK'
-        : 'USERNAME';
+        : 'HELLO';
       setStep(initialStep);
+      setHelloPhase(0);
       setUsername(''); setEmail(''); setFallbackInput('');
       setFieldError(''); setGlobalError('');
       completedRef.current = false;
@@ -248,10 +249,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Network switch recovery
   useEffect(() => {
     if (!isOpen || step !== 'WRONG_NETWORK') return;
-    if (chainId === EXPECTED_CHAIN_ID) setStep('USERNAME');
+    if (chainId === EXPECTED_CHAIN_ID) setStep('HELLO');
   }, [chainId, step, isOpen]);
 
   // SUCCESS_RETURNING auto-close — fires exactly once
@@ -268,6 +268,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const advance = async () => {
+    if (step === 'HELLO') { setStep('USERNAME'); return; }
     if (step === 'USERNAME') {
       const err = validateHandle(username);
       if (err) { setFieldError(err); return; }
@@ -275,7 +276,6 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
         const uname = username.trim().toLowerCase();
         if (usernameCheckRef.current !== uname) {
           usernameCheckRef.current = uname;
-          setFieldError('');
           const { data: existing } = await supabase.from('profiles').select('id').ilike('username', uname).maybeSingle();
           if (existing) { setFieldError('Username already taken — try another'); usernameCheckRef.current = null; return; }
         }
@@ -293,6 +293,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   };
 
   const back = () => {
+    if (step === 'USERNAME') { setStep('HELLO'); return; }
     if (step === 'EMAIL') { setStep('USERNAME'); return; }
     if (step === 'REVIEW') { setStep('EMAIL'); return; }
   };
@@ -312,7 +313,6 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     const contactEmail = email.trim() || null;
     setGlobalError('');
     flowAbortedRef.current = false;
-
     setStep('CREATING');
     try {
       if (supabaseReady) {
@@ -365,13 +365,10 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       }
 
       let bal = 1000;
-      try {
-        bal = await fetchUsdcBalance(publicClient, VELO_USDC_BASE, result.burner.veloAddress);
-        setClaimBalance(bal);
-      } catch { setClaimBalance(1000); }
+      try { bal = await fetchUsdcBalance(publicClient, VELO_USDC_BASE, result.burner.veloAddress); setClaimBalance(bal); }
+      catch { setClaimBalance(1000); }
 
       if (flowAbortedRef.current) return;
-
       markDismissed(address);
       setStep('SUCCESS_NEW');
       onBurnerReady?.({ burnerAddress: result.burner.veloAddress, amount: bal, txHash: result.faucetTxHash ?? null });
@@ -386,7 +383,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       const msg: string = e?.shortMessage || e?.message || 'Something went wrong.';
       if (/rejected|denied|cancelled|user rejected/i.test(msg)) {
         flowAbortedRef.current = true;
-        setGlobalError('You cancelled the signature. Your account was saved — tap "Set up wallet" to try again.');
+        setGlobalError('You cancelled the signature. Your account was saved — tap "Create account" to try again.');
         setStep('REVIEW');
       } else if (/cooldown/i.test(msg)) {
         setGlobalError('Faucet cooldown active — come back in 6 hours.'); setStep('REVIEW');
@@ -400,19 +397,17 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   const isTerminal = step === 'SUCCESS_NEW' || step === 'SUCCESS_RETURNING';
   const showClose = (!required || isTerminal) && !isInProgress;
 
-  const handleClose = () => { if (showClose) onClose(); };
-
   if (!isOpen) return null;
   const progIdx = PROGRESS_IDX[step] ?? null;
 
   return createPortal(
     <div
-      onClick={e => { if (e.target === e.currentTarget) handleClose(); }}
+      onClick={e => { if (e.target === e.currentTarget && showClose) onClose(); }}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(16px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(16px) saturate(140%)',
+        background: 'rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(14px) saturate(130%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(130%)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 20,
         opacity: visible ? 1 : 0,
@@ -423,56 +418,105 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
         onClick={e => e.stopPropagation()}
         style={{
           position: 'relative', width: '100%', maxWidth: 460,
-          background: 'rgba(14,14,20,0.97)',
+          // CSS vars — adapts to light/dark automatically from tokens.css
+          background: 'var(--modal-bg, var(--glass-bg-strong, rgba(255,255,255,0.98)))',
           borderRadius: 26,
-          border: '1px solid rgba(255,255,255,0.07)',
-          boxShadow: '0 32px 96px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.04) inset',
-          backdropFilter: 'blur(40px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(40px) saturate(1.4)',
+          border: '1px solid var(--hairline-strong)',
+          boxShadow: 'var(--glass-shadow, 0 32px 96px rgba(0,0,0,0.18))',
+          backdropFilter: 'blur(40px)',
+          WebkitBackdropFilter: 'blur(40px)',
           overflow: 'hidden',
           transform: visible ? 'translateY(0) scale(1)' : 'translateY(18px) scale(0.97)',
           transition: 'transform 0.4s cubic-bezier(0.22,1,0.36,1)',
+          color: 'var(--fg)',
         }}
       >
         {/* Holo top stripe */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 2,
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, zIndex: 2,
           background: 'linear-gradient(90deg, oklch(0.45 0.26 295), oklch(0.62 0.22 268), oklch(0.72 0.18 250), oklch(0.78 0.18 150))',
-          opacity: 0.9 }} />
+        }} />
 
         {/* Close button */}
         {showClose && (
-          <button onClick={handleClose} aria-label="Close" style={{
+          <button onClick={onClose} aria-label="Close" style={{
             position: 'absolute', top: 16, right: 16, zIndex: 10,
             width: 30, height: 30, borderRadius: 999,
-            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.4)', cursor: 'pointer',
+            background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)',
+            color: 'var(--fg-subtle)', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'}
-          >
+          }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         )}
 
         <div style={{ padding: '28px 28px 30px' }}>
-          {progIdx !== null && <HoloBar step={progIdx} total={3} />}
+          {progIdx !== null && step !== 'HELLO' && <HoloBar step={progIdx} total={3} />}
+
+          {/* ══ HELLO — Apple-style splash ══ */}
+          {step === 'HELLO' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '32px 0 28px', minHeight: 340 }}>
+              {/* Animated logo with orbit rings */}
+              <div style={{
+                position: 'relative', width: 96, height: 96, marginBottom: 32,
+                opacity: helloPhase >= 0 ? 1 : 0,
+                transform: helloPhase >= 0 ? 'scale(1) translateY(0)' : 'scale(0.6) translateY(12px)',
+                transition: 'opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1)',
+              }}>
+                <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: '1px solid oklch(0.55 0.24 295 / 0.2)', animation: 'vOnbOrbit 4s linear infinite' }} />
+                <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px dashed oklch(0.55 0.24 295 / 0.1)', animation: 'vOnbOrbitRev 7s linear infinite' }} />
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'oklch(0.55 0.24 295 / 0.12)', filter: 'blur(16px)', transform: 'scale(1.3)' }} />
+                <VLogo size={96} />
+              </div>
+
+              <div style={{
+                opacity: helloPhase >= 1 ? 1 : 0,
+                transform: helloPhase >= 1 ? 'translateY(0)' : 'translateY(14px)',
+                transition: 'opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s',
+              }}>
+                <h1 style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 36, fontWeight: 700, color: 'var(--fg)', margin: '0 0 10px', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                  Hello.
+                </h1>
+                <p style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', fontSize: 15, color: 'var(--fg-muted)', margin: '0 0 6px', lineHeight: 1.6, maxWidth: 300 }}>
+                  Welcome to Velo — real on-chain perps with up to 25× leverage.
+                </p>
+                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-subtle)', margin: 0, letterSpacing: '0.06em' }}>
+                  1,000 mUSDC · Base Sepolia · Non-custodial
+                </p>
+              </div>
+
+              <div style={{
+                width: '100%', marginTop: 36,
+                opacity: helloPhase >= 2 ? 1 : 0,
+                transform: helloPhase >= 2 ? 'translateY(0)' : 'translateY(10px)',
+                transition: 'opacity 0.5s ease, transform 0.5s ease',
+              }}>
+                <PrimaryBtn onClick={advance}>Get started →</PrimaryBtn>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 18 }}>
+                  {[['25×', 'Leverage'], ['0.1%', 'Fee / side'], ['Pyth', 'Oracle']].map(([v, l]) => (
+                    <div key={l} style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 15, fontWeight: 700, color: 'oklch(0.55 0.24 295)', lineHeight: 1 }}>{v}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginTop: 3 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ══ WRONG NETWORK ══ */}
           {step === 'WRONG_NETWORK' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'vOnbSlideUp 0.3s ease' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ textAlign: 'center', padding: '8px 0' }}>
                 <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'oklch(0.74 0.18 30 / 0.1)', border: '1.5px solid oklch(0.74 0.18 30 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="oklch(0.74 0.18 30)" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 </div>
-                <p style={{ fontFamily: T.display, fontSize: 18, fontStyle: 'italic', fontWeight: 700, color: T.fg, margin: '0 0 6px' }}>Wrong network</p>
-                <p style={{ fontFamily: T.sans, fontSize: 12.5, color: T.fgMuted, margin: 0, lineHeight: 1.6 }}>
-                  Velo runs on <strong style={{ color: T.fg }}>Base Sepolia</strong>. Please switch your wallet.
+                <p style={{ fontFamily: 'Georgia,serif', fontSize: 18, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px' }}>Wrong network</p>
+                <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>
+                  Velo runs on <strong style={{ color: 'var(--fg)' }}>Base Sepolia</strong>. Please switch your wallet.
                 </p>
               </div>
               {address && <WalletPill address={address} />}
-              <button onClick={() => switchChain({ chainId: EXPECTED_CHAIN_ID })} style={{ width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: T.fg, color: '#0B0B0E', fontFamily: T.mono, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              <button onClick={() => switchChain({ chainId: EXPECTED_CHAIN_ID })} style={{ width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
                 Switch to Base Sepolia
               </button>
             </div>
@@ -484,26 +528,26 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <VLogo size={36} />
                 <div>
-                  <p style={{ fontFamily: T.display, fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: T.fg, margin: 0, lineHeight: 1.2 }}>Pick your handle</p>
-                  <p style={{ fontFamily: T.mono, fontSize: 9, color: T.fgSubtle, margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>New account · Step 1 of 3</p>
+                  <p style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Pick your handle</p>
+                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>New account · Step 1 of 3</p>
                 </div>
               </div>
-              <p style={{ fontFamily: T.sans, fontSize: 13, color: T.fgMuted, margin: 0, lineHeight: 1.65 }}>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.65 }}>
                 This is how you'll appear on leaderboards, the social feed, and copy trading rankings.
               </p>
               {address && <WalletPill address={address} />}
               <Field label="Username" value={username} onChange={v => { setUsername(v); setFieldError(''); }} placeholder="e.g. alpha_trader" autoFocus error={fieldError} hint="3–20 chars · letters, numbers, underscores" onKeyDown={e => e.key === 'Enter' && advance()} />
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 12, background: 'oklch(0.55 0.24 295 / 0.07)', border: '1px solid oklch(0.55 0.24 295 / 0.18)' }}>
-                <span style={{ color: T.violet, fontFamily: T.mono, fontSize: 13, fontWeight: 700, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>@</span>
-                <p style={{ fontFamily: T.mono, fontSize: 10.5, color: 'rgba(255,255,255,0.5)', margin: 0, lineHeight: 1.6 }}>Your handle is registered <span style={{ color: T.violet, fontWeight: 700 }}>on-chain</span> in the Velo Name Registry and tied permanently to your wallet.</p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 12, background: 'oklch(0.55 0.24 295 / 0.06)', border: '1px solid oklch(0.55 0.24 295 / 0.15)' }}>
+                <span style={{ color: 'oklch(0.55 0.24 295)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 13, fontWeight: 700, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>@</span>
+                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>Your handle is registered <span style={{ color: 'oklch(0.55 0.24 295)', fontWeight: 700 }}>on-chain</span> in the Velo Name Registry and tied permanently to your wallet.</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <HoloBtn onClick={advance} disabled={!username.trim()}>Continue →</HoloBtn>
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 14 }}>
-                  <p style={{ fontFamily: T.mono, fontSize: 9, color: 'rgba(255,255,255,0.2)', textAlign: 'center', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 10px' }}>or use demo mode</p>
+                <PrimaryBtn onClick={advance} disabled={!username.trim()}>Continue →</PrimaryBtn>
+                <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: 14 }}>
+                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', letterSpacing: '0.08em', textTransform: 'uppercase' as const, margin: '0 0 10px', opacity: 0.6 }}>or use demo mode</p>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input type="text" placeholder="Demo username" value={fallbackInput} onChange={e => setFallbackInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && fallbackInput.trim() && (onFallbackLogin?.(fallbackInput.trim()), onClose())} style={{ flex: 1, padding: '10px 12px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${T.hairline}`, borderRadius: 10, fontFamily: T.mono, fontSize: 12, color: T.fg, outline: 'none' }} />
-                    <button onClick={() => { if (fallbackInput.trim()) { onFallbackLogin?.(fallbackInput.trim()); onClose(); }}} disabled={!fallbackInput.trim()} style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.hairline}`, fontFamily: T.mono, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', cursor: fallbackInput.trim() ? 'pointer' : 'not-allowed', letterSpacing: '0.06em', textTransform: 'uppercase', opacity: fallbackInput.trim() ? 1 : 0.4 }}>Demo</button>
+                    <input type="text" placeholder="Demo username" value={fallbackInput} onChange={e => setFallbackInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && fallbackInput.trim() && (onFallbackLogin?.(fallbackInput.trim()), onClose())} style={{ flex: 1, padding: '10px 12px', background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', borderRadius: 10, fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: 'var(--fg)', outline: 'none' }} />
+                    <button onClick={() => { if (fallbackInput.trim()) { onFallbackLogin?.(fallbackInput.trim()); onClose(); }}} disabled={!fallbackInput.trim()} style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, fontWeight: 700, color: 'var(--fg-subtle)', cursor: fallbackInput.trim() ? 'pointer' : 'not-allowed', letterSpacing: '0.06em', textTransform: 'uppercase' as const, opacity: fallbackInput.trim() ? 1 : 0.5 }}>Demo</button>
                   </div>
                 </div>
               </div>
@@ -516,17 +560,17 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <VLogo size={36} />
                 <div>
-                  <p style={{ fontFamily: T.display, fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: T.fg, margin: 0, lineHeight: 1.2 }}>Stay in the loop</p>
-                  <p style={{ fontFamily: T.mono, fontSize: 9, color: T.fgSubtle, margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Step 2 of 3</p>
+                  <p style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Stay in the loop</p>
+                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 2 of 3</p>
                 </div>
               </div>
-              <p style={{ fontFamily: T.sans, fontSize: 13, color: T.fgMuted, margin: 0, lineHeight: 1.65 }}>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.65 }}>
                 Get notified when positions are filled, liquidated, or copied. You can add this later in Settings.
               </p>
               <Field label="Email" value={email} onChange={v => { setEmail(v); setFieldError(''); }} placeholder="your@email.com" type="email" autoFocus optional error={fieldError} onKeyDown={e => e.key === 'Enter' && advance()} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <HoloBtn onClick={advance}>{email.trim() ? 'Continue →' : 'Skip for now →'}</HoloBtn>
-                <HoloBtn variant="ghost" onClick={back}>← Back</HoloBtn>
+                <PrimaryBtn onClick={advance}>{email.trim() ? 'Continue →' : 'Skip for now →'}</PrimaryBtn>
+                <GhostBtn onClick={back}>← Back</GhostBtn>
               </div>
             </div>
           )}
@@ -537,12 +581,12 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <VLogo size={36} />
                 <div>
-                  <p style={{ fontFamily: T.display, fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: T.fg, margin: 0, lineHeight: 1.2 }}>Ready to launch</p>
-                  <p style={{ fontFamily: T.mono, fontSize: 9, color: T.fgSubtle, margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Step 3 of 3</p>
+                  <p style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Ready to launch</p>
+                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 3 of 3</p>
                 </div>
               </div>
-              {globalError && <div style={{ padding: '10px 13px', borderRadius: 10, background: 'oklch(0.62 0.22 25 / 0.1)', border: '1px solid oklch(0.62 0.22 25 / 0.3)', color: 'oklch(0.62 0.22 25)', fontFamily: T.mono, fontSize: 12, lineHeight: 1.5 }}>{globalError}</div>}
-              <div style={{ borderRadius: 14, border: `1px solid ${T.hairline}`, overflow: 'hidden' }}>
+              {globalError && <div style={{ padding: '10px 13px', borderRadius: 10, background: 'oklch(0.62 0.22 25 / 0.08)', border: '1px solid oklch(0.62 0.22 25 / 0.25)', color: 'oklch(0.62 0.22 25)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, lineHeight: 1.5 }}>{globalError}</div>}
+              <div style={{ borderRadius: 14, border: '1px solid var(--hairline-strong)', overflow: 'hidden' }}>
                 {[
                   { lbl: 'Wallet', val: address ? `${address.slice(0,10)}…${address.slice(-8)}` : '—' },
                   { lbl: 'Handle', val: `@${username}` },
@@ -550,65 +594,65 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                   { lbl: 'Network', val: 'Base Sepolia' },
                   { lbl: 'Starting balance', val: '1,000 mUSDC' },
                 ].map(({ lbl, val }, i, arr) => (
-                  <div key={lbl} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 15px', borderBottom: i < arr.length - 1 ? `1px solid rgba(255,255,255,0.05)` : 'none', background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent' }}>
-                    <span style={{ fontFamily: T.mono, fontSize: 10, color: T.fgSubtle, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{lbl}</span>
-                    <span style={{ fontFamily: T.mono, fontSize: 12, color: lbl === 'Starting balance' ? T.green : T.fg, fontWeight: 600, textAlign: 'right', maxWidth: '58%', wordBreak: 'break-all' }}>{val}</span>
+                  <div key={lbl} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 15px', borderBottom: i < arr.length - 1 ? '1px solid var(--hairline)' : 'none', background: i % 2 === 0 ? 'var(--chip-bg)' : 'transparent' }}>
+                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>{lbl}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: lbl === 'Starting balance' ? 'oklch(0.78 0.18 150)' : 'var(--fg)', fontWeight: 600, textAlign: 'right' as const, maxWidth: '58%', wordBreak: 'break-all' as const }}>{val}</span>
                   </div>
                 ))}
               </div>
-              <div style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.025)', border: `1px solid ${T.hairline}` }}>
-                <p style={{ fontFamily: T.mono, fontSize: 10, color: T.fgSubtle, margin: 0, lineHeight: 1.65 }}>
-                  Tapping "Create account" asks MetaMask for <strong style={{ color: 'rgba(255,255,255,0.65)' }}>one gas-free signature</strong> to derive your trading wallet. No ETH is spent at this step.
+              <div style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)' }}>
+                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', margin: 0, lineHeight: 1.65 }}>
+                  Tapping "Create account" asks MetaMask for <strong style={{ color: 'var(--fg-muted)' }}>one gas-free signature</strong> to derive your trading wallet. No ETH is spent at this step.
                 </p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <HoloBtn onClick={handleCreate}>Create account →</HoloBtn>
-                <HoloBtn variant="ghost" onClick={back}>← Edit details</HoloBtn>
+                <PrimaryBtn onClick={handleCreate}>Create account →</PrimaryBtn>
+                <GhostBtn onClick={back}>← Edit details</GhostBtn>
               </div>
             </div>
           )}
 
           {/* ══ IN-PROGRESS ══ */}
           {step === 'CREATING' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0', animation: 'vOnbSlideUp 0.3s ease' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: T.display, fontStyle: 'italic', fontSize: 20, color: T.fg, margin: '0 0 6px', fontWeight: 700 }}>Creating @{username}</p>
-                <p style={{ fontFamily: T.mono, fontSize: 11, color: T.fgMuted, margin: 0 }}>Setting up your account…</p>
+                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Creating @{username}</p>
+                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Setting up your account…</p>
               </div>
             </div>
           )}
           {step === 'BURNER_SIGN' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0', animation: 'vOnbSlideUp 0.3s ease' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: T.display, fontStyle: 'italic', fontSize: 20, color: T.fg, margin: '0 0 6px', fontWeight: 700 }}>One signature needed</p>
-                <p style={{ fontFamily: T.mono, fontSize: 11, color: T.fgMuted, margin: 0 }}>Derives your trading wallet — no gas, no ETH spent.</p>
+                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>One signature needed</p>
+                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Derives your trading wallet — no gas, no ETH spent.</p>
               </div>
-              <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'oklch(0.55 0.24 295 / 0.08)', border: `1px solid oklch(0.55 0.24 295 / 0.2)` }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.violet} strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span style={{ fontFamily: T.mono, fontSize: 10, color: T.fgMuted, letterSpacing: '0.04em' }}>Check MetaMask for the signature request</span>
+              <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'oklch(0.55 0.24 295 / 0.06)', border: '1px solid oklch(0.55 0.24 295 / 0.18)' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-muted)', letterSpacing: '0.04em' }}>Check MetaMask for the signature request</span>
               </div>
             </div>
           )}
           {step === 'BURNER_SPONSOR' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0', animation: 'vOnbSlideUp 0.3s ease' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: T.display, fontStyle: 'italic', fontSize: 20, color: T.fg, margin: '0 0 6px', fontWeight: 700 }}>Topping up gas</p>
-                <p style={{ fontFamily: T.mono, fontSize: 11, color: T.fgMuted, margin: 0 }}>Sending your trading wallet a little ETH…</p>
+                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Topping up gas</p>
+                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Sending your trading wallet a little ETH…</p>
               </div>
             </div>
           )}
           {step === 'BURNER_CONFIRM' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0', animation: 'vOnbSlideUp 0.3s ease' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: T.display, fontStyle: 'italic', fontSize: 20, color: T.fg, margin: '0 0 6px', fontWeight: 700 }}>Claiming 1,000 mUSDC</p>
-                <p style={{ fontFamily: T.mono, fontSize: 11, color: T.fgMuted, margin: 0 }}>Minting your testnet USDC on Base Sepolia…</p>
+                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Claiming 1,000 mUSDC</p>
+                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Minting your testnet USDC on Base Sepolia…</p>
               </div>
               {claimTxHash && (
-                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: T.mono, fontSize: 11, color: T.violet, display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
+                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
                   View on BaseScan <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>
               )}
@@ -619,40 +663,35 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           {step === 'SUCCESS_NEW' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '12px 0 4px', animation: 'vOnbSlideUp 0.4s ease' }}>
               <div style={{ position: 'relative', width: 80, height: 80, marginBottom: 26 }}>
-                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.12)' }} />
                 <svg viewBox="0 0 80 80" width="80" height="80" style={{ position: 'absolute', inset: 0 }}>
-                  <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(52,211,153,0.12)" strokeWidth="1.5" />
-                  <circle cx="40" cy="40" r="32" fill="none" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="201" strokeDashoffset="201" transform="rotate(-90 40 40)" style={{ animation: 'vOnbDrawArc 0.6s cubic-bezier(0.4,0,0.2,1) 0.1s both' }} />
+                  <circle cx="40" cy="40" r="32" fill="none" stroke="oklch(0.78 0.18 150 / 0.15)" strokeWidth="1.5" />
+                  <circle cx="40" cy="40" r="32" fill="none" stroke="oklch(0.78 0.18 150)" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="201" strokeDashoffset="201" transform="rotate(-90 40 40)" style={{ animation: 'vOnbDrawArc 0.6s cubic-bezier(0.4,0,0.2,1) 0.1s both' }} />
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'vOnbCheckIn 0.35s cubic-bezier(0.34,1.4,0.64,1) 0.65s both' }}>
-                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 11 9 16 18 6"/></svg>
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="oklch(0.78 0.18 150)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 11 9 16 18 6"/></svg>
                 </div>
               </div>
-              <p style={{ fontFamily: T.display, fontSize: 26, fontStyle: 'italic', fontWeight: 700, color: T.fg, margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.85s both' }}>
-                You're live.
-              </p>
-              <p style={{ fontFamily: T.mono, fontSize: 11, color: T.fgMuted, margin: '0 0 22px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.35s ease 1.0s both' }}>
-                @{username} · trading wallet funded
-              </p>
-              <div style={{ width: '100%', borderRadius: 16, border: `1px solid ${T.hairline}`, background: 'rgba(255,255,255,0.025)', overflow: 'hidden', marginBottom: 16, animation: 'vOnbSlideUp 0.35s ease 1.15s both' }}>
-                <div style={{ padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: T.mono, fontSize: 10, color: T.fgSubtle, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Balance credited</span>
-                  <span style={{ fontFamily: T.display, fontStyle: 'italic', fontSize: 26, fontWeight: 700, color: T.green }}>${(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+              <p style={{ fontFamily: 'Georgia,serif', fontSize: 26, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.85s both' }}>You're live.</p>
+              <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 22px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.35s ease 1.0s both' }}>@{username} · trading wallet funded</p>
+              <div style={{ width: '100%', borderRadius: 16, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', overflow: 'hidden', marginBottom: 16, animation: 'vOnbSlideUp 0.35s ease 1.15s both' }}>
+                <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Balance credited</span>
+                  <span style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 26, fontWeight: 700, color: 'oklch(0.78 0.18 150)' }}>${(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
                 </div>
                 {burnerAddr && (
                   <div style={{ padding: '11px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontFamily: T.mono, fontSize: 10, color: T.fgSubtle, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Trading wallet</span>
-                    <span style={{ fontFamily: T.mono, fontSize: 11, color: T.fgMuted }}>{burnerAddr.slice(0,6)}…{burnerAddr.slice(-4)}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Trading wallet</span>
+                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)' }}>{burnerAddr.slice(0,6)}…{burnerAddr.slice(-4)}</span>
                   </div>
                 )}
               </div>
               {claimTxHash && (
-                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: T.mono, fontSize: 11, color: T.violet, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, textDecoration: 'none', animation: 'vOnbSlideUp 0.35s ease 1.3s both' }}>
+                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, textDecoration: 'none', animation: 'vOnbSlideUp 0.35s ease 1.3s both' }}>
                   Claim tx on BaseScan <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>
               )}
               <div style={{ width: '100%', animation: 'vOnbSlideUp 0.35s ease 1.45s both' }}>
-                <button onClick={() => { if (!completedRef.current) { completedRef.current = true; } onClose(); }} style={{ width: '100%', padding: 14, borderRadius: 13, border: 'none', background: T.fg, color: '#0B0B0E', fontFamily: T.mono, fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button onClick={() => { completedRef.current = true; onClose(); }} style={{ width: '100%', padding: 14, borderRadius: 13, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
                   Start trading →
                 </button>
               </div>
@@ -663,28 +702,26 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           {step === 'SUCCESS_RETURNING' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '16px 0 8px', animation: 'vOnbSlideUp 0.4s ease' }}>
               <div style={{ position: 'relative', width: 72, height: 72, marginBottom: 24 }}>
-                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.12)' }} />
                 <svg viewBox="0 0 72 72" width="72" height="72" style={{ position: 'absolute', inset: 0 }}>
-                  <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(167,139,250,0.12)" strokeWidth="1.5" />
-                  <circle cx="36" cy="36" r="28" fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="176" strokeDashoffset="176" transform="rotate(-90 36 36)" style={{ animation: 'vOnbDrawArc 0.55s cubic-bezier(0.4,0,0.2,1) 0.1s both' }} />
+                  <circle cx="36" cy="36" r="28" fill="none" stroke="oklch(0.55 0.24 295 / 0.15)" strokeWidth="1.5" />
+                  <circle cx="36" cy="36" r="28" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="176" strokeDashoffset="176" transform="rotate(-90 36 36)" style={{ animation: 'vOnbDrawArc 0.55s cubic-bezier(0.4,0,0.2,1) 0.1s both' }} />
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'vOnbCheckIn 0.35s cubic-bezier(0.34,1.4,0.64,1) 0.6s both' }}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
                 </div>
               </div>
-              <p style={{ fontFamily: T.display, fontSize: 22, fontStyle: 'italic', fontWeight: 700, color: T.fg, margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.82s both' }}>
+              <p style={{ fontFamily: 'Georgia,serif', fontSize: 22, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.82s both' }}>
                 Welcome back{returningName ? `, ${returningName}` : ''}.
               </p>
-              <p style={{ fontFamily: T.mono, fontSize: 11, color: T.fgMuted, margin: '0 0 20px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.38s ease 1.0s both' }}>
+              <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 20px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.38s ease 1.0s both' }}>
                 Restoring your session…
               </p>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px 6px 9px', borderRadius: 6, background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)', animation: 'vOnbSlideUp 0.36s ease 1.2s both' }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#a78bfa', animation: 'vOnbLiveDot 1.8s ease-in-out infinite' }} />
-                <span style={{ fontFamily: T.mono, fontSize: 10, color: '#a78bfa', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>Velo · Authenticated</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px 6px 9px', borderRadius: 6, background: 'oklch(0.55 0.24 295 / 0.07)', border: '1px solid oklch(0.55 0.24 295 / 0.18)', animation: 'vOnbSlideUp 0.36s ease 1.2s both' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'oklch(0.55 0.24 295)', animation: 'vOnbLiveDot 1.8s ease-in-out infinite' }} />
+                <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'oklch(0.55 0.24 295)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontWeight: 600 }}>Velo · Authenticated</span>
               </div>
             </div>
           )}
-
         </div>
 
         <style>{`
@@ -694,6 +731,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           @keyframes vOnbDrawArc { from { stroke-dashoffset:201; } to { stroke-dashoffset:0; } }
           @keyframes vOnbCheckIn { from { opacity:0;transform:scale(0.4) translateY(2px); } to { opacity:1;transform:scale(1) translateY(0); } }
           @keyframes vOnbLiveDot { 0%,100% { opacity:1;transform:scale(1); } 50% { opacity:0.35;transform:scale(0.65); } }
+          @keyframes vOnbOrbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes vOnbOrbitRev { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
         `}</style>
       </div>
     </div>,
