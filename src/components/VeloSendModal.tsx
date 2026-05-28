@@ -17,6 +17,7 @@ import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { ensureBurnerGas } from '@/services/veloGasSponsor';
 import { VELO_USDC_BASE, baseScanTxUrl } from '@/services/veloPerpsService';
 import { fetchUsdcBalance, VELO_USDC_ABI } from '@/services/veloUsdcService';
+import { supabase } from '@/services/supabaseStore';
 
 const BASE_SEPOLIA_RPC =
   import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
@@ -70,6 +71,8 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
 
   const [recipientInput, setRecipientInput] = useState('');
   const [resolvedAddress, setResolvedAddress] = useState<`0x${string}` | null>(null);
+  // The address we actually send to — prefers the recipient's trading (burner) wallet
+  const [sendToAddress, setSendToAddress] = useState<`0x${string}` | null>(null);
   const [resolveState, setResolveState] = useState<ResolveState>('idle');
   const [amount, setAmount] = useState('');
   const [available, setAvailable] = useState(0);
@@ -80,6 +83,26 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
   // Determine which wallet is sending (burner if exists, else main)
   const burner = address ? loadStoredBurner(address) : null;
   const senderAddress = burner?.veloAddress ?? address;
+
+  // When resolvedAddress changes, try to find the recipient's trading wallet
+  // from their Supabase profile. Falls back to the resolved (main) address.
+  useEffect(() => {
+    if (!resolvedAddress) { setSendToAddress(null); return; }
+    supabase
+      .from('profiles')
+      .select('velo_wallet_address')
+      .ilike('wallet_address', resolvedAddress)
+      .maybeSingle()
+      .then(({ data }) => {
+        const tradingWallet = data?.velo_wallet_address;
+        setSendToAddress(
+          (tradingWallet && isAddress(tradingWallet))
+            ? tradingWallet as `0x${string}`
+            : resolvedAddress
+        );
+      })
+      .catch(() => setSendToAddress(resolvedAddress));
+  }, [resolvedAddress]);
 
   // Read sender's mUSDC balance on open
   useEffect(() => {
@@ -94,6 +117,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
     if (!isOpen) {
       setRecipientInput('');
       setResolvedAddress(null);
+      setSendToAddress(null);
       setResolveState('idle');
       setAmount('');
       setStep('IDLE');
@@ -140,6 +164,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
 
   const amountNum = parseFloat(amount) || 0;
   const canSend = resolvedAddress
+    && sendToAddress
     && resolveState !== 'invalid'
     && resolveState !== 'username_unknown'
     && resolveState !== 'checking'
@@ -149,7 +174,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
     && publicClient;
 
   const handleSend = async () => {
-    if (!resolvedAddress || !publicClient || !address) return;
+    if (!sendToAddress || !publicClient || !address) return;
     setStep('SENDING');
     setErrorMsg('');
     try {
@@ -178,7 +203,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'transfer',
-        args: [resolvedAddress, amountWei],
+        args: [sendToAddress, amountWei],
         account: signingClient.account!,
         chain: baseSepolia,
       });
@@ -193,7 +218,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
         : undefined;
       onSuccess?.({
         txHash: hash,
-        recipientAddress: resolvedAddress,
+        recipientAddress: sendToAddress!,
         recipientHandle,
         amount: amountNum,
       });

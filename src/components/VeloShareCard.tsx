@@ -290,14 +290,28 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
         </div>
 
         {/* Controls */}
-        <div style={{ padding: 14, borderTop: '1px solid var(--hairline)' }}>
+        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+
+          {/* Action row — always visible at top of controls */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleDownload}
+              style={{ ...S.mono, flex: 1, padding: '12px 0', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Download size={12} /> Download PNG
+            </button>
+            <button onClick={handleShare}
+              style={{ ...S.mono, flex: 2, padding: '12px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, oklch(0.55 0.26 295), oklch(0.65 0.22 310))', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px oklch(0.55 0.26 295 / 0.35)' }}>
+              {copied ? <><Check size={12} /> Copied!</> : <><Share2 size={12} /> Share</>}
+            </button>
+          </div>
+
+          {/* Customize toggle */}
           <button onClick={() => setTweakOpen((p) => !p)}
-            style={{ ...S.mono, width: '100%', padding: '8px 12px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: tweakOpen ? 14 : 0 }}>
+            style={{ ...S.mono, width: '100%', padding: '7px 12px', borderRadius: 10, background: tweakOpen ? 'oklch(0.68 0.22 295 / 0.10)' : 'var(--chip-bg)', border: `1px solid ${tweakOpen ? 'oklch(0.68 0.22 295 / 0.35)' : 'var(--hairline)'}`, color: tweakOpen ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <Settings size={11} /> {tweakOpen ? 'Hide Options' : 'Customize'}
           </button>
 
           {tweakOpen && (
-            <>
+            <div style={{ paddingTop: 4 }}>
               {/* Background */}
               <div style={{ ...S.label, marginBottom: 8 }}>Theme</div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -312,7 +326,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
               {/* Fields */}
               <div style={{ ...S.label, marginBottom: 8 }}>Visible Fields</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5, marginBottom: 14 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
                 {(Object.keys(FIELD_LABELS) as FieldKey[]).map((k) => (
                   <button key={k} onClick={() => toggleField(k)}
                     style={{ ...S.mono, padding: '5px 9px', borderRadius: 6, background: visibleFields[k] ? 'oklch(0.68 0.22 295 / 0.15)' : 'rgba(255,255,255,0.02)', border: `1px solid ${visibleFields[k] ? 'oklch(0.68 0.22 295 / 0.4)' : 'var(--hairline)'}`, color: visibleFields[k] ? 'var(--iris-violet)' : 'var(--fg-subtle)', fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -320,19 +334,8 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
                   </button>
                 ))}
               </div>
-            </>
+            </div>
           )}
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleDownload}
-              style={{ ...S.mono, flex: 1, padding: '12px 0', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Download size={12} /> Download PNG
-            </button>
-            <button onClick={handleShare}
-              style={{ ...S.mono, flex: 2, padding: '12px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, oklch(0.55 0.26 295), oklch(0.65 0.22 310))', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px oklch(0.55 0.26 295 / 0.35)' }}>
-              {copied ? <><Check size={12} /> Copied to clipboard!</> : <><Share2 size={12} /> Share</>}
-            </button>
-          </div>
         </div>
       </div>
     </div>

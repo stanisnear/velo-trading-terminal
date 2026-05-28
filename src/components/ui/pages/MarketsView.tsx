@@ -209,10 +209,6 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
 
       {/* Header */}
       <div style={{ marginBottom: 22 }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '3px 12px', borderRadius: 999, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', marginBottom: 10 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pnl-up)', display: 'inline-block', boxShadow: '0 0 6px var(--pnl-up)' }} />
-          <span style={{ ...S.label, fontSize: 10 }}>LIVE MARKETS</span>
-        </div>
         <h1 style={{ ...S.display, fontSize: 'clamp(34px,6vw,50px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 6px', letterSpacing: '-0.03em' }}>
           All <em>Markets</em>
         </h1>

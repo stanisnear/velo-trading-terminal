@@ -73,22 +73,6 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
             <div onClick={(e: any) => e.stopPropagation()}
                 style={{ width: '100%', maxWidth: 360, maxHeight: 570, display: 'flex', flexDirection: 'column', borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden' }}>
                 <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--hairline)' }}>
-                    {isLiveMode && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, background: 'oklch(0.78 0.18 150 / 0.1)', border: '1px solid oklch(0.78 0.18 150 / 0.25)', marginBottom: 8 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pnl-up)', boxShadow: '0 0 6px var(--pnl-up)', display: 'inline-block' }} />
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--pnl-up)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                                Velo Perps · Base Sepolia · {ORDERLY_PAIRS.length} pairs
-                            </span>
-                        </div>
-                    )}
-                    {!isLiveMode && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, background: 'oklch(0.65 0.18 260 / 0.1)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', marginBottom: 8 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block' }} />
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                                Demo Mode · Connect wallet for live trading
-                            </span>
-                        </div>
-                    )}
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                         <Search size={13} style={{ position: 'absolute', left: 10, color: 'var(--fg-subtle)', flexShrink: 0 }} />
                         <input autoFocus placeholder="Search markets…" value={search} onChange={e => setSearch(e.target.value)}
@@ -100,11 +84,10 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                         const chg = marketChanges[p.id];
                         const hasChg = chg !== undefined && chg !== null;
                         const chgColor = hasChg ? (chg >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--fg-subtle)';
-                        const isLive = isLiveMode || !!ORDERLY_SYMBOL_MAP[p.id];
                         const isDemo = !isLiveMode && !ORDERLY_SYMBOL_MAP[p.id];
                         return (
                             <button key={p.id} onClick={() => { onSelect(p); onClose(); }}
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', transition: 'background 0.1s', color: 'var(--fg)', opacity: isDemo ? 0.75 : 1 }}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', transition: 'background 0.1s', color: 'var(--fg)' }}
                                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-bg)')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -113,12 +96,6 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                                     <div style={{ textAlign: 'left' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                             <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>{p.id}</span>
-                                            {!isLiveMode && isLive && (
-                                                <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.78 0.18 150 / 0.12)', border: '1px solid oklch(0.78 0.18 150 / 0.25)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--pnl-up)', letterSpacing: '0.06em' }}>LIVE</span>
-                                            )}
-                                            {isDemo && (
-                                                <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
-                                            )}
                                         </div>
                                         <div style={{ ...S.label, fontSize: 9 }}>{p.name}</div>
                                     </div>
@@ -899,16 +876,6 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                             <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>{p.pair}</span>
-                                            {p.onChain && (
-                                                <a
-                                                    href={orderlyPortfolioUrl()}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    onClick={e => e.stopPropagation()}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.78 0.18 150 / 0.1)', border: '1px solid oklch(0.78 0.18 150 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--pnl-up)', textDecoration: 'none', letterSpacing: '0.04em' }}>
-                                                    LIVE ↗
-                                                </a>
-                                            )}
                                         </div>
                                         <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: p.side === 'LONG' ? 'rgba(62,207,142,0.12)' : 'rgba(255,60,60,0.12)', color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span>
                                     </div>
@@ -1026,9 +993,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                 : '1px solid oklch(0.68 0.22 295 / 0.28)',
                                             }}>{t.action}</span>
                                           )}
-                                          {t.onChain && (
-                                            <span title="On-chain order (Velo Perps)" style={{ fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.3)', letterSpacing: '0.05em' }}>LIVE</span>
-                                          )}
+                                          {t.onChain && null}
                                         </div>
                                         {/* Adapt the secondary line to the event type:
                                             – OPEN: show entry price and notional size (PnL is 0 / meaningless)

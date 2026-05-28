@@ -623,7 +623,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                           {isOpen && <TrendingUp size={11}/>}
                           {isClose && <History size={11}/>}
                           {isTx ? t.type : (isOpen ? 'OPEN' : 'CLOSE')}
-                          {t.onChain && <span title="On-chain" style={{ fontSize: 8, padding: '1px 4px', borderRadius: 3, background: 'oklch(0.68 0.22 295/0.15)', color: 'var(--iris-violet)', border: '1px solid oklch(0.68 0.22 295/0.25)', fontWeight: 700, letterSpacing: '0.04em' }}>LIVE</span>}
+                          {t.onChain && null}
                         </span>
                       </td>
                       <td style={{ padding: '9px 14px', ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>
