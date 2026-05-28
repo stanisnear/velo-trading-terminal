@@ -4720,6 +4720,8 @@ const App = () => {
 
     // Guard: prevent double-restore from INITIAL_SESSION + getSession() fallback firing simultaneously
     const sessionRestoredRef = useRef(false);
+    // Guard: a restore is currently running (released on early-return/error so retries work)
+    const restoreInFlightRef = useRef(false);
 
     // Guard: user explicitly logged out — block all automatic session restores until next manual login
     const intentionalLogoutRef = useRef(false);
@@ -4766,7 +4768,6 @@ const App = () => {
             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
           });
           userLoadedFromDB.current = true;
-          sessionRestoredRef.current = true;
           if (walletAddress) restoredUser.walletAddress = walletAddress;
           setUser(restoredUser);
           recordSessionWallet();
@@ -4990,7 +4991,13 @@ const App = () => {
             window.history.replaceState({}, '', window.location.pathname);
         }
 
-        // Track whether we've already done the first restore so we don't double-load
+        // Track whether we've already done the first restore so we don't double-load.
+        // restoreInFlightRef prevents two events from running the restore concurrently;
+        // sessionRestoredRef is the persistent "already done" guard that ONLY sticks
+        // once a user has actually been set. If a restore returns early (no profile yet)
+        // or throws, we release both guards so a later event (INITIAL_SESSION,
+        // TOKEN_REFRESHED, or the getSession fallback) can retry — otherwise a single
+        // transient failure would leave the app stuck on the loading screen.
         const restoreSession = async (session: any) => {
             if (!session?.user) {
                 setAuthChecked(true);
@@ -4998,12 +5005,20 @@ const App = () => {
             }
             // Block restore if user explicitly logged out this session
             if (intentionalLogoutRef.current) { setAuthChecked(true); return; }
-            // Prevent double-restore: INITIAL_SESSION fires, then getSession() fallback also fires
+            // Already fully restored — nothing to do.
             if (sessionRestoredRef.current) return;
-            sessionRestoredRef.current = true;
+            // A restore is already running for this session — don't run a second.
+            if (restoreInFlightRef.current) return;
+            restoreInFlightRef.current = true;
             try {
                 const { profile } = await getProfile(session.user.id);
-                if (!profile) { setAuthChecked(true); return; }
+                if (!profile) {
+                    // Profile not readable yet (e.g. row still being created on first
+                    // social signup). Release guards and let a later event retry.
+                    restoreInFlightRef.current = false;
+                    setAuthChecked(true);
+                    return;
+                }
                 const restoredUser = dbProfileToUserProfile(profile);
                 const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
                     fetchPositions(session.user.id),
@@ -5045,6 +5060,9 @@ const App = () => {
                 restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
                 userLoadedFromDB.current = true;
                 setUser(restoredUser);
+                // Mark as fully restored ONLY now that a user is actually set. This is
+                // what makes the guard "stick" so duplicate events become no-ops.
+                sessionRestoredRef.current = true;
                 recordSessionWallet();
                 setPositions(positions);
                 setOpenOrders(orders);
@@ -5056,7 +5074,11 @@ const App = () => {
                 } catch (_) { /* use defaults */ }
                 // Restore to the page the user was on — don't force /trade
                 // navigateFromPath is called separately on mount and handles the URL
-            } catch(e) { console.warn('Session restore error:', e); }
+            } catch(e) {
+                console.warn('Session restore error:', e);
+                // Release the in-flight flag so a later event can retry the restore.
+                restoreInFlightRef.current = false;
+            }
             finally { setAuthChecked(true); }
         };
 
@@ -5066,6 +5088,7 @@ const App = () => {
             } else if (event === 'SIGNED_OUT') {
                 intentionalLogoutRef.current = true;
                 sessionRestoredRef.current = false;
+                restoreInFlightRef.current = false;
                 userLoadedFromDB.current = false;
                 setUser(null);
                 setPositions([]);
@@ -5082,17 +5105,13 @@ const App = () => {
             } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                 // Fired on page load when a stored session exists — restore without double-loading
                 await restoreSession(session);
-            } else if (event === 'SIGNED_IN') {
-                // Fresh login. For email/password and wallet logins this is normally
-                // handled by AuthModal's onAuth (which sets sessionRestoredRef), so the
-                // guard inside restoreSession makes this a no-op in those cases.
-                // For OAuth / social (GitHub, Google, X, Discord) the popup/redirect
-                // completes WITHOUT AuthModal's onAuth ever firing, so without this the
-                // user object never populated until a manual page refresh. Calling
-                // restoreSession here closes that gap; the ref guard prevents any
-                // double-restore when onAuth already ran.
-                await restoreSession(session);
             }
+            // SIGNED_IN is intentionally NOT handled here. Every login in this app
+            // (email, wallet, and AppKit social → wallet → pseudo-email) resolves to
+            // a wallet/pseudo-email signInWithPassword, which is fully hydrated by
+            // AuthModal's onAuth or the wallet silent-login effect (both of which load
+            // the wallet-aware balance). Re-running restoreSession on SIGNED_IN here
+            // competed with those paths and left the app "logged in but empty".
         });
         
         // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession
@@ -6240,6 +6259,7 @@ const App = () => {
         if (isSupabaseConfigured()) await supabaseSignOut();
         userLoadedFromDB.current = false;
         sessionRestoredRef.current = false;
+        restoreInFlightRef.current = false;
         setUser(null);
         setPositions([]);
         setOpenOrders([]);
@@ -7739,10 +7759,6 @@ const App = () => {
                             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
                         });
                         userLoadedFromDB.current = true;
-                        // Mark the session as restored so the onAuthStateChange
-                        // SIGNED_IN handler (which also fires on this login) becomes a
-                        // no-op and doesn't re-run the full restore.
-                        sessionRestoredRef.current = true;
                         if (walletAddress) restoredUser.walletAddress = walletAddress;
                         setUser(restoredUser);
                         recordSessionWallet();
