@@ -129,3 +129,17 @@ export async function setupBurnerWallet(args: BurnerSetupArgs): Promise<BurnerSe
 export function hasBurnerWallet(ownerAddress: Address): boolean {
   return loadStoredBurner(ownerAddress) !== null;
 }
+
+/**
+ * Build a viem WalletClient signed by the burner private key.
+ * Use this wherever you need to send a tx from the burner without
+ * triggering a MetaMask popup (username claim, trades, etc.).
+ */
+export function createBurnerWalletClient(privateKey: `0x${string}`) {
+  const account = privateKeyToAccount(privateKey);
+  return createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http(BASE_SEPOLIA_RPC),
+  });
+}

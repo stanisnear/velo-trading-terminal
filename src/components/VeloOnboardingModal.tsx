@@ -26,7 +26,7 @@ import { createPortal } from 'react-dom';
 import { useAppKit, useAppKitState, useAppKitAccount } from '@reown/appkit/react';
 import { useAccount, useDisconnect, useChainId, usePublicClient, useWalletClient, useSwitchChain } from 'wagmi';
 import { isConfigured as isSupabaseConfigured, supabase } from '../services/supabaseStore';
-import { setupBurnerWallet } from '../services/veloBurnerSetup';
+import { setupBurnerWallet, createBurnerWalletClient } from '../services/veloBurnerSetup';
 import { fetchUsdcBalance, fetchFaucetCooldown } from '../services/veloUsdcService';
 import { VELO_USDC_BASE, VELO_PERPS_ADDRESS, baseScanTxUrl, baseScanAddressUrl } from '../services/veloPerpsService';
 import { claimUsername, fetchUsernameForAddress, validateUsername as validateUsernameOnChain } from '../services/usernameService';
@@ -459,13 +459,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           if (!existing) {
             // Confirm burner still has gas (top-up if needed)
             await ensureBurnerGas(publicClient, result.burner.veloAddress as `0x${string}`);
-            // Build a burner-signed wallet client — no MetaMask popup
-            const { createWalletClient: mkWc, http: mkHttp } = await import('viem');
-            const { privateKeyToAccount: pkToAcc } = await import('viem/accounts');
-            const { baseSepolia: bSep } = await import('viem/chains');
-            const BASE_RPC = import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
-            const burnerAcc = pkToAcc(result.burner.privateKey);
-            const burnerWc = mkWc({ account: burnerAcc, chain: bSep, transport: mkHttp(BASE_RPC) });
+            // Build a burner-signed wallet client — no MetaMask popup, no dynamic import
+            const burnerWc = createBurnerWalletClient(result.burner.privateKey);
             const unameTx = await claimUsername(burnerWc as any, uname);
             await publicClient.waitForTransactionReceipt({ hash: unameTx });
             onUsernameClaimed?.(uname, unameTx);
