@@ -8051,6 +8051,7 @@ const App = () => {
                 }
                 setToast({ message: 'Trading wallet recovered', type: 'SUCCESS' });
               }}
+              onLogout={handleLogout}
             />
             {/* ── Orderly Deposit / Withdraw Modal (post-onboarding) ── */}
             <DepositWithdrawModal

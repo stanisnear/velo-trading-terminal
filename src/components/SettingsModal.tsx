@@ -9,7 +9,7 @@ import { formatUnits, parseUnits } from 'viem';
 import { createPortal } from 'react-dom';
 import {
   X, Copy, Check, Eye, EyeOff, AlertTriangle, KeyRound, RefreshCw,
-  ShieldCheck, Wallet, Network, ExternalLink, Send, AtSign,
+  ShieldCheck, Wallet, Network, ExternalLink, Send, AtSign, LogOut,
 } from 'lucide-react';
 import {
   loadStoredBurner, exportPrivateKey, rederiveVeloBurner,
@@ -45,9 +45,10 @@ interface Props {
   /** Fired after a successful re-derive so the parent can hydrate the trading
       layer (burnerAddress) and persist the address — without a page refresh. */
   onBurnerRecovered?: (veloAddress: `0x${string}`) => void;
+  onLogout?: () => void;
 }
 
-export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend, profile, onEmailSaved, onBurnerRecovered }) => {
+export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend, profile, onEmailSaved, onBurnerRecovered, onLogout }) => {
   const { address: ownerAddress, connector } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
@@ -317,6 +318,19 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
               </>
             )}
           </div>
+
+          {/* Logout */}
+          {onLogout && (
+            <div style={{ padding:'0 20px 20px', position:'relative', zIndex:1 }}>
+              <button
+                onClick={() => { onClose(); onLogout(); }}
+                style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'11px 0', borderRadius:14, border:'1px solid oklch(0.66 0.22 25 / 0.32)', background:'oklch(0.66 0.22 25 / 0.08)', cursor:'pointer', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700, color:'oklch(0.72 0.18 25)', letterSpacing:'0.1em', transition:'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'oklch(0.66 0.22 25 / 0.16)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'oklch(0.66 0.22 25 / 0.08)')}>
+                <LogOut size={13} /> SIGN OUT
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </>,
