@@ -5106,6 +5106,12 @@ const App = () => {
                 });
                 setActiveTab(TabView.TRADE);
                 setAuthChecked(true);
+                // Logout is fully complete — clear the intentional-logout guard so
+                // the next manual wallet connect flows through normally.
+                setTimeout(() => {
+                    intentionalLogoutRef.current = false;
+                    socialLoginHandledRef.current = false;
+                }, 500);
             } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                 // Fired on page load when a stored session exists — restore without double-loading
                 await restoreSession(session);
