@@ -385,37 +385,59 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
     : null;
 
   return createPortal(
+    <>
+    <style>{`
+      @keyframes dm-in { from { opacity:0; transform:translateY(12px) scale(0.97) } to { opacity:1; transform:none } }
+      @keyframes dm-bg { from { opacity:0 } to { opacity:1 } }
+    `}</style>
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(16px)' }}
+      style={{ position:'fixed', inset:0, zIndex:70, display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'oklch(0 0 0 / 0.65)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', animation:'dm-bg 0.22s ease both' }}
       onClick={onClose}>
       <div
-        style={{ width: '100%', maxWidth: 460, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+        style={{ width:'100%', maxWidth:460, borderRadius:28, background:'var(--modal-bg, rgba(14,15,22,0.97))', border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset', backdropFilter:'blur(48px) saturate(1.5)', WebkitBackdropFilter:'blur(48px) saturate(1.5)', overflow:'hidden', maxHeight:'92vh', display:'flex', flexDirection:'column', animation:'dm-in 0.34s cubic-bezier(0.22,1,0.36,1) both', position:'relative' }}
         onClick={e => e.stopPropagation()}>
 
-        {/* Holo top bar */}
-        <div style={{ height: 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite', flexShrink: 0 }} />
+        {/* Velo accent stripe — violet→blue */}
+        <div style={{ position:'absolute', top:0, left:0, right:0, height:2.5, zIndex:3, background:'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 35%, oklch(0.65 0.22 268) 70%, oklch(0.72 0.18 250) 100%)', flexShrink:0 }} />
+
+        {/* Ambient depth glow */}
+        <div style={{ position:'absolute', top:-60, right:-60, width:220, height:220, borderRadius:'50%', background:'radial-gradient(circle, oklch(0.55 0.24 295 / 0.06) 0%, transparent 70%)', pointerEvents:'none', zIndex:0 }} />
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', flexShrink: 0 }}>
-          <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>Funds</span>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', padding: 4 }}>
-            <X size={16} />
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'22px 22px 14px', flexShrink:0, position:'relative', zIndex:1 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg, oklch(0.45 0.26 295), oklch(0.65 0.22 268))', boxShadow:'0 4px 14px oklch(0.55 0.24 295 / 0.38)', display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden', flexShrink:0 }}>
+              <div style={{ position:'absolute', inset:0, background:'radial-gradient(120% 80% at 25% 10%, rgba(255,255,255,0.28), transparent 55%)' }}/>
+              <span style={{ fontFamily:'var(--font-display)', fontStyle:'italic', fontSize:18, color:'#fff', fontWeight:700, position:'relative', zIndex:1 }}>V</span>
+            </div>
+            <div>
+              <span style={{ ...S.display, fontSize:20, color:'var(--fg)', fontWeight:400 }}>Funds</span>
+              <div style={{ ...S.mono, fontSize:10, color:'var(--fg-subtle)', marginTop:2, letterSpacing:'0.08em', textTransform:'uppercase' as const }}>Deposit · Withdraw</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:9, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)', color:'var(--fg-muted)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background 0.15s' }}
+            onMouseEnter={e=>(e.currentTarget.style.background='var(--chip-bg-hover)')} onMouseLeave={e=>(e.currentTarget.style.background='var(--chip-bg)')}>
+            <X size={14} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', margin: '0 18px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 3, gap: 3, flexShrink: 0 }}>
+        <div style={{ display:'flex', margin:'0 18px 14px', background:'oklch(1 0 0 / 0.04)', borderRadius:14, padding:4, gap:4, flexShrink:0, position:'relative', zIndex:1 }}>
           {(['deposit', 'withdraw'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => { setTab(t); reset(); }}
               style={{
-                flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-                ...S.mono, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const,
-                background: tab === t ? 'var(--bg-base-2)' : 'transparent',
+                flex:1, padding:'9px 0', borderRadius:11, border:'none', cursor:'pointer',
+                ...S.mono, fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' as const,
+                background: tab === t
+                  ? t === 'deposit'
+                    ? 'linear-gradient(135deg, oklch(0.45 0.26 295 / 0.35), oklch(0.65 0.22 268 / 0.25))'
+                    : 'linear-gradient(135deg, oklch(0.55 0.20 230 / 0.3), oklch(0.65 0.18 210 / 0.2))'
+                  : 'transparent',
                 color: tab === t ? 'var(--fg)' : 'var(--fg-subtle)',
-                boxShadow: tab === t ? '0 1px 4px rgba(0,0,0,0.3)' : 'none',
-                transition: 'all 0.15s',
+                boxShadow: tab === t ? '0 0 0 1px oklch(0.55 0.24 295 / 0.3) inset' : 'none',
+                transition: 'all 0.18s',
               }}>
               {t === 'deposit' ? '↓ Deposit' : '↑ Withdraw'}
             </button>
@@ -423,7 +445,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
         </div>
 
         {/* Body */}
-        <div style={{ padding: '0 18px 18px', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding:'0 18px 18px', overflowY:'auto', flex:1, position:'relative', zIndex:1 }}>
 
           {/* Network picker — appears on BOTH tabs at the top, like every CEX */}
           {step !== 'SUCCESS' && (
@@ -468,7 +490,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 { label: 'Main Wallet', val: mainBalance },
                 { label: 'Trading Wallet', val: tradingBalance },
               ].map(({ label, val }) => (
-                <div key={label} style={{ flex: 1, padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
+                <div key={label} style={{ flex: 1, padding: '10px 12px', borderRadius:14, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)' }}>
                   <div style={S.label}>{label}</div>
                   <div style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)', marginTop: 4 }}>${val.toFixed(2)}</div>
                   <div style={{ ...S.mono, fontSize: 9, color: 'var(--fg-subtle)', marginTop: 2 }}>mUSDC</div>
@@ -480,8 +502,8 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
           {/* SUCCESS state */}
           {step === 'SUCCESS' && txHash ? (
             <div style={{ textAlign: 'center', padding: '8px 0' }}>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', margin: '0 auto 14px', background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(34,197,94,0.4)' }}>
-                <Check size={24} style={{ color: 'var(--pnl-up)' }} />
+              <div style={{ width:60, height:60, borderRadius:'50%', margin:'0 auto 16px', background:'oklch(0.80 0.18 150 / 0.1)', display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid oklch(0.80 0.18 150 / 0.4)', boxShadow:'0 0 32px oklch(0.80 0.18 150 / 0.2)' }}>
+                <Check size={26} style={{ color:'var(--pnl-up)' }} />
               </div>
               <div style={{ ...S.display, fontSize: 20, color: 'var(--fg)', marginBottom: 6 }}>
                 {isDeposit
@@ -495,14 +517,14 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                   : isDeposit ? 'moved to your trading wallet' : 'sent to destination'}
               </div>
               <a href={baseScanTxUrl(txHash)} target="_blank" rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 11, color: 'var(--iris-violet)', textDecoration: 'none', fontWeight: 700, marginBottom: 18, padding: '6px 12px', borderRadius: 8, background: 'rgba(180,110,255,0.12)', border: '1px solid rgba(180,110,255,0.3)' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 11, color: 'var(--iris-violet)', textDecoration: 'none', fontWeight: 700, marginBottom: 18, padding: '6px 12px', borderRadius: 8, background: 'oklch(0.55 0.24 295 / 0.1)', border: '1px solid oklch(0.55 0.24 295 / 0.3)' }}>
                 View source tx <ExternalLink size={10} />
               </a>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={reset} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid var(--hairline)', background: 'transparent', color: 'var(--fg)', ...S.mono, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
                   Again
                 </button>
-                <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, oklch(0.78 0.20 295), oklch(0.72 0.24 330))', color: '#fff', ...S.mono, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
+                <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, oklch(0.45 0.26 295), oklch(0.65 0.22 268))', color: '#fff', ...S.mono, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
                   Done
                 </button>
               </div>
@@ -547,7 +569,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                   bridge from Optimism with $0 ETH on Optimism will fail
                   with "insufficient funds for gas" from their wallet. */}
               {isCrossChain && (
-                <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
+                <div style={{ padding: '10px 12px', borderRadius: 10, background: 'oklch(0.55 0.24 295 / 0.05)', border: '1px solid oklch(0.55 0.24 295 / 0.18)', marginBottom: 12 }}>
                   {feeDisplay && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
@@ -577,7 +599,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 disabled={step === 'PENDING' || !amount || parseFloat(amount) <= 0 || (!isCrossChain && parseFloat(amount) > mainBalance)}
                 style={{
                   width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(100deg, oklch(0.78 0.20 295), oklch(0.72 0.24 330))',
+                  background: 'linear-gradient(135deg, oklch(0.45 0.26 295), oklch(0.65 0.22 268))',
                   color: '#fff', ...S.mono, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
                   textTransform: 'uppercase' as const, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   opacity: (step === 'PENDING' || !amount || parseFloat(amount) <= 0 || (!isCrossChain && parseFloat(amount) > mainBalance)) ? 0.5 : 1,
@@ -603,7 +625,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                     <div style={{ flex: 1, height: 1, background: 'var(--hairline)' }} />
                   </div>
                   {burnerAddress ? (
-                    <div style={{ padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
+                    <div style={{ padding: 14, borderRadius:14, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                         <div style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 5 }}>
                           <QrCode size={11} /> Trading Wallet Address
@@ -686,7 +708,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                   sponsor tops up the burner before submit, so the user
                   doesn't need ETH anywhere. Just inform them. */}
               {isCrossChain && (
-                <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(180,110,255,0.06)', border: '1px solid rgba(180,110,255,0.2)', marginBottom: 12 }}>
+                <div style={{ padding: '10px 12px', borderRadius: 10, background: 'oklch(0.55 0.24 295 / 0.05)', border: '1px solid oklch(0.55 0.24 295 / 0.18)', marginBottom: 12 }}>
                   {feeDisplay && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
@@ -716,7 +738,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                 disabled={step === 'PENDING' || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > tradingBalance || (withdrawDest === 'custom' && !isAddress(customAddress))}
                 style={{
                   width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340))',
+                  background: 'linear-gradient(135deg, oklch(0.45 0.26 295), oklch(0.65 0.22 268))',
                   color: '#fff', ...S.mono, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
                   textTransform: 'uppercase' as const, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   opacity: (step === 'PENDING' || !amount || parseFloat(amount) <= 0 || parseFloat(amount) > tradingBalance) ? 0.5 : 1,
@@ -739,6 +761,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
         </div>
       </div>
     </div>,
+    </>,
     document.body,
   );
 };

@@ -407,13 +407,12 @@ html.light body::after {
   z-index: 2;
   background: linear-gradient(
     90deg,
-    var(--iris-violet) 0%,
-    var(--iris-magenta) 25%,
-    var(--iris-coral) 50%,
-    var(--iris-amber) 75%,
-    var(--iris-lime) 100%
+    oklch(0.45 0.26 295) 0%,
+    oklch(0.55 0.24 285) 35%,
+    oklch(0.65 0.22 268) 70%,
+    oklch(0.72 0.18 250) 100%
   );
-  opacity: 0.9;
+  opacity: 1;
 }
 
 @keyframes veloModalOverlayIn {

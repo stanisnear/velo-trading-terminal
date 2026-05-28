@@ -30,18 +30,18 @@ const S = {
 
 const cardStyle: React.CSSProperties = {
   width: 'min(420px, calc(100vw - 32px))',
-  background: 'var(--glass-bg-strong)',
-  border: '1px solid var(--glass-border)',
-  borderRadius: 24,
-  boxShadow: '0 32px 96px -16px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255,255,255,0.04) inset',
-  backdropFilter: 'blur(40px) saturate(1.35)',
-  WebkitBackdropFilter: 'blur(40px) saturate(1.35)',
+  background: 'var(--modal-bg, rgba(14,15,22,0.97))',
+  border: '1px solid var(--hairline-strong)',
+  borderRadius: 28,
+  boxShadow: '0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset',
+  backdropFilter: 'blur(48px) saturate(1.5)',
+  WebkitBackdropFilter: 'blur(48px) saturate(1.5)',
   position: 'relative', overflow: 'hidden',
 };
 
 const holoGradient: React.CSSProperties = {
   position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-  background: 'linear-gradient(90deg, var(--iris-violet), var(--iris-magenta), var(--iris-coral), var(--iris-amber))',
+  background: 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 35%, oklch(0.65 0.22 268) 70%, oklch(0.72 0.18 250) 100%)',
   opacity: 0.9, zIndex: 1,
 };
 

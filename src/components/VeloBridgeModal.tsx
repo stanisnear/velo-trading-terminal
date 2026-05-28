@@ -52,7 +52,7 @@ const holoGradient: React.CSSProperties = {
   position: 'absolute',
   top: 0, left: 0, right: 0,
   height: 2,
-  background: 'linear-gradient(90deg, var(--iris-violet), var(--iris-magenta), var(--iris-coral), var(--iris-amber), var(--iris-cyan))',
+  background: 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 35%, oklch(0.65 0.22 268) 70%, oklch(0.72 0.18 250) 100%)',
   opacity: 0.9, zIndex: 1,
 };
 
