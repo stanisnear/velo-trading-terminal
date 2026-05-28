@@ -866,7 +866,7 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
     );
 };
 
-const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner }: any) => {
+const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -888,7 +888,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 top: 'var(--nav-top, 12px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                zIndex: 50,
+                zIndex: anyModalOpen ? 1 : 30,
                 width: 'min(1600px, calc(100% - 24px))',
                 padding: '0 14px',
                 height: 60,
@@ -7765,6 +7765,26 @@ const App = () => {
         setActiveTab(TabView.PUBLIC_PROFILE); 
     };
 
+
+    // True whenever any overlay/modal is open — used to push navbar behind the backdrop
+    const anyModalOpen =
+        isLoginOpen || isResetPasswordOpen || isOrderlyOnboardingOpen ||
+        isVeloWelcomeOpen || isVeloBridgeOpen || isVeloDepositOpen ||
+        isVeloUsernameOpen || isVeloSendOpen || isVeloWithdrawOpen ||
+        isCrossAccountOpen || isSettingsOpen || orderlyDWModal.open ||
+        usersListModal.isOpen || sidebarOpen || leverageModalOpen;
+
+    // Sync body class so CSS can push navbar behind modal backdrops
+    // This also covers TradeView's internal PairSelector (z:60) and other unlisted modals
+    React.useEffect(() => {
+        if (anyModalOpen) {
+            document.body.classList.add('modal-open');
+        } else {
+            document.body.classList.remove('modal-open');
+        }
+        return () => { document.body.classList.remove('modal-open'); };
+    }, [anyModalOpen]);
+
     return (
         <>
         {/* Wallet session alert — shown when user switches MetaMask account or network mid-session */}
@@ -8047,6 +8067,20 @@ const App = () => {
                 // Local toast for the sender
                 const toLabel = recipientHandle ? `@${recipientHandle}` : `${recipientAddress.slice(0, 6)}…${recipientAddress.slice(-4)}`;
                 setToast({ message: `Sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, type: 'SUCCESS' });
+                // Optimistically prepend the send to recent activity immediately
+                const optimisticTx = {
+                  id: `send-${Date.now()}`,
+                  type: 'SEND',
+                  amount,
+                  status: 'COMPLETED',
+                  timestamp: Date.now(),
+                  on_chain: true,
+                  tx_hash: txHash,
+                  counterparty: toLabel,
+                  created_at: new Date().toISOString(),
+                };
+                setUser(prev => prev ? { ...prev, transactionHistory: [optimisticTx, ...(prev.transactionHistory ?? [])] } : null);
+
                 if (user?.id && isSupabaseConfigured()) {
                   // 1. Notification + activity row for the sender
                   try {
@@ -8263,7 +8297,7 @@ const App = () => {
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
             <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} onNotificationClick={(n: any) => {
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
                     if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});

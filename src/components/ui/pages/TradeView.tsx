@@ -1244,6 +1244,17 @@ export const TradeView = ({
     // Brief row highlight when arriving from a notification click
     const [highlightHistoryId, setHighlightHistoryId] = useState<string | null>(null);
 
+    // Keep body.modal-open in sync so the navbar drops behind modal backdrops
+    const anyTradeViewModalOpen = pairOpen || !!leverageModal || !!detailsItem;
+    useEffect(() => {
+        if (anyTradeViewModalOpen) {
+            document.body.classList.add('modal-open');
+        } else {
+            document.body.classList.remove('modal-open');
+        }
+        return () => { document.body.classList.remove('modal-open'); };
+    }, [anyTradeViewModalOpen]);
+
     // React to notification-driven focus: switch tab, paginate to the row, flash it.
     useEffect(() => {
         if (!tradeFocus) return;

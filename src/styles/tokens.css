@@ -642,3 +642,8 @@ html.light iframe[id*="tradingview"] {
     padding: 0 10px 10px;
   }
 }
+
+/* ── Modal open: push navbar behind backdrops ──────────────────────────────── */
+body.modal-open .navbar-container {
+  z-index: 1 !important;
+}
