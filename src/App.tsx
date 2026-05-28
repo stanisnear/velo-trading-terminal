@@ -4410,6 +4410,7 @@ const App = () => {
         return;
       }
       if (!authChecked) return;    // wait for Supabase session restore to complete
+      if (sessionRestoredRef.current) return; // restore already ran (or in progress) — user will be set
       if (user) return;            // already authenticated
       if (isLoginOpen) return;     // modal already open
       if (socialLoginHandledRef.current) return; // already triggered
@@ -5035,9 +5036,12 @@ const App = () => {
         }
 
         // Track whether we've already done the first restore so we don't double-load
-        const restoreSession = async (session: any) => {
+        const restoreSession = async (session: any, isGetSessionFallback = false) => {
             if (!session?.user) {
-                setAuthChecked(true);
+                // Only mark authChecked from the authoritative getSession() call,
+                // not from INITIAL_SESSION which can fire with null before the
+                // stored token is validated on cold starts.
+                if (isGetSessionFallback) setAuthChecked(true);
                 return;
             }
             // Block restore if user explicitly logged out this session
@@ -5046,7 +5050,13 @@ const App = () => {
             if (sessionRestoredRef.current) return;
             sessionRestoredRef.current = true;
             try {
-                const { profile } = await getProfile(session.user.id);
+                let profileData = await getProfile(session.user.id);
+                // Retry once on failure (Supabase cold start / transient network blip)
+                if (!profileData?.profile) {
+                    await new Promise(r => setTimeout(r, 1200));
+                    profileData = await getProfile(session.user.id);
+                }
+                const profile = profileData?.profile;
                 if (!profile) { setAuthChecked(true); return; }
                 const restoredUser = dbProfileToUserProfile(profile);
                 const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
@@ -5147,9 +5157,10 @@ const App = () => {
             }
         });
         
-        // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession
+        // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession.
+        // This is also the authoritative source — only this path marks authChecked on null session.
         supabase.auth.getSession().then(async ({ data: { session } }) => {
-            await restoreSession(session);
+            await restoreSession(session, true);
         });
         
         return () => { subscription.unsubscribe(); clearTimeout(authTimeout); };
