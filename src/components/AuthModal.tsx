@@ -401,7 +401,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
           if (signInErr || !signInData?.user) throw signInErr || new Error('Sign in failed');
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', signInData.user.id).single();
-          if (profile) await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', signInData.user.id);
+          if (profile) await supabase.from('profiles').update({
+            username: uname,
+            handle: `@${uname}`,
+            wallet_address: address.toLowerCase(),
+            auth_method: 'WALLET',
+            ...(contactEmail ? { email: contactEmail } : {}),
+          }).eq('id', signInData.user.id);
           setStep('success_new');
           setTimeout(() => {
             if (completedRef.current) return;
@@ -417,7 +423,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
       if (signInErr || !signInData?.user) throw signInErr || new Error('Sign in after signup failed');
 
-      await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', signInData.user.id);
+      await supabase.from('profiles').update({
+        username: uname,
+        handle: `@${uname}`,
+        wallet_address: address.toLowerCase(),
+        auth_method: 'WALLET',
+        ...(contactEmail ? { email: contactEmail } : {}),
+      }).eq('id', signInData.user.id);
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', signInData.user.id).single();
 
       setStep('success_new');

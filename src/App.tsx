@@ -99,6 +99,27 @@ import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsM
 
 import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS, VerificationReason } from './utils/types';
 
+function normalizeWalletAddress(value: unknown): `0x${string}` | undefined {
+    if (typeof value !== 'string') return undefined;
+    const address = value.trim().toLowerCase();
+    return /^0x[a-f0-9]{40}$/.test(address) ? address as `0x${string}` : undefined;
+}
+
+function walletAddressFromAuthEmail(email: unknown): `0x${string}` | undefined {
+    if (typeof email !== 'string') return undefined;
+    const suffix = '@wallet.velo';
+    const lower = email.toLowerCase();
+    if (!lower.endsWith(suffix)) return undefined;
+    return normalizeWalletAddress(lower.slice(0, -suffix.length));
+}
+
+function resolveOwnerWalletAddress(authUser?: any, profile?: any, fallback?: unknown): `0x${string}` | undefined {
+    return normalizeWalletAddress(profile?.wallet_address)
+        ?? normalizeWalletAddress(authUser?.user_metadata?.wallet_address)
+        ?? walletAddressFromAuthEmail(authUser?.email)
+        ?? normalizeWalletAddress(fallback);
+}
+
 // --- Sound Service (Refined) ---
 const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
     try {
@@ -4542,8 +4563,11 @@ const App = () => {
     const [walletSessionAlert, setWalletSessionAlert] = useState<{ type: 'account' | 'network' } | null>(null);
 
     // Call this right after a successful login to snapshot the wallet state
-    const recordSessionWallet = () => {
-        sessionWalletRef.current = { address: walletAddress, chainId };
+    const recordSessionWallet = (addressOverride?: unknown) => {
+        sessionWalletRef.current = {
+            address: normalizeWalletAddress(addressOverride) ?? normalizeWalletAddress(walletAddress),
+            chainId,
+        };
     };
 
     // Show banner when logged-in user is on wrong network
@@ -4774,16 +4798,17 @@ const App = () => {
             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
           });
           userLoadedFromDB.current = true;
-          if (walletAddress) restoredUser.walletAddress = walletAddress;
+          const ownerForAuth = resolveOwnerWalletAddress(authUser, profile, walletAddressRef.current);
+          if (ownerForAuth) restoredUser.walletAddress = ownerForAuth;
           setUser(restoredUser);
           // Restore burner alongside user so the trading layer is ready immediately
-          if (walletAddress) {
-            const cachedBurner = loadStoredBurner(walletAddress);
+          if (ownerForAuth) {
+            const cachedBurner = loadStoredBurner(ownerForAuth);
             if (cachedBurner?.veloAddress) {
               setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
             }
           }
-          recordSessionWallet();
+          recordSessionWallet(ownerForAuth);
           setPositions(positions);
           setOpenOrders(orders);
           setNotifications(notifs);
@@ -5072,24 +5097,23 @@ const App = () => {
                     .from('follows').select('follower_id').eq('following_id', session.user.id);
                 restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
                 userLoadedFromDB.current = true;
+                const ownerForSession = resolveOwnerWalletAddress(session.user, profile, walletAddressRef.current);
+                if (ownerForSession) restoredUser.walletAddress = ownerForSession;
                 setUser(restoredUser);
                 // Mark as fully restored ONLY now that a user is actually set. This is
                 // what makes the guard "stick" so duplicate events become no-ops.
                 sessionRestoredRef.current = true;
                 // Restore burner wallet from localStorage.
-                // profile.wallet_address is the main MetaMask address stored at account
-                // creation — it's the localStorage key for the burner, and it's available
-                // immediately from the DB row without waiting for MetaMask to reconnect.
-                // walletAddressRef is a secondary fallback for when the profile row predates
-                // the wallet_address column (very old accounts).
-                const ownerForBurner = (session?.user?.user_metadata?.wallet_address as string | undefined) || profile.wallet_address || walletAddressRef.current;
-                if (ownerForBurner) {
-                    const cachedBurner = loadStoredBurner(ownerForBurner);
+                // The burner cache is keyed by the main wallet. Older rows can miss
+                // profile.wallet_address, so fall back to Supabase auth metadata/email
+                // before relying on live Wagmi state.
+                if (ownerForSession) {
+                    const cachedBurner = loadStoredBurner(ownerForSession);
                     if (cachedBurner?.veloAddress) {
                         setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
                     }
                 }
-                recordSessionWallet();
+                recordSessionWallet(ownerForSession);
                 setPositions(positions);
                 setOpenOrders(orders);
                 setNotifications(notifs);
@@ -7785,9 +7809,16 @@ const App = () => {
                             return { time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: startingBalance + runningPnl, timestamp: t.timestamp };
                         });
                         userLoadedFromDB.current = true;
-                        if (walletAddress) restoredUser.walletAddress = walletAddress;
+                        const ownerForAuth = resolveOwnerWalletAddress(authUser, p, walletAddressRef.current);
+                        if (ownerForAuth) restoredUser.walletAddress = ownerForAuth;
                         setUser(restoredUser);
-                        recordSessionWallet();
+                        if (ownerForAuth) {
+                            const cachedBurner = loadStoredBurner(ownerForAuth);
+                            if (cachedBurner?.veloAddress) {
+                                setBurnerAddress(cachedBurner.veloAddress as `0x${string}`);
+                            }
+                        }
+                        recordSessionWallet(ownerForAuth);
                         setPositions(positions);
                         setOpenOrders(orders);
                         setNotifications(notifs);
@@ -7800,6 +7831,7 @@ const App = () => {
                     } catch (e) {
                         console.warn('onAuth error:', e);
                         const username = authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'Trader';
+                        const ownerForAuth = resolveOwnerWalletAddress(authUser, passedProfile, walletAddressRef.current);
                         setUser({
                             id: authUser.id, username, handle: `@${username.replace(/\s+/g, '')}`,
                             bio: '', avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
@@ -7808,6 +7840,7 @@ const App = () => {
                             earnedFees: 0, veloRewards: 0,
                             tradeHistory: [], transactionHistory: [], pnlHistory: [],
                             joinedDate: new Date().toISOString(), likes: [], reposts: [],
+                            walletAddress: ownerForAuth || null,
                         });
                     }
                 }}
@@ -7816,7 +7849,7 @@ const App = () => {
                 setToast({ message: `@${handle} registered on-chain`, type: 'SUCCESS' });
               }}
               onBurnerReady={async ({ burnerAddress, amount, txHash }) => {
-                setBurnerAddress(burnerAddress as `0x\${string}`);
+                setBurnerAddress(burnerAddress as `0x${string}`);
                 veloPerpsTrading.reloadBurner();
                 setToast({ message: 'Trading wallet ready — no more popups', type: 'SUCCESS' });
                 if (user && isSupabaseConfigured()) {

@@ -335,7 +335,13 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       if (!authUser) throw new Error('No user returned from signup');
       const { data: si2 } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
       if (si2?.user) authUser = si2.user;
-      await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', authUser.id);
+      await supabase.from('profiles').update({
+        username: uname,
+        handle: `@${uname}`,
+        wallet_address: address.toLowerCase(),
+        auth_method: 'WALLET',
+        ...(contactEmail ? { email: contactEmail } : {}),
+      }).eq('id', authUser.id);
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
 
       setStep('BURNER_SIGN');
