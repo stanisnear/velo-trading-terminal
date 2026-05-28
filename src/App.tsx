@@ -120,6 +120,28 @@ function resolveOwnerWalletAddress(authUser?: any, profile?: any, fallback?: unk
         ?? normalizeWalletAddress(fallback);
 }
 
+async function loadUserHydration(userId: string) {
+    const safe = async <T,>(label: string, task: Promise<T>, fallback: T): Promise<T> => {
+        try {
+            return await task;
+        } catch (e) {
+            console.warn(`[velo] ${label} hydrate failed:`, e);
+            return fallback;
+        }
+    };
+
+    const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
+        safe('positions', fetchPositions(userId), [] as any[]),
+        safe('open orders', fetchOpenOrders(userId), [] as any[]),
+        safe('trade history', fetchTradeHistory(userId), [] as any[]),
+        safe('transactions', fetchTransactions(userId), [] as any[]),
+        safe('notifications', fetchNotifications(userId), [] as any[]),
+        safe('posts', fetchPosts(50), [] as any[]),
+    ]);
+
+    return { positions, orders, history, txns, notifs, loadedPosts };
+}
+
 // --- Sound Service (Refined) ---
 const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
     try {
@@ -4426,7 +4448,7 @@ const App = () => {
               setLoginReturningName(profile.username);
               setLoginOpen(true);
               // Hydrate app state directly — onAuth is the canonical path
-              silentLoginCallbackRef.current?.(data.user, profile);
+              await silentLoginCallbackRef.current?.(data.user, profile);
               return;
             }
           }
@@ -4774,14 +4796,7 @@ const App = () => {
             tradeHistory: [], transactionHistory: [], pnlHistory: [],
             joinedDate: new Date().toISOString(), likes: [], reposts: [],
           } as UserProfile;
-          const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-            fetchPositions(authUser.id),
-            fetchOpenOrders(authUser.id),
-            fetchTradeHistory(authUser.id),
-            fetchTransactions(authUser.id),
-            fetchNotifications(authUser.id),
-            fetchPosts(50),
-          ]);
+          const { positions, orders, history, txns, notifs, loadedPosts } = await loadUserHydration(authUser.id);
           const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', authUser.id);
           restoredUser.following = (follows || []).map((f: any) => f.following_id);
           const { data: myFollowers } = await supabase.from('follows').select('follower_id').eq('following_id', authUser.id);
@@ -5058,14 +5073,7 @@ const App = () => {
                     return;
                 }
                 const restoredUser = dbProfileToUserProfile(profile);
-                const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-                    fetchPositions(session.user.id),
-                    fetchOpenOrders(session.user.id),
-                    fetchTradeHistory(session.user.id),
-                    fetchTransactions(session.user.id),
-                    fetchNotifications(session.user.id),
-                    fetchPosts(50),
-                ]);
+                const { positions, orders, history, txns, notifs, loadedPosts } = await loadUserHydration(session.user.id);
                 // DB stores free balance directly — no margin subtraction needed.
                 // Locked margins are implicitly tracked via the positions table.
                 restoredUser.tradeHistory = history;
@@ -7785,14 +7793,7 @@ const App = () => {
                             tradeHistory: [], transactionHistory: [], pnlHistory: [],
                             joinedDate: new Date().toISOString(), likes: [], reposts: [],
                         } as UserProfile;
-                        const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-                            fetchPositions(authUser.id),
-                            fetchOpenOrders(authUser.id),
-                            fetchTradeHistory(authUser.id),
-                            fetchTransactions(authUser.id),
-                            fetchNotifications(authUser.id),
-                            fetchPosts(50),
-                        ]);
+                        const { positions, orders, history, txns, notifs, loadedPosts } = await loadUserHydration(authUser.id);
                         const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', authUser.id);
                         restoredUser.following = (follows || []).map((f: any) => f.following_id);
                         const { data: myFollowers } = await supabase.from('follows').select('follower_id').eq('following_id', authUser.id);
@@ -8095,7 +8096,7 @@ const App = () => {
               // not a separate top-level concept.
               onOpenUsername={() => { setSettingsOpen(false); setVeloUsernameOpen(true); }}
               onOpenSend={() => { setSettingsOpen(false); setVeloSendOpen(true); }}
-              profile={user ? { id: user.id, email: user.email || '', username: user.username } : null}
+              profile={user ? { id: user.id, email: user.email || '', username: user.username, walletAddress: user.walletAddress || null } : null}
               onEmailSaved={(email: string) => setUser(prev => prev ? { ...prev, email } : null)}
             />
             {/* ── Orderly Deposit / Withdraw Modal (post-onboarding) ── */}

@@ -40,12 +40,13 @@ const VELO_STRIPE = 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 
 interface Props {
   isOpen: boolean; onClose: () => void;
   onOpenBridge?: () => void; onOpenUsername?: () => void; onOpenSend?: () => void;
-  profile?: { id?: string; email?: string; username?: string } | null;
+  profile?: { id?: string; email?: string; username?: string; walletAddress?: string | null } | null;
   onEmailSaved?: (email: string) => void;
 }
 
 export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, onOpenUsername, onOpenSend, profile, onEmailSaved }) => {
-  const { address: ownerAddress, connector } = useAccount();
+  const { address: connectedAddress, connector } = useAccount();
+  const ownerAddress = (profile?.walletAddress || connectedAddress || null) as `0x${string}` | null;
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const publicClient = usePublicClient();
@@ -70,7 +71,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
     setError(''); setRevealed(false); setConfirming(false);
     setEmailSaved(false); setEmailError('');
     setEmailInput(profile?.email || '');
-    if (ownerAddress) setBurner(loadStoredBurner(ownerAddress));
+    setBurner(ownerAddress ? loadStoredBurner(ownerAddress) : null);
   }, [isOpen, ownerAddress, profile]);
 
   const { data: ownerEthData }  = useBalance({ address: ownerAddress, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });
