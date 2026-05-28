@@ -156,6 +156,66 @@ const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
 };
 
 // --- Helper Functions ---
+
+// ── Velo session cache ────────────────────────────────────────────────────────
+// Stores a minimal snapshot of the authenticated user in localStorage so the
+// UI can render immediately on page load without waiting for Supabase round-trips.
+// Supabase INITIAL_SESSION still runs in the background and overwrites with
+// fresh data — this just eliminates the blank "Log In" flash on every tab open.
+const VELO_SESSION_CACHE_KEY = 'velo_session_v1';
+
+function readSessionCache(): any | null {
+  try {
+    const raw = localStorage.getItem(VELO_SESSION_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Invalidate if older than 24h — Supabase JWT also expires around then
+    if (Date.now() - (parsed._cachedAt || 0) > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(VELO_SESSION_CACHE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+}
+
+function writeSessionCache(user: any): void {
+  try {
+    // Store only what's needed to render the UI immediately
+    const snapshot = {
+      id: user.id,
+      username: user.username,
+      handle: user.handle,
+      avatar: user.avatar,
+      banner: user.banner,
+      balance: user.balance,
+      pnlTotal: user.pnlTotal,
+      realizedPnL: user.realizedPnL,
+      veloRewards: user.veloRewards,
+      walletAddress: user.walletAddress,
+      veloWalletAddress: user.veloWalletAddress,
+      joinedDate: user.joinedDate,
+      bio: user.bio,
+      following: user.following || [],
+      followers: user.followers || [],
+      copying: user.copying || [],
+      copierCount: user.copierCount || 0,
+      earnedFees: user.earnedFees || 0,
+      tradeHistory: [],
+      transactionHistory: [],
+      pnlHistory: [],
+      likes: [],
+      reposts: [],
+      _cachedAt: Date.now(),
+    };
+    localStorage.setItem(VELO_SESSION_CACHE_KEY, JSON.stringify(snapshot));
+  } catch { /* storage full or unavailable */ }
+}
+
+function clearSessionCache(): void {
+  try { localStorage.removeItem(VELO_SESSION_CACHE_KEY); } catch {}
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const formatMoney = (amount: number | undefined | null) => {
     if (amount === undefined || amount === null) return '0.00';
     return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -806,7 +866,7 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
     );
 };
 
-const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner }: any) => {
+const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -828,7 +888,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 top: 'var(--nav-top, 12px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                zIndex: 50,
+                zIndex: anyModalOpen ? 1 : 30,
                 width: 'min(1600px, calc(100% - 24px))',
                 padding: '0 14px',
                 height: 60,
@@ -4096,9 +4156,14 @@ const ResetPasswordModal = ({ onClose, onSuccess }: { onClose: () => void; onSuc
 
 const App = () => {
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('velo_theme') as 'light' | 'dark') || 'dark');
-    const [user, setUser] = useState<UserProfile | null>(null);
+    // Initialize from localStorage cache immediately — eliminates the "Log In" flash
+    // on every page load while Supabase session restore runs in the background.
+    // Supabase INITIAL_SESSION overwrites this with fresh data once it resolves.
+    const [user, setUser] = useState<UserProfile | null>(() => readSessionCache());
     // Tracks whether the initial auth check is complete — prevents flash of "not logged in" on refresh
-    const [authChecked, setAuthChecked] = useState(false);
+    // If we have a cached user, skip the loading screen — Supabase refreshes in background.
+    // If no cache, show loading until session restore completes.
+    const [authChecked, setAuthChecked] = useState(() => readSessionCache() !== null);
     // Bumped after intentional logout clears, to re-arm socialLoginEffect when wallet stays connected
     const [retryAuthTick, setRetryAuthTick] = useState(0);
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
@@ -4737,6 +4802,16 @@ const App = () => {
     // Mark stale deposits as FAILED on app boot
     useEffect(() => { reapStaleDeposits(); }, []);
 
+    // Keep localStorage session cache in sync with user state.
+    // Written on every successful login/restore, cleared on logout.
+    useEffect(() => {
+      if (user) {
+        writeSessionCache(user);
+      } else {
+        clearSessionCache();
+      }
+    }, [user]);
+
     // Poll Orderly balance frequently while any deposits are in flight
     useEffect(() => {
       if (!hasInFlightDeposits || !orderly.keypair) return;
@@ -4775,6 +4850,8 @@ const App = () => {
     const pendingTradeOps = useRef(0);
 
     // Guard: prevent double-restore from INITIAL_SESSION + getSession() fallback firing simultaneously
+    // Always start false so INITIAL_SESSION refreshes data from Supabase on every load.
+    // The localStorage cache handles instant display; Supabase provides fresh data.
     const sessionRestoredRef = useRef(false);
 
     // Guard: user explicitly logged out — block all automatic session restores until next manual login
@@ -5052,10 +5129,13 @@ const App = () => {
         // Track whether we've already done the first restore so we don't double-load
         const restoreSession = async (session: any, isGetSessionFallback = false) => {
             if (!session?.user) {
-                // Only mark authChecked from the authoritative getSession() call,
-                // not from INITIAL_SESSION which can fire with null before the
-                // stored token is validated on cold starts.
-                if (isGetSessionFallback) setAuthChecked(true);
+                // Supabase confirmed there's no valid session.
+                // If we pre-loaded a cached user, clear it — the session expired.
+                if (isGetSessionFallback) {
+                    clearSessionCache();
+                    setUser(null);
+                    setAuthChecked(true);
+                }
                 return;
             }
             // Block restore if user explicitly logged out this session
@@ -7685,6 +7765,26 @@ const App = () => {
         setActiveTab(TabView.PUBLIC_PROFILE); 
     };
 
+
+    // True whenever any overlay/modal is open — used to push navbar behind the backdrop
+    const anyModalOpen =
+        isLoginOpen || isResetPasswordOpen || isOrderlyOnboardingOpen ||
+        isVeloWelcomeOpen || isVeloBridgeOpen || isVeloDepositOpen ||
+        isVeloUsernameOpen || isVeloSendOpen || isVeloWithdrawOpen ||
+        isCrossAccountOpen || isSettingsOpen || orderlyDWModal.open ||
+        usersListModal.isOpen || sidebarOpen || leverageModalOpen;
+
+    // Sync body class so CSS can push navbar behind modal backdrops
+    // This also covers TradeView's internal PairSelector (z:60) and other unlisted modals
+    React.useEffect(() => {
+        if (anyModalOpen) {
+            document.body.classList.add('modal-open');
+        } else {
+            document.body.classList.remove('modal-open');
+        }
+        return () => { document.body.classList.remove('modal-open'); };
+    }, [anyModalOpen]);
+
     return (
         <>
         {/* Wallet session alert — shown when user switches MetaMask account or network mid-session */}
@@ -7967,6 +8067,20 @@ const App = () => {
                 // Local toast for the sender
                 const toLabel = recipientHandle ? `@${recipientHandle}` : `${recipientAddress.slice(0, 6)}…${recipientAddress.slice(-4)}`;
                 setToast({ message: `Sent $${amount.toFixed(2)} mUSDC to ${toLabel}`, type: 'SUCCESS' });
+                // Optimistically prepend the send to recent activity immediately
+                const optimisticTx = {
+                  id: `send-${Date.now()}`,
+                  type: 'SEND',
+                  amount,
+                  status: 'COMPLETED',
+                  timestamp: Date.now(),
+                  on_chain: true,
+                  tx_hash: txHash,
+                  counterparty: toLabel,
+                  created_at: new Date().toISOString(),
+                };
+                setUser(prev => prev ? { ...prev, transactionHistory: [optimisticTx, ...(prev.transactionHistory ?? [])] } : null);
+
                 if (user?.id && isSupabaseConfigured()) {
                   // 1. Notification + activity row for the sender
                   try {
@@ -8183,7 +8297,7 @@ const App = () => {
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
             <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} onNotificationClick={(n: any) => {
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
                     if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
