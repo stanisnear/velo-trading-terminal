@@ -97,15 +97,16 @@ const VLogo = ({ size = 48, glow = false }: { size?: number; glow?: boolean }) =
     width: size, height: size,
     borderRadius: Math.round(size * 0.24),
     flexShrink: 0,
-    background: 'linear-gradient(135deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340), oklch(0.74 0.18 30))',
+    // Correct Velo brand gradient: deep violet → blue-violet (matches tokens.css --prism-vivid)
+    background: 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     position: 'relative', overflow: 'hidden',
     boxShadow: glow
-      ? '0 0 0 8px oklch(0.68 0.22 295 / 0.12), 0 0 0 20px oklch(0.68 0.22 295 / 0.05), 0 8px 32px oklch(0.68 0.22 295 / 0.55)'
-      : '0 4px 20px oklch(0.68 0.22 295 / 0.45)',
+      ? '0 0 0 8px oklch(0.55 0.24 295 / 0.18), 0 0 0 22px oklch(0.55 0.24 295 / 0.07), 0 8px 32px oklch(0.55 0.24 295 / 0.6)'
+      : '0 4px 20px oklch(0.55 0.24 295 / 0.5)',
     transition: 'box-shadow 0.7s ease',
   }}>
-    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 80% at 28% 8%, rgba(255,255,255,0.5), transparent 55%)' }} />
+    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 80% at 28% 8%, rgba(255,255,255,0.45), transparent 55%)' }} />
     <span style={{ fontFamily: 'var(--font-display, Georgia, serif)', fontSize: size * 0.46, color: '#fff', fontStyle: 'italic', fontWeight: 700, lineHeight: 1, position: 'relative', zIndex: 1 }}>V</span>
   </div>
 );
@@ -268,14 +269,14 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   // Open/close
   useEffect(() => {
     if (isOpen) {
-      // If wallet is already connected when the modal opens, skip the splash
-      // and go straight to CHECKING — avoids showing WELCOME on every refresh.
-      const initialStep: Step = (isConnected && address) ? 'CHECKING' : 'WELCOME';
+      // Always start at CONNECT so the wallet picker (Reown/AppKit) shows first.
+      // WELCOME splash is only shown AFTER we confirm the wallet is brand new
+      // (the CHECKING step routes new wallets → WELCOME → USERNAME, returning
+      // wallets → SUCCESS_RETURNING which auto-closes).
+      const initialStep: Step = (isConnected && address) ? 'CHECKING' : 'CONNECT';
       setStep(initialStep); setUsername(''); setEmail(''); setFallbackInput('');
       setFieldError(''); setGlobalError(''); setReturningName('');
-      setWrongWalletInfo(null); setSplashPhase(initialStep === 'WELCOME' ? 0 : 1);
-      // When skipping to CHECKING, also reset the checkedRef so the wallet
-      // effect runs again to re-verify the session.
+      setWrongWalletInfo(null); setSplashPhase(0);
       checkedRef.current = null; completedRef.current = false;
       usernameCheckRef.current = null; flowAbortedRef.current = false;
       setClaimTxHash(null); setBurnerAddr(null); setClaimBalance(0);
@@ -285,10 +286,13 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // AppKit closes without connecting → restore visibility
+  // AppKit closes → restore visibility.
+  // This covers both "user closed without connecting" (CONNECT step, not connected)
+  // and "user just connected" (step transitions to CHECKING). In both cases the
+  // Velo modal should be visible again — it was hidden so AppKit could overlay it.
   useEffect(() => {
     if (!isOpen) return;
-    if (!appKitOpen && step === 'CONNECT' && !isConnected) setVisible(true);
+    if (!appKitOpen) setVisible(true);
   }, [appKitOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wallet connected → check returning vs new
@@ -343,9 +347,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             return;
           }
         }
-        // Brand new — go to username step
+        // Brand new — show the welcome splash first, then username
         if (!email && socialEmail) setEmail(socialEmail);
-        setStep('USERNAME');
+        // Fast-forward splash animation since wallet is already connected
+        setTimeout(() => setSplashPhase(2), 300);
+        setStep('WELCOME');
       } catch {
         setGlobalError('Connection failed. Please try again.');
         setStep('CONNECT');
@@ -364,7 +370,13 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const advance = async () => {
-    if (step === 'WELCOME') { setStep('CONNECT'); return; }
+    if (step === 'WELCOME') {
+      // If wallet is already connected (we came here from CHECKING), go straight
+      // to USERNAME. Otherwise open the wallet picker.
+      if (isConnected && address) { setStep('USERNAME'); }
+      else { setStep('CONNECT'); }
+      return;
+    }
     if (step === 'USERNAME') {
       const err = validateHandle(username);
       if (err) { setFieldError(err); return; }
@@ -533,10 +545,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="mode-dark"
         style={{
           position: 'relative', width: '100%', maxWidth: 460,
-          background: 'var(--glass-bg-strong, rgba(14,14,20,0.92))',
+          // Hard-coded dark background so the modal looks correct in both
+          // light and dark app themes without needing the mode-dark class.
+          background: 'rgba(14,14,20,0.97)',
           borderRadius: 26,
           border: '1px solid rgba(255,255,255,0.07)',
           boxShadow: '0 32px 96px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.04) inset',
@@ -545,7 +558,19 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           overflow: 'hidden',
           transform: visible ? 'translateY(0) scale(1)' : 'translateY(18px) scale(0.97)',
           transition: 'transform 0.4s cubic-bezier(0.22,1,0.36,1)',
-        }}
+          // Inject dark-mode CSS vars so all child inline styles that reference
+          // them resolve to the correct dark values regardless of theme.
+          '--fg': '#F4F4F7',
+          '--fg-muted': 'rgba(244,244,247,0.55)',
+          '--fg-subtle': 'rgba(244,244,247,0.3)',
+          '--bg-base': '#0B0B0E',
+          '--hairline': 'rgba(255,255,255,0.07)',
+          '--pnl-up': '#34d399',
+          '--iris-violet': 'oklch(0.55 0.24 295)',
+          '--iris-magenta': 'oklch(0.72 0.16 320)',
+          '--glass-bg-strong': 'rgba(14,14,20,0.92)',
+          '--holo-linear': 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
+        } as React.CSSProperties}
       >
         {/* Holo top bar */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 2, background: 'linear-gradient(90deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340), oklch(0.74 0.22 30), oklch(0.72 0.20 160))', opacity: 0.9 }} />
@@ -574,11 +599,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           {step === 'WELCOME' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0 4px', minHeight: 280, textAlign: 'center', animation: 'vOnbSlideUp 0.4s ease' }}>
               <div style={{ animation: 'vOnbLogoPop 0.7s cubic-bezier(0.22,1,0.36,1) forwards', marginBottom: 28 }}
-                onAnimationEnd={() => setTimeout(() => setSplashPhase(1), 0)}>
+                onAnimationEnd={() => { if (splashPhase < 1) setTimeout(() => setSplashPhase(1), 0); }}>
                 <VLogo size={72} glow={splashPhase >= 1} />
               </div>
               <div style={{ minHeight: 42, marginBottom: 10 }}>
-                {splashPhase >= 1 && <TypeReveal text="Welcome to Velo." size={28} italic onDone={() => setTimeout(() => setSplashPhase(2), 250)} />}
+                {splashPhase >= 1 && <TypeReveal text="Welcome to Velo." size={28} italic onDone={() => { if (splashPhase < 2) setTimeout(() => setSplashPhase(2), 250); }} />}
               </div>
               <div style={{ minHeight: 20, marginBottom: 24, opacity: splashPhase >= 2 ? 1 : 0, transition: 'opacity 0.5s ease' }}>
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0, lineHeight: 1.6 }}>

@@ -4508,7 +4508,9 @@ const App = () => {
             const newAddr = (accounts[0] || '').toLowerCase();
             const sessionAddr = (sessionWalletRef.current?.address || '').toLowerCase();
             if (sessionAddr && newAddr && newAddr !== sessionAddr) {
-                setWalletSessionAlert({ type: 'account' });
+                // Auto-logout immediately when a different MetaMask account is
+                // selected — the new account is not authenticated with Velo.
+                handleLogout();
             }
         };
 
