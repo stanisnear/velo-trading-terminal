@@ -72,19 +72,16 @@ import {
   insertTradeHistory,
   fetchTransactions,
   recordTransaction,
-  recordTransactionForUser,
   fetchNotifications,
   syncUserFinancials,
   subscribeSocialFeed,
   subscribeUserNotifications,
-  subscribeUserTransactions,
   subscribeLeaderboard,
   subscribeUserPositions,
   subscribeUserOrders,
   fetchPreferences,
   savePreferences,
   createNotification,
-  createNotificationForUser,
   markAllNotificationsRead,
   UserPreferences,
   DEFAULT_PREFERENCES,
@@ -216,6 +213,171 @@ function writeSessionCache(user: any): void {
 
 function clearSessionCache(): void {
   try { localStorage.removeItem(VELO_SESSION_CACHE_KEY); } catch {}
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Logout sentinel — the critical piece that makes logout actually work.
+//
+// Why this exists, plainly: every prior build cleared localStorage,
+// disconnected wagmi, and called supabase.auth.signOut() before navigating.
+// All of that still wasn't enough. On the next page load:
+//   1. wagmi auto-reconnects to MetaMask (the wallet's dapp permission
+//      survives our cleanup — it lives in the extension, not in our
+//      storage). The user's address is back within ~100ms of mount.
+//   2. The silent socialLoginEffect uses that address as a deterministic
+//      Supabase password (`signInWithPassword` at this file's ~line 4608)
+//      and signs the user RIGHT back in.
+//   3. UI snaps from "Signed out" overlay → freshly authed dashboard
+//      faster than the user can react. They observe "logout is broken".
+//
+// The fix can't be at the source (we can't revoke MetaMask's permission
+// programmatically from a dapp; no wallet exposes that API consistently).
+// It has to be at the destination: a sentinel that blocks auto-restore
+// until the user EXPLICITLY opts back in by clicking Connect Wallet.
+//
+// Mechanism:
+//   - handleLogout navigates to `/?logout=1` (instead of `/`)
+//   - This IIFE runs once at module-import time, BEFORE the App component
+//     mounts and BEFORE Supabase's first getSession() call
+//   - On `?logout=1`: nuke storage again (defense-in-depth), set a
+//     window-level lock, strip the URL param so a refresh doesn't keep
+//     re-triggering this code path
+//   - restoreSession and socialLoginEffect each check the lock and bail
+//   - The wagmiStatus='connecting' handler clears the lock (only fires
+//     when the user explicitly opens AppKit and picks a wallet, never
+//     during a silent auto-reconnect)
+//
+// After this build, the only way for the user to be signed in again is
+// for them to click Connect Wallet. Auto-reconnect is harmless because
+// it can't drive auth state on its own — the lock catches it.
+// ─────────────────────────────────────────────────────────────────────────────
+declare global {
+  interface Window { __veloLogoutLock?: boolean; }
+}
+(function _handleLogoutSentinel() {
+  if (typeof window === 'undefined') return;
+  let params: URLSearchParams;
+  try { params = new URLSearchParams(window.location.search); }
+  catch { return; }
+  if (params.get('logout') !== '1') return;
+
+  // Lock FIRST so even if storage ops throw, downstream auth code sees it.
+  try { window.__veloLogoutLock = true; } catch {}
+
+  // Aggressive synchronous storage wipe — same allowlist as handleLogout.
+  // Deterministic data (burner sub-account, Orderly keypair) and UI prefs
+  // survive. Everything else (Supabase JWT, wagmi connector state,
+  // WalletConnect sessions, AppKit metadata, sb-*, etc.) gets purged.
+  try {
+    const KEEP_EXACT  = new Set(['velo_theme', 'velo_fav_markets']);
+    const KEEP_PREFIX = ['velo_burner_', 'orderly_kp_'];
+    const toWipe: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (KEEP_EXACT.has(k)) continue;
+      if (KEEP_PREFIX.some(p => k.startsWith(p))) continue;
+      toWipe.push(k);
+    }
+    toWipe.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  } catch {}
+  try { sessionStorage.clear(); } catch {}
+
+  // Strip the param. A manual refresh now reloads as a normal logged-out
+  // page — IIFE doesn't re-fire, lock isn't set, the user can connect.
+  try {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  } catch {}
+})();
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inline helpers that earlier builds expected to be exported from
+// services/supabaseStore.ts. Defined here so App.tsx works against ANY
+// version of that file — old or new — and Vercel can't refuse to build
+// just because a file copy was missed during a prior deploy. The logic is
+// identical to what the supabaseStore helpers would have done; we just
+// reach into `supabase` directly (which IS always exported).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Subscribe to INSERTs on the transactions table for a specific user.
+ * Returns the channel so the caller can `supabase.removeChannel(ch)` on
+ * cleanup. Requires `public.transactions` to be in the supabase_realtime
+ * publication (added by SUPABASE_MIGRATION_BUILD81.sql).
+ */
+function subscribeUserTransactions(userId: string, onNew: (t: any) => void) {
+  return supabase.channel(`velo-tx-${userId}`)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'transactions',
+      filter: `user_id=eq.${userId}`,
+    }, (p: any) => onNew(p.new))
+    .subscribe();
+}
+
+/**
+ * Create a notification row owned by ANOTHER user via the SECURITY DEFINER
+ * RPC (`create_notification_for_user`) from BUILD81. Throws on RPC failure
+ * so the caller can surface the precise error as a toast.
+ */
+async function createNotificationForUser(
+  targetUserId: string,
+  type: string,
+  message: string,
+  relatedId?: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('create_notification_for_user', {
+    target_user_id: targetUserId,
+    p_type: type,
+    p_message: message,
+    p_related_id: relatedId || null,
+  });
+  if (!error) return;
+  // Best-effort fallback if the RPC isn't deployed: try a direct insert
+  // (only works in environments with permissive RLS, which early-dev
+  // projects sometimes still have).
+  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
+    const { error: insertErr } = await supabase
+      .from('notifications')
+      .insert({ user_id: targetUserId, type, message, related_id: relatedId || null });
+    if (insertErr) throw new Error(`fallback notifications insert failed: ${insertErr.message}`);
+    return;
+  }
+  throw new Error(error.message);
+}
+
+/**
+ * Record a transaction row owned by ANOTHER user (e.g. the recipient of
+ * a SEND). Same SECURITY DEFINER pattern, only RECEIVE is allowed
+ * cross-user by the server-side validation in BUILD81.
+ */
+async function recordTransactionForUser(
+  targetUserId: string,
+  type: 'DEPOSIT' | 'WITHDRAW' | 'SEND' | 'RECEIVE',
+  amount: number,
+  onChainMeta?: { txHash?: string; counterparty?: string; onChain?: boolean },
+): Promise<void> {
+  const { error } = await supabase.rpc('record_transaction_for_user', {
+    target_user_id: targetUserId,
+    p_type: type,
+    p_amount: amount,
+    p_tx_hash: onChainMeta?.txHash || null,
+    p_counterparty: onChainMeta?.counterparty || null,
+    p_on_chain: onChainMeta?.onChain ?? true,
+  });
+  if (!error) return;
+  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
+    const { error: insertErr } = await supabase.from('transactions').insert({
+      user_id: targetUserId, type, amount, status: 'COMPLETED',
+      on_chain: onChainMeta?.onChain ?? true,
+      tx_hash: onChainMeta?.txHash || null,
+      counterparty: onChainMeta?.counterparty || null,
+    });
+    if (insertErr) throw new Error(`fallback transactions insert failed: ${insertErr.message}`);
+    return;
+  }
+  throw new Error(error.message);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -4486,6 +4648,12 @@ const App = () => {
     useEffect(() => {
       if (wagmiStatus === 'connecting') {
         freshWalletConnectRef.current = true;
+        // User explicitly opened AppKit and is picking a wallet — they want
+        // to be signed in. Clear the post-logout lock so restoreSession and
+        // the silent socialLoginEffect can proceed normally. Auto-reconnect
+        // (which goes 'reconnecting' → 'connected', never touching this
+        // branch) leaves the lock untouched.
+        try { if (typeof window !== 'undefined') window.__veloLogoutLock = false; } catch {}
       }
       if (wagmiStatus === 'disconnected') {
         freshWalletConnectRef.current = false;
@@ -4499,6 +4667,12 @@ const App = () => {
     // never touching 'connecting') are completely excluded — Supabase INITIAL_SESSION
     // handles those. This eliminates the race between restoreSession and this effect.
     useEffect(() => {
+      // Logout sentinel — see the IIFE at the top of this file. If the lock
+      // is set, this load came from a logout navigate; do NOT silently
+      // re-sign-in just because wagmi auto-reconnected to MetaMask. The
+      // lock is cleared when the user explicitly opens AppKit ('connecting'
+      // wagmiStatus transition above).
+      if (typeof window !== 'undefined' && window.__veloLogoutLock) return;
       if (!isWalletConnected || !walletAddress) {
         socialLoginHandledRef.current = false;
         return;
@@ -5131,6 +5305,18 @@ const App = () => {
 
         // Track whether we've already done the first restore so we don't double-load
         const restoreSession = async (session: any, isGetSessionFallback = false) => {
+            // Logout sentinel — see the IIFE at the top of this file. If the
+            // user just navigated in from a logout, never restore a session,
+            // even if Supabase somehow still has one in storage or memory.
+            // The lock is cleared by the wagmiStatus='connecting' handler
+            // when the user explicitly opens AppKit and picks a wallet.
+            if (typeof window !== 'undefined' && window.__veloLogoutLock) {
+                if (isGetSessionFallback) {
+                    setUser(null);
+                    setAuthChecked(true);
+                }
+                return;
+            }
             if (!session?.user) {
                 // Supabase confirmed there's no valid session.
                 // If we pre-loaded a cached user, clear it — the session expired.
@@ -6459,9 +6645,20 @@ const App = () => {
         const name = user?.username;
         triggerAnim('LOGOUT', name ? `See you, ${name}` : undefined);
 
+        // Schedule the hard navigation FIRST, before any awaits below. Some
+        // wagmi versions hang on disconnect; some Supabase setups have flaky
+        // signOut endpoints; either would prevent a setTimeout at the bottom
+        // of this function from ever being scheduled. The user MUST end up
+        // on a clean state regardless. Going to /?logout=1 (not just /) so
+        // the module-level IIFE at the top of this file fires and sets the
+        // window-level lock that blocks every auto-restore path.
+        setTimeout(() => {
+            try { window.location.replace('/?logout=1'); }
+            catch { window.location.href = '/?logout=1'; }
+        }, 1200);
+
         // Block any in-flight session restore / socialLogin effect from
-        // immediately re-hydrating us into the account we're leaving. Set this
-        // FIRST so anything that fires during teardown sees it.
+        // immediately re-hydrating us into the account we're leaving.
         intentionalLogoutRef.current = true;
 
         // ── Step 1: nuke client-side state synchronously. ────────────────────
@@ -6548,29 +6745,10 @@ const App = () => {
         setActiveTab(TabView.TRADE);
         playSound('CLOSE');
 
-        // ── Step 3: hard navigation as the ultimate state-reset. ────────────
-        // Twitter, Binance and Hyperliquid all do this — a logout click ends
-        // with a full navigation away from the authenticated route to a clean
-        // entry point. We mirror that: a real reload guarantees that no async
-        // continuation (a Supabase token refresh in flight, a wagmi reconnect
-        // attempt scheduled by a connector, a realtime channel that hasn't
-        // finished unsubscribing) can resurrect the prior session in the next
-        // microtask. The animation overlay covers the brief blank flash.
-        //
-        // We delay long enough for the LOGOUT animation to register visually
-        // (the overlay runs ~1800ms; navigating at 1200ms keeps the user from
-        // seeing a half-torn-down dashboard while still feeling snappy).
-        setTimeout(() => {
-            try {
-                // replace, not href: the back button must not re-enter the
-                // authed view we just left. Always land at the root, never
-                // a deep path that requires auth (e.g. /dashboard) — the
-                // unauthed entry point is the Trade tab at '/'.
-                window.location.replace('/');
-            } catch {
-                window.location.href = '/';
-            }
-        }, 1200);
+        // Note: the hard-navigate timer was scheduled at the TOP of this
+        // function (line ~6485). It fires regardless of how the cleanup
+        // above goes — that's the entire point. Don't add another timer
+        // here; it'd just double-fire after a no-op.
     };
     const handleDeposit = async (a: number) => {
         if (!user || a <= 0) return;
