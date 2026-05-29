@@ -16,7 +16,8 @@ import { VeloAnimation, VeloAnimationKind } from './components/VeloAnimation';
 import { v4 as uuidv4 } from 'uuid';
 import { PortfolioChart } from './components/PortfolioChart';
 import { OrderBook } from './components/OrderBook';
-import { fetchRealPrices, binancePriceStream, fetchKlines } from './services/priceService';
+import { fetchRealPrices } from './services/priceService';
+import { fetchPythPrices, pythPriceStream, fetchPythKlines } from './services/pythPriceService';
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient, useSignMessage } from 'wagmi';
@@ -4379,7 +4380,7 @@ const App = () => {
     // Fetch real candles whenever the active pair changes (covers URL routing + pair selector)
     useEffect(() => {
         const tf = chartPrefs.chartTf || '15m';
-        fetchKlines(activePair.id, tf).then(klineCandles => {
+        fetchPythKlines(activePair.id, tf).then(klineCandles => {
             if (klineCandles.length > 0) {
                 setCandles(prev => ({ ...prev, [activePair.id]: klineCandles }));
             }
@@ -4940,7 +4941,15 @@ const App = () => {
 
     // ── Detect filled conditional orders (LIMIT/STOP) ───────────────────────
     // When a conditional order disappears from the on-chain list, the keeper
-    // executed it. We add it to history, fire a toast, and create a notification.
+    // executed it. We immediately trigger a positions refresh, then on the
+    // NEXT openPositions update we read the real on-chain entryPrice from the
+    // newly-appeared position and record history/toast with the correct price.
+    //
+    // pendingFilledOrdersRef holds orders that vanished from conditionalOrders
+    // but whose positions haven't been confirmed in the next positions poll yet.
+    const pendingFilledOrdersRef = useRef<Map<string, { pair: string; side: string; type: string; price: number; size: number; leverage: number }>>(new Map());
+
+    // Step 1 — detect vanished orders, park them as "pending", trigger refresh
     useEffect(() => {
       if (!user || !isWalletConnected) return;
       if (veloPerpsTrading.isInitialLoading) return;
@@ -4948,83 +4957,15 @@ const App = () => {
       const currentIds = new Set(veloPerpsTrading.conditionalOrders.map(o => o.orderId.toString()));
       const prev = prevConditionalOrdersRef.current;
 
-      // Find orders that existed before but are now gone → filled
       const filledEntries = [...prev.entries()].filter(([id]) => !currentIds.has(id));
 
       if (filledEntries.length > 0) {
-        // Build a lookup of newly-appeared positions by pair+side so we can
-        // grab the real on-chain entry price and tx hash the keeper stored.
-        let openTxMap: Record<string, string> = {};
-        try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
-
-        const newPositionsByKey = new Map<string, typeof veloPerpsTrading.openPositions[0]>();
-        veloPerpsTrading.openPositions.forEach(p => {
-          const key = `${p.pair.replace('-', '/')}:${p.isLong ? 'LONG' : 'SHORT'}`;
-          // Keep the most recently opened one (lowest createdAt diff)
-          const existing = newPositionsByKey.get(key);
-          if (!existing || p.openedAt > existing.openedAt) {
-            newPositionsByKey.set(key, p);
-          }
-        });
-
+        // Park them — Step 2 will resolve them once positions refresh
         filledEntries.forEach(([id, order]) => {
-          // Use the actual on-chain entry price from the newly appeared position.
-          // Fall back to trigger price only if we can't match a position (rare race).
-          const matchKey = `${order.pair}:${order.side}`;
-          const matchedPos = newPositionsByKey.get(matchKey);
-          const fillPrice = (matchedPos && matchedPos.entryPrice > 0)
-            ? matchedPos.entryPrice
-            : (marketPrices[order.pair] || order.price);
-
-          // Get the tx hash from the matched position or the openTxMap
-          const tradeIdKey = matchedPos ? matchedPos.tradeId.toString() : undefined;
-          const rawTxHash = matchedPos?.openTxHash || (tradeIdKey ? openTxMap[tradeIdKey] : undefined);
-          const txHash = rawTxHash && !rawTxHash.startsWith('http') ? rawTxHash : undefined;
-          const explorerUrl = rawTxHash
-            ? (rawTxHash.startsWith('http') ? rawTxHash : `https://sepolia.basescan.org/tx/${rawTxHash}`)
-            : undefined;
-
-          const historyItem: TradeHistoryItem = {
-            id: `filled_limit_${id}_${Date.now()}`,
-            pair: order.pair,
-            side: order.side as any,
-            entryPrice: fillPrice,
-            exitPrice: fillPrice, // same as entry — position is OPEN, not yet closed
-            size: order.size,
-            pnl: 0,
-            timestamp: Date.now(),
-            action: 'OPEN',
-            leverage: order.leverage,
-            onChain: true,
-            txHash,
-            orderlyOrderUrl: explorerUrl,
-            openedAt: matchedPos ? matchedPos.openedAt * 1000 : Date.now(),
-          } as any;
-
-          // Add to local history
-          setUser((prevUser: any) => {
-            if (!prevUser) return null;
-            return {
-              ...prevUser,
-              tradeHistory: [historyItem, ...prevUser.tradeHistory],
-            };
-          });
-
-          // Persist to Supabase
-          if (isSupabaseConfigured()) {
-            insertTradeHistory(user.id, historyItem).catch(e => console.warn('[velo] filled limit order history failed:', e));
-          }
-
-          // Toast notification — uses real fill price
-          const msg = `${order.type} order filled: ${order.side} ${order.pair} @ $${fillPrice.toFixed(2)}`;
-          setToast({ message: msg, type: 'SUCCESS' });
-
-          // Persistent notification
-          if (isSupabaseConfigured()) {
-            createNotification(user.id, 'POSITION_CLOSED', msg, historyItem.id)
-              .catch(e => console.warn('[velo] filled order notification failed:', e));
-          }
+          pendingFilledOrdersRef.current.set(id, order);
         });
+        // Force an immediate positions refresh so we get the real entryPrice ASAP
+        veloPerpsTrading.refresh().catch(() => {});
       }
 
       // Update the ref to current orders
@@ -5041,7 +4982,86 @@ const App = () => {
       });
       prevConditionalOrdersRef.current = nextMap;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [veloPerpsTrading.conditionalOrders, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
+    }, [veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading]);
+
+    // Step 2 — when positions update, resolve any pending filled orders using
+    // the real on-chain entryPrice from the matched position
+    useEffect(() => {
+      if (!user || !isWalletConnected) return;
+      if (pendingFilledOrdersRef.current.size === 0) return;
+
+      let openTxMap: Record<string, string> = {};
+      try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
+
+      // Build lookup of current positions by pair+side, picking most recently opened
+      const positionsByKey = new Map<string, typeof veloPerpsTrading.openPositions[0]>();
+      veloPerpsTrading.openPositions.forEach(p => {
+        const key = `${p.pair.replace('-', '/')}:${p.isLong ? 'LONG' : 'SHORT'}`;
+        const existing = positionsByKey.get(key);
+        if (!existing || p.openedAt > existing.openedAt) {
+          positionsByKey.set(key, p);
+        }
+      });
+
+      const resolved: string[] = [];
+
+      pendingFilledOrdersRef.current.forEach((order, id) => {
+        const matchKey = `${order.pair}:${order.side}`;
+        const matchedPos = positionsByKey.get(matchKey);
+
+        // Only resolve once we have a real position with a valid entryPrice
+        if (!matchedPos || matchedPos.entryPrice <= 0) return;
+
+        resolved.push(id);
+
+        const fillPrice = matchedPos.entryPrice;
+        const tradeIdKey = matchedPos.tradeId.toString();
+        const rawTxHash = matchedPos.openTxHash || openTxMap[tradeIdKey];
+        const txHash = rawTxHash && !rawTxHash.startsWith('http') ? rawTxHash : undefined;
+        const explorerUrl = rawTxHash
+          ? (rawTxHash.startsWith('http') ? rawTxHash : `https://sepolia.basescan.org/tx/${rawTxHash}`)
+          : undefined;
+
+        const historyItem: TradeHistoryItem = {
+          id: `filled_limit_${id}_${Date.now()}`,
+          pair: order.pair,
+          side: order.side as any,
+          entryPrice: fillPrice,
+          exitPrice: fillPrice,
+          size: order.size,
+          pnl: 0,
+          timestamp: Date.now(),
+          action: 'OPEN',
+          leverage: order.leverage,
+          onChain: true,
+          txHash,
+          orderlyOrderUrl: explorerUrl,
+          openedAt: matchedPos.openedAt * 1000,
+        } as any;
+
+        setUser((prevUser: any) => {
+          if (!prevUser) return null;
+          return { ...prevUser, tradeHistory: [historyItem, ...prevUser.tradeHistory] };
+        });
+
+        if (isSupabaseConfigured()) {
+          insertTradeHistory(user.id, historyItem).catch(e => console.warn('[velo] filled limit order history failed:', e));
+        }
+
+        const msg = `${order.type} order filled: ${order.side} ${order.pair} @ $${fillPrice.toFixed(2)}`;
+        setToast({ message: msg, type: 'SUCCESS' });
+
+        if (isSupabaseConfigured()) {
+          createNotification(user.id, 'POSITION_CLOSED', msg, historyItem.id)
+            .catch(e => console.warn('[velo] filled order notification failed:', e));
+        }
+      });
+
+      // Remove resolved entries
+      resolved.forEach(id => pendingFilledOrdersRef.current.delete(id));
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [veloPerpsTrading.openPositions]);
 
 
     // Reset the dismiss flag on logout so a different account triggers onboarding again.
@@ -5351,6 +5371,12 @@ const App = () => {
     // Tracks the previous set of on-chain conditional orders so we can detect
     // when one disappears (i.e. was filled by the keeper) and add it to history.
     const prevConditionalOrdersRef = useRef<Map<string, { pair: string; side: string; type: string; price: number; size: number; leverage: number }>>(new Map());
+
+    // Always-fresh snapshot of open positions so the order-fill detection effect
+    // can read current positions without adding openPositions to its dep array
+    // (which would cause the ref to be reset on every new position, breaking detection).
+    const openPositionsRef = useRef(veloPerpsTrading.openPositions);
+    useEffect(() => { openPositionsRef.current = veloPerpsTrading.openPositions; }, [veloPerpsTrading.openPositions]);
 
     // Tracks previous on-chain positions to detect keeper-executed TP/SL closes.
     const prevVeloPositionsRef = useRef<Map<string, { pair: string; side: string; entryPrice: number; size: number; leverage: number; takeProfit?: number; stopLoss?: number }>>(new Map());
@@ -6111,13 +6137,19 @@ const App = () => {
 
     // ── Initial data load: prices, candles, and social ──
     useEffect(() => {
-        fetchRealPrices().then(({ prices: realPrices, changes: realChanges }) => {
+        // Prices come from Pyth (the oracle the contract settles on); the 24h
+        // change % is cosmetic and still sourced from the Binance/CoinGecko REST
+        // call — it is never compared against a fill price, so no inconsistency.
+        Promise.all([
+            fetchPythPrices(),
+            fetchRealPrices().catch(() => ({ changes: {} as Record<string, number> })),
+        ]).then(([{ prices: pythPrices }, { changes: realChanges }]) => {
             const merged: Record<string, number> = {};
-            PAIRS.forEach(p => { merged[p.id] = realPrices[p.id] || p.basePrice; });
+            PAIRS.forEach(p => { merged[p.id] = pythPrices[p.id] || p.basePrice; });
             setMarketPrices(merged);
             setMarketChanges(realChanges || {});
         });
-        fetchKlines(PAIRS[0].id, '15m').then(klineCandles => {
+        fetchPythKlines(PAIRS[0].id, '15m').then(klineCandles => {
             if (klineCandles.length > 0) {
                 setCandles(prev => ({ ...prev, [PAIRS[0].id]: klineCandles }));
             }
@@ -6451,21 +6483,22 @@ const App = () => {
         ));
     }}, [user?.balance, user?.realizedPnL, user?.tradeHistory]);
 
-    // Real-time prices via Binance WebSocket — no jitter, always live
+    // Real-time prices via Pyth Hermes SSE stream — same oracle the VeloPerps
+    // contract settles trades on, so mark price tracks fills (no Binance gap).
     useEffect(() => {
-        binancePriceStream.connect();
-        const unsub = binancePriceStream.subscribe(prices => {
+        pythPriceStream.connect();
+        const unsub = pythPriceStream.subscribe(prices => {
             setMarketPrices(prev => ({ ...prev, ...prices }));
         });
-        // Fallback REST poll every 30s in case WS drops
+        // Fallback REST poll every 30s in case the SSE connection drops
         const restTimer = setInterval(() => {
-            fetchRealPrices().then(({ prices: realPrices }) => {
+            fetchPythPrices().then(({ prices: realPrices }) => {
                 if (Object.keys(realPrices).length > 0) {
                     setMarketPrices(prev => ({ ...prev, ...realPrices }));
                 }
             });
         }, 30000);
-        return () => { unsub(); binancePriceStream.disconnect(); clearInterval(restTimer); };
+        return () => { unsub(); pythPriceStream.disconnect(); clearInterval(restTimer); };
     }, []);
 
     // Real-time social feed subscription (Supabase Realtime)
@@ -9106,7 +9139,7 @@ const App = () => {
                 {activeTab === TabView.TRADE && <>
 
 
-                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
+                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
                     const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
                     const collateral = p.size / p.leverage;
@@ -9143,7 +9176,7 @@ const App = () => {
                     });
                   }} appTheme={theme} onTimeframeChange={(tf: ChartTimeframe) => {
                     // Fetch real OHLCV candles for the active pair at the new timeframe.
-                    fetchKlines(activePair.id, tf).then(klineCandles => {
+                    fetchPythKlines(activePair.id, tf).then(klineCandles => {
                         if (klineCandles.length > 0) {
                             setCandles(prev => ({ ...prev, [activePair.id]: klineCandles }));
                         }
@@ -9160,11 +9193,11 @@ const App = () => {
                 orderlyPositions={[]}
                 />
                 </> }
-                {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
                     <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={async (id:string) => { setPosts(prev => prev.filter(p => p.id !== id)); if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e)); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onDeletePost={async (id:string) => {
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onDeletePost={async (id:string) => {
                     setPosts(prev => prev.filter(p => p.id !== id));
                     if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
                 }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>

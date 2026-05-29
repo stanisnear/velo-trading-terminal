@@ -22,19 +22,37 @@ import { Position } from '../utils/types';
 // track the spot index closely and don't carry the Tether premium that
 // shows up on BINANCE charts. For demo-only pairs we fall back to whichever
 // venue has the deepest book.
+// Chart data source: Pyth (PYTH:* symbols on TradingView). This is the SAME
+// oracle the VeloPerps contract settles trades against and that now drives the
+// live mark price, so the chart, the ticker, and on-chain fills all agree.
+// (Previously these were COINBASE:/BINANCE: symbols, which left the chart a few
+// cents off from every fill — a different exchange, not a different time.)
 const TV_SYMBOLS: Record<string,string> = {
-  'BTC/USD':  'COINBASE:BTCUSD',
-  'ETH/USD':  'COINBASE:ETHUSD',
-  'SOL/USD':  'COINBASE:SOLUSD',
-  'AVAX/USD': 'COINBASE:AVAXUSD',
-  'LINK/USD': 'COINBASE:LINKUSD',
-  'DOGE/USD': 'COINBASE:DOGEUSD',
-  'NEAR/USD': 'COINBASE:NEARUSD',
-  'INJ/USD':  'COINBASE:INJUSD',
-  'RNDR/USD': 'BINANCE:RENDERUSDT', 'TIA/USD': 'BINANCE:TIAUSDT',
-  'WIF/USD': 'BINANCE:WIFUSDT', 'JUP/USD': 'BYBIT:JUPUSDT',
-  'BONK/USD': 'BINANCE:BONKUSDT', 'PEPE/USD': 'BINANCE:PEPEUSDT',
-  'PYTH/USD': 'BINANCE:PYTHUSDT',
+  // On-chain tradable pairs (VELO_PAIRS) — all verified on TradingView's PYTH source
+  'BTC/USD':    'PYTH:BTCUSD',
+  'ETH/USD':    'PYTH:ETHUSD',
+  'SOL/USD':    'PYTH:SOLUSD',
+  'AVAX/USD':   'PYTH:AVAXUSD',
+  'LINK/USD':   'PYTH:LINKUSD',
+  'DOGE/USD':   'PYTH:DOGEUSD',
+  'NEAR/USD':   'PYTH:NEARUSD',
+  'INJ/USD':    'PYTH:INJUSD',
+  'APT/USD':    'PYTH:APTUSD',
+  'ARB/USD':    'PYTH:ARBUSD',
+  'OP/USD':     'PYTH:OPUSD',
+  'SUI/USD':    'PYTH:SUIUSD',
+  'TIA/USD':    'PYTH:TIAUSD',
+  'SEI/USD':    'PYTH:SEIUSD',
+  'RENDER/USD': 'PYTH:RENDERUSD',
+  'WLFI/USD':   'PYTH:WLFIUSD',
+  'POL/USD':    'PYTH:POLUSD',
+  // Display-only pairs from the broad PAIRS list
+  'RNDR/USD':   'PYTH:RENDERUSD',
+  'WIF/USD':    'PYTH:WIFUSD',
+  'JUP/USD':    'PYTH:JUPUSD',
+  'BONK/USD':   'PYTH:BONKUSD',
+  'PEPE/USD':   'PYTH:PEPEUSD',
+  'PYTH/USD':   'PYTH:PYTHUSD',
 };
 
 export const TV_INTERVALS_QUICK: Record<string, string> = {
@@ -115,7 +133,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
 
   const BG = isDark ? '#07070A' : '#ffffff';
 
-  const tvSymbol = TV_SYMBOLS[pairName] || 'COINBASE:BTCUSD';
+  const tvSymbol = TV_SYMBOLS[pairName] || 'PYTH:BTCUSD';
   const tvInterval = TV_INTERVALS[timeframe] || '15';
 
   useEffect(() => { if (externalTimeframe) setTimeframe(externalTimeframe); }, [externalTimeframe]);
