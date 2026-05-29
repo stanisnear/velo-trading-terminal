@@ -605,9 +605,41 @@ export async function deleteOrdersForPosition(positionId: string) {
 // ══════════════════════════════════════════════════════════════════
 
 export async function fetchTradeHistory(userId: string, limit = 100): Promise<TradeHistoryItem[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('trade_history').select('*')
     .eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
+  if (error) {
+    console.error('[supabase] fetchTradeHistory error:', error.message, error.code);
+    // Retry once after a short delay — covers JWT-not-yet-active on page load
+    await new Promise(r => setTimeout(r, 800));
+    const retry = await supabase
+      .from('trade_history').select('*')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
+    if (retry.error) {
+      console.error('[supabase] fetchTradeHistory retry failed:', retry.error.message);
+      return [];
+    }
+    return (retry.data || []).map((r: any): TradeHistoryItem => ({
+      id:               r.id,
+      pair:             r.pair,
+      side:             r.side,
+      entryPrice:       r.entry_price,
+      exitPrice:        r.exit_price,
+      size:             r.size,
+      pnl:              r.pnl,
+      timestamp:        new Date(r.created_at).getTime(),
+      action:           r.action,
+      copyTraderId:     r.copy_trader_id || undefined,
+      leverage:         r.leverage != null ? Number(r.leverage) : undefined,
+      marginMode:       r.margin_mode || undefined,
+      liquidationPrice: r.liquidation_price != null ? Number(r.liquidation_price) : undefined,
+      openedAt:         r.opened_at ? new Date(r.opened_at).getTime() : undefined,
+      onChain:          r.on_chain || false,
+      orderlyOrderId:   r.orderly_order_id != null ? Number(r.orderly_order_id) : undefined,
+      orderlyOrderUrl:  r.orderly_order_url || undefined,
+      txHash:           r.tx_hash || undefined,
+    }));
+  }
   return (data || []).map((r: any): TradeHistoryItem => ({
     id:               r.id,
     pair:             r.pair,
@@ -698,17 +730,31 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
 // ══════════════════════════════════════════════════════════════════
 
 export async function fetchTransactions(userId: string): Promise<Transaction[]> {
-  const { data } = await supabase
-    .from('transactions').select('*')
-    .eq('user_id', userId).order('created_at', { ascending: false });
-  return (data || []).map((r: any): Transaction => ({
+  const mapRow = (r: any): Transaction => ({
     id: r.id, type: r.type, amount: r.amount,
     timestamp: new Date(r.created_at).getTime(), status: r.status,
     onChain:       r.on_chain || false,
     txHash:        r.tx_hash || undefined,
     withdrawNonce: r.withdraw_nonce != null ? Number(r.withdraw_nonce) : undefined,
     counterparty:  r.counterparty || undefined,
-  }));
+  });
+  const { data, error } = await supabase
+    .from('transactions').select('*')
+    .eq('user_id', userId).order('created_at', { ascending: false });
+  if (error) {
+    console.error('[supabase] fetchTransactions error:', error.message, error.code);
+    // Retry once after a short delay — covers JWT-not-yet-active on page load
+    await new Promise(r => setTimeout(r, 800));
+    const retry = await supabase
+      .from('transactions').select('*')
+      .eq('user_id', userId).order('created_at', { ascending: false });
+    if (retry.error) {
+      console.error('[supabase] fetchTransactions retry failed:', retry.error.message);
+      return [];
+    }
+    return (retry.data || []).map(mapRow);
+  }
+  return (data || []).map(mapRow);
 }
 
 export async function recordTransaction(

@@ -4565,8 +4565,16 @@ const App = () => {
 
     // Activity refetch on tab focus — the body of the effect described in the
     // comment block higher up. Placed here because it needs `user` in scope.
+    // IMPORTANT: `authChecked` is included in deps so this effect re-runs once
+    // restoreSession finishes and the JWT is fully active. Without it, the
+    // initial fire (from the cached user.id) can race against JWT activation
+    // and silently return [] — and never retry since user.id doesn't change.
     useEffect(() => {
       if (!user?.id || !isSupabaseConfigured()) return;
+      // Skip if auth hasn't been confirmed yet — JWT may not be active and
+      // fetchTransactions/fetchTradeHistory would silently return [].
+      // We'll re-run once authChecked flips true (after restoreSession).
+      if (!authChecked) return;
       let isMounted = true;
       const refetch = async () => {
         try {
@@ -4620,14 +4628,13 @@ const App = () => {
       };
       const onVisible = () => { if (document.visibilityState === 'visible') void refetch(); };
       document.addEventListener('visibilitychange', onVisible);
-      // Refetch immediately on user change (in case session restore ran
-      // before user was set — e.g. post social-login onboarding).
+      // Refetch immediately on user change or once auth is confirmed (JWT active).
       void refetch();
       return () => {
         isMounted = false;
         document.removeEventListener('visibilitychange', onVisible);
       };
-    }, [user?.id]);
+    }, [user?.id, authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Social login onboarding trigger ────────────────────────────────────
     // When AppKit finishes a social/email login, isWalletConnected flips true

@@ -1604,3 +1604,59 @@ A three-layer sentinel prevents any auto-relogin after an explicit logout:
 8. **`window.__veloLogoutLock` is a session-level flag.** It is cleared either by the user explicitly connecting a wallet, or by a page refresh (since the IIFE only fires when `?logout=1` is in the URL, and `history.replaceState` removes that param immediately). If you add a new auth pathway, check the lock at the top of any function that silently signs the user in.
 
 9. **VeloSendModal's `canSend` no longer requires wagmi `address`.** It requires `hasSigningCapability = !!(burner || mainWalletClient)`. If you add a new signing path (e.g. WalletConnect v3), make sure it's included in that check. If you see the SEND button disabled unexpectedly, add a console log of `{ burner, mainWalletClient, address }` — one of those will be null.
+
+---
+
+## Build 108 — History persistence: JWT timing race fix (May 29, 2026)
+
+**Last updated:** May 29, 2026
+
+### What was broken
+
+**Recent Activity still disappears on refresh even after build 107 SQL migration.**
+
+Build 107 fixed DB-side issues (type constraint, missing RPC functions). But the refresh bug persisted because the root cause was a **JWT timing race in the frontend**, not the DB.
+
+**Exact sequence that caused the bug:**
+
+1. Page loads → session cache (`velo_session_v1`) hydrates `user` instantly with `tradeHistory: []`, `transactionHistory: []` (intentionally empty — the cache never stores activity for size)
+2. `authChecked` starts as `true` (because the cache exists), so the dashboard renders immediately — showing "No activity yet"
+3. The activity refetch effect fires immediately with `user.id = X`
+4. **Supabase JWT is not yet active** — `onAuthStateChange` / `INITIAL_SESSION` is still resolving async
+5. `fetchTransactions` and `fetchTradeHistory` execute their SELECT queries — RLS sees no valid JWT, silently returns `null` data → both functions return `[]`
+6. `restoreSession` finishes later and calls `setAuthChecked(true)` — but the React effect has `[user?.id]` as its only dep. Since `user.id` didn't change (same cached user), **the effect never re-fires**
+7. User sees empty Recent Activity. On next tab focus the `visibilitychange` handler finally heals it — but a hard refresh always hits the broken path again
+
+### What was fixed
+
+**`src/services/supabaseStore.ts`:**
+- `fetchTradeHistory` and `fetchTransactions` now capture and log the Supabase error instead of silently destructuring only `data`
+- Both functions retry once after 800 ms if the initial query returned an error — this covers the JWT-not-yet-active window without needing to change call sites
+- Error messages go to `console.error` with the Supabase error code, making diagnosis in Vercel/Supabase logs immediate
+
+**`src/App.tsx` — activity refetch effect:**
+- Added `authChecked` to the dependency array: `[user?.id, authChecked]`
+- Added guard `if (!authChecked) return` at the top of the effect — the initial cached-user fire is skipped entirely; the effect waits for `restoreSession` to set `authChecked = true` before fetching
+- This guarantees the fetch runs exactly once after the JWT is confirmed active, never before
+
+**`SUPABASE_MIGRATION_BUILD108.sql`:**
+- Splits `trade_history`'s `FOR ALL` RLS policy into explicit per-operation policies with proper `WITH CHECK` on INSERT/UPDATE (the `FOR ALL` + `USING`-only form technically permits inserts on some Postgres versions but is ambiguous)
+- Re-applies `transactions` RLS policies idempotently
+- Re-applies `transactions_type_check` constraint idempotently
+- Adds `transactions_user_created_idx (user_id, created_at DESC)` if missing — makes the page-load SELECT a fast index scan
+- Ensures both tables are in `supabase_realtime` publication with `REPLICA IDENTITY FULL`
+
+### Deploy order
+
+1. Run `SUPABASE_MIGRATION_BUILD108.sql` in Supabase SQL Editor
+2. Deploy the updated `src/services/supabaseStore.ts` and `src/App.tsx`
+
+The SQL is fully idempotent — safe to run even if build 107 already ran.
+
+### New gotchas from build 108
+
+10. **`authChecked` must be `true` before activity fetches are trusted.** The guard `if (!authChecked) return` in the refetch effect is load-bearing. If you add new activity sources or split the effect, maintain this guard — any fetch that runs before `INITIAL_SESSION` resolves will silently return `[]` and pollute state.
+
+11. **`fetchTransactions` / `fetchTradeHistory` now retry once on error.** The 800 ms delay is intentional. Do not remove it — the retry is specifically to outlast Supabase's JWT activation window on cold-start page loads. If you see double-fetch in devtools, that's the retry path confirming a first-load error; check the `console.error` line above it to see the root cause.
+
+12. **Session cache always stores empty activity arrays.** `writeSessionCache` intentionally writes `tradeHistory: []` and `transactionHistory: []` — the cache is for instant UI render only. All activity is fetched fresh from the DB after auth confirms. Do not add activity to the cache; it would grow unbounded and create merge conflicts.
