@@ -1,4 +1,4 @@
-// VeloShareCard.tsx — Velo branded share card (v2)
+// VeloShareCard.tsx — Velo branded share card (v3)
 // Renders on a hidden <canvas> at 1200×675 (Twitter/OG optimal).
 // Four themes: obsidian · gradient · hologram · light
 // Long = green accent, Short = red accent, side-bar on left edge.
@@ -62,146 +62,196 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     const sideColor = data.side === 'LONG' ? (isLight ? '#16a34a' : '#22c55e') : (isLight ? '#dc2626' : '#ff5050');
     const pnlColor  = pnlUp ? (isLight ? '#16a34a' : '#22c55e') : (isLight ? '#dc2626' : '#ff5050');
     const fgPrimary = isLight ? '#0f1117' : '#F4F1E8';
-    const fgMuted   = isLight ? 'rgba(15,17,23,0.46)' : 'rgba(236,237,241,0.44)';
-    const fgSubtle  = isLight ? 'rgba(15,17,23,0.28)' : 'rgba(236,237,241,0.24)';
+    const fgMuted   = isLight ? 'rgba(15,17,23,0.5)' : 'rgba(236,237,241,0.5)';
+    const fgSubtle  = isLight ? 'rgba(15,17,23,0.28)' : 'rgba(236,237,241,0.22)';
+    const cardBg    = isLight ? 'rgba(15,17,23,0.04)' : 'rgba(255,255,255,0.055)';
+    const cardBorder= isLight ? 'rgba(15,17,23,0.10)' : 'rgba(255,255,255,0.10)';
 
     // ── Background ──────────────────────────────────────────────────────
     if (isLight) {
-      ctx.fillStyle = '#F7F6F2';
+      ctx.fillStyle = '#F0EEE8';
       ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = 'rgba(15,17,23,0.025)';
-      for (let x = 0; x < W; x += 32) for (let y = 0; y < H; y += 32) { ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill(); }
-      const ambL = ctx.createRadialGradient(0, 0, 0, 0, 0, 500);
-      ambL.addColorStop(0, pnlUp ? 'rgba(22,163,74,0.07)' : 'rgba(220,38,38,0.07)');
-      ambL.addColorStop(1, 'transparent');
-      ctx.fillStyle = ambL; ctx.fillRect(0, 0, W, H);
+      // Subtle dot matrix
+      ctx.fillStyle = 'rgba(15,17,23,0.04)';
+      for (let x = 24; x < W; x += 28) for (let y = 24; y < H; y += 28) {
+        ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill();
+      }
+      // Ambient glow from PnL color
+      const amb = ctx.createRadialGradient(W * 0.12, H * 0.15, 0, W * 0.12, H * 0.15, W * 0.6);
+      amb.addColorStop(0, pnlUp ? 'rgba(22,163,74,0.06)' : 'rgba(220,38,38,0.06)');
+      amb.addColorStop(1, 'transparent');
+      ctx.fillStyle = amb; ctx.fillRect(0, 0, W, H);
     } else if (bgStyle === 'gradient') {
-      const g = ctx.createLinearGradient(0, 0, W, H);
-      g.addColorStop(0, '#0e0b1a'); g.addColorStop(0.5, '#0c1436'); g.addColorStop(1, '#060810');
+      // Deep indigo-navy gradient
+      const g = ctx.createLinearGradient(0, 0, W * 0.7, H);
+      g.addColorStop(0, '#0b0818'); g.addColorStop(0.45, '#0d1140'); g.addColorStop(1, '#060a0f');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      const gAccent = ctx.createRadialGradient(W * 0.15, H * 0.15, 0, W * 0.15, H * 0.15, W * 0.75);
-      gAccent.addColorStop(0, 'rgba(123,60,232,0.28)'); gAccent.addColorStop(0.5, 'rgba(59,91,255,0.12)'); gAccent.addColorStop(1, 'transparent');
-      ctx.fillStyle = gAccent; ctx.fillRect(0, 0, W, H);
+      // Violet bloom top-left
+      const vBloom = ctx.createRadialGradient(W * 0.08, H * 0.1, 0, W * 0.08, H * 0.1, W * 0.65);
+      vBloom.addColorStop(0, 'rgba(123,60,232,0.32)'); vBloom.addColorStop(0.5, 'rgba(70,100,255,0.14)'); vBloom.addColorStop(1, 'transparent');
+      ctx.fillStyle = vBloom; ctx.fillRect(0, 0, W, H);
+      // Secondary warm bloom bottom-right
+      const wBloom = ctx.createRadialGradient(W * 0.9, H * 0.85, 0, W * 0.9, H * 0.85, W * 0.5);
+      wBloom.addColorStop(0, pnlUp ? 'rgba(34,197,94,0.12)' : 'rgba(255,80,80,0.12)'); wBloom.addColorStop(1, 'transparent');
+      ctx.fillStyle = wBloom; ctx.fillRect(0, 0, W, H);
     } else if (bgStyle === 'hologram') {
-      ctx.fillStyle = '#07080f'; ctx.fillRect(0, 0, W, H);
-      const hg = ctx.createRadialGradient(W * 0.72, H * 0.2, 0, W * 0.72, H * 0.2, W * 0.9);
-      hg.addColorStop(0, 'rgba(123,60,232,0.32)'); hg.addColorStop(0.4, 'rgba(59,91,255,0.14)'); hg.addColorStop(1, 'transparent');
-      ctx.fillStyle = hg; ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = 'rgba(168,200,255,0.028)'; ctx.lineWidth = 1;
-      for (let y = 0; y < H; y += 6) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.fillStyle = '#050710'; ctx.fillRect(0, 0, W, H);
+      // Cyan-violet dual bloom
+      const hg1 = ctx.createRadialGradient(W * 0.75, H * 0.2, 0, W * 0.75, H * 0.2, W * 0.8);
+      hg1.addColorStop(0, 'rgba(80,220,255,0.22)'); hg1.addColorStop(0.4, 'rgba(123,60,232,0.14)'); hg1.addColorStop(1, 'transparent');
+      ctx.fillStyle = hg1; ctx.fillRect(0, 0, W, H);
+      const hg2 = ctx.createRadialGradient(W * 0.2, H * 0.8, 0, W * 0.2, H * 0.8, W * 0.5);
+      hg2.addColorStop(0, 'rgba(60,190,232,0.14)'); hg2.addColorStop(1, 'transparent');
+      ctx.fillStyle = hg2; ctx.fillRect(0, 0, W, H);
+      // Scan lines
+      ctx.strokeStyle = 'rgba(140,210,255,0.022)'; ctx.lineWidth = 1;
+      for (let y = 0; y < H; y += 5) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
     } else {
+      // Obsidian — very dark with faint grid
       ctx.fillStyle = '#06070c'; ctx.fillRect(0, 0, W, H);
     }
 
+    // Shared: dark-mode subtle grid overlay
     if (!isLight) {
-      const bL = ctx.createRadialGradient(100, 100, 0, 100, 100, 420);
-      bL.addColorStop(0, 'rgba(123,60,232,0.16)'); bL.addColorStop(1, 'transparent');
+      // Corner bloom — violet
+      const bL = ctx.createRadialGradient(80, 80, 0, 80, 80, 400);
+      bL.addColorStop(0, 'rgba(107,70,255,0.18)'); bL.addColorStop(1, 'transparent');
       ctx.fillStyle = bL; ctx.fillRect(0, 0, W, H);
-      const bR = ctx.createRadialGradient(W - 100, H - 80, 0, W - 100, H - 80, 380);
-      bR.addColorStop(0, 'rgba(59,91,255,0.12)'); bR.addColorStop(1, 'transparent');
-      ctx.fillStyle = bR; ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = 'rgba(255,255,255,0.016)'; ctx.lineWidth = 1;
-      for (let x = 0; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-      for (let y = 0; y < H; y += 48) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      // Faint grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.013)'; ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 52) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 52) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
     }
 
-    // ── Side accent bar (left edge) ─────────────────────────────────────
-    ctx.fillStyle = sideColor;
-    ctx.fillRect(0, 0, 7, H);
-    const barGlow = ctx.createLinearGradient(0, 0, 80, 0);
-    barGlow.addColorStop(0, data.side === 'LONG' ? (isLight ? 'rgba(22,163,74,0.10)' : 'rgba(34,197,94,0.14)') : (isLight ? 'rgba(220,38,38,0.10)' : 'rgba(255,80,80,0.14)'));
-    barGlow.addColorStop(1, 'transparent');
-    ctx.fillStyle = barGlow; ctx.fillRect(7, 0, 80, H);
+    // ── Rainbow top accent bar ─────────────────────────────────────────
+    const topGrad = ctx.createLinearGradient(0, 0, W, 0);
+    if (isLight) {
+      topGrad.addColorStop(0, 'oklch(0.5 0.24 295 / 0.7)');
+      topGrad.addColorStop(0.4, 'oklch(0.55 0.2 280 / 0.7)');
+      topGrad.addColorStop(0.8, 'oklch(0.6 0.18 265 / 0.5)');
+      topGrad.addColorStop(1, pnlUp ? 'oklch(0.55 0.2 162 / 0.5)' : 'oklch(0.55 0.22 25 / 0.5)');
+    } else {
+      topGrad.addColorStop(0, 'oklch(0.48 0.28 295 / 0.95)');
+      topGrad.addColorStop(0.35, 'oklch(0.58 0.25 285 / 0.9)');
+      topGrad.addColorStop(0.7, 'oklch(0.65 0.22 268 / 0.85)');
+      topGrad.addColorStop(1, pnlUp ? 'oklch(0.68 0.22 162 / 0.8)' : 'oklch(0.62 0.22 25 / 0.8)');
+    }
+    ctx.fillStyle = topGrad; ctx.fillRect(0, 0, W, 4);
 
-    // ── Logo wordmark ────────────────────────────────────────────────────
-    const LX = 52, LY = 44;
-    // Clean wordmark — no colored bug, just the italic Velo type like the header
+    // ── Side accent bar ─────────────────────────────────────────────────
+    const sideGrad = ctx.createLinearGradient(0, 0, 0, H);
+    sideGrad.addColorStop(0, sideColor);
+    sideGrad.addColorStop(0.6, sideColor);
+    sideGrad.addColorStop(1, sideColor + '40');
+    ctx.fillStyle = sideGrad; ctx.fillRect(0, 4, 5, H - 4);
+    // Glow behind bar
+    const barGlow = ctx.createLinearGradient(0, 0, 90, 0);
+    barGlow.addColorStop(0, data.side === 'LONG' ? (isLight ? 'rgba(22,163,74,0.12)' : 'rgba(34,197,94,0.15)') : (isLight ? 'rgba(220,38,38,0.12)' : 'rgba(255,80,80,0.15)'));
+    barGlow.addColorStop(1, 'transparent');
+    ctx.fillStyle = barGlow; ctx.fillRect(5, 4, 90, H);
+
+    // ── Logo area ────────────────────────────────────────────────────────
+    const LX = 52, LY = 38;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillStyle = fgPrimary;
-    ctx.font = 'italic 400 46px "Fraunces", "Times New Roman", serif';
-    ctx.fillText('Velo', LX, LY - 2);
+    ctx.font = 'italic 400 44px "Fraunces", "Times New Roman", serif';
+    ctx.fillText('Velo', LX, LY);
     const wordW = ctx.measureText('Velo').width;
-    // Subtle violet dot after wordmark
+    // Dot after wordmark
     ctx.beginPath();
-    ctx.arc(LX + wordW + 8, LY + 10, 4, 0, Math.PI * 2);
-    ctx.fillStyle = isLight ? 'oklch(0.55 0.24 295 / 0.7)' : 'oklch(0.68 0.22 295 / 0.9)';
+    ctx.arc(LX + wordW + 7, LY + 10, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = isLight ? 'oklch(0.50 0.26 295)' : 'oklch(0.68 0.24 295)';
     ctx.fill();
-    ctx.fillStyle = fgMuted; ctx.font = '600 10px "Geist Mono", monospace';
-    ctx.fillText('PERPETUALS · SOCIAL LAYER', LX + 1, LY + 50);
+    ctx.fillStyle = fgMuted;
+    ctx.font = '700 9px "Geist Mono", monospace';
+    ctx.fillText('PERPETUALS · SOCIAL LAYER', LX + 1, LY + 52);
 
-    // ── Holographic top accent bar ────────────────────────────────────────
-    if (!isLight) {
-      const holoGrad = ctx.createLinearGradient(0, 0, W, 0);
-      holoGrad.addColorStop(0, 'oklch(0.45 0.26 295 / 0.9)');
-      holoGrad.addColorStop(0.35, 'oklch(0.55 0.24 285 / 0.9)');
-      holoGrad.addColorStop(0.7, 'oklch(0.65 0.22 268 / 0.9)');
-      holoGrad.addColorStop(1, 'oklch(0.72 0.18 250 / 0.9)');
-      ctx.fillStyle = holoGrad;
-      ctx.fillRect(0, 0, W, 3);
-    }
-
-    // ── Testnet pill (top right) ─────────────────────────────────────────
-    const pillW = 220, pillH = 32, pillX = W - pillW - 48, pillY = LY + 6;
-    ctx.fillStyle = isLight ? 'rgba(107,70,255,0.08)' : 'rgba(107,70,255,0.12)';
-    ctx.beginPath(); (ctx as any).roundRect(pillX, pillY, pillW, pillH, 10); ctx.fill();
-    ctx.strokeStyle = isLight ? 'rgba(107,70,255,0.25)' : 'rgba(107,70,255,0.3)'; ctx.lineWidth = 1;
-    ctx.beginPath(); (ctx as any).roundRect(pillX, pillY, pillW, pillH, 10); ctx.stroke();
-    ctx.font = '700 11px "Geist Mono", monospace';
-    ctx.fillStyle = isLight ? 'oklch(0.45 0.22 295)' : 'oklch(0.72 0.18 295)';
+    // ── Testnet badge (top right) ─────────────────────────────────────────
+    const badgeW = 210, badgeH = 28, badgeX = W - badgeW - 44, badgeY = LY + 8;
+    ctx.fillStyle = isLight ? 'rgba(107,70,255,0.07)' : 'rgba(107,70,255,0.14)';
+    ctx.beginPath(); (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 8); ctx.fill();
+    ctx.strokeStyle = isLight ? 'rgba(107,70,255,0.22)' : 'rgba(130,90,255,0.32)'; ctx.lineWidth = 1;
+    ctx.beginPath(); (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 8); ctx.stroke();
+    ctx.font = '700 10px "Geist Mono", monospace';
+    ctx.fillStyle = isLight ? 'oklch(0.42 0.22 295)' : 'oklch(0.74 0.18 295)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('TESTNET · BASE SEPOLIA', pillX + pillW / 2, pillY + pillH / 2);
+    ctx.fillText('TESTNET · BASE SEPOLIA', badgeX + badgeW / 2, badgeY + badgeH / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.font = '500 10px "Geist Mono", monospace'; ctx.fillStyle = fgMuted;
+    ctx.font = '500 9px "Geist Mono", monospace'; ctx.fillStyle = fgSubtle;
     ctx.textAlign = 'center';
-    ctx.fillText('Provable. Social. On-chain.', pillX + pillW / 2, pillY + pillH + 8);
+    ctx.fillText('Provable. Social. On-chain.', badgeX + badgeW / 2, badgeY + badgeH + 6);
     ctx.textAlign = 'left';
 
     // ── Divider ──────────────────────────────────────────────────────────
-    ctx.strokeStyle = isLight ? 'rgba(15,17,23,0.08)' : 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(48, 122); ctx.lineTo(W - 48, 122); ctx.stroke();
+    ctx.strokeStyle = isLight ? 'rgba(15,17,23,0.09)' : 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(48, 118); ctx.lineTo(W - 48, 118); ctx.stroke();
 
     // ── Status badge ─────────────────────────────────────────────────────
-    const badge = data.status === 'LIQUIDATED' ? 'LIQUIDATED'
-      : data.status === 'CLOSED' ? (pnlUp ? 'CLOSED IN PROFIT' : 'CLOSED AT LOSS')
-      : 'OPEN POSITION';
-    ctx.font = '700 10px "Geist Mono", monospace'; ctx.fillStyle = pnlColor;
-    ctx.textBaseline = 'top';
-    ctx.fillText('● ' + badge, 52, 142);
+    const badge = data.status === 'LIQUIDATED' ? '● LIQUIDATED'
+      : data.status === 'CLOSED' ? (pnlUp ? '● CLOSED IN PROFIT' : '● CLOSED AT LOSS')
+      : '● OPEN POSITION';
+    // Pill background for status
+    ctx.font = '700 9px "Geist Mono", monospace';
+    const statusW = ctx.measureText(badge).width + 18;
+    ctx.fillStyle = pnlUp
+      ? (isLight ? 'rgba(22,163,74,0.1)' : 'rgba(34,197,94,0.1)')
+      : (isLight ? 'rgba(220,38,38,0.1)' : 'rgba(255,80,80,0.1)');
+    ctx.beginPath(); (ctx as any).roundRect(48, 134, statusW, 20, 5); ctx.fill();
+    ctx.fillStyle = pnlColor; ctx.textBaseline = 'middle';
+    ctx.fillText(badge, 57, 144);
 
     // ── Pair + Side + Leverage ────────────────────────────────────────────
     if (visibleFields.pair || visibleFields.side) {
-      let x = 52; const y = 178;
+      let x = 52; const y = 174;
       ctx.textBaseline = 'top';
       if (visibleFields.pair) {
-        ctx.font = 'italic 400 76px "Fraunces", "Times New Roman", serif';
+        ctx.font = 'italic 400 80px "Fraunces", "Times New Roman", serif';
         ctx.fillStyle = fgPrimary;
         ctx.fillText(data.pair, x, y);
-        x += ctx.measureText(data.pair).width + 22;
+        x += ctx.measureText(data.pair).width + 20;
       }
-      const tagY = y + 36;
+      const tagY = y + 40;
       if (visibleFields.side) {
-        ctx.font = '700 22px "Geist Mono", monospace'; ctx.fillStyle = sideColor;
-        ctx.fillText(data.side, x, tagY);
-        x += ctx.measureText(data.side).width + 12;
+        // Side pill
+        ctx.font = '700 20px "Geist Mono", monospace';
+        const sw = ctx.measureText(data.side).width;
+        ctx.fillStyle = data.side === 'LONG'
+          ? (isLight ? 'rgba(22,163,74,0.12)' : 'rgba(34,197,94,0.12)')
+          : (isLight ? 'rgba(220,38,38,0.12)' : 'rgba(255,80,80,0.12)');
+        ctx.beginPath(); (ctx as any).roundRect(x - 6, tagY - 4, sw + 22, 34, 8); ctx.fill();
+        ctx.fillStyle = sideColor;
+        ctx.fillText(data.side, x + 5, tagY);
+        x += sw + 32;
       }
       if (visibleFields.leverage) {
-        ctx.font = '700 22px "Geist Mono", monospace'; ctx.fillStyle = fgMuted;
+        ctx.font = '700 20px "Geist Mono", monospace'; ctx.fillStyle = fgMuted;
         ctx.fillText(`${data.leverage}×`, x, tagY);
       }
     }
 
     // ── PnL hero ─────────────────────────────────────────────────────────
     if (visibleFields.pnl) {
-      const pnlY = 308;
-      ctx.font = '700 10px "Geist Mono", monospace'; ctx.fillStyle = fgMuted; ctx.textBaseline = 'top';
+      const pnlY = 302;
+      ctx.font = '700 9px "Geist Mono", monospace'; ctx.fillStyle = fgMuted; ctx.textBaseline = 'top';
       ctx.fillText(data.status === 'OPEN' ? 'UNREALISED PnL' : 'REALISED PnL', 52, pnlY);
-      const pnlStr = (pnlUp ? '+' : '') + '$' + Math.abs(data.pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      ctx.font = 'italic 400 96px "Fraunces", "Times New Roman", serif'; ctx.fillStyle = pnlColor;
-      ctx.fillText(pnlStr, 52, pnlY + 22);
+
+      const pnlStr = (pnlUp ? '+' : '-') + '$' + Math.abs(data.pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      ctx.font = 'italic 400 100px "Fraunces", "Times New Roman", serif'; ctx.fillStyle = pnlColor;
+      ctx.textBaseline = 'top';
+      ctx.fillText(pnlStr, 52, pnlY + 18);
       const pnlW = ctx.measureText(pnlStr).width;
+
+      // Percentage badge
       const pctStr = (data.pnlPct >= 0 ? '+' : '') + data.pnlPct.toFixed(2) + '%';
-      ctx.font = '700 26px "Geist Mono", monospace'; ctx.fillStyle = pnlColor;
-      ctx.fillText(pctStr, 52 + pnlW + 20, pnlY + 22 + 58);
+      ctx.font = '700 22px "Geist Mono", monospace';
+      const pctW = ctx.measureText(pctStr).width;
+      const pctX = 52 + pnlW + 18, pctY = pnlY + 18 + 66;
+      ctx.fillStyle = pnlUp
+        ? (isLight ? 'rgba(22,163,74,0.12)' : 'rgba(34,197,94,0.12)')
+        : (isLight ? 'rgba(220,38,38,0.12)' : 'rgba(255,80,80,0.12)');
+      ctx.beginPath(); (ctx as any).roundRect(pctX - 8, pctY - 4, pctW + 22, 36, 10); ctx.fill();
+      ctx.fillStyle = pnlColor;
+      ctx.fillText(pctStr, pctX + 3, pctY);
     }
 
     // ── Stat strip ────────────────────────────────────────────────────────
@@ -213,39 +263,46 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     if (visibleFields.collateral) stats.push({ label: 'COLLATERAL', value: '$' + data.collateral.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
 
     if (stats.length > 0) {
-      const stripY = 516, stripX = 48, stripW = W - 96;
-      const gap = 12, colW = (stripW - gap * (stats.length - 1)) / stats.length;
+      const stripY = 510, stripX = 48, stripW = W - 96;
+      const gap = 10, colW = (stripW - gap * (stats.length - 1)) / stats.length;
       stats.forEach((s, i) => {
         const cx = stripX + (colW + gap) * i;
-        // Glass card background
-        ctx.fillStyle = isLight ? 'rgba(15,17,23,0.04)' : 'rgba(255,255,255,0.05)';
-        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 80, 14); ctx.fill();
-        // Top shimmer
-        const shimmer = ctx.createLinearGradient(cx, stripY, cx, stripY + 30);
-        shimmer.addColorStop(0, isLight ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.08)');
+        // Card body
+        ctx.fillStyle = cardBg;
+        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 88, 14); ctx.fill();
+        // Top shimmer line
+        const shimmer = ctx.createLinearGradient(cx, stripY, cx + colW, stripY);
+        shimmer.addColorStop(0, 'transparent');
+        shimmer.addColorStop(0.5, isLight ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)');
         shimmer.addColorStop(1, 'transparent');
         ctx.fillStyle = shimmer;
-        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 30, 14); ctx.fill();
+        ctx.beginPath(); (ctx as any).roundRect(cx + 1, stripY, colW - 2, 2, 2); ctx.fill();
         // Border
-        ctx.strokeStyle = isLight ? 'rgba(15,17,23,0.08)' : 'rgba(255,255,255,0.09)'; ctx.lineWidth = 1;
-        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 80, 14); ctx.stroke();
-        ctx.font = '700 10px "Geist Mono", monospace'; ctx.fillStyle = fgMuted; ctx.textBaseline = 'top';
-        ctx.fillText(s.label, cx + 16, stripY + 16);
-        ctx.font = '700 20px "Geist Mono", monospace'; ctx.fillStyle = fgPrimary;
-        ctx.fillText(s.value, cx + 16, stripY + 42);
+        ctx.strokeStyle = cardBorder; ctx.lineWidth = 1;
+        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 88, 14); ctx.stroke();
+        // Label
+        ctx.font = '700 9px "Geist Mono", monospace'; ctx.fillStyle = fgMuted; ctx.textBaseline = 'top';
+        ctx.fillText(s.label, cx + 18, stripY + 18);
+        // Value
+        ctx.font = '700 22px "Geist Mono", monospace'; ctx.fillStyle = fgPrimary;
+        ctx.fillText(s.value, cx + 18, stripY + 44);
       });
     }
 
     // ── Footer ────────────────────────────────────────────────────────────
+    // Subtle divider above footer
+    ctx.strokeStyle = isLight ? 'rgba(15,17,23,0.07)' : 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(48, H - 52); ctx.lineTo(W - 48, H - 52); ctx.stroke();
+
     if (visibleFields.handle && data.traderHandle) {
-      ctx.font = '700 13px "Geist Mono", monospace'; ctx.fillStyle = isLight ? '#5b5cf6' : '#A8C8FF';
-      ctx.textBaseline = 'bottom'; ctx.textAlign = 'left';
       const handle = data.traderHandle.startsWith('@') ? data.traderHandle : '@' + data.traderHandle;
-      ctx.fillText(handle, 52, H - 32);
+      ctx.font = '700 12px "Geist Mono", monospace'; ctx.fillStyle = isLight ? 'oklch(0.45 0.24 295)' : 'oklch(0.72 0.22 295)';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      ctx.fillText(handle, 52, H - 28);
     }
-    ctx.font = '500 10px "Geist Mono", monospace'; ctx.fillStyle = fgSubtle;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-    ctx.fillText('Velo Perps Testnet · For illustrative purposes only', W - 48, H - 32);
+    ctx.font = '500 9px "Geist Mono", monospace'; ctx.fillStyle = fgSubtle;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('Velo Perps Testnet · For illustrative purposes only', W - 48, H - 28);
     ctx.textAlign = 'left';
   };
 
@@ -279,16 +336,16 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
   const toggleField = (k: FieldKey) => setVisibleFields((p) => ({ ...p, [k]: !p[k] }));
   if (!isOpen) return null;
 
-  const BG_OPTIONS: { id: BgStyle; label: string; dot: string }[] = [
-    { id: 'obsidian', label: 'Obsidian', dot: '#1e2030' },
-    { id: 'gradient', label: 'Gradient', dot: '#7B3CE8' },
-    { id: 'hologram', label: 'Hologram', dot: '#3B5BFF' },
-    { id: 'light',    label: 'Light',    dot: '#e8e4d8' },
+  const BG_OPTIONS: { id: BgStyle; label: string; swatch: string }[] = [
+    { id: 'obsidian', label: 'Obsidian', swatch: 'linear-gradient(135deg, #0d0f1a 0%, #1a1d2e 100%)' },
+    { id: 'gradient', label: 'Gradient', swatch: 'linear-gradient(135deg, #0b0818 0%, #7B3CE8 50%, #3B5BFF 100%)' },
+    { id: 'hologram', label: 'Hologram', swatch: 'linear-gradient(135deg, #050710 0%, #50dcff44 50%, #7B3CE8 100%)' },
+    { id: 'light',    label: 'Light',    swatch: 'linear-gradient(135deg, #F0EEE8 0%, #e8e2d8 100%)' },
   ];
 
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(16px)' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(20px)' }}>
       <div style={{ width: '100%', maxWidth: 720, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' as const }}>
 
         {/* Header */}
@@ -297,27 +354,27 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
             <Share2 size={14} style={{ color: 'var(--velo-violet)' }} />
             <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Share Trade Card</span>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)' }}><X size={16} /></button>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', padding: 4 }}><X size={16} /></button>
         </div>
 
-        {/* Preview */}
-        <div style={{ padding: 16, background: 'rgba(0,0,0,0.35)', overflowY: 'auto' as const }}>
+        {/* Canvas Preview */}
+        <div style={{ padding: '14px 14px 10px', background: 'rgba(0,0,0,0.4)', overflowY: 'auto' as const }}>
           <canvas ref={canvasRef} width={1200} height={675}
-            style={{ width: '100%', height: 'auto', borderRadius: 12, display: 'block', boxShadow: '0 12px 48px rgba(0,0,0,0.55)' }} />
+            style={{ width: '100%', height: 'auto', borderRadius: 10, display: 'block', boxShadow: '0 16px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06)' }} />
         </div>
 
         {/* Controls */}
-        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+        <div style={{ padding: '10px 14px 14px', borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
 
-          {/* Action row — always visible at top of controls */}
+          {/* Action row */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleDownload}
-              style={{ ...S.mono, flex: 1, padding: '12px 0', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Download size={12} /> Download PNG
+              style={{ ...S.mono, flex: 1, padding: '11px 0', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Download size={11} /> Download PNG
             </button>
             <button onClick={handleShare}
-              style={{ ...S.mono, flex: 2, padding: '12px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, oklch(0.55 0.26 295), oklch(0.65 0.22 310))', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px oklch(0.55 0.26 295 / 0.35)' }}>
-              {copied ? <><Check size={12} /> Copied!</> : <><Share2 size={12} /> Share</>}
+              style={{ ...S.mono, flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, oklch(0.52 0.28 295), oklch(0.62 0.24 310))', color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px oklch(0.52 0.28 295 / 0.4)' }}>
+              {copied ? <><Check size={11} /> Copied!</> : <><Share2 size={11} /> Share</>}
             </button>
           </div>
 
@@ -329,13 +386,13 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
           {tweakOpen && (
             <div style={{ paddingTop: 4 }}>
-              {/* Background */}
+              {/* Theme */}
               <div style={{ ...S.label, marginBottom: 8 }}>Theme</div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                {BG_OPTIONS.map(({ id, label, dot }) => (
+                {BG_OPTIONS.map(({ id, label, swatch }) => (
                   <button key={id} onClick={() => setBgStyle(id)}
                     style={{ ...S.mono, flex: 1, padding: '8px 6px', borderRadius: 8, background: bgStyle === id ? 'oklch(0.68 0.22 295 / 0.18)' : 'rgba(255,255,255,0.02)', border: `1px solid ${bgStyle === id ? 'oklch(0.68 0.22 295 / 0.5)' : 'var(--hairline)'}`, color: bgStyle === id ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 20, height: 20, borderRadius: 6, background: dot, border: '1px solid rgba(255,255,255,0.12)', display: 'block' }} />
+                    <span style={{ width: 24, height: 24, borderRadius: 7, background: swatch, border: '1px solid rgba(255,255,255,0.14)', display: 'block', flexShrink: 0 }} />
                     {label}
                   </button>
                 ))}
