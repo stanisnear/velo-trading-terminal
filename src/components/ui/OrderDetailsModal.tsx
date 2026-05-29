@@ -284,7 +284,7 @@ export const OrderDetailsModal = ({
         <R label="Closed"   value={fmtDateTime(t.timestamp)} tip="When this position was closed." />
         <R label="Duration" value={fmtDuration(durationMs)} tip="How long the position was open." />
         <R label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{t.id}</span>} tip="Unique identifier for this trade." />
-        {t.onChain && (
+        {t.onChain && (t.orderlyOrderUrl || t.txHash) && (
           <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pnl-up)', boxShadow: '0 0 5px var(--pnl-up)', display: 'inline-block' }} />

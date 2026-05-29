@@ -4837,7 +4837,19 @@ const App = () => {
       const closedEntries = [...prev.entries()].filter(([id]) => !currentIds.has(id));
 
       if (closedEntries.length > 0) {
+        let openTxMap: Record<string, string> = {};
+        try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
+
         closedEntries.forEach(([id, pos]) => {
+          // Skip if another close path (manual close / TP-SL handler) already
+          // recorded this tradeId — prevents the duplicate history row.
+          if (closedVeloTradeIdsRef.current.has(id)) return;
+
+          // Only fire for TP/SL closes — manual closes are handled elsewhere.
+          // We can't be 100% sure which it was without the tx, so if TP/SL were
+          // set, assume the keeper triggered it.
+          if (!pos.takeProfit && !pos.stopLoss) return;
+
           const exitPrice = marketPrices[pos.pair] || pos.entryPrice;
           const isTpHit = pos.takeProfit && (
             (pos.side === 'LONG' && exitPrice >= pos.takeProfit) ||
@@ -4848,13 +4860,23 @@ const App = () => {
             (pos.side === 'SHORT' && exitPrice >= pos.stopLoss)
           );
 
-          // Only fire for TP/SL closes — manual closes are handled elsewhere
-          // We can't be 100% sure which it was without the tx, so if TP/SL were set, assume triggered
-          if (!pos.takeProfit && !pos.stopLoss) return;
+          // Claim this tradeId now so a manual-close handler firing in the same
+          // window doesn't also write a row.
+          if (!markVeloTradeClosed(id)) return;
 
           const priceDiff = exitPrice - pos.entryPrice;
           const pnl = (pos.side === 'LONG' ? priceDiff : -priceDiff) * (pos.size / pos.entryPrice);
           const triggerType = isTpHit ? 'Take Profit' : isSlHit ? 'Stop Loss' : 'TP/SL';
+
+          // We don't have the keeper's close tx on the client, but we do have the
+          // position's OPEN tx — link to it so the row is verifiably on-chain.
+          const openTx = pos.openTxHash || openTxMap[id];
+          const explorerUrl = openTx
+            ? (openTx.startsWith('http') ? openTx : `https://sepolia.basescan.org/tx/${openTx}`)
+            : undefined;
+          const liq = pos.side === 'LONG'
+            ? pos.entryPrice * (1 - 0.9 / pos.leverage)
+            : pos.entryPrice * (1 + 0.9 / pos.leverage);
 
           const historyItem: TradeHistoryItem = {
             id: `close_tp_velo_${id}_${Date.now()}`,
@@ -4865,9 +4887,13 @@ const App = () => {
             size: pos.size,
             pnl,
             timestamp: Date.now(),
+            openedAt: pos.openedAt,
             action: 'CLOSE',
             leverage: pos.leverage,
-            onChain: true,
+            marginMode: pos.marginMode,
+            liquidationPrice: liq,
+            onChain: !!explorerUrl,
+            orderlyOrderUrl: explorerUrl,
           } as any;
 
           setUser((prevUser: any) => {
@@ -4897,9 +4923,12 @@ const App = () => {
       }
 
       // Update the ref
-      const nextMap = new Map<string, { pair: string; side: string; entryPrice: number; size: number; leverage: number; takeProfit?: number; stopLoss?: number }>();
+      const nextMap = new Map<string, { pair: string; side: string; entryPrice: number; size: number; leverage: number; takeProfit?: number; stopLoss?: number; openedAt?: number; marginMode?: string; openTxHash?: string }>();
+      let openTxMapForRef: Record<string, string> = {};
+      try { openTxMapForRef = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
       veloPerpsTrading.openPositions.forEach(p => {
-        nextMap.set(p.tradeId.toString(), {
+        const tid = p.tradeId.toString();
+        nextMap.set(tid, {
           pair: p.pair.replace('-', '/'),
           side: p.isLong ? 'LONG' : 'SHORT',
           entryPrice: p.entryPrice,
@@ -4907,6 +4936,9 @@ const App = () => {
           leverage: p.leverage,
           takeProfit: p.takeProfit,
           stopLoss: p.stopLoss,
+          openedAt: p.openedAt ? p.openedAt * 1000 : undefined,
+          marginMode: (p as any).marginMode,
+          openTxHash: (p as any).openTxHash || openTxMapForRef[tid],
         });
       });
       prevVeloPositionsRef.current = nextMap;
@@ -5320,7 +5352,7 @@ const App = () => {
           recordSessionWallet();
           setPositions(positions);
           setOpenOrders(orders);
-          setNotifications(notifs);
+          if (notifs.length > 0) setNotifications(notifs);
           if (loadedPosts.length > 0) setPosts(loadedPosts);
           try { const prefs = await fetchPreferences(authUser.id); applyPreferences(prefs); } catch (_) {}
           playSound('SUCCESS');
@@ -5379,7 +5411,29 @@ const App = () => {
     useEffect(() => { openPositionsRef.current = veloPerpsTrading.openPositions; }, [veloPerpsTrading.openPositions]);
 
     // Tracks previous on-chain positions to detect keeper-executed TP/SL closes.
-    const prevVeloPositionsRef = useRef<Map<string, { pair: string; side: string; entryPrice: number; size: number; leverage: number; takeProfit?: number; stopLoss?: number }>>(new Map());
+    const prevVeloPositionsRef = useRef<Map<string, { pair: string; side: string; entryPrice: number; size: number; leverage: number; takeProfit?: number; stopLoss?: number; openedAt?: number; marginMode?: string; openTxHash?: string }>>(new Map());
+
+    // De-dupe guard: every on-chain close path (manual close, TP/SL auto-close,
+    // and the keeper-detection fallback below) records the closed tradeId here.
+    // A given on-chain position can therefore produce exactly ONE close-history
+    // row no matter how many paths/poll-cycles observe the close. This is what
+    // fixes "I set one stop loss and it filled twice" — the manual/TP-SL handler
+    // wrote the full row and the fallback effect wrote a degraded duplicate.
+    const closedVeloTradeIdsRef = useRef<Set<string>>(
+      (() => { try { return new Set<string>(JSON.parse(localStorage.getItem('velo_closed_trades') || '[]')); } catch { return new Set<string>(); } })()
+    );
+    const markVeloTradeClosed = useCallback((tradeIdStr: string) => {
+      if (!tradeIdStr) return false;
+      if (closedVeloTradeIdsRef.current.has(tradeIdStr)) return false;
+      closedVeloTradeIdsRef.current.add(tradeIdStr);
+      try {
+        // Keep only the most recent ~300 ids so localStorage doesn't grow forever.
+        const arr = [...closedVeloTradeIdsRef.current].slice(-300);
+        closedVeloTradeIdsRef.current = new Set(arr);
+        localStorage.setItem('velo_closed_trades', JSON.stringify(arr));
+      } catch {}
+      return true;
+    }, []);
 
     // Always-fresh market prices ref so realtime onDelete can compute PnL correctly
     // even though the useEffect capturing the subscription only runs once per user.id.
@@ -5645,7 +5699,7 @@ const App = () => {
                 recordSessionWallet();
                 setPositions(positions);
                 setOpenOrders(orders);
-                setNotifications(notifs);
+                if (notifs.length > 0) setNotifications(notifs);
                 if (loadedPosts.length > 0) setPosts(loadedPosts);
                 try {
                     const prefs = await fetchPreferences(session.user.id);
@@ -6170,7 +6224,45 @@ const App = () => {
         }
     }, [authChecked, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // --- Liquidation Monitoring Effect ---
+    // Notifications had no retry path, so a session-restore fetch that raced the
+    // Supabase JWT (RLS returns [] for the anon role) left the bell empty until a
+    // full re-login. This mirrors the trade-history recovery effect: it runs once
+    // auth is confirmed, retries once, merges (never clobbers) and re-checks on
+    // tab focus — so notifications populate without logging out and back in.
+    useEffect(() => {
+        if (!user?.id || !isSupabaseConfigured() || !authChecked) return;
+        let mounted = true;
+        let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const load = async (isRetry = false) => {
+            try {
+                const notifs = await fetchNotifications(user.id);
+                if (!mounted) return;
+                if (notifs.length > 0) {
+                    setNotifications(prev => {
+                        const serverIds = new Set(notifs.map((n: any) => n.id));
+                        const localOnly = (prev || []).filter((n: any) => !serverIds.has(n.id));
+                        return [...notifs, ...localOnly];
+                    });
+                } else if (!isRetry) {
+                    // Empty could be a genuine zero or a JWT-race — retry once.
+                    retryTimer = setTimeout(() => { void load(true); }, 2200);
+                }
+            } catch (e) {
+                if (!isRetry && mounted) retryTimer = setTimeout(() => { void load(true); }, 3000);
+            }
+        };
+
+        const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
+        document.addEventListener('visibilitychange', onVisible);
+        void load();
+        return () => {
+            mounted = false;
+            if (retryTimer) clearTimeout(retryTimer);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, [user?.id, authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
+
     useEffect(() => {
         if (!user || positions.length === 0) return;
 
@@ -6288,6 +6380,9 @@ const App = () => {
                         const tradeId = BigInt(tradeIdStr);
                         const veloPair = uiPairToVeloPair(pos.pair);
                         if (veloPair) {
+                            // Claim this tradeId so the keeper-detection fallback
+                            // effect won't write a duplicate close-history row.
+                            markVeloTradeClosed(tradeIdStr);
                             veloPerpsTrading.closePosition(tradeId, veloPair).then((result: any) => {
                                 const enrichedClose: TradeHistoryItem = {
                                     id: `close_tp_${posId}_${Date.now()}`,
@@ -7828,6 +7923,9 @@ const App = () => {
             // Optimistic local removal — sync effect will reconcile from contract.
             setPositions(prev => prev.filter(x => x.id !== id));
             setOpenOrders(prev => prev.filter(o => o.relatedPositionId !== id));
+            // Claim this tradeId so the keeper-detection fallback effect won't
+            // also write a (duplicate) close-history row for the same close.
+            markVeloTradeClosed(tradeIdStr);
 
             veloPerpsTrading.closePosition(tradeId, veloPair).then((result) => {
                 const enrichedClose: TradeHistoryItem = {
@@ -8547,7 +8645,7 @@ const App = () => {
                         recordSessionWallet();
                         setPositions(positions);
                         setOpenOrders(orders);
-                        setNotifications(notifs);
+                        if (notifs.length > 0) setNotifications(notifs);
                         if (loadedPosts.length > 0) setPosts(loadedPosts);
                         try {
                             const prefs = await fetchPreferences(authUser.id);

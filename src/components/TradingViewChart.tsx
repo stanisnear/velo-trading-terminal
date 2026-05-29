@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, memo, useCallback } from 'react';
+import React, { useEffect, useRef, useState, memo, useCallback, useMemo } from 'react';
 import { Position } from '../utils/types';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -119,7 +119,7 @@ interface TradingViewChartProps {
 }
 
 export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
-  theme, pairName, currentPrice, activePosition,
+  theme, pairName, currentPrice, activePosition, initialData,
   externalTimeframe, externalChartStyle, externalIndicators,
   showEntryLine = true, showTPLine = true, showSLLine = true, showLiqLine = true,
   liqPrice,
@@ -131,10 +131,35 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const widgetRef = useRef<any>(null);
   const isDark = theme === 'dark';
 
-  const BG = isDark ? '#07070A' : '#ffffff';
+  // Branded chart surface — never pure white/black. Matches the obsidian dark
+  // and soft-lavender light panel tokens so the chart sits in the brand rather
+  // than punching a white hole in the page.
+  const BG = isDark ? '#0b0d12' : '#f0eef8';
 
   const tvSymbol = TV_SYMBOLS[pairName] || 'PYTH:BTCUSD';
   const tvInterval = TV_INTERVALS[timeframe] || '15';
+
+  // Estimate the chart's visible price band from the real Pyth candles we were
+  // handed (initialData). The TradingView embed runs in a cross-origin iframe,
+  // so we can't read its price scale in production — without this, overlay lines
+  // were placed by a ±28% guess and landed far from where they should. Using the
+  // recent candles' high/low (plus TradingView-like auto-scale padding) puts the
+  // entry / TP / SL / liq lines in roughly the right place reliably.
+  const visibleRange = useMemo(() => {
+    const data = Array.isArray(initialData) ? initialData : [];
+    if (data.length < 2) return null;
+    const recent = data.slice(-60);
+    let hi = -Infinity, lo = Infinity;
+    for (const c of recent as any[]) {
+      const h = Number(c?.high ?? c?.h ?? c?.close ?? c?.c);
+      const l = Number(c?.low ?? c?.l ?? c?.close ?? c?.c);
+      if (isFinite(h)) hi = Math.max(hi, h);
+      if (isFinite(l)) lo = Math.min(lo, l);
+    }
+    if (!isFinite(hi) || !isFinite(lo) || hi <= lo) return null;
+    const pad = (hi - lo) * 0.12; // ~12% total, mimics TradingView auto-scale padding
+    return { high: hi + pad, low: lo - pad };
+  }, [initialData]);
 
   useEffect(() => { if (externalTimeframe) setTimeframe(externalTimeframe); }, [externalTimeframe]);
   useEffect(() => { if (externalChartStyle) setChartStyle(externalChartStyle); }, [externalChartStyle]);
@@ -153,8 +178,8 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     widgetDiv.style.height = '100%';
     containerRef.current.appendChild(widgetDiv);
 
-    const localBG = isDark ? '#07070A' : '#f3f1fa';
-    const localBG2 = isDark ? '#0E0E13' : '#ebe8f5';
+    const localBG = BG;
+    const localBG2 = isDark ? '#12141b' : '#e8e5f2';
     const localGRID = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,14,0.06)';
     const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(84,85,100,0.75)';
 
@@ -299,14 +324,15 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     return () => { widgetRef.current = null; };
   }, [createWidget]);
 
-  // Blend iframe bg away in light mode so we see through to our container bg
+  // Keep the embedded iframe fully opaque; the pane background is now branded
+  // directly via overrides, so no blend hack is needed.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const apply = () => {
       const iframe = container.querySelector('iframe');
       if (iframe) {
-        (iframe as HTMLElement).style.mixBlendMode = isDark ? 'normal' : 'multiply';
+        (iframe as HTMLElement).style.mixBlendMode = 'normal';
         (iframe as HTMLElement).style.opacity = '1';
       }
     };
@@ -463,15 +489,21 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       return yPx;
     }
 
-    // ── Heuristic fallback (cross-origin / not yet scraped) ─────────────
-    // TradingView auto-scale adds ~20% padding top+bottom. We replicate that.
-    const padding = 1.6;
-    const halfRange = refPrice * 0.18 * padding;
-    const high = refPrice + halfRange;
-    const low  = refPrice - halfRange;
+    // ── Range fallback (cross-origin iframe / not yet scraped) ──────────
+    // Prefer the real candle-derived band; otherwise a tight ±3% around the
+    // reference price (never the old ±28% which threw lines off-screen).
+    let high: number, low: number;
+    if (visibleRange) {
+      high = visibleRange.high;
+      low = visibleRange.low;
+    } else {
+      const halfRange = refPrice * 0.03;
+      high = refPrice + halfRange;
+      low = refPrice - halfRange;
+    }
     if (price > high || price < low) return null;
     const chartTop    = h * 0.04;
-    const chartBottom = h * 0.80; // exclude volume pane
+    const chartBottom = h * 0.84; // keep inside the price pane, above the time axis
     const chartH = chartBottom - chartTop;
     const pct = (high - price) / (high - low);
     const yPx = chartTop + pct * chartH;
@@ -488,7 +520,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     if (yPx === null) return null;
     return (
       <div style={{
-        position: 'absolute', left: 0, right: 44, top: yPx,
+        position: 'absolute', left: 0, right: 52, top: yPx,
         zIndex: 20, pointerEvents: 'none',
         transform: 'translateY(-50%)',
       }}>
@@ -499,23 +531,14 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
           borderTop: `1.5px dashed ${lineColor}`,
           opacity: 0.7,
         }} />
-        {/* Right-side price label */}
-        <div style={{
-          position: 'absolute', right: -44, top: '50%',
-          transform: 'translateY(-50%)',
-          ...badge(labelBg, labelColor, labelBorder),
-          padding: '2px 5px',
-          borderRadius: '0 4px 4px 0',
-          fontSize: 9,
-        }}>
-          {label}
-        </div>
-        {/* Left-side text tag */}
+        {/* Single left-side label — "LABEL · $price". The old right-side badge
+            sat in the price-axis gutter and collided with TradingView's own
+            price labels, so it's gone. */}
         <div style={{
           position: 'absolute', left: 6, top: '50%',
           transform: 'translateY(-50%)',
           ...badge(labelBg + 'cc', labelColor, labelBorder),
-          fontSize: 9, padding: '1px 6px',
+          fontSize: 9, padding: '2px 7px',
         }}>
           {label} · ${fmt(price)}
         </div>
@@ -586,16 +609,6 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
           </div>
         );
       })()}
-
-      {/* Mark-price stripe (top-right) */}
-      {currentPrice > 0 && (
-        <div style={{
-          position: 'absolute', top: 10, right: 14, zIndex: 20, pointerEvents: 'none',
-          ...badge('rgba(22,22,28,0.72)', isDark ? '#F4F4F7' : '#0B0B0E', 'rgba(255,255,255,0.10)'),
-        }}>
-          ${fmt(currentPrice)}
-        </div>
-      )}
     </div>
   );
 });
