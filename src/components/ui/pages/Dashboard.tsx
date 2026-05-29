@@ -14,12 +14,12 @@ const S = {
 };
 
 const panel: React.CSSProperties = {
-  background: 'rgba(14, 15, 22, 0.52)',
-  border: '1px solid rgba(255,255,255,0.07)',
+  background: 'var(--glass-bg)',
+  border: '1px solid var(--glass-border)',
   borderRadius: 18,
   backdropFilter: 'blur(32px) saturate(1.6)',
   WebkitBackdropFilter: 'blur(32px) saturate(1.6)',
-  boxShadow: '0 1px 0 rgba(255,255,255,0.07) inset, 0 -1px 0 rgba(0,0,0,0.15) inset, 0 20px 40px -20px rgba(0,0,0,0.45)',
+  boxShadow: 'var(--glass-shadow)',
   overflow: 'hidden',
   position: 'relative',
 };
