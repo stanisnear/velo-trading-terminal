@@ -2076,7 +2076,7 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
 };
 // ── Top Tokens Bar ────────────────────────────────────────────────────────────
 
-const TopTokensBar = ({ prices, changes, onTickerClick }: { prices: Record<string,number>, changes: Record<string,number>, onTickerClick: (t: string) => void }) => {
+const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: { prices: Record<string,number>, changes: Record<string,number>, onTickerClick: (t: string) => void, onNavigateToMarkets?: () => void }) => {
     const [sparklines, setSparklines] = React.useState<Record<string, number[]>>({});
 
     React.useEffect(() => {
@@ -2122,40 +2122,52 @@ const TopTokensBar = ({ prices, changes, onTickerClick }: { prices: Record<strin
     };
 
     return (
-        <div className="top-tokens-bar" style={{ marginBottom: 12 }}>
-            {TOP_SOCIAL_PAIRS.map(p => {
-                const price = prices[p.pairId];
-                const chg = changes[p.pairId] ?? 0;
-                const up = chg >= 0;
-                const spark = sparklines[p.symbol] || [];
-                return (
-                    <div key={p.symbol}
-                        onClick={() => onTickerClick(p.symbol)}
-                        style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(32px) saturate(1.6)', WebkitBackdropFilter: 'blur(32px) saturate(1.6)', padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}
-                    >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                                <img src={p.logo} style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
-                                <div>
-                                    <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', display: 'block' }}>{p.symbol}</span>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, color: 'var(--fg-subtle)' }}>{p.name}</span>
+        <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {TOP_SOCIAL_PAIRS.map(p => {
+                    const price = prices[p.pairId];
+                    const chg = changes[p.pairId] ?? 0;
+                    const up = chg >= 0;
+                    const spark = sparklines[p.symbol] || [];
+                    return (
+                        <div key={p.symbol}
+                            onClick={() => onTickerClick(p.symbol)}
+                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(32px) saturate(1.6)', WebkitBackdropFilter: 'blur(32px) saturate(1.6)', padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', aspectRatio: '1 / 1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                    <img src={p.logo} style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
+                                    <div>
+                                        <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', display: 'block' }}>{p.symbol}</span>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, color: 'var(--fg-subtle)' }}>{p.name}</span>
+                                    </div>
                                 </div>
+                                <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 6px' }}>
+                                    {up ? '+' : ''}{chg.toFixed(2)}%
+                                </span>
                             </div>
-                            <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 6px' }}>
-                                {up ? '+' : ''}{chg.toFixed(2)}%
-                            </span>
+                            <div>
+                                <span style={{ ...S.mono, fontSize: 17, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 6 }}>
+                                    {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}
+                                </span>
+                                {drawSparkline(spark, up)}
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                            <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
-                                {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}
-                            </span>
-                            {drawSparkline(spark, up)}
-                        </div>
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
+            {onNavigateToMarkets && (
+                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                    <button onClick={onNavigateToMarkets} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, opacity: 0.8, transition: 'opacity 0.15s', padding: '4px 8px' }}
+                        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                        onMouseLeave={e => (e.currentTarget.style.opacity = '0.8')}
+                    >
+                        View all markets →
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -3152,7 +3164,7 @@ const SinglePostCommentBox = ({ post, user, onComment, traders }: any) => {
     );
 };
 
-const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
+const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
     const [newPostContent, setNewPostContent] = useState('');
     const [filter, setFilter] = useState<'LATEST' | 'TRENDING' | 'FOLLOWING' | 'SIGNALS'>('LATEST');
     const [feedMentionQuery, setFeedMentionQuery] = useState<string | null>(null);
@@ -3423,7 +3435,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             {/* Right — tokens strip + compose + feed */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* Top Tokens Bar */}
-                <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} />
+                <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets} />
                 {/* Compose */}
                 <div className="vp" style={panel}>
                     <div style={{ padding: 16, display: 'flex', gap: 12 }}>
@@ -9306,7 +9318,7 @@ const App = () => {
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
                     <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={async (id:string) => { setPosts(prev => prev.filter(p => p.id !== id)); if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e)); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onDeletePost={async (id:string) => {
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={async (id:string) => {
                     setPosts(prev => prev.filter(p => p.id !== id));
                     if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
                 }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
