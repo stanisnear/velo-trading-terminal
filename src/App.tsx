@@ -5927,15 +5927,16 @@ const App = () => {
         }
     }, [loadSocialData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // After auth resolves (session restore completes), re-fetch social data if
-    // it came back empty — this fixes the race where the mount-time fetch fired
-    // before the Supabase JWT was active, causing RLS to block the read.
+    // After auth resolves AND whenever navigating to Social/Leaderboard:
+    // re-fetch if data is missing. Covers two races:
+    //   (a) mount-time fetch fired before JWT was active → empty result, never retried
+    //   (b) user navigates to social/leaderboard after token refresh or page focus
     useEffect(() => {
         if (!authChecked) return;
         if (traders.length === 0 || posts.length === 0) {
             loadSocialData();
         }
-    }, [authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [authChecked, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // --- Liquidation Monitoring Effect ---
     useEffect(() => {
@@ -6662,24 +6663,6 @@ const App = () => {
         return () => { supabase.removeChannel(lb); };
     }, []);
 
-    const handleLogin = (u: string) => {
-        // Fallback local session (no Supabase auth)
-        intentionalLogoutRef.current = false;
-        const tempUser: UserProfile = {
-            id: `local_${Date.now()}`,
-            username: u, handle: `@${u.replace(/\s+/g, '')}`,
-            bio: '', avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${u}`,
-            banner: '', balance: 10000, pnlTotal: 0, realizedPnL: 0,
-            following: [], copying: [], followers: [], copierCount: 0,
-            earnedFees: 0, veloRewards: 50,
-            tradeHistory: [], transactionHistory: [], pnlHistory: [],
-            joinedDate: new Date().toISOString(), likes: [], reposts: [],
-        };
-        setUser(tempUser);
-        recordSessionWallet();
-        setLoginOpen(false);
-        playSound('SUCCESS');
-    };
     // Smart auth entry point — used by all "Log In" buttons in the UI.
     // If the wallet is already connected, silently sign in with wallet credentials
     // instead of reopening AppKit (which just shows the already-connected wallet info).
@@ -8352,7 +8335,6 @@ const App = () => {
                         });
                     }
                 }}
-              onFallbackLogin={handleLogin}
               onUsernameClaimed={(handle) => {
                 setToast({ message: `@${handle} registered on-chain`, type: 'SUCCESS' });
               }}

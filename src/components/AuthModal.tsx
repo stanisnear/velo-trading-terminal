@@ -13,7 +13,6 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuth: (user: any, profile: any, isNewAccount?: boolean) => void;
-  onFallbackLogin?: (username: string) => void;
   required?: boolean;
   disconnectRef?: React.MutableRefObject<(() => void) | null>;
 }
@@ -160,7 +159,7 @@ const Field = ({
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export const AuthModal: React.FC<AuthModalProps> = ({
-  isOpen, onClose, onAuth, onFallbackLogin, required = false, disconnectRef,
+  isOpen, onClose, onAuth, required = false, disconnectRef,
 }) => {
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
@@ -194,7 +193,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [step, setStep] = useState<Step>('connect');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
-  const [fallbackUsername, setFallbackUsername] = useState('');
   const [error, setError] = useState('');
   const [fieldError, setFieldError] = useState('');
   const [visible, setVisible] = useState(false);
@@ -451,12 +449,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     onClose();
   };
 
-  const handleFallback = () => {
-    if (!fallbackUsername.trim()) return;
-    onFallbackLogin?.(fallbackUsername.trim());
-    onClose();
-  };
-
   if (!isOpen) return null;
 
   const dotIndex = { splash: 0, name: 1, email: 2, confirm: 3 }[step as string] ?? -1;
@@ -548,19 +540,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <span key={w} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{w}</span>
                 ))}
               </div>
-              <Divider label="or demo" />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="text" placeholder="Demo username" value={fallbackUsername}
-                  onChange={e => setFallbackUsername(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleFallback()}
-                  style={{ flex: 1, padding: '10px 12px', background: 'var(--bg-base-2)', border: '1px solid var(--hairline-strong)', borderRadius: 10, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg)', outline: 'none' }}
-                />
-                <button
-                  onClick={handleFallback} disabled={!fallbackUsername.trim()}
-                  style={{ padding: '10px 16px', borderRadius: 10, background: 'var(--bg-base-3)', border: '1px solid var(--hairline-strong)', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', cursor: fallbackUsername.trim() ? 'pointer' : 'not-allowed', letterSpacing: '0.06em', textTransform: 'uppercase', opacity: fallbackUsername.trim() ? 1 : 0.4, transition: 'opacity 0.15s' }}
-                >Demo</button>
-              </div>
+
             </div>
           )}
 

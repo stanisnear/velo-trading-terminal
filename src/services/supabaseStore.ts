@@ -198,6 +198,20 @@ export async function fetchAllProfiles(limit = 50) {
       if (!r3.error) console.warn('[supabase] profiles missing wallet-address/auth-method columns in schema cache — run SUPABASE_MIGRATION_BUILD79.sql and reload PostgREST schema.');
     }
   }
+  // If the direct table read returned empty (likely RLS blocking authenticated
+  // role due to policy drift), fall back to the security-definer RPC which
+  // bypasses RLS entirely. This is the guaranteed fallback path.
+  if ((!data || data.length === 0) && !error) {
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_profiles', { lim: limit });
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        console.warn('[supabase] fetchAllProfiles: direct table read returned empty, RPC fallback succeeded — run SUPABASE_MIGRATION_SOCIAL_FIX.sql to fix RLS.');
+        return { data: rpcData, error: null };
+      }
+    } catch (_) {
+      // RPC doesn't exist yet — migration not run. Return empty, withRetry will handle it.
+    }
+  }
   return { data, error };
 }
 

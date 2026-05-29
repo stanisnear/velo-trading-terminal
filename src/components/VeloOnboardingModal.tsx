@@ -49,7 +49,6 @@ export interface VeloOnboardingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuth: (user: any, profile: any, isNewAccount?: boolean) => void;
-  onFallbackLogin?: (username: string) => void;
   onBurnerReady?: (args: { burnerAddress: `0x${string}`; amount: number; txHash: `0x${string}` | null }) => void;
   onUsernameClaimed?: (handle: string, txHash: `0x${string}`) => void;
   required?: boolean;
@@ -184,7 +183,7 @@ const SpinRing = () => (
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
-  isOpen, onClose, onAuth, onFallbackLogin, onBurnerReady, onUsernameClaimed,
+  isOpen, onClose, onAuth, onBurnerReady, onUsernameClaimed,
   required = false, disconnectRef, returningName,
 }) => {
   const { address, isConnected } = useAccount();
@@ -204,7 +203,6 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
-  const [fallbackInput, setFallbackInput] = useState('');
   const [fieldError, setFieldError] = useState('');
   const [globalError, setGlobalError] = useState('');
 
@@ -236,7 +234,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
         : 'HELLO';
       setStep(initialStep);
       setHelloPhase(0);
-      setUsername(''); setEmail(''); setFallbackInput('');
+      setUsername(''); setEmail('');
       setFieldError(''); setGlobalError('');
       completedRef.current = false;
       usernameCheckRef.current = null;
@@ -543,13 +541,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <PrimaryBtn onClick={advance} disabled={!username.trim()}>Continue →</PrimaryBtn>
-                <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: 14 }}>
-                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', letterSpacing: '0.08em', textTransform: 'uppercase' as const, margin: '0 0 10px', opacity: 0.6 }}>or use demo mode</p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input type="text" placeholder="Demo username" value={fallbackInput} onChange={e => setFallbackInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && fallbackInput.trim() && (onFallbackLogin?.(fallbackInput.trim()), onClose())} style={{ flex: 1, padding: '10px 12px', background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', borderRadius: 10, fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: 'var(--fg)', outline: 'none' }} />
-                    <button onClick={() => { if (fallbackInput.trim()) { onFallbackLogin?.(fallbackInput.trim()); onClose(); }}} disabled={!fallbackInput.trim()} style={{ padding: '10px 14px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, fontWeight: 700, color: 'var(--fg-subtle)', cursor: fallbackInput.trim() ? 'pointer' : 'not-allowed', letterSpacing: '0.06em', textTransform: 'uppercase' as const, opacity: fallbackInput.trim() ? 1 : 0.5 }}>Demo</button>
-                  </div>
-                </div>
+
               </div>
             </div>
           )}
