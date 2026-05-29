@@ -1431,7 +1431,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
             return hasActivity;
         })
         .sort((a: any, b: any) => (b.pnl ?? 0) - (a.pnl ?? 0));
-    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
+    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
     return (
         <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 80 }} className="animate-fade-in lb-view">
             {/* Hero header */}
@@ -1467,7 +1467,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                                 background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 18%, var(--bg-base-2))' : podiumGolds[idx],
                                 border: isSelf ? '1px solid oklch(0.68 0.22 295 / 0.5)' : podiumBorders[idx],
                                 borderRadius: 16,
-                                backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
+                                backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)',
                                 padding: '14px 16px',
                                 display: 'flex', alignItems: 'center', gap: 14,
                                 position: 'relative', overflow: 'hidden', cursor: 'pointer',
@@ -1507,8 +1507,8 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                             background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 18%, var(--bg-base-2))' : podiumGolds[idx],
                             border: isSelf ? '1px solid oklch(0.68 0.22 295 / 0.5)' : podiumBorders[idx],
                             borderRadius: 16,
-                            backdropFilter: 'blur(16px) saturate(1.3)',
-                            WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
+                            backdropFilter: 'blur(10px) saturate(1.2)',
+                            WebkitBackdropFilter: 'blur(10px) saturate(1.2)',
                             boxShadow: isFirst
                                 ? '0 0 0 1px oklch(0.70 0.15 75 / 0.12) inset, 0 1px 0 rgba(255,255,255,0.08) inset, 0 32px 64px -24px rgba(0,0,0,0.7), 0 0 40px -10px oklch(0.70 0.15 75 / 0.15)'
                                 : '0 1px 0 rgba(255,255,255,0.05) inset, 0 24px 48px -20px rgba(0,0,0,0.6)',
@@ -1917,7 +1917,7 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
     };
 
     return (
-        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)', overflow: 'hidden', transition: 'border-color 0.15s', position: 'relative' as const }}
+        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', overflow: 'hidden', transition: 'border-color 0.15s', position: 'relative' as const }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline-strong)'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
             {/* Share toast */}
@@ -2132,7 +2132,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                     return (
                         <div key={p.symbol}
                             onClick={() => onTickerClick(p.symbol)}
-                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 12, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)', padding: '10px 12px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8 }}
+                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 12, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', padding: '10px 12px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8 }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}
                         >
@@ -2574,7 +2574,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
         display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
-    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
+    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
 
     const handleViewProfileWrapper = (partial: { id: string }) => {
         const trader = traders.find((t: any) => t.id === partial.id);
@@ -3278,7 +3278,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
         display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
-    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
+    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
 
     // Derive trending topics from real post content — count hashtag/ticker mentions
     const trendingTopics = React.useMemo(() => {
@@ -3790,7 +3790,7 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
         letterSpacing: '0.06em', textTransform: 'uppercase', transition: 'all 0.15s',
     };
     return (
-        <div className="vp" style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 20, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)', overflow: 'hidden', marginBottom: 24 }}>
+        <div className="vp" style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 20, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', overflow: 'hidden', marginBottom: 24 }}>
             {/* Banner */}
             <div className="velo-profile-banner" style={{ height: 160, width: '100%', position: 'relative', background: profile.banner ? '#000' : 'var(--holo-linear)', backgroundSize: '220% 100%', animation: profile.banner ? 'none' : 'holoSlide 14s linear infinite' }}>
                 {profile.banner && <img src={profile.banner} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""/>}
@@ -3903,7 +3903,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {activeTab === 'POSTS' && (
                     <>
-                        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 14, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)' }}>
+                        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                             <WallCompose user={user} targetId={user.id} targetName="your wall" onPostCreate={onPostCreate} placeholder="Post on your wall\u2026 Use @handle to tag someone" traders={traders} />
                         </div>
                         {userPosts.length === 0 ? emptyMsg('No posts yet.') : userPosts.map((post: Post) => (
@@ -3915,7 +3915,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                     <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
                 )))}
                 {activeTab === 'TRADES' && (activePositions.length === 0 ? emptyMsg('No active manual trades.') : activePositions.map((p: Position) => (
-                    <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)' }}>
+                    <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                 <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{p.pair}</span>
@@ -3998,7 +3998,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                 {activeTab === 'POSTS' && (
                     <>
                         {user && (
-                            <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 14, backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)' }}>
+                            <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                                 <WallCompose user={user} targetId={trader.id} targetName={trader.username} onPostCreate={onPostCreate} placeholder={`Write on ${trader.username}'s wall\u2026 Use @handle to tag someone`} traders={traders} />
                             </div>
                         )}
@@ -4016,7 +4016,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                     : (
                         <>
                             {unrealizedPnl !== 0 && (
-                                <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)' }}>
+                                <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                                     <span style={{ ...S.label }}>Unrealized PnL</span>
                                     <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: unrealizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
                                         {unrealizedPnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(unrealizedPnl))}
@@ -4027,7 +4027,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                                 const curPrice = marketPrices?.[p.pair] || p.entryPrice;
                                 const posUnreal = (curPrice - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
                                 return (
-                                    <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)' }}>
+                                    <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                                         <div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                                 <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{p.pair}</span>
