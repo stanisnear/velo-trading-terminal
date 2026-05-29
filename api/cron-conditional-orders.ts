@@ -56,6 +56,25 @@ const PYTH_FEE_ABI: Abi = [
     outputs: [{ name: 'feeAmount', type: 'uint256' }] },
 ];
 
+// Mirror of PerpsMath.normalisePythPrice — (price, expo) -> 18-dec fixed point.
+function normalisePythPriceE18(price: bigint, expo: number): bigint {
+  if (price <= 0n) throw new Error('bad pyth price');
+  if (expo > 0) throw new Error('bad pyth expo');
+  const absExpo = -expo;
+  return absExpo <= 18
+    ? price * 10n ** BigInt(18 - absExpo)
+    : price / 10n ** BigInt(absExpo - 18);
+}
+
+// Mirror of VeloPerps._isOrderTriggered (TriggerKind: LIMIT=0, STOP=1).
+function isOrderTriggered(order: any, markE18: bigint): boolean {
+  const trigger = BigInt(order.triggerPrice_E18);
+  if (Number(order.triggerKind) === 0) {
+    return order.isLong ? markE18 <= trigger : markE18 >= trigger;
+  }
+  return order.isLong ? markE18 >= trigger : markE18 <= trigger;
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -87,64 +106,71 @@ export default async function handler(req: any, res: any) {
     const skipped: Array<{ orderId: number; reason: string }> = [];
     let activeCount = 0;
 
+    // One Hermes fetch + one fee read per pair per run, reused across all orders on that pair.
+    const pairCache = new Map<number, { updateData: `0x${string}`[]; markE18: bigint; feeWei: bigint }>();
+    async function pairData(pairIndex: number) {
+      const cached = pairCache.get(pairIndex);
+      if (cached) return cached;
+      const feedId = await publicClient.readContract({ address: V3, abi: V3_ABI, functionName: 'pairFeedId', args: [pairIndex] }) as string;
+      const feedIdNoPrefix = feedId.startsWith('0x') ? feedId.slice(2) : feedId;
+      const hermesRes = await fetch(`${HERMES_URL}/v2/updates/price/latest?ids[]=${feedIdNoPrefix}&encoding=hex`);
+      if (!hermesRes.ok) throw new Error(`hermes ${hermesRes.status}`);
+      const hermes = await hermesRes.json();
+      const blobs: string[] = hermes?.binary?.data ?? [];
+      if (!blobs.length) throw new Error('empty hermes payload');
+      const parsed = hermes?.parsed?.[0]?.price;
+      if (!parsed) throw new Error('no parsed price');
+      const updateData = blobs.map((s) => (s.startsWith('0x') ? s : `0x${s}`)) as `0x${string}`[];
+      const markE18 = normalisePythPriceE18(BigInt(parsed.price), Number(parsed.expo));
+      const feeWei = await publicClient.readContract({
+        address: PYTH_ADDRESS, abi: PYTH_FEE_ABI, functionName: 'getUpdateFee', args: [updateData],
+      }) as bigint;
+      const out = { updateData, markE18, feeWei };
+      pairCache.set(pairIndex, out);
+      return out;
+    }
+
+    // Phase 1 — scan all orders and keep only the ones actually triggered (read-only, cheap).
+    const toExecute: Array<{ id: number; updateData: `0x${string}`[]; feeWei: bigint }> = [];
     for (let id = 1; id < maxId; id++) {
       try {
         const order: any = await publicClient.readContract({
-          address: V3,
-          abi: V3_ABI,
-          functionName: 'conditionalOrders',
-          args: [BigInt(id)],
+          address: V3, abi: V3_ABI, functionName: 'conditionalOrders', args: [BigInt(id)],
         });
         if (!order || !order.active || order.owner === '0x0000000000000000000000000000000000000000') continue;
         activeCount++;
-
-        const feedId = await publicClient.readContract({ address: V3, abi: V3_ABI, functionName: 'pairFeedId', args: [order.pairIndex] }) as string;
-        const feedIdNoPrefix = feedId.startsWith('0x') ? feedId.slice(2) : feedId;
-
-        const hermesRes = await fetch(`${HERMES_URL}/v2/updates/price/latest?ids[]=${feedIdNoPrefix}&encoding=hex`);
-        if (!hermesRes.ok) {
-          skipped.push({ orderId: id, reason: `hermes ${hermesRes.status}` });
-          continue;
-        }
-        const hermes = await hermesRes.json();
-        const blobs: string[] = hermes?.binary?.data ?? [];
-        if (!blobs.length) {
-          skipped.push({ orderId: id, reason: 'empty hermes payload' });
-          continue;
-        }
-
-        const updateData = blobs.map((s) => (s.startsWith('0x') ? s : `0x${s}`)) as `0x${string}`[];
-        // Read the exact fee the contract will demand for THIS updateData.
-        const feeWei = await publicClient.readContract({
-          address: PYTH_ADDRESS,
-          abi: PYTH_FEE_ABI,
-          functionName: 'getUpdateFee',
-          args: [updateData],
-        }) as bigint;
-
-        // Let the contract decide whether triggered; revert on miss is expected.
-        try {
-          const txHash = await walletClient.writeContract({
-            address: V3,
-            abi: V3_ABI,
-            functionName: 'executeConditionalOrder',
-            args: [BigInt(id), updateData],
-            value: feeWei,
-          });
-          await publicClient.waitForTransactionReceipt({ hash: txHash });
-          executed.push({ orderId: id, txHash });
-          console.log(`[cron-conditional-orders] executed orderId=${id} tx=${txHash}`);
-        } catch (e: any) {
-          const reason = e?.shortMessage || e?.message || 'execute revert';
-          // OrderNotTriggered is normal — only log when something else.
-          if (!/OrderNotTriggered/i.test(reason)) {
-            skipped.push({ orderId: id, reason });
-          }
-        }
+        const { updateData, markE18, feeWei } = await pairData(Number(order.pairIndex));
+        if (!isOrderTriggered(order, markE18)) continue; // not triggered yet — leave it resting
+        toExecute.push({ id, updateData, feeWei });
       } catch (e: any) {
         skipped.push({ orderId: id, reason: e?.shortMessage || e?.message || 'unknown' });
       }
     }
+
+    // Phase 2 — fire every triggered order back-to-back (awaiting only the submit, which keeps
+    // nonces ordered), then wait for all receipts in parallel so N fills cost ~one block, not N.
+    const pending: Array<{ id: number; hash: `0x${string}` }> = [];
+    for (const o of toExecute) {
+      try {
+        const txHash = await walletClient.writeContract({
+          address: V3, abi: V3_ABI, functionName: 'executeConditionalOrder',
+          args: [BigInt(o.id), o.updateData], value: o.feeWei,
+        });
+        pending.push({ id: o.id, hash: txHash });
+      } catch (e: any) {
+        const reason = e?.shortMessage || e?.message || 'execute revert';
+        if (!/OrderNotTriggered/i.test(reason)) skipped.push({ orderId: o.id, reason });
+      }
+    }
+    await Promise.all(pending.map(async (p) => {
+      try {
+        await publicClient.waitForTransactionReceipt({ hash: p.hash });
+        executed.push({ orderId: p.id, txHash: p.hash });
+        console.log(`[cron-conditional-orders] executed orderId=${p.id} tx=${p.hash}`);
+      } catch (e: any) {
+        skipped.push({ orderId: p.id, reason: `receipt: ${e?.shortMessage || e?.message || 'failed'}` });
+      }
+    }));
 
     return res.status(200).json({
       ok: true,

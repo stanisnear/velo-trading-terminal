@@ -160,6 +160,7 @@ export default async function handler(req: any, res: any) {
     const maxId = Number(nextTradeId);
     const threshold = Number(thresholdBps);
     const liquidated: Array<{ tradeId: number; txHash: string; bounty: number }> = [];
+    const pendingTx: Array<{ tradeId: number; hash: `0x${string}`; bounty: number }> = [];
     const errors: Array<{ tradeId: number; reason: string }> = [];
     const checked: number[] = [];
 
@@ -224,16 +225,25 @@ export default async function handler(req: any, res: any) {
           args: [BigInt(id), updateData],
           value: feeWei,
         });
-        await publicClient.waitForTransactionReceipt({ hash: txHash });
         const bountyEst = Number(collateral) / 1e6 * 0.01;
-        liquidated.push({ tradeId: id, txHash, bounty: bountyEst });
-        console.log(`[cron-liquidate] liquidated tradeId=${id} bounty≈$${bountyEst.toFixed(2)} tx=${txHash}`);
+        pendingTx.push({ tradeId: id, hash: txHash, bounty: bountyEst });
       } catch (e: any) {
         const reason = e?.shortMessage || e?.message || 'unknown';
         errors.push({ tradeId: id, reason });
         console.warn(`[cron-liquidate] tradeId=${id} skipped:`, reason);
       }
     }
+
+    // Wait for all submitted liquidations in parallel.
+    await Promise.all(pendingTx.map(async (p) => {
+      try {
+        await publicClient.waitForTransactionReceipt({ hash: p.hash });
+        liquidated.push({ tradeId: p.tradeId, txHash: p.hash, bounty: p.bounty });
+        console.log(`[cron-liquidate] liquidated tradeId=${p.tradeId} bounty≈$${p.bounty.toFixed(2)} tx=${p.hash}`);
+      } catch (e: any) {
+        errors.push({ tradeId: p.tradeId, reason: `receipt: ${e?.shortMessage || e?.message || 'failed'}` });
+      }
+    }));
 
     return res.status(200).json({
       ok: true,

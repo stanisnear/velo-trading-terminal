@@ -147,6 +147,7 @@ export default async function handler(req: any, res: any) {
     });
     const maxId = Number(nextTradeId);
     const fired: Array<{ tradeId: number; trigger: 'TP' | 'SL'; txHash: string }> = [];
+    const pendingTx: Array<{ tradeId: number; trigger: 'TP' | 'SL'; hash: `0x${string}` }> = [];
     const errors: Array<{ tradeId: number; reason: string }> = [];
     let checked = 0;
 
@@ -216,15 +217,24 @@ export default async function handler(req: any, res: any) {
           args: [BigInt(id), updateData],
           value: feeWei,
         });
-        await publicClient.waitForTransactionReceipt({ hash: txHash });
-        fired.push({ tradeId: id, trigger: triggered, txHash });
-        console.log(`[cron-tp-sl] fired tradeId=${id} ${triggered} tx=${txHash}`);
+        pendingTx.push({ tradeId: id, trigger: triggered, hash: txHash });
       } catch (e: any) {
         const reason = e?.shortMessage || e?.message || 'unknown';
         errors.push({ tradeId: id, reason });
         console.warn(`[cron-tp-sl] tradeId=${id} skipped:`, reason);
       }
     }
+
+    // Wait for all submitted closes in parallel — N fills cost ~one block, not N.
+    await Promise.all(pendingTx.map(async (p) => {
+      try {
+        await publicClient.waitForTransactionReceipt({ hash: p.hash });
+        fired.push({ tradeId: p.tradeId, trigger: p.trigger, txHash: p.hash });
+        console.log(`[cron-tp-sl] fired tradeId=${p.tradeId} ${p.trigger} tx=${p.hash}`);
+      } catch (e: any) {
+        errors.push({ tradeId: p.tradeId, reason: `receipt: ${e?.shortMessage || e?.message || 'failed'}` });
+      }
+    }));
 
     return res.status(200).json({ ok: true, version, perps: PERPS, checked, fired, errors: errors.slice(0, 20), maxTradeId: maxId });
   } catch (e: any) {
