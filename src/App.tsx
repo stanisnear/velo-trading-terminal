@@ -2097,7 +2097,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
 
     const drawSparkline = (data: number[], up: boolean) => {
         if (!data || data.length < 2) return null;
-        const w = 80, h = 32;
+        const w = 100, h = 24;
         const min = Math.min(...data), max = Math.max(...data);
         const range = max - min || 1;
         const pts = data.map((v, i) => {
@@ -2108,7 +2108,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
         const color = up ? 'var(--pnl-up)' : 'var(--pnl-down)';
         const fillPts = `0,${h} ${pts} ${w},${h}`;
         return (
-            <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block' }}>
+            <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
                 <defs>
                     <linearGradient id={`sg-${up ? 'u' : 'd'}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity="0.25" />
@@ -2132,7 +2132,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                     return (
                         <div key={p.symbol}
                             onClick={() => onTickerClick(p.symbol)}
-                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(32px) saturate(1.6)', WebkitBackdropFilter: 'blur(32px) saturate(1.6)', padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', aspectRatio: '1 / 1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 12, backdropFilter: 'blur(32px) saturate(1.6)', WebkitBackdropFilter: 'blur(32px) saturate(1.6)', padding: '10px 12px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8 }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}
                         >
@@ -2149,7 +2149,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                                 </span>
                             </div>
                             <div>
-                                <span style={{ ...S.mono, fontSize: 17, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 6 }}>
+                                <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 4 }}>
                                     {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}
                                 </span>
                                 {drawSparkline(spark, up)}
