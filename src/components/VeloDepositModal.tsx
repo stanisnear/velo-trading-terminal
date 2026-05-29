@@ -394,7 +394,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
       style={{ position:'fixed', inset:0, zIndex:70, display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'oklch(0 0 0 / 0.65)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', animation:'dm-bg 0.22s ease both' }}
       onClick={onClose}>
       <div
-        style={{ width:'100%', maxWidth:460, borderRadius:28, background:'var(--modal-bg, rgba(14,15,22,0.97))', border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset', backdropFilter:'blur(48px) saturate(1.5)', WebkitBackdropFilter:'blur(48px) saturate(1.5)', overflow:'hidden', maxHeight:'92vh', display:'flex', flexDirection:'column', animation:'dm-in 0.34s cubic-bezier(0.22,1,0.36,1) both', position:'relative' }}
+        style={{ width:'100%', maxWidth:460, borderRadius:28, background:'var(--modal-bg, var(--modal-bg))', border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset', backdropFilter:'blur(48px) saturate(1.5)', WebkitBackdropFilter:'blur(48px) saturate(1.5)', overflow:'hidden', maxHeight:'92vh', display:'flex', flexDirection:'column', animation:'dm-in 0.34s cubic-bezier(0.22,1,0.36,1) both', position:'relative' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Velo accent stripe — violet→blue */}

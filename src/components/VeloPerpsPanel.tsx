@@ -45,8 +45,8 @@ const panel: React.CSSProperties = {
   background: 'var(--bg-base-2)',
   border: '1px solid var(--hairline)',
   borderRadius: 16,
-  backdropFilter: 'blur(24px)',
-  WebkitBackdropFilter: 'blur(24px)',
+  backdropFilter: 'blur(32px) saturate(1.6)',
+  WebkitBackdropFilter: 'blur(32px) saturate(1.6)',
   boxShadow: 'var(--glass-shadow)',
   overflow: 'hidden',
 };

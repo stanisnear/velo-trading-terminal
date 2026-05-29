@@ -31,7 +31,7 @@ const S = {
 
 const cardStyle: React.CSSProperties = {
   width: 'min(420px, calc(100vw - 32px))',
-  background: 'var(--modal-bg, rgba(14,15,22,0.97))',
+  background: 'var(--modal-bg, var(--modal-bg))',
   border: '1px solid var(--hairline-strong)',
   borderRadius: 28,
   boxShadow: '0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset',

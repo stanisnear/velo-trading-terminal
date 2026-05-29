@@ -39,9 +39,11 @@ export const VeloWalletPanel: React.FC<Props> = ({ burner, ethBal, usdcBal, onRe
     <div style={{
       padding: compact ? 12 : 16,
       borderRadius: 20,
-      background: 'linear-gradient(145deg, oklch(0.45 0.26 295 / 0.08), oklch(0.65 0.22 268 / 0.03))',
-      border: '1px solid oklch(0.45 0.26 295 / 0.2)',
-      boxShadow: '0 2px 16px -8px oklch(0.55 0.24 295 / 0.18)',
+      background: 'var(--glass-bg)',
+      border: '1px solid var(--hairline-strong)',
+      boxShadow: 'var(--glass-shadow)',
+      backdropFilter: 'blur(32px) saturate(1.6)',
+      WebkitBackdropFilter: 'blur(32px) saturate(1.6)',
       display: 'flex', flexDirection: 'column', gap: compact ? 10 : 14,
       position: 'relative', overflow: 'hidden',
     }}>
