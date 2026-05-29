@@ -53,26 +53,22 @@ body.dark,
   --fg-3: #4a4d57;
   --hr: rgba(255, 255, 255, 0.06);
   --hr-2: rgba(255, 255, 255, 0.12);
-  --glass: rgba(18, 20, 30, 0.48);
-  --glass-2: rgba(14, 16, 24, 0.76);
-  --gl-edge: rgba(255, 255, 255, 0.12);
-  --chip: rgba(255, 255, 255, 0.055);
-  --chip-h: rgba(255, 255, 255, 0.10);
+  --glass: rgba(12, 14, 22, 0.42);
+  --glass-2: rgba(12, 14, 22, 0.72);
+  --gl-edge: rgba(255, 255, 255, 0.10);
+  --chip: rgba(255, 255, 255, 0.05);
+  --chip-h: rgba(255, 255, 255, 0.1);
   --ambient:
     radial-gradient(80% 60% at 12% 18%, oklch(0.45 0.26 285 / 0.32), transparent 60%),
     radial-gradient(70% 50% at 88% 12%, oklch(0.55 0.20 245 / 0.22), transparent 65%),
     radial-gradient(80% 55% at 90% 88%, oklch(0.40 0.22 295 / 0.25), transparent 65%),
     radial-gradient(60% 45% at 8% 92%, oklch(0.55 0.18 230 / 0.18), transparent 60%);
-  /* Apple-quality bubble glass shadow: top inner shimmer + outer depth */
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.13) inset,
-    0 -1px 0 rgba(0,0,0,0.22) inset,
-    1px 0 0 rgba(255,255,255,0.06) inset,
-    -1px 0 0 rgba(0,0,0,0.10) inset,
-    0 4px 16px -4px rgba(0,0,0,0.40),
-    0 16px 48px -16px rgba(0,0,0,0.55),
-    0 0 0 0.5px rgba(255,255,255,0.06);
-  --modal-bg: rgba(12, 14, 22, 0.72);
+    0 1px 0 rgba(255,255,255,0.10) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.20) inset,
+    0 28px 56px -24px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+  --modal-bg: rgba(10, 12, 20, 0.75);
   --podium-gold-bg: linear-gradient(160deg, rgba(42, 23, 68, 0.9), rgba(26, 16, 48, 0.95));
   --podium-silver-bg: linear-gradient(160deg, rgba(19, 21, 30, 0.92), rgba(12, 14, 20, 0.98));
   --podium-bronze-bg: linear-gradient(160deg, rgba(18, 22, 34, 0.92), rgba(10, 13, 20, 0.98));
@@ -120,25 +116,20 @@ body.light,
   --fg-3: #9898b8;
   --hr: rgba(90, 70, 160, 0.08);
   --hr-2: rgba(90, 70, 160, 0.14);
-  --glass: rgba(255, 253, 255, 0.58);
-  --glass-2: rgba(255, 254, 255, 0.82);
-  --gl-edge: rgba(255, 255, 255, 1.0);
-  --chip: rgba(80, 50, 150, 0.06);
-  --chip-h: rgba(80, 50, 150, 0.11);
+  --glass: rgba(240, 237, 250, 0.65);
+  --glass-2: rgba(252, 251, 255, 0.80);
+  --gl-edge: rgba(255, 255, 255, 0.90);
+  --chip: rgba(90, 70, 160, 0.055);
+  --chip-h: rgba(90, 70, 160, 0.10);
   --ambient:
-    radial-gradient(75% 55% at 95% 5%, oklch(0.91 0.07 285 / 0.45), transparent 65%),
-    radial-gradient(55% 40% at 5% 95%, oklch(0.92 0.06 250 / 0.35), transparent 60%),
-    radial-gradient(60% 50% at 50% 0%, oklch(0.95 0.04 290 / 0.30), transparent 70%);
-  /* Apple frosted glass: bright top inner highlight + warm lavender shadow */
+    radial-gradient(75% 55% at 95% 5%, oklch(0.91 0.07 285 / 0.55), transparent 65%),
+    radial-gradient(55% 40% at 5% 95%, oklch(0.92 0.06 250 / 0.40), transparent 60%);
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,1.0) inset,
-    0 -1px 0 rgba(100,70,180,0.08) inset,
-    1px 0 0 rgba(255,255,255,0.80) inset,
-    -1px 0 0 rgba(100,70,180,0.05) inset,
-    0 2px 8px -2px rgba(80,50,160,0.08),
-    0 8px 32px -8px rgba(80,50,160,0.14),
-    0 0 0 0.5px rgba(100,70,180,0.10);
-  --modal-bg: rgba(250, 248, 255, 0.78);
+    0 1px 0 rgba(255,255,255,0.90) inset,
+    0 -1px 0 rgba(90, 70, 160, 0.06) inset,
+    0 8px 32px -4px rgba(90, 70, 160, 0.14),
+    0 1px 4px rgba(90, 70, 160, 0.07);
+  --modal-bg: rgba(248, 246, 255, 0.82);
   --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
   --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
   --podium-bronze-bg: linear-gradient(160deg, rgba(168, 200, 255, 0.22), rgba(236, 233, 246, 0.9));
@@ -659,76 +650,46 @@ body.modal-open .navbar-container {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   VELO GLASS MORPHISM — .vp = "velo panel" utility class
-   Add className="vp" to any panel div. Gets backdrop-filter + inner shimmer
-   pseudo-element (the "Apple bubble glass" top highlight).
-   Works correctly in both dark and light mode via CSS variables.
+   VELO GLASS MORPHISM — Global backdrop-filter for all panels
+   Panels using var(--glass-bg) automatically get blur + saturation boost.
+   Light mode uses a warm frosted-glass effect; dark uses deep space glass.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.vp {
-  -webkit-backdrop-filter: blur(36px) saturate(1.7);
-  backdrop-filter: blur(36px) saturate(1.7);
-  position: relative;
-  isolation: isolate;
+/* Apply backdrop-filter globally to all elements that use glass tokens.
+   This ensures any inline-style that sets background: var(--glass-bg) also
+   gets the blur without needing per-component code changes. */
+[style*="var(--glass-bg)"],
+[style*="var(--glass-bg-strong)"],
+[style*="var(--glass-2)"],
+[style*="var(--modal-bg)"] {
+  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  backdrop-filter: blur(32px) saturate(1.6);
 }
 
-/* Inner top shimmer — the defining Apple glass detail */
-.vp::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    180deg,
-    rgba(255,255,255,0.11) 0%,
-    rgba(255,255,255,0.03) 30%,
-    transparent 60%
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-
-.vp > * { position: relative; z-index: 1; }
-
-/* Light mode: brighter top shimmer, more saturated blur */
-html.light .vp {
-  -webkit-backdrop-filter: blur(32px) saturate(2.0) brightness(1.02);
-  backdrop-filter: blur(32px) saturate(2.0) brightness(1.02);
-}
-
-html.light .vp::before {
-  background: linear-gradient(
-    180deg,
-    rgba(255,255,255,0.90) 0%,
-    rgba(255,255,255,0.30) 25%,
-    transparent 55%
-  );
-}
-
-/* Modals: deeper blur */
-.vp-modal {
+/* Stronger blur for modals */
+[style*="var(--modal-bg)"] {
   -webkit-backdrop-filter: blur(48px) saturate(1.8);
   backdrop-filter: blur(48px) saturate(1.8);
-  position: relative;
-  isolation: isolate;
 }
 
-html.light .vp-modal {
-  -webkit-backdrop-filter: blur(44px) saturate(2.2) brightness(1.02);
-  backdrop-filter: blur(44px) saturate(2.2) brightness(1.02);
+/* Light mode: ensure glass panels have visible frosted depth */
+html.light [style*="var(--glass-bg)"],
+html.light [style*="var(--glass-bg-strong)"],
+html.light [style*="var(--glass-2)"] {
+  -webkit-backdrop-filter: blur(28px) saturate(1.8) brightness(1.04);
+  backdrop-filter: blur(28px) saturate(1.8) brightness(1.04);
 }
 
-/* Navbar: fullblur always */
+/* Navbar: always fullblur, mode-aware border */
 .navbar-container {
   -webkit-backdrop-filter: blur(44px) saturate(1.9) !important;
   backdrop-filter: blur(44px) saturate(1.9) !important;
 }
 
 html.light .navbar-container {
-  background: rgba(248, 246, 255, 0.68) !important;
-  border-color: rgba(130, 100, 200, 0.15) !important;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.95) inset,
-    0 4px 24px -4px rgba(90,60,170,0.10),
-    0 0 0 0.5px rgba(130,100,200,0.12) !important;
+  background: rgba(240, 237, 250, 0.72) !important;
+  border-color: rgba(160, 130, 220, 0.18) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.85) inset,
+    0 4px 24px -4px rgba(100, 70, 180, 0.12),
+    0 0 0 1px rgba(160,130,220,0.10) !important;
 }
