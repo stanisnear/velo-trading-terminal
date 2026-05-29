@@ -98,6 +98,8 @@ The reason: the keeper runs on Vercel's per-minute cron. When the trigger price 
 
 The contract guarantees important protections: for limit orders, you can never fill worse than your limit price (a long limit buy always fills at or below the limit — you get price improvement if the market moves further in your favour). TP/SL executions fill at the live oracle price, which may be slightly past the trigger, but this is how every oracle perp works.
 
+**One oracle, everywhere.** Velo reads Pyth — and only Pyth — across the entire interface: the live ticker, the chart (TradingView's `PYTH:*` symbols), the order book, and the on-chain fill all come from the same feed. Earlier builds mixed sources (fills on Pyth, ticker on Binance, chart on Coinbase), which made an entry and the displayed mark look a few cents apart even though the trade was correct. That cross-venue gap is now gone: when a reviewer opens a position, the price they filled at is the price shown everywhere. The only remaining movement is normal time passing between the locked entry and the live mark.
+
 ---
 
 ## Technology Stack
@@ -121,7 +123,7 @@ The contract guarantees important protections: for limit orders, you can never f
 
 **Backend and data:**
 - Supabase (PostgreSQL + Realtime) — social graph, profiles, trade history index, notifications
-- Pyth Hermes — HTTP gateway for oracle price update bytes
+- Pyth Hermes — oracle price update bytes for on-chain settlement, plus the live SSE price stream and Benchmarks OHLC candles that power every price shown in the UI
 - Vercel Serverless Functions + Pro Crons — keeper automation and gas sponsorship
 
 **Infrastructure:**

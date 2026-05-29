@@ -147,8 +147,9 @@ LayerZero EID Eth Sepolia  40161
 dYdX) have years of headstart and millions in seed liquidity. Oracle-priced
 perps (Avantis, GMX, Gains Network) settle PnL against a price feed against a
 shared collateral pool — sound model that needs no counterparty matching. The
-UI shows a "reference orderbook" sourced from Coinbase spot for user context,
-clearly labelled.
+UI shows a "reference orderbook" anchored to the live Pyth mark price (the same
+oracle the contract settles on), clearly labelled — Velo Perps has no native
+order book, so this is a depth visualisation centered on the price you fill at.
 
 **LayerZero V2 OFT for the bridge.** Industry-standard, no relayer infra to run,
 security model verified by configurable DVN set. Avantis itself uses LayerZero.

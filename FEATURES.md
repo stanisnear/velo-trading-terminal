@@ -30,7 +30,7 @@ This document describes every feature Velo has built and deployed. It covers the
 22. [Notifications](#22-notifications)
 23. [Shareable Trade Cards](#23-shareable-trade-cards)
 24. [TradingView Chart](#24-tradingview-chart)
-25. [Live Order Book](#25-live-order-book)
+25. [Order Book (Pyth-Anchored)](#25-order-book-pyth-anchored)
 26. [Markets View](#26-markets-view)
 27. [Dashboard & Portfolio Overview](#27-dashboard--portfolio-overview)
 28. [Admin Panel](#28-admin-panel)
@@ -285,9 +285,15 @@ function normalisePythPrice(PythStructs.Price memory p) internal pure returns (u
 
 **Staleness on testnet:** On Base Sepolia, the on-chain Pyth cache goes stale when no transactions have pushed updates recently. The keepers solve this by always including a fresh Hermes update in the keeper transaction — execution is never blocked by cache staleness.
 
-**17 supported pairs:** BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL — each mapped to a verified chain-independent Pyth feed ID.
+**Unified UI pricing — Pyth everywhere (`pythPriceService.ts`):** Every price shown anywhere in the app comes from Pyth, the same oracle the contract settles trades against. There is no longer any Binance or Coinbase price on screen.
+- **Live mark price** streams from Pyth's Hermes SSE endpoint (`/v2/updates/price/stream?ids[]=...&parsed=true`). One EventSource subscribes to all pairs at once and pushes ticks into `marketPrices`, which drives the ticker, the positions table mark column, the order book mid, and the chart's live price line.
+- **Chart candles** come from the Pyth Benchmarks TradingView shim (`/v1/shims/tradingview/history`) — real Pyth OHLC, returned in the same shape the chart already consumed.
+- **Initial snapshot + 30s fallback** uses Hermes latest REST (`/v2/updates/price/latest`) for all feeds in a single request.
+- The 24h change % shown in Markets is cosmetic and still sourced from a public REST ticker; it is never compared against a fill price, so it introduces no inconsistency.
 
-**UI prices:** The UI reads prices from two sources simultaneously: Pyth Hermes for oracle-accurate prices used in PnL calculations, and Binance/Coinbase REST for live chart candle data and ticker display.
+**Why this matters:** entry price, mark price, order book, chart, and the fill notification now all read the same feed. The only variance you can see between your entry and the live mark is normal tick timing (entry is locked at fill; the mark keeps moving) — the previous cross-venue gap (fill on Pyth, ticker on Binance, chart on Coinbase) is gone.
+
+**17 supported pairs:** BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL — each mapped to a verified chain-independent Pyth feed ID.
 
 ---
 
@@ -474,23 +480,23 @@ Velo uses the official TradingView Charting Library widget — not a custom char
 - Timeframes: 1m, 5m, 15m, 1h, 4h, 1D (and more via TradingView's built-in list)
 - Full drawing tools: trend lines, Fibonacci retracement, horizontal rays, rectangles, text annotations, more
 - Full indicator library: RSI, MACD, Bollinger Bands, EMA (any period), VWAP, Volume, OBV, ATR, Stochastic, and the complete TradingView catalogue
-- Price data sourced from Binance (primary) and Coinbase (fallback) via `priceService.ts`
+- Price data sourced from **Pyth** via TradingView's `PYTH:*` symbols (e.g. `PYTH:SOLUSD`) — the same oracle the contract settles on, so the chart, the ticker, and your fills all agree. All 22 listed symbols are verified to resolve on TradingView's Pyth source.
 - Chart state persists across tab switches — the component stays mounted and hidden, not destroyed and re-mounted
 
 ---
 
-## 25. Live Order Book
+## 25. Order Book (Pyth-Anchored)
 
-Live bid/ask depth panel rendered next to the chart in TradeView.
+Bid/ask depth panel rendered next to the chart in TradeView.
 
-**Data source:** `orderlyOrderbookStream.ts` connects to Orderly Network's WebSocket for live orderbook data, mapped to Velo pair symbols.
+**Data source:** Velo Perps is an oracle-priced engine — trades settle against the Pyth price, not a central-limit order book, so there is no native book to stream. Rather than show depth from a third-party venue (the panel previously streamed Orderly Network's book, which is a *different market* than the one users trade against), the book is a reference depth ladder anchored to the live Pyth mark price (`OrderBook.tsx`). It re-centers as the oracle ticks, so the mid price always equals the price you fill at. A small "Pyth" tag and a live dot indicate the source.
 
 **Display:**
 - Asks (offers to sell) above the mid-price in red
 - Bids (offers to buy) below the mid-price in green
-- Mid-price and spread shown at centre
+- Pyth mark price and spread shown at centre
+- Selectable price grouping (tick size) adapting to the pair's price magnitude
 - Depth visualised as proportional bars within each row
-- Sub-second updates as the orderbook changes
 
 ---
 

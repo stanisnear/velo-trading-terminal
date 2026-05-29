@@ -181,6 +181,19 @@ Velo uses **Pyth Network** as its primary price oracle with the pull-model archi
 
 **Staleness on testnet:** On Base Sepolia (low activity), the on-chain Pyth cache can go stale. The keepers solve this by always including a fresh Hermes update in the keeper transaction — the price is always fresh at execution time regardless of on-chain cache state.
 
+### One Oracle, Everywhere — Unified Pyth Pricing
+
+Velo previously displayed Binance prices for the ticker and Coinbase prices on the chart while settling fills against Pyth — three venues, so a position could open at the Pyth price while the rest of the screen showed a number a few cents off. That was a permanent, confusing discrepancy, not timing noise.
+
+Velo now reads **Pyth and only Pyth** across the entire interface, so every number agrees with the price you actually fill at:
+
+- **Live mark price** streams from Pyth's Hermes SSE endpoint (`/v2/updates/price/stream`), the same feed the contract settles on
+- **Chart candles** come from the TradingView widget pointed at Pyth symbols (`PYTH:SOLUSD`, etc.) and from the Pyth Benchmarks OHLC shim
+- **The order book** is a reference depth ladder anchored to the live Pyth mark (Velo Perps is oracle-priced and has no native book; a third-party venue feed would show a different market)
+- **Fills, entry prices, and PnL** are the on-chain Pyth price, exactly as before
+
+The only difference you will ever see between your entry and the live mark is normal tick timing — your entry is locked at fill time while the mark keeps moving. That is identical to how every exchange behaves; what is gone is the cross-venue gap.
+
 ---
 
 ## The Social Layer
@@ -257,7 +270,7 @@ Visible only to the contract owner wallet. Provides:
 - Reown AppKit v1.7 — multi-wallet connection (MetaMask, WalletConnect, Coinbase, social login)
 - Zustand v5 — global state management
 - @tanstack/react-query v5 — server-state caching
-- TradingView Widget — real candle charts with full drawing tools and indicator library
+- TradingView Widget — real candle charts (Pyth `PYTH:*` symbols) with full drawing tools and indicator library
 - Recharts — portfolio PnL chart
 - Lightweight Charts 5.1 — additional charting
 - Lucide React — icon system
@@ -265,7 +278,7 @@ Visible only to the contract owner wallet. Provides:
 
 **Backend / Data**
 - Supabase (PostgreSQL + Realtime) — social graph, profile metadata, trade history index, notifications
-- Pyth Hermes — HTTP gateway for price update bytes
+- Pyth Hermes — HTTP gateway for price update bytes, live SSE price stream, and (via Pyth Benchmarks) OHLC chart candles
 - Vercel Serverless Functions — keeper crons, gas sponsor API, protocol stats endpoint
 
 **Infrastructure**
@@ -290,7 +303,7 @@ Visible only to the contract owner wallet. Provides:
 │                                                                   │
 │  useVeloPerpsTrading() ── 5s polling loop                        │
 │  Social (Feed, Leaderboard, Profiles) ←→ Supabase Realtime      │
-│  Prices ←→ Pyth Hermes + Binance/Coinbase REST                  │
+│  Prices ←→ Pyth only: Hermes live stream + Benchmarks candles   │
 └──────────────────────────────┬───────────────────────────────────┘
                                │  viem writeContract / readContract
                                ▼
@@ -383,8 +396,8 @@ src/
 │   ├── VeloSendModal.tsx           Send mUSDC to @handle or 0x
 │   ├── VeloShareCard.tsx           Trade card canvas renderer
 │   ├── VeloShareTradeModal.tsx     Post-close share prompt
-│   ├── TradingViewChart.tsx        TradingView widget wrapper
-│   ├── OrderBook.tsx               Live bid/ask depth panel
+│   ├── TradingViewChart.tsx        TradingView widget wrapper (Pyth symbols)
+│   ├── OrderBook.tsx               Pyth-anchored depth panel
 │   ├── PortfolioChart.tsx          Dashboard PnL chart
 │   ├── SettingsModal.tsx           Wallet, key export, network panel
 │   └── ui/
@@ -397,6 +410,7 @@ src/
 │   ├── veloPerpsService.ts         Full V3.1 ABI + contract wrappers
 │   ├── useVeloPerpsTrading.ts      5s polling React hook
 │   ├── pythService.ts              Pyth Hermes price fetch + staleness guard
+│   ├── pythPriceService.ts         Unified UI pricing — Hermes SSE live stream + Benchmarks candles
 │   ├── veloBurnerWallet.ts         Deterministic session key derivation
 │   ├── veloBurnerSetup.ts          First-run burner orchestration
 │   ├── bridgeService.ts            LayerZero V2 cross-chain transfer
@@ -468,6 +482,8 @@ VITE_ETH_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 
 # Pyth
 VITE_PYTH_HERMES_URL=https://hermes.pyth.network
+# Optional — Pyth Benchmarks OHLC shim for chart candles (defaults to this if unset)
+VITE_PYTH_BENCHMARKS_URL=https://benchmarks.pyth.network
 
 # Server-side only — never reaches the browser
 VELO_SPONSOR_PRIVATE_KEY=0x<funded-ops-wallet-private-key>

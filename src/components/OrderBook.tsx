@@ -1,8 +1,21 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { OrderlyOrderbookStream, OrderbookSnapshot } from '../services/orderlyOrderbookStream';
+import React, { useMemo, useState, useEffect } from 'react';
+
+/**
+ * OrderBook — a depth ladder anchored to the live Pyth mark price.
+ *
+ * Velo Perps is an oracle-priced engine: trades settle against the Pyth price,
+ * not a central-limit order book, so there is no native book to stream. Pulling
+ * depth from a third-party venue (the previous Orderly Network feed) showed
+ * levels from a *different market* than the one users actually trade against —
+ * the same inconsistency we removed everywhere else.
+ *
+ * This book is therefore a reference ladder built around the same Pyth mark
+ * (`price`) that drives fills, the ticker, and the chart. It re-centers as the
+ * oracle moves so every number on screen agrees with the price you fill at.
+ */
 
 interface OrderBookProps {
-  price: number;
+  price: number;   // live Pyth mark price for the active pair
   pair: string;
   rows?: number;
 }
@@ -23,7 +36,9 @@ function seededRandom(seed: number) {
   return x - Math.floor(x);
 }
 
-function buildSynthetic(price: number, grouping: number, rows: number, tick: number) {
+// Reference depth ladder centered on the Pyth mark. Sizes are deterministic per
+// price+tick so the book animates smoothly without flicker as the oracle ticks.
+function buildBook(price: number, grouping: number, rows: number, tick: number) {
   const step       = grouping;
   const midRounded = Math.ceil(price / step) * step;
   const seed       = Math.floor(price * 100) + tick * 17;
@@ -42,41 +57,14 @@ function buildSynthetic(price: number, grouping: number, rows: number, tick: num
   return { asks: asks.reverse(), bids, spread: (asks[0]?.price ?? 0) - (bids[0]?.price ?? 0) || step };
 }
 
-function bucketLevels(
-  levels: { price: number; size: number }[],
-  grouping: number,
-  rows: number,
-  side: 'ask' | 'bid',
-): { price: number; size: number; total: number }[] {
-  if (!levels.length) return [];
-  const buckets = new Map<number, number>();
-  for (const l of levels) {
-    const bucket = side === 'ask'
-      ? Math.ceil(l.price / grouping) * grouping
-      : Math.floor(l.price / grouping) * grouping;
-    buckets.set(bucket, (buckets.get(bucket) ?? 0) + l.size);
-  }
-  const entries = Array.from(buckets.entries())
-    .map(([price, size]) => ({ price, size }))
-    .sort((a, b) => side === 'ask' ? a.price - b.price : b.price - a.price)
-    .slice(0, rows);
-
-  let cum = 0;
-  return entries.map(e => { cum += e.size; return { ...e, total: cum }; });
-}
-
 export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8 }) => {
-  const [grouping, setGrouping]   = useState(0.01);
-  const [tick, setTick]           = useState(0);
-  const [liveSnap, setLiveSnap]   = useState<OrderbookSnapshot | null>(null);
-  const [isLive, setIsLive]       = useState(false);
-  const streamRef                 = useRef<OrderlyOrderbookStream | null>(null);
-  const liveTimeoutRef            = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [grouping, setGrouping] = useState(0.01);
+  const [tick, setTick]         = useState(0);
 
   useEffect(() => {
     const options = getGroupingOptions(price);
     setGrouping(options[0]);
-  }, [pair]);
+  }, [pair]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
@@ -87,58 +75,19 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8 }) =
     return () => clearTimeout(t);
   }, []);
 
-  const handleSnapshot = useCallback((snap: OrderbookSnapshot) => {
-    setLiveSnap(snap);
-    setIsLive(true);
-    if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-    liveTimeoutRef.current = setTimeout(() => setIsLive(false), 8000);
-  }, []);
-
-  useEffect(() => {
-    if (!streamRef.current) {
-      streamRef.current = new OrderlyOrderbookStream(handleSnapshot);
-    }
-    streamRef.current.subscribe(pair);
-    return () => {};
-  }, [pair, handleSnapshot]);
-
-  useEffect(() => {
-    return () => {
-      streamRef.current?.destroy();
-      streamRef.current = null;
-      if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
-    };
-  }, []);
-
-  const prevPairRef = useRef(pair);
-  useEffect(() => {
-    if (pair !== prevPairRef.current) {
-      prevPairRef.current = pair;
-      setLiveSnap(null);
-      setIsLive(false);
-      streamRef.current?.changeSymbol(pair);
-    }
-  }, [pair]);
-
   const groupingOptions = useMemo(() => getGroupingOptions(price), [price]);
 
   const { asks, bids, spread } = useMemo(() => {
     if (!price || price <= 0) return { asks: [] as any[], bids: [] as any[], spread: 0 };
-
-    if (liveSnap && liveSnap.asks.length > 0 && liveSnap.bids.length > 0) {
-      const asks = bucketLevels(liveSnap.asks, grouping, rows, 'ask').reverse();
-      const bids = bucketLevels(liveSnap.bids, grouping, rows, 'bid');
-      const spread = Math.max((asks[0]?.price ?? 0) - (bids[0]?.price ?? 0), 0);
-      return { asks, bids, spread };
-    }
-
-    return buildSynthetic(price, grouping, rows, tick);
-  }, [price, pair, grouping, rows, tick, liveSnap]);
+    return buildBook(price, grouping, rows, tick);
+  }, [price, pair, grouping, rows, tick]);
 
   const maxTotal = useMemo(() => {
     if (asks.length === 0 && bids.length === 0) return 1;
     return Math.max(asks[0]?.total || 0, bids[bids.length - 1]?.total || 0);
   }, [asks, bids]);
+
+  const isLive = price > 0; // we have a fresh Pyth mark
 
   const formatPrice = (val: number) => {
     if (grouping >= 1)        return val.toFixed(0);
@@ -183,13 +132,14 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8 }) =
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ color: 'var(--fg-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', fontSize: 9 }}>Order Book</span>
           <span
-            title={isLive ? 'Live — Orderly Network' : 'Simulated (connecting to Orderly…)'}
+            title={isLive ? 'Reference depth anchored to the live Pyth oracle price' : 'Waiting for Pyth price…'}
             style={{
               width: 6, height: 6, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
               background: isLive ? 'var(--pnl-up)' : 'var(--fg-subtle)',
               boxShadow: isLive ? '0 0 4px var(--pnl-up)' : 'none',
             }}
           />
+          <span style={{ color: 'var(--fg-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: 8, opacity: 0.8 }}>Pyth</span>
         </div>
         <select
           value={grouping}
