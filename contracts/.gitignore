@@ -1,8 +1,0 @@
-cache/
-out/
-broadcast/
-# deployments/*.json (we keep these — they hold deployed addresses, no secrets)
-.env
-.env.local
-node_modules/
-lib/
