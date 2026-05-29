@@ -80,6 +80,44 @@ const FALLBACK = (process.env.VITE_VELO_PERPS_ADDRESS as `0x${string}`) || '0x28
 const PERPS = (V3 && V3.length === 42) ? V3 : ((V2 && V2.length === 42) ? V2 : FALLBACK);
 const HERMES_URL = process.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 
+// Pyth contract on Base Sepolia. liquidate routes through _extractPrice, which
+// enforces msg.value == PYTH.getUpdateFee(updateData) exactly. Read it on-chain.
+const PYTH_ADDRESS = (process.env.VITE_PYTH_CONTRACT_ADDRESS as `0x${string}`) ||
+  '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729';
+const PYTH_FEE_ABI: Abi = [
+  { type: 'function', name: 'getUpdateFee', stateMutability: 'view',
+    inputs: [{ name: 'updateData', type: 'bytes[]' }],
+    outputs: [{ name: 'feeAmount', type: 'uint256' }] },
+];
+
+// Mirror of PerpsMath.normalisePythPrice — (price, expo) -> 18-dec fixed point.
+function normalisePythPriceE18(price: bigint, expo: number): bigint {
+  if (price <= 0n) throw new Error('bad pyth price');
+  if (expo > 0) throw new Error('bad pyth expo');
+  const absExpo = -expo;
+  return absExpo <= 18
+    ? price * 10n ** BigInt(18 - absExpo)
+    : price / 10n ** BigInt(absExpo - 18);
+}
+
+// Mirror of PerpsMath.computePnL — signed 1e6 USDC. Lets the keeper decide on a
+// FRESH price rather than the on-chain quoteUnrealisedPnL view, which reverts
+// once the cached Pyth price is >60s stale on a quiet testnet.
+function computePnL6(
+  collateralUSDC_6: bigint,
+  leverage: bigint,
+  entryPrice_E18: bigint,
+  markPrice_E18: bigint,
+  isLong: boolean,
+): bigint {
+  if (entryPrice_E18 === 0n) return 0n;
+  let delta = markPrice_E18 - entryPrice_E18;
+  if (!isLong) delta = -delta;
+  const abs = delta >= 0n ? delta : -delta;
+  const magnitude = (collateralUSDC_6 * leverage * abs) / entryPrice_E18;
+  return delta >= 0n ? magnitude : -magnitude;
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -125,6 +163,29 @@ export default async function handler(req: any, res: any) {
     const errors: Array<{ tradeId: number; reason: string }> = [];
     const checked: number[] = [];
 
+    // Per-run cache keyed by pairIndex: fresh Hermes blob + normalised mark.
+    const priceCache = new Map<number, { updateData: `0x${string}`[]; markE18: bigint }>();
+    async function freshPrice(pairIndex: number): Promise<{ updateData: `0x${string}`[]; markE18: bigint }> {
+      const cached = priceCache.get(pairIndex);
+      if (cached) return cached;
+      const feedId = await publicClient.readContract({
+        address: PERPS, abi: CORE_ABI, functionName: 'pairFeedId', args: [pairIndex],
+      }) as string;
+      const feedIdNoPrefix = feedId.startsWith('0x') ? feedId.slice(2) : feedId;
+      const hermesRes = await fetch(`${HERMES_URL}/v2/updates/price/latest?ids[]=${feedIdNoPrefix}&encoding=hex`);
+      if (!hermesRes.ok) throw new Error(`hermes ${hermesRes.status}`);
+      const hermes = await hermesRes.json();
+      const blobs: string[] = hermes?.binary?.data ?? [];
+      if (!blobs.length) throw new Error('empty hermes payload');
+      const parsed = hermes?.parsed?.[0]?.price;
+      if (!parsed) throw new Error('no parsed price');
+      const updateData = blobs.map((s) => (s.startsWith('0x') ? s : `0x${s}`)) as `0x${string}`[];
+      const markE18 = normalisePythPriceE18(BigInt(parsed.price), Number(parsed.expo));
+      const out = { updateData, markE18 };
+      priceCache.set(pairIndex, out);
+      return out;
+    }
+
     for (let id = 1; id < maxId; id++) {
       try {
         const position: any = await publicClient.readContract({
@@ -134,33 +195,27 @@ export default async function handler(req: any, res: any) {
         if (!position || position.owner === '0x0000000000000000000000000000000000000000') continue;
         checked.push(id);
 
-        const [pnl_6] = await publicClient.readContract({
-          address: PERPS, abi: CORE_ABI,
-          functionName: 'quoteUnrealisedPnL', args: [BigInt(id)],
-        }) as readonly [bigint, bigint];
-
         const collateral = BigInt(position.collateralUSDC_6);
+
+        // Decide on a FRESH off-chain price + PnL so a stale on-chain cache can't block us.
+        const { updateData, markE18 } = await freshPrice(Number(position.pairIndex));
+        const pnl_6 = computePnL6(
+          collateral,
+          BigInt(position.leverage),
+          BigInt(position.entryPrice_E18),
+          markE18,
+          position.isLong,
+        );
+
         const thresholdLoss = -(collateral * BigInt(threshold)) / 10_000n;
         if (pnl_6 > thresholdLoss) continue;
 
-        const feedId = await publicClient.readContract({
-          address: PERPS, abi: CORE_ABI,
-          functionName: 'pairFeedId', args: [position.pairIndex],
-        }) as string;
-        const feedIdNoPrefix = feedId.startsWith('0x') ? feedId.slice(2) : feedId;
-        const hermesRes = await fetch(`${HERMES_URL}/v2/updates/price/latest?ids[]=${feedIdNoPrefix}&encoding=hex`);
-        if (!hermesRes.ok) {
-          errors.push({ tradeId: id, reason: `hermes ${hermesRes.status}` });
-          continue;
-        }
-        const hermes = await hermesRes.json();
-        const blobs: string[] = hermes?.binary?.data ?? [];
-        if (!blobs.length) {
-          errors.push({ tradeId: id, reason: 'empty hermes payload' });
-          continue;
-        }
-        const updateData = blobs.map((s) => (s.startsWith('0x') ? s : `0x${s}`)) as `0x${string}`[];
-        const feeWei = BigInt(updateData.length) * 1_000_000_000_000_000n;
+        const feeWei = await publicClient.readContract({
+          address: PYTH_ADDRESS,
+          abi: PYTH_FEE_ABI,
+          functionName: 'getUpdateFee',
+          args: [updateData],
+        }) as bigint;
 
         const txHash = await walletClient.writeContract({
           address: PERPS,

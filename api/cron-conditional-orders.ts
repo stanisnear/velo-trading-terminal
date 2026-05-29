@@ -45,6 +45,17 @@ const V3_ABI: Abi = [
 const V3 = (process.env.VITE_VELO_PERPS_V3_ADDRESS as `0x${string}`) || '';
 const HERMES_URL = process.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 
+// Pyth contract on Base Sepolia. The Velo contract enforces
+// msg.value == PYTH.getUpdateFee(updateData) to the wei (PythFeeMismatch on miss),
+// so the keeper MUST read the exact fee on-chain — never hardcode/estimate it.
+const PYTH_ADDRESS = (process.env.VITE_PYTH_CONTRACT_ADDRESS as `0x${string}`) ||
+  '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729';
+const PYTH_FEE_ABI: Abi = [
+  { type: 'function', name: 'getUpdateFee', stateMutability: 'view',
+    inputs: [{ name: 'updateData', type: 'bytes[]' }],
+    outputs: [{ name: 'feeAmount', type: 'uint256' }] },
+];
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -103,7 +114,13 @@ export default async function handler(req: any, res: any) {
         }
 
         const updateData = blobs.map((s) => (s.startsWith('0x') ? s : `0x${s}`)) as `0x${string}`[];
-        const feeWei = BigInt(updateData.length) * 1_000_000_000_000_000n;
+        // Read the exact fee the contract will demand for THIS updateData.
+        const feeWei = await publicClient.readContract({
+          address: PYTH_ADDRESS,
+          abi: PYTH_FEE_ABI,
+          functionName: 'getUpdateFee',
+          args: [updateData],
+        }) as bigint;
 
         // Let the contract decide whether triggered; revert on miss is expected.
         try {
