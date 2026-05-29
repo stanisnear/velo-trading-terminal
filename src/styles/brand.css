@@ -164,13 +164,20 @@ html.light .vp::before {
   width: 36px;
   height: 36px;
   border-radius: 11px;
-  background: linear-gradient(160deg, oklch(0.55 0.24 285), oklch(0.32 0.22 280));
+  background:
+    linear-gradient(145deg,
+      oklch(0.58 0.28 305) 0%,
+      oklch(0.48 0.30 295) 35%,
+      oklch(0.36 0.26 280) 70%,
+      oklch(0.28 0.22 272) 100%
+    );
   position: relative;
   flex-shrink: 0;
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.18) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.25) inset,
-    0 10px 24px -8px oklch(0.42 0.24 285 / 0.6);
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.30) inset,
+    0 8px 28px -6px oklch(0.42 0.28 295 / 0.70),
+    0 2px 8px -2px oklch(0.30 0.24 280 / 0.50);
 }
 
 .bug::before,
@@ -179,7 +186,9 @@ html.light .vp::before {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(120% 80% at 30% 12%, rgba(255, 255, 255, 0.45), transparent 60%);
+  background:
+    radial-gradient(110% 75% at 28% 10%, rgba(255, 255, 255, 0.52), transparent 55%),
+    radial-gradient(60% 50% at 80% 85%, oklch(0.55 0.30 305 / 0.25), transparent 70%);
   pointer-events: none;
 }
 
@@ -192,8 +201,10 @@ html.light .vp::before {
   font-size: 22px;
   line-height: 1.35;
   letter-spacing: -0.06em;
-  color: var(--velo-bone);
-  text-shadow: 0 0 16px oklch(0.85 0.12 250 / 0.4);
+  color: #f5f2ff;
+  text-shadow:
+    0 1px 3px rgba(0,0,0,0.35),
+    0 0 20px oklch(0.75 0.18 295 / 0.45);
   transform: translateY(-1px);
 }
 
