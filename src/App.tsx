@@ -4761,6 +4761,12 @@ const App = () => {
       if (!user || !isWalletConnected) return;
       if (veloPerpsTrading.isInitialLoading) return;
 
+      // Persisted open-tx hashes keyed by tradeId. The contract sync can't carry
+      // the tx hash, so we stored it at open time; this lets the details modal
+      // link to the exact opening transaction even after a reload.
+      let openTxMap: Record<string, string> = {};
+      try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
+
       const onChainPositions: Position[] = veloPerpsTrading.openPositions.map((p) => {
         const uiPair = p.pair.replace('-', '/'); // BTC-USD → BTC/USD etc.
         const notional = p.collateralUSDC * p.leverage;
@@ -4802,7 +4808,10 @@ const App = () => {
           stopLoss: overlaySl,
           // Reuse the orderly fields for tx link surfacing (modal already reads them).
           orderlyOrderId: undefined,
-          orderlyOrderUrl: p.openTxHash ? `https://sepolia.basescan.org/tx/${p.openTxHash}` : undefined,
+          orderlyOrderUrl: (() => {
+            const tx = p.openTxHash || openTxMap[tradeIdKey];
+            return tx ? (tx.startsWith('http') ? tx : `https://sepolia.basescan.org/tx/${tx}`) : undefined;
+          })(),
         };
       });
 
@@ -7291,6 +7300,15 @@ const App = () => {
                 triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `${leverage}× · $${formatMoney(size)} @ $${formatPrice(result.entryPrice)}`);
                 playSound('CLICK');
                 releaseLock();
+
+                // Persist the open tx hash keyed by tradeId so the position details
+                // modal can link to the exact opening transaction even after reload.
+                // (The contract position sync doesn't carry the tx hash.)
+                try {
+                  const m = JSON.parse(localStorage.getItem('velo_open_tx') || '{}');
+                  m[result.tradeId.toString()] = (result as any).txHash || (result as any).explorerUrl;
+                  localStorage.setItem('velo_open_tx', JSON.stringify(m));
+                } catch {}
 
                 // ── Attach TP/SL on-chain via setTriggers ─────────────────────
                 // The order form lets the user set TP/SL at open time. The contract's

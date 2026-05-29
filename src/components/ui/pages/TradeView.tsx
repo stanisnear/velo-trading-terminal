@@ -651,13 +651,6 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
     const PER = 5;
-    const [confirmCloseAll, setConfirmCloseAll] = useState(false);
-    const runCloseAll = () => {
-        positions.forEach((p: Position, i: number) => {
-            setTimeout(() => onClosePosition(p.id), i * 550);
-        });
-        setConfirmCloseAll(false);
-    };
     const page = (items: any[], k: string) => {
         const pg = pageState[k];
         return { items: items.slice((pg - 1) * PER, pg * PER), pages: Math.ceil(items.length / PER), pg };
@@ -692,34 +685,6 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: 'transparent' }}>
-            {confirmCloseAll && (
-                <div
-                    onClick={() => setConfirmCloseAll(false)}
-                    style={{ position: 'fixed', inset: 0, zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.82)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}
-                    className="animate-fade-in"
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="animate-bounce-in"
-                        style={{ width: '100%', maxWidth: 380, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', borderRadius: 'var(--r-lg, 18px)', padding: 22, boxShadow: 'var(--glass-shadow, 0 8px 40px rgba(0,0,0,0.4))', backdropFilter: 'blur(32px)' }}
-                    >
-                        <h3 style={{ ...S.display, fontSize: 20, color: 'var(--fg)', margin: '0 0 8px' }}>Close all positions?</h3>
-                        <p style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.55, margin: '0 0 18px' }}>
-                            This closes every open position ({positions.length}) at market price. This can't be undone.
-                        </p>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                            <button
-                                onClick={() => setConfirmCloseAll(false)}
-                                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', cursor: 'pointer', ...S.label, color: 'var(--fg)', fontSize: 11 }}
-                            >Cancel</button>
-                            <button
-                                onClick={runCloseAll}
-                                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'oklch(0.66 0.22 25/0.15)', border: '1px solid oklch(0.66 0.22 25/0.4)', cursor: 'pointer', ...S.label, color: 'var(--pnl-down)', fontSize: 11, fontWeight: 700 }}
-                            >Close All</button>
-                        </div>
-                    </div>
-                </div>
-            )}
             {!user && (
                 <div style={{
                     position: 'absolute', inset: 0, zIndex: 30,
@@ -755,17 +720,6 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                         </button>
                     ))}
                 </div>
-                {/* Close All — one click to flatten every open position at market.
-                    Only on POSITIONS tab with >1 positions to avoid noise. */}
-                {tab === 'POSITIONS' && positions.length > 1 && (
-                    <button
-                        onClick={() => setConfirmCloseAll(true)}
-                        style={{ marginRight: 10, padding: '3px 9px', borderRadius: 6, background: 'oklch(0.66 0.22 25/0.1)', border: '1px solid oklch(0.66 0.22 25/0.25)', ...S.mono, fontSize: 9, color: 'var(--pnl-down)', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}
-                        title="Close every open position at market"
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.18)'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.1)'}
-                    >Close All</button>
-                )}
             </div>
 
             {/* Body */}

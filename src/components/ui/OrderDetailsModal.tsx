@@ -367,8 +367,9 @@ export const OrderDetailsModal = ({
               On-Chain · Velo Perps
             </span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {(p as any).orderlyOrderUrl && <ChainLink href={(p as any).orderlyOrderUrl} label="BaseScan" />}
-              <ChainLink href="https://sepolia.basescan.org/address/0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163" label="Contract" />
+              {(p as any).orderlyOrderUrl
+                ? <ChainLink href={(p as any).orderlyOrderUrl} label="View TX" />
+                : <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>—</span>}
             </div>
           </div>
         )}
