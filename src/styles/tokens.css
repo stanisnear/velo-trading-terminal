@@ -6,32 +6,33 @@
   --font-mono: "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
 
   --velo-blue: oklch(0.62 0.22 268);
-  --velo-blue-deep: oklch(0.42 0.24 270);
-  --velo-blue-ice: oklch(0.88 0.10 250);
-  --velo-violet: oklch(0.55 0.24 295);
-  --velo-mauve: oklch(0.72 0.16 320);
+  --velo-blue-deep: oklch(0.50 0.26 270);
+  --velo-blue-ice: oklch(0.88 0.10 255);
+  --velo-violet: oklch(0.60 0.22 272);
+  --velo-mauve: oklch(0.72 0.14 285);
   --velo-bone: #f4f1e8;
-  --velo-paper: #f2f0fa;
+  --velo-paper: #f0eefa;
   --velo-ink: #0a0b18;
   --velo-obsidian: #050608;
 
   --pnl-up: oklch(0.80 0.18 152);
   --pnl-down: oklch(0.66 0.22 25);
 
+  /* Brand prism uses the periwinkle-blue signature */
   --prism: linear-gradient(
     135deg,
-    oklch(0.55 0.24 295) 0%,
-    oklch(0.62 0.22 268) 35%,
-    oklch(0.78 0.16 230) 65%,
-    oklch(0.88 0.10 250) 100%
+    oklch(0.60 0.24 272) 0%,
+    oklch(0.65 0.22 262) 35%,
+    oklch(0.75 0.18 248) 65%,
+    oklch(0.85 0.12 240) 100%
   );
   --prism-vivid: linear-gradient(
     135deg,
-    oklch(0.45 0.26 295) 0%,
-    oklch(0.55 0.24 285) 25%,
-    oklch(0.62 0.22 268) 50%,
-    oklch(0.72 0.18 235) 75%,
-    oklch(0.85 0.12 230) 100%
+    oklch(0.50 0.26 275) 0%,
+    oklch(0.58 0.25 270) 25%,
+    oklch(0.65 0.22 262) 50%,
+    oklch(0.74 0.18 250) 75%,
+    oklch(0.84 0.12 240) 100%
   );
 
   --r-xs: 6px;
@@ -112,33 +113,33 @@ body.dark,
 html.light,
 body.light,
 .light {
-  --bg: #f8f8fc;
-  --bg-2: #f0eef8;
-  --bg-3: #e8e5f2;
-  --fg: #0a0b18;
-  --fg-2: #50506a;
-  --fg-3: #9898b8;
-  --hr: rgba(90, 70, 160, 0.08);
-  --hr-2: rgba(90, 70, 160, 0.14);
-  --glass: rgba(255, 253, 255, 0.58);
-  --glass-2: rgba(255, 254, 255, 0.82);
+  --bg: #f5f4fa;
+  --bg-2: #edeaf6;
+  --bg-3: #e3dff0;
+  --fg: #0d0e1c;
+  --fg-2: #484868;
+  --fg-3: #9090b0;
+  --hr: rgba(70, 50, 140, 0.09);
+  --hr-2: rgba(70, 50, 140, 0.16);
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-2: rgba(255, 255, 255, 0.88);
   --gl-edge: rgba(255, 255, 255, 1.0);
-  --chip: rgba(80, 50, 150, 0.06);
-  --chip-h: rgba(80, 50, 150, 0.11);
+  --chip: rgba(70, 50, 140, 0.07);
+  --chip-h: rgba(70, 50, 140, 0.13);
   --ambient:
-    radial-gradient(75% 55% at 95% 5%, oklch(0.91 0.07 285 / 0.45), transparent 65%),
-    radial-gradient(55% 40% at 5% 95%, oklch(0.92 0.06 250 / 0.35), transparent 60%),
-    radial-gradient(60% 50% at 50% 0%, oklch(0.95 0.04 290 / 0.30), transparent 70%);
-  /* Apple frosted glass: bright top inner highlight + warm lavender shadow */
+    radial-gradient(70% 55% at 90% 5%, oklch(0.82 0.10 268 / 0.38), transparent 65%),
+    radial-gradient(55% 45% at 5% 90%, oklch(0.82 0.10 255 / 0.28), transparent 60%),
+    radial-gradient(65% 50% at 50% 0%, oklch(0.90 0.06 270 / 0.22), transparent 70%);
+  /* Apple-quality frosted glass: crisp white top highlight + periwinkle shadow */
   --glass-shadow:
     0 1px 0 rgba(255,255,255,1.0) inset,
-    0 -1px 0 rgba(100,70,180,0.08) inset,
-    1px 0 0 rgba(255,255,255,0.80) inset,
-    -1px 0 0 rgba(100,70,180,0.05) inset,
-    0 2px 8px -2px rgba(80,50,160,0.08),
-    0 8px 32px -8px rgba(80,50,160,0.14),
-    0 0 0 0.5px rgba(100,70,180,0.10);
-  --modal-bg: rgba(250, 248, 255, 0.78);
+    0 -1px 0 rgba(70,50,140,0.07) inset,
+    1px 0 0 rgba(255,255,255,0.85) inset,
+    -1px 0 0 rgba(70,50,140,0.04) inset,
+    0 2px 6px -1px rgba(60,40,120,0.07),
+    0 8px 28px -8px rgba(60,40,120,0.13),
+    0 0 0 0.5px rgba(70,50,140,0.09);
+  --modal-bg: rgba(252, 251, 255, 0.82);
   --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
   --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
   --podium-bronze-bg: linear-gradient(160deg, rgba(168, 200, 255, 0.22), rgba(236, 233, 246, 0.9));
@@ -725,10 +726,10 @@ html.light .vp-modal {
 }
 
 html.light .navbar-container {
-  background: rgba(248, 246, 255, 0.68) !important;
-  border-color: rgba(130, 100, 200, 0.15) !important;
+  background: rgba(245, 244, 250, 0.72) !important;
+  border-color: rgba(70, 50, 140, 0.12) !important;
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.95) inset,
-    0 4px 24px -4px rgba(90,60,170,0.10),
-    0 0 0 0.5px rgba(130,100,200,0.12) !important;
+    0 1px 0 rgba(255,255,255,1.0) inset,
+    0 4px 20px -4px rgba(60,40,120,0.09),
+    0 0 0 0.5px rgba(70,50,140,0.08) !important;
 }
