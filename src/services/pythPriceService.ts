@@ -25,6 +25,12 @@
  *   https://benchmarks.pyth.network  (TradingView-compatible OHLC shim)
  */
 
+// Binance/CoinGecko are kept as a *fallback* price source. Pyth stays primary
+// (it's what the contract settles on), but Hermes can be rate-limited, network-
+// blocked, or blocked by an aggressive browser extension — and when it was the
+// ONLY source the whole app went priceless. The fallback keeps prices flowing.
+import { binancePriceStream, fetchRealPrices } from './priceService';
+
 const HERMES_URL = import.meta.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 const BENCHMARKS_URL = import.meta.env.VITE_PYTH_BENCHMARKS_URL || 'https://benchmarks.pyth.network';
 
@@ -115,6 +121,29 @@ export async function fetchPythPrices(): Promise<{
   }
 }
 
+/**
+ * Resilient price snapshot. Tries Pyth first (consistent with on-chain fills),
+ * then fills any missing pairs from the Binance/CoinGecko REST source so the UI
+ * is never left without prices when Hermes is unreachable. Returns the merged
+ * map plus the 24h change map (which only the fallback source provides).
+ */
+export async function fetchPricesResilient(): Promise<{
+  prices: Record<string, number>;
+  changes: Record<string, number>;
+  status: string;
+}> {
+  const [pyth, fallback] = await Promise.all([
+    fetchPythPrices(),
+    fetchRealPrices().catch(() => ({ prices: {} as Record<string, number>, changes: {} as Record<string, number>, status: 'error' })),
+  ]);
+  // Pyth wins per-pair; Binance/CoinGecko fills the gaps.
+  const prices: Record<string, number> = { ...(fallback.prices || {}), ...pyth.prices };
+  const status = Object.keys(pyth.prices).length > 0
+    ? (Object.keys(fallback.prices || {}).length > 0 ? 'pyth+fallback' : 'pyth')
+    : 'fallback';
+  return { prices, changes: fallback.changes || {}, status };
+}
+
 // ── Live SSE stream — mirrors the binancePriceStream interface ────────────────
 type PriceCallback = (prices: Record<string, number>) => void;
 
@@ -124,6 +153,15 @@ class PythPriceStream {
   private latestPrices: Record<string, number> = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private alive = false;
+  private failCount = 0;
+  private lastTickAt = 0;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
+  private fallbackUnsub: (() => void) | null = null;
+
+  // After this many consecutive failed SSE connects we stop hammering Hermes and
+  // lean on the Binance fallback + the 30s REST poll instead (avoids console spam
+  // and wasted retries when the stream is blocked in this environment).
+  private static MAX_SSE_FAILS = 4;
 
   private buildStreamUrl(): string {
     const params = new URLSearchParams();
@@ -133,10 +171,45 @@ class PythPriceStream {
     return `${HERMES_URL}/v2/updates/price/stream?${params.toString()}`;
   }
 
+  private emit() {
+    const snapshot = { ...this.latestPrices };
+    this.callbacks.forEach(cb => cb(snapshot));
+  }
+
+  // Binance fallback: only runs when Pyth has gone silent. Pyth ticks take over
+  // again as soon as they resume, so a healthy Pyth connection never mixes in
+  // Binance prices (which is what kept mark/chart/fills consistent).
+  private startFallback() {
+    if (this.fallbackUnsub) return;
+    binancePriceStream.connect();
+    this.fallbackUnsub = binancePriceStream.subscribe(prices => {
+      let changed = false;
+      for (const [pair, px] of Object.entries(prices)) {
+        if (px > 0 && this.latestPrices[pair] !== px) { this.latestPrices[pair] = px; changed = true; }
+      }
+      if (changed) this.emit();
+    });
+  }
+  private stopFallback() {
+    if (this.fallbackUnsub) { this.fallbackUnsub(); this.fallbackUnsub = null; }
+    try { binancePriceStream.disconnect(); } catch (_) {}
+  }
+
   connect() {
-    if (typeof EventSource === 'undefined') return; // SSR / unsupported guard
+    if (typeof EventSource === 'undefined') { this.startFallback(); return; } // SSR / unsupported
     if (this.es && this.es.readyState !== EventSource.CLOSED) return;
     this.alive = true;
+
+    // Watchdog: if no Pyth tick for >8s, bring up the Binance fallback; once Pyth
+    // resumes, drop it again.
+    if (!this.watchdog) {
+      this.watchdog = setInterval(() => {
+        if (!this.alive) return;
+        const silent = Date.now() - this.lastTickAt > 8000;
+        if (silent && !this.fallbackUnsub) this.startFallback();
+        else if (!silent && this.fallbackUnsub) this.stopFallback();
+      }, 4000);
+    }
 
     try {
       this.es = new EventSource(this.buildStreamUrl());
@@ -146,6 +219,10 @@ class PythPriceStream {
           const msg = JSON.parse(event.data);
           const parsed = msg?.parsed;
           if (!Array.isArray(parsed) || parsed.length === 0) return;
+
+          this.failCount = 0;
+          this.lastTickAt = Date.now();
+          if (this.fallbackUnsub) this.stopFallback(); // Pyth is back — take over
 
           let changed = false;
           for (const entry of parsed) {
@@ -159,16 +236,10 @@ class PythPriceStream {
               changed = true;
             }
           }
-
-          if (changed) {
-            const snapshot = { ...this.latestPrices };
-            this.callbacks.forEach(cb => cb(snapshot));
-          }
+          if (changed) this.emit();
         } catch (_) { /* malformed frame — skip */ }
       };
 
-      // EventSource auto-reconnects on transient errors, but if the server
-      // hard-closes we re-establish manually after a short delay.
       this.es.onerror = () => {
         if (this.es && this.es.readyState === EventSource.CLOSED) this.scheduleReconnect();
       };
@@ -180,6 +251,12 @@ class PythPriceStream {
   private scheduleReconnect() {
     if (this.reconnectTimer || !this.alive) return;
     if (this.es) { try { this.es.close(); } catch (_) {} this.es = null; }
+    this.failCount++;
+    // Give up on the SSE after a few failures and rely on the fallback + REST poll.
+    if (this.failCount >= PythPriceStream.MAX_SSE_FAILS) {
+      this.startFallback();
+      return;
+    }
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       if (this.alive) this.connect();
@@ -189,6 +266,8 @@ class PythPriceStream {
   disconnect() {
     this.alive = false;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.watchdog) { clearInterval(this.watchdog); this.watchdog = null; }
+    this.stopFallback();
     if (this.es) { try { this.es.close(); } catch (_) {} this.es = null; }
   }
 

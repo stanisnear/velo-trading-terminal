@@ -16,8 +16,7 @@ import { VeloAnimation, VeloAnimationKind } from './components/VeloAnimation';
 import { v4 as uuidv4 } from 'uuid';
 import { PortfolioChart } from './components/PortfolioChart';
 import { OrderBook } from './components/OrderBook';
-import { fetchRealPrices } from './services/priceService';
-import { fetchPythPrices, pythPriceStream, fetchPythKlines } from './services/pythPriceService';
+import { fetchPricesResilient, pythPriceStream, fetchPythKlines } from './services/pythPriceService';
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient, useSignMessage } from 'wagmi';
@@ -6191,17 +6190,14 @@ const App = () => {
 
     // ── Initial data load: prices, candles, and social ──
     useEffect(() => {
-        // Prices come from Pyth (the oracle the contract settles on); the 24h
-        // change % is cosmetic and still sourced from the Binance/CoinGecko REST
-        // call — it is never compared against a fill price, so no inconsistency.
-        Promise.all([
-            fetchPythPrices(),
-            fetchRealPrices().catch(() => ({ changes: {} as Record<string, number> })),
-        ]).then(([{ prices: pythPrices }, { changes: realChanges }]) => {
+        // Prices: Pyth primary (the oracle the contract settles on), with a
+        // Binance/CoinGecko fallback so the UI is never priceless if Hermes is
+        // unreachable. 24h change % comes from the fallback source.
+        fetchPricesResilient().then(({ prices: livePrices, changes: liveChanges }) => {
             const merged: Record<string, number> = {};
-            PAIRS.forEach(p => { merged[p.id] = pythPrices[p.id] || p.basePrice; });
+            PAIRS.forEach(p => { merged[p.id] = livePrices[p.id] || p.basePrice; });
             setMarketPrices(merged);
-            setMarketChanges(realChanges || {});
+            setMarketChanges(liveChanges || {});
         });
         fetchPythKlines(PAIRS[0].id, '15m').then(klineCandles => {
             if (klineCandles.length > 0) {
@@ -6585,9 +6581,10 @@ const App = () => {
         const unsub = pythPriceStream.subscribe(prices => {
             setMarketPrices(prev => ({ ...prev, ...prices }));
         });
-        // Fallback REST poll every 30s in case the SSE connection drops
+        // Fallback REST poll every 30s (covers SSE drops). Resilient: Pyth first,
+        // Binance/CoinGecko fill so prices keep updating even if Hermes is down.
         const restTimer = setInterval(() => {
-            fetchPythPrices().then(({ prices: realPrices }) => {
+            fetchPricesResilient().then(({ prices: realPrices }) => {
                 if (Object.keys(realPrices).length > 0) {
                     setMarketPrices(prev => ({ ...prev, ...realPrices }));
                 }
