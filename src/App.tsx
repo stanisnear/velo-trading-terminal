@@ -1094,9 +1094,6 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     <Menu size={18} />
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minWidth: 0 }} onClick={() => user && setActiveTab(TabView.DASHBOARD)}>
-                    <div className="bug" style={{ width: 32, height: 32 }}>
-                        <span className="gl" style={{ fontSize: 18 }}>V</span>
-                    </div>
                     <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 28, color: 'var(--fg)', letterSpacing: '-0.04em', lineHeight: 1 }}>Velo</span>
                 </div>
             </div>
@@ -1248,9 +1245,6 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', height: 60, borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="bug" style={{ width: 28, height: 28 }}>
-                            <span className="gl" style={{ fontSize: 16 }}>V</span>
-                        </div>
                         <span style={{ ...S.display, fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
                     </div>
                     <button onClick={() => setSidebarOpen(false)} style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 12, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', color: 'var(--fg-2)' }}>
@@ -1559,7 +1553,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
             )} {/* end desktop podium ternary */}
 
             {/* Full table — desktop */}
-            <div style={panel}>
+            <div className="vp" style={panel}>
                 {!isMobile && (
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>
@@ -2867,7 +2861,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 
                 {/* Right sidebar — related tokens + top posters */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={panel}>
+                    <div className="vp" style={panel}>
                         <div style={{ padding: '14px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
@@ -2892,7 +2886,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                         </div>
                     </div>
                     {/* Top posters for this ticker */}
-                    <div style={panel}>
+                    <div className="vp" style={panel}>
                         <div style={{ padding: '14px 16px' }}>
                             <p style={{ ...S.label, marginBottom: 12 }}>Top posters · ${ticker}</p>
                             {(() => {
@@ -3331,7 +3325,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             <div className="social-feed-grid">
             {/* Left sidebar */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={panel}>
+                <div className="vp" style={panel}>
                     <div style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }} />
@@ -3347,7 +3341,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                         ))}
                     </div>
                 </div>
-                <div style={panel}>
+                <div className="vp" style={panel}>
                     <div style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                             <span style={{ ...S.label }}>Copytrade · Live</span>
@@ -3370,7 +3364,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                 {/* Top Tokens Bar */}
                 <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} />
                 {/* Compose */}
-                <div style={panel}>
+                <div className="vp" style={panel}>
                     <div style={{ padding: 16, display: 'flex', gap: 12 }}>
                         <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--chip-bg)', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--hairline)' }}>
                             {user ? <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserCircle size={38} style={{ color: 'var(--fg-subtle)' }} />}
@@ -3436,7 +3430,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
 
             {/* Right sidebar */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={panel}>
+                <div className="vp" style={panel}>
                     <div style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }} />
@@ -3459,7 +3453,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                         ))}
                     </div>
                 </div>
-                <div style={panel}>
+                <div className="vp" style={panel}>
                     <div style={{ padding: '14px 16px' }}>
                         <p style={{ ...S.label, marginBottom: 12 }}>Top Traders 24H</p>
                         {traders
@@ -3770,7 +3764,7 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
         letterSpacing: '0.06em', textTransform: 'uppercase', transition: 'all 0.15s',
     };
     return (
-        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 20, backdropFilter: 'blur(32px) saturate(1.6)', WebkitBackdropFilter: 'blur(32px) saturate(1.6)', overflow: 'hidden', marginBottom: 24 }}>
+        <div className="vp" style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 20, backdropFilter: 'blur(32px) saturate(1.6)', WebkitBackdropFilter: 'blur(32px) saturate(1.6)', overflow: 'hidden', marginBottom: 24 }}>
             {/* Banner */}
             <div className="velo-profile-banner" style={{ height: 160, width: '100%', position: 'relative', background: profile.banner ? '#000' : 'var(--holo-linear)', backgroundSize: '220% 100%', animation: profile.banner ? 'none' : 'holoSlide 14s linear infinite' }}>
                 {profile.banner && <img src={profile.banner} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""/>}

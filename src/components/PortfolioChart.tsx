@@ -21,9 +21,11 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Match the panel's glass-bg color so chart blends seamlessly.
-    // Light: rgba(255,255,255,0.58) over #F5F3EE ≈ #FAF9F7. Dark: panel is rgba(22,22,28,0.55) over #07070A ≈ #0D0D11.
-    const bgColor = theme === 'dark' ? '#0D0D11' : '#FAF9F7';
+    // Chart background: a soft violet-tinted gradient that blends with the glass panel
+    // and Velo's brand palette — neither stark white nor opaque dark.
+    const bgColor = theme === 'dark'
+      ? '#0e0d14'   // deep violet-tinted dark
+      : '#f5f3fb';  // soft lavender-white
     const colors = {
         background: bgColor,
         text: theme === 'dark' ? '#9ca3af' : '#50506a',
@@ -77,9 +79,9 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
     // crashing every animation frame and spamming the console. We hardcode
     // the rgba equivalent of `oklch(0.68 0.22 295)` (Velo iris violet) here.
     const series = chart.addSeries(AreaSeries, {
-        lineColor: 'rgb(153, 102, 255)',
-        topColor: 'rgba(153, 102, 255, 0.35)',
-        bottomColor: 'rgba(153, 102, 255, 0.0)',
+        lineColor: 'rgb(140, 90, 255)',
+        topColor: theme === 'dark' ? 'rgba(140, 90, 255, 0.45)' : 'rgba(120, 70, 240, 0.22)',
+        bottomColor: theme === 'dark' ? 'rgba(80, 40, 180, 0.05)' : 'rgba(140, 90, 255, 0.0)',
         lineWidth: 2,
     });
 

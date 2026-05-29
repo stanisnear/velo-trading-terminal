@@ -187,7 +187,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       {/* Top row */}
       <div className="dash-grid-main">
         {/* Portfolio card */}
-        <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: 320, background: 'linear-gradient(145deg, oklch(0.68 0.26 295 / 0.22) 0%, oklch(0.55 0.28 272 / 0.14) 45%, oklch(0.72 0.14 285 / 0.06) 100%), var(--glass-bg)', borderColor: 'oklch(0.68 0.22 295 / 0.30)' }}>
+        <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: 320 }}>
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
               <p style={{ ...S.label, marginBottom: 5 }}>Total Equity</p>
@@ -256,7 +256,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
         {/* Right column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Performance */}
-          <div style={{ ...panel, background: 'linear-gradient(145deg, oklch(0.74 0.18 50 / 0.14) 0%, oklch(0.65 0.20 40 / 0.06) 60%), var(--glass-bg)', borderColor: 'oklch(0.74 0.18 50 / 0.25)' }}>
+          <div style={panel}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <Ico3D bg={iconBg.orange}><Star size={13}/></Ico3D>
@@ -275,7 +275,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
 
           {/* On-chain account — reinforces Velo's "real, verifiable on-chain
               trades" narrative. Shows the trading wallet + a BaseScan link. */}
-          <div style={{ ...panel, flex: 1, background: 'linear-gradient(145deg, oklch(0.80 0.18 152 / 0.12) 0%, oklch(0.70 0.20 150 / 0.05) 60%), var(--glass-bg)', borderColor: 'oklch(0.80 0.18 152 / 0.22)' }}>
+          <div style={{ ...panel, flex: 1 }}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <Ico3D bg={iconBg.lime}><Link2 size={13}/></Ico3D>
@@ -312,7 +312,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
 
           {/* Margin & exposure — practical at-a-glance risk view, replaces the
               copy-trading signal stats that aren't in use yet. */}
-          <div style={{ ...panel, background: 'linear-gradient(145deg, oklch(0.72 0.22 330 / 0.14) 0%, oklch(0.65 0.24 320 / 0.06) 60%), var(--glass-bg)', borderColor: 'oklch(0.72 0.22 330 / 0.25)' }}>
+          <div style={panel}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <Ico3D bg={iconBg.magenta}><Activity size={13}/></Ico3D>
@@ -342,7 +342,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       </div>
 
       {/* Active Positions */}
-      <div style={{ ...panel, overflowX: 'auto', background: 'linear-gradient(145deg, oklch(0.68 0.26 295 / 0.10) 0%, oklch(0.55 0.28 272 / 0.04) 50%), var(--glass-bg)', borderColor: 'oklch(0.68 0.22 295 / 0.22)' }}>
+      <div style={{ ...panel, overflowX: 'auto' }}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <Ico3D bg={iconBg.violet}><Activity size={13}/></Ico3D>
@@ -438,7 +438,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       </div>
 
       {/* Recent Activity */}
-      <div style={{ ...panel, overflowX: 'auto', background: 'linear-gradient(145deg, oklch(0.88 0.10 255 / 0.12) 0%, oklch(0.75 0.14 248 / 0.05) 50%), var(--glass-bg)', borderColor: 'oklch(0.88 0.10 255 / 0.25)' }}>
+      <div style={{ ...panel, overflowX: 'auto' }}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: 9 }}>
           <Ico3D bg={iconBg.cyan}><History size={13}/></Ico3D>
           <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Recent Activity</span>
