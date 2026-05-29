@@ -6041,13 +6041,54 @@ const App = () => {
         });
 
         if (filledOrders.length > 0) {
-            // Batch updates to avoid race conditions
+            // ── On-chain positions: delegate to the contract close path ──────
+            // For positions backed by VeloPerps on-chain (id = "velo_<tradeId>"),
+            // the simulation layer must NOT wipe them from local state — that would
+            // clear the position before the on-chain close lands. Instead, fire the
+            // same on-chain close path the "Close 100%" button uses.
+            closedPositions.forEach(posId => {
+                if (posId.startsWith('velo_')) {
+                    setOpenOrders(prev => prev.filter(o => !filledOrders.includes(o.id) && o.relatedPositionId !== posId));
+                    const pos = positions.find(p => p.id === posId);
+                    if (pos) {
+                        const tradeIdStr = posId.slice('velo_'.length);
+                        const tradeId = BigInt(tradeIdStr);
+                        const veloPair = uiPairToVeloPair(pos.pair);
+                        if (veloPair) {
+                            veloPerpsTrading.closePosition(tradeId, veloPair).then((result: any) => {
+                                const enrichedClose: TradeHistoryItem = {
+                                    id: `close_tp_${posId}_${Date.now()}`,
+                                    pair: pos.pair, side: pos.side,
+                                    entryPrice: pos.entryPrice,
+                                    exitPrice: result.exitPrice || marketPrices[pos.pair] || pos.entryPrice,
+                                    size: pos.size, pnl: result.pnlUSDC,
+                                    timestamp: Date.now(), openedAt: pos.timestamp,
+                                    leverage: pos.leverage, marginMode: pos.marginMode,
+                                    liquidationPrice: pos.liquidationPrice,
+                                    action: 'CLOSE', onChain: true,
+                                } as any;
+                                setUser((prevUser: any) => {
+                                    if (!prevUser) return null;
+                                    const margin = pos.size / pos.leverage;
+                                    return { ...prevUser, balance: prevUser.balance + result.pnlUSDC + margin, realizedPnL: prevUser.realizedPnL + result.pnlUSDC, tradeHistory: [enrichedClose, ...prevUser.tradeHistory] };
+                                });
+                                if (isSupabaseConfigured() && user) insertTradeHistory(user.id, enrichedClose).catch((e: any) => console.warn('[velo] TP/SL history failed:', e));
+                            }).catch((e: any) => console.warn('[velo] TP/SL on-chain close failed:', e?.shortMessage || e?.message));
+                        }
+                    }
+                }
+            });
+
+            // ── Simulation-only positions: close in local state ───────────────
+            const simClosedPositions = closedPositions.filter(id => !id.startsWith('velo_'));
+            if (simClosedPositions.length === 0) return;
+
             let updatedOrders = openOrders.filter(o => !filledOrders.includes(o.id));
             let updatedPositions = positions;
             let pnlUpdate = 0;
             let historyUpdate: TradeHistoryItem[] = [];
 
-            closedPositions.forEach(posId => {
+            simClosedPositions.forEach(posId => {
                 const pos = positions.find(p => p.id === posId);
                 if (pos) {
                     const closePrice = marketPrices[pos.pair] || pos.entryPrice;
@@ -6088,20 +6129,16 @@ const App = () => {
             // Persist closed positions to Supabase
             if (isSupabaseConfigured()) {
                 // Register own deletes so realtime onDelete skips them.
-                closedPositions.forEach(posId => {
+                simClosedPositions.forEach(posId => {
                     ownDeletedPositionIds.current.add(posId);
                     setTimeout(() => ownDeletedPositionIds.current.delete(posId), 15000);
                 });
-                closedPositions.forEach(posId => supabaseDeletePosition(posId).catch(() => {}));
-                closedPositions.forEach(posId => deleteOrdersForPosition(posId).catch(() => {}));
+                simClosedPositions.forEach(posId => supabaseDeletePosition(posId).catch(() => {}));
+                simClosedPositions.forEach(posId => deleteOrdersForPosition(posId).catch(() => {}));
             }
             
             if (user && (pnlUpdate !== 0 || historyUpdate.length > 0)) {
-                 // Compute returnedMargin from the pre-filtered positions snapshot captured
-                 // at the start of this effect run — NOT from the stale `positions` closure.
-                 // `closedPositions` and the original `positions` are both from this same
-                 // useEffect invocation, so they're consistent with each other.
-                 const returnedMargin = closedPositions.reduce((acc, posId) => {
+                 const returnedMargin = simClosedPositions.reduce((acc, posId) => {
                      const p = positions.find(x => x.id === posId);
                      return p ? acc + (p.size / p.leverage) : acc;
                  }, 0);
