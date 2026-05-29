@@ -238,31 +238,43 @@ export const OrderDetailsModal = ({
 
   if (payload.kind === 'HISTORY') {
     const t          = payload.item;
+    const isOpenEntry = (t as any).action === 'OPEN';
     const leverage   = t.leverage || 0;
     const marginUsed = leverage > 0 ? t.size / leverage : 0;
     const pnlPct     = marginUsed > 0 ? (t.pnl / marginUsed) * 100 : 0;
-    const priceMove  = t.entryPrice > 0 ? ((t.exitPrice - t.entryPrice) / t.entryPrice) * 100 : 0;
+    const priceMove  = (!isOpenEntry && t.entryPrice > 0) ? ((t.exitPrice - t.entryPrice) / t.entryPrice) * 100 : 0;
     const durationMs = t.openedAt ? Math.max(0, t.timestamp - t.openedAt) : 0;
     const pnlUp      = t.pnl >= 0;
 
     hero = (
-      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: pnlUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)' }}>
-        <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Realized PnL</div>
-        <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-          {pnlUp ? '+' : ''}${formatMoney(t.pnl)}
-        </div>
-        {marginUsed > 0 && (
-          <div style={{ ...S.mono, fontSize: 11, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3, opacity: 0.85 }}>
-            {pnlUp ? '+' : ''}{pnlPct.toFixed(2)}% on margin
-          </div>
+      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: isOpenEntry ? 'rgba(99,102,241,0.06)' : (pnlUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)') }}>
+        {isOpenEntry ? (
+          <>
+            <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Position Opened</div>
+            <div style={{ ...S.mono, fontSize: isSmall ? 22 : 26, fontWeight: 700, color: 'var(--pnl-up)' }}>
+              {t.side} @ ${formatPrice(t.entryPrice)}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Realized PnL</div>
+            <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
+              {pnlUp ? '+' : ''}${formatMoney(t.pnl)}
+            </div>
+            {marginUsed > 0 && (
+              <div style={{ ...S.mono, fontSize: 11, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3, opacity: 0.85 }}>
+                {pnlUp ? '+' : ''}{pnlPct.toFixed(2)}% on margin
+              </div>
+            )}
+          </>
         )}
       </div>
     );
     body = (
       <>
         <R label="Entry Price"   value={`$${formatPrice(t.entryPrice)}`}   tip="The average price at which this position was opened." />
-        <R label="Exit Price"    value={`$${formatPrice(t.exitPrice)}`}    tip="The price at which the position was closed." />
-        <R label="Price Change"  value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in price from entry to exit." />
+        {!isOpenEntry && <R label="Exit Price"    value={`$${formatPrice(t.exitPrice)}`}    tip="The price at which the position was closed." />}
+        {!isOpenEntry && <R label="Price Change"  value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in price from entry to exit." />}
         <R label="Position Size" value={`$${formatMoney(t.size)}`}         tip="Total notional value of the position (margin × leverage)." />
         {leverage > 0 && <R label="Leverage"    value={`${leverage}×`}                   tip="Multiplier applied to your margin. Higher leverage = larger position but faster liquidation." />}
         {leverage > 0 && <R label="Margin Used" value={`$${formatMoney(marginUsed)}`}    tip="The collateral committed to this trade (size ÷ leverage)." />}

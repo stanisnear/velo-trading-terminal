@@ -4952,20 +4952,53 @@ const App = () => {
       const filledEntries = [...prev.entries()].filter(([id]) => !currentIds.has(id));
 
       if (filledEntries.length > 0) {
+        // Build a lookup of newly-appeared positions by pair+side so we can
+        // grab the real on-chain entry price and tx hash the keeper stored.
+        let openTxMap: Record<string, string> = {};
+        try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
+
+        const newPositionsByKey = new Map<string, typeof veloPerpsTrading.openPositions[0]>();
+        veloPerpsTrading.openPositions.forEach(p => {
+          const key = `${p.pair.replace('-', '/')}:${p.isLong ? 'LONG' : 'SHORT'}`;
+          // Keep the most recently opened one (lowest createdAt diff)
+          const existing = newPositionsByKey.get(key);
+          if (!existing || p.openedAt > existing.openedAt) {
+            newPositionsByKey.set(key, p);
+          }
+        });
+
         filledEntries.forEach(([id, order]) => {
-          const fillPrice = marketPrices[order.pair] || order.price;
+          // Use the actual on-chain entry price from the newly appeared position.
+          // Fall back to trigger price only if we can't match a position (rare race).
+          const matchKey = `${order.pair}:${order.side}`;
+          const matchedPos = newPositionsByKey.get(matchKey);
+          const fillPrice = (matchedPos && matchedPos.entryPrice > 0)
+            ? matchedPos.entryPrice
+            : (marketPrices[order.pair] || order.price);
+
+          // Get the tx hash from the matched position or the openTxMap
+          const tradeIdKey = matchedPos ? matchedPos.tradeId.toString() : undefined;
+          const rawTxHash = matchedPos?.openTxHash || (tradeIdKey ? openTxMap[tradeIdKey] : undefined);
+          const txHash = rawTxHash && !rawTxHash.startsWith('http') ? rawTxHash : undefined;
+          const explorerUrl = rawTxHash
+            ? (rawTxHash.startsWith('http') ? rawTxHash : `https://sepolia.basescan.org/tx/${rawTxHash}`)
+            : undefined;
+
           const historyItem: TradeHistoryItem = {
             id: `filled_limit_${id}_${Date.now()}`,
             pair: order.pair,
             side: order.side as any,
             entryPrice: fillPrice,
-            exitPrice: 0,
+            exitPrice: fillPrice, // same as entry — position is OPEN, not yet closed
             size: order.size,
             pnl: 0,
             timestamp: Date.now(),
             action: 'OPEN',
             leverage: order.leverage,
             onChain: true,
+            txHash,
+            orderlyOrderUrl: explorerUrl,
+            openedAt: matchedPos ? matchedPos.openedAt * 1000 : Date.now(),
           } as any;
 
           // Add to local history
@@ -4982,7 +5015,7 @@ const App = () => {
             insertTradeHistory(user.id, historyItem).catch(e => console.warn('[velo] filled limit order history failed:', e));
           }
 
-          // Toast notification
+          // Toast notification — uses real fill price
           const msg = `${order.type} order filled: ${order.side} ${order.pair} @ $${fillPrice.toFixed(2)}`;
           setToast({ message: msg, type: 'SUCCESS' });
 
@@ -5008,7 +5041,7 @@ const App = () => {
       });
       prevConditionalOrdersRef.current = nextMap;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading]);
+    }, [veloPerpsTrading.conditionalOrders, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
 
     // Reset the dismiss flag on logout so a different account triggers onboarding again.
