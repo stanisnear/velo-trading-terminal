@@ -5842,95 +5842,100 @@ const App = () => {
         return () => { supabase.removeChannel(channel); };
     }, []);
 
-    // ── Initial data load: everything from Supabase, nothing from localStorage ──
+    // Helper: retry wrapper for transient empty/failed Supabase reads
+    const withRetry = useCallback(async <T,>(fn: () => Promise<T>, isEmpty: (r: T) => boolean, tries = 3): Promise<T> => {
+        let last = await fn().catch(() => null as unknown as T);
+        for (let i = 1; i < tries && (last == null || isEmpty(last)); i++) {
+            await new Promise(r => setTimeout(r, 1500 * i));
+            last = await fn().catch(() => last);
+        }
+        return last;
+    }, []);
+
+    // Shared social data loader — fetches traders + posts. Called on mount and
+    // again after auth completes if data is still empty (fixes the race where
+    // the initial fetch fires before the JWT is active).
+    const loadSocialData = useCallback(async () => {
+        if (!isSupabaseConfigured()) return;
+        withRetry(() => fetchAllProfiles(100), (r: any) => !r?.data || r.data.length === 0).then(async (result: any) => {
+            const profiles = result?.data;
+            if (profiles && profiles.length > 0) {
+                const { data: allFollows } = await supabase.from('follows').select('follower_id, following_id');
+                const followsData = allFollows || [];
+                const profileIds = profiles.map((p: any) => p.id);
+                const { data: allTradeHistory } = await supabase
+                    .from('trade_history')
+                    .select('user_id, pnl, action')
+                    .in('user_id', profileIds);
+                const tradeHistoryMap: Record<string, { pnl: number; action: string }[]> = {};
+                (allTradeHistory || []).forEach((t: any) => {
+                    if (!tradeHistoryMap[t.user_id]) tradeHistoryMap[t.user_id] = [];
+                    tradeHistoryMap[t.user_id].push(t);
+                });
+                const realTraders: Trader[] = profiles.map((p: any): Trader => {
+                    const followerIds = followsData.filter((f: any) => f.following_id === p.id).map((f: any) => f.follower_id);
+                    const followingIds = followsData.filter((f: any) => f.follower_id === p.id).map((f: any) => f.following_id);
+                    const trades = tradeHistoryMap[p.id] || [];
+                    const closedTrades = trades.filter((t: any) => t.action === 'CLOSE');
+                    const wins = closedTrades.filter((t: any) => t.pnl > 0).length;
+                    const computedWinRate = closedTrades.length > 0
+                        ? (wins / closedTrades.length) * 100
+                        : (p.win_rate || 0);
+                    return {
+                        id: p.id,
+                        handle:   p.handle     || `@${p.username}`,
+                        username: p.username   || 'Trader',
+                        bio:      p.bio        || '',
+                        avatar:   p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`,
+                        banner:   p.banner_url || '',
+                        pnl:      p.pnl_total  || 0,
+                        followers:       followerIds,
+                        following:       followingIds,
+                        veloRewards:     p.velo_rewards || 0,
+                        winRate:         computedWinRate,
+                        activePositions: [],
+                        isPrivate:       false,
+                        joinedDate:      p.created_at || new Date().toISOString(),
+                        walletAddress:   p.wallet_address || null,
+                        authMethod:      p.auth_method    || null,
+                    };
+                });
+                setTraders(realTraders);
+            }
+        }).catch((e: any) => console.warn('Failed to load profiles:', e));
+
+        withRetry(() => fetchPosts(50), (p: any) => !p || p.length === 0).then((posts: any) => {
+            if (posts && posts.length > 0) setPosts(posts);
+        }).catch((e: any) => console.warn('Failed to load posts:', e));
+    }, [withRetry]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Initial data load: prices, candles, and social ──
     useEffect(() => {
-        // Fetch real prices from Binance/CoinGecko REST
         fetchRealPrices().then(({ prices: realPrices, changes: realChanges }) => {
             const merged: Record<string, number> = {};
             PAIRS.forEach(p => { merged[p.id] = realPrices[p.id] || p.basePrice; });
             setMarketPrices(merged);
             setMarketChanges(realChanges || {});
         });
-
-        // Eagerly load real OHLCV candles for the default active pair.
-        // Other pairs load on demand when the user switches to them.
         fetchKlines(PAIRS[0].id, '15m').then(klineCandles => {
             if (klineCandles.length > 0) {
                 setCandles(prev => ({ ...prev, [PAIRS[0].id]: klineCandles }));
             }
         });
-
-        // Load all public profiles → traders list (real users only)
         if (isSupabaseConfigured()) {
-            // Retry transient empty/failed reads (burst load, or a brief token-
-            // refresh window) so social + leaderboard self-heal without a relog.
-            const withRetry = async <T,>(fn: () => Promise<T>, isEmpty: (r: T) => boolean, tries = 3): Promise<T> => {
-                let last = await fn().catch(() => null as unknown as T);
-                for (let i = 1; i < tries && (last == null || isEmpty(last)); i++) {
-                    await new Promise(r => setTimeout(r, 1500 * i));
-                    last = await fn().catch(() => last);
-                }
-                return last;
-            };
-            withRetry(() => fetchAllProfiles(100), (r: any) => !r?.data || r.data.length === 0).then(async ({ data: profiles }) => {
-                if (profiles && profiles.length > 0) {
-                    // Load all follows to hydrate follower/following arrays
-                    const { data: allFollows } = await supabase.from('follows').select('follower_id, following_id');
-                    const followsData = allFollows || [];
-
-                    // Load trade history for ALL traders to compute accurate win rates
-                    const profileIds = profiles.map((p: any) => p.id);
-                    const { data: allTradeHistory } = await supabase
-                        .from('trade_history')
-                        .select('user_id, pnl, action')
-                        .in('user_id', profileIds);
-                    const tradeHistoryMap: Record<string, { pnl: number; action: string }[]> = {};
-                    (allTradeHistory || []).forEach((t: any) => {
-                        if (!tradeHistoryMap[t.user_id]) tradeHistoryMap[t.user_id] = [];
-                        tradeHistoryMap[t.user_id].push(t);
-                    });
-
-                    const realTraders: Trader[] = profiles.map((p: any): Trader => {
-                        const followerIds = followsData.filter((f: any) => f.following_id === p.id).map((f: any) => f.follower_id);
-                        const followingIds = followsData.filter((f: any) => f.follower_id === p.id).map((f: any) => f.following_id);
-                        // Compute win rate from actual trade history — never trust stale DB column alone
-                        const trades = tradeHistoryMap[p.id] || [];
-                        const closedTrades = trades.filter(t => t.action === 'CLOSE');
-                        const wins = closedTrades.filter(t => t.pnl > 0).length;
-                        const computedWinRate = closedTrades.length > 0
-                            ? (wins / closedTrades.length) * 100
-                            : (p.win_rate || 0); // fall back to DB column if no history yet
-                        return {
-                            id: p.id,
-                            handle:   p.handle     || `@${p.username}`,
-                            username: p.username   || 'Trader',
-                            bio:      p.bio        || '',
-                            avatar:   p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`,
-                            banner:   p.banner_url || '',
-                            pnl:      p.pnl_total  || 0,
-                            followers:       followerIds,
-                            following:       followingIds,
-                            veloRewards:     p.velo_rewards || 0,
-                            winRate:         computedWinRate,
-                            activePositions: [],
-                            isPrivate:       false,
-                            joinedDate:      p.created_at || new Date().toISOString(),
-                            // Wallet identity (build 79+) — used by the leaderboard
-                            // to filter out demo (email-only) accounts. NULL for demo.
-                            walletAddress:   p.wallet_address || null,
-                            authMethod:      p.auth_method    || null,
-                        };
-                    });
-                    setTraders(realTraders);
-                }
-            }).catch(e => console.warn('Failed to load profiles:', e));
-
-            // Load posts
-            withRetry(() => fetchPosts(50), (p: any) => !p || p.length === 0).then(posts => {
-                if (posts.length > 0) setPosts(posts);
-            }).catch(e => console.warn('Failed to load posts:', e));
+            loadSocialData();
         }
-    }, []);
+    }, [loadSocialData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // After auth resolves (session restore completes), re-fetch social data if
+    // it came back empty — this fixes the race where the mount-time fetch fired
+    // before the Supabase JWT was active, causing RLS to block the read.
+    useEffect(() => {
+        if (!authChecked) return;
+        if (traders.length === 0 || posts.length === 0) {
+            loadSocialData();
+        }
+    }, [authChecked]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // --- Liquidation Monitoring Effect ---
     useEffect(() => {
