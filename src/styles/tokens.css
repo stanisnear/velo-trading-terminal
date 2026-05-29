@@ -253,7 +253,7 @@ html.light iframe[id*="tradingview"] {
   background: #f0eef8 !important;
 }
 
-/* ── Mobile content offset: navbar is 60px flush, not 84px floating ──────── */
+/* ── Mobile content offset: navbar is 60px flush, not 72px floating ──────── */
 @media (max-width: 768px) {
   main.velo-main {
     padding-top: 68px !important;

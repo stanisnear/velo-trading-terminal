@@ -180,7 +180,12 @@ function readSessionCache(): any | null {
 
 function writeSessionCache(user: any): void {
   try {
-    // Store only what's needed to render the UI immediately
+    // Persist recent activity so it survives page refresh without waiting for
+    // async DB fetches. Cap at 50 rows each to keep localStorage small (~20KB).
+    // The DB fetch in restoreSession remains authoritative and merges on top.
+    const tradeHistory = (user.tradeHistory || []).slice(0, 50);
+    const transactionHistory = (user.transactionHistory || []).slice(0, 50);
+    const pnlHistory = (user.pnlHistory || []).slice(0, 50);
     const snapshot = {
       id: user.id,
       username: user.username,
@@ -200,9 +205,9 @@ function writeSessionCache(user: any): void {
       copying: user.copying || [],
       copierCount: user.copierCount || 0,
       earnedFees: user.earnedFees || 0,
-      tradeHistory: [],
-      transactionHistory: [],
-      pnlHistory: [],
+      tradeHistory,
+      transactionHistory,
+      pnlHistory,
       likes: [],
       reposts: [],
       _cachedAt: Date.now(),
@@ -1050,7 +1055,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
         <nav
             style={{
                 position: 'fixed',
-                top: 'var(--nav-top, 12px)',
+                top: 'var(--nav-top, 4px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: anyModalOpen ? 1 : 30,
@@ -1061,12 +1066,12 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 gridTemplateColumns: 'auto 1fr auto',
                 alignItems: 'center',
                 gap: 14,
-                border: '1px solid var(--hr)',
-                borderRadius: 20,
-                background: 'var(--glass-2)',
-                backdropFilter: 'blur(28px) saturate(1.4)',
-                WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
-                boxShadow: 'var(--glass-shadow)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 18,
+                background: 'rgba(10, 11, 18, 0.45)',
+                backdropFilter: 'blur(40px) saturate(1.8)',
+                WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
+                boxShadow: '0 1px 0 rgba(255,255,255,0.07) inset, 0 -1px 0 rgba(0,0,0,0.18) inset, 0 8px 32px -8px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)',
             }}
             className="navbar-container"
         >
@@ -8831,8 +8836,8 @@ const App = () => {
                         }, 500);
                     }
                 }} totalEquity={totalEquity}/>
-            {/* Main content — top offset for fixed navbar (60px height + 12px gap + 12px top = 84px) */}
-            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 84 : 'calc(84px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+            {/* Main content — top offset for fixed navbar (60px height + 4px top + 8px gap = 72px) */}
+            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 72 : 'calc(72px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
