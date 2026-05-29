@@ -456,26 +456,10 @@ const IndicatorConfigModal = ({ indicatorId, onConfirm, onCancel }: { indicatorI
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Chart Overlays Toggle Panel
-// Toggles for entry, TP, SL, liquidation, position lines on chart
-// ─────────────────────────────────────────────────────────────────────────────
-const OverlayToggle = ({ label, color, checked, onChange }: { label: string; color: string; checked: boolean; onChange: () => void }) => (
-    <button onClick={onChange} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: 'none', background: 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left' as const,
-        transition: 'background 0.1s' }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-bg)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-        <div style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${checked ? color : 'var(--hairline-strong)'}`, background: checked ? color + '22' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {checked && <div style={{ width: 6, height: 6, borderRadius: 2, background: color }} />}
-        </div>
-        <div style={{ width: 3, height: 3, borderRadius: '50%', background: color, flexShrink: 0 }} />
-        <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: checked ? 'var(--fg)' : 'var(--fg-subtle)' }}>{label}</span>
-    </button>
-);
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Chart toolbar (desktop)
 // ─────────────────────────────────────────────────────────────────────────────
-const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, chartStyle, setChartStyle, showInd, setShowInd, showCandle, setShowCandle, indRef, candleRef, onPairClick, onIndicatorConfig, overlays, onOverlayToggle, showOverlays, setShowOverlays, overlaysRef, isMobile }: any) => (
+const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, chartStyle, setChartStyle, showInd, setShowInd, showCandle, setShowCandle, indRef, candleRef, onPairClick, onIndicatorConfig, isMobile }: any) => (
     <div style={{ flexShrink: 0, padding: isMobile ? '5px 10px' : '7px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', borderBottom: '1px solid var(--hairline)', position: 'relative', zIndex: 40, overflow: 'visible', flexWrap: isMobile ? 'wrap' as const : 'nowrap' as const, gap: isMobile ? 6 : 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexWrap: 'nowrap' }}>
             {/* Pair selector — desktop only (mobile has its own header) */}
@@ -489,24 +473,6 @@ const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, char
             <TfSelector tf={tf} setTf={setTf} isMobile={isMobile} />
         </div>
         <div style={{ display: 'flex', gap: isMobile ? 4 : 5, alignItems: 'center' }}>
-            {/* Chart overlays toggle */}
-            <div ref={overlaysRef} style={{ position: 'relative' }}>
-                <button onClick={() => { setShowOverlays((v: boolean) => !v); setShowInd(false); setShowCandle(false); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: `1px solid ${Object.values(overlays).some(Boolean) ? 'rgba(249,115,22,0.5)' : 'var(--hairline-strong)'}`, background: Object.values(overlays).some(Boolean) ? 'rgba(249,115,22,0.07)' : 'transparent', color: Object.values(overlays).some(Boolean) ? '#f97316' : 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: isMobile ? 9 : 10, transition: 'all 0.12s' }}>
-                    Overlays
-                </button>
-                {showOverlays && (
-                    <DropPanel>
-                        <div style={{ ...S.label, fontSize: 9, padding: '6px 10px 4px', background: 'var(--chip-bg)' }}>Chart Lines</div>
-                        <OverlayToggle label="Entry Price" color="#a78bfa" checked={overlays.entry} onChange={() => onOverlayToggle('entry')} />
-                        <OverlayToggle label="Take Profit" color="#4ade80" checked={overlays.tp} onChange={() => onOverlayToggle('tp')} />
-                        <OverlayToggle label="Stop Loss"   color="#f87171" checked={overlays.sl} onChange={() => onOverlayToggle('sl')} />
-                        <OverlayToggle label="Liq. Price"  color="#f97316" checked={overlays.liq} onChange={() => onOverlayToggle('liq')} />
-                        <div style={{ ...S.label, fontSize: 9, padding: '6px 10px 4px', background: 'var(--chip-bg)', marginTop: 2 }}>Info</div>
-                        <OverlayToggle label="Open Position" color="#60a5fa" checked={overlays.openPos} onChange={() => onOverlayToggle('openPos')} />
-                    </DropPanel>
-                )}
-            </div>
-
             {/* Indicators dropdown */}
             <div ref={indRef} style={{ position: 'relative' }}>
                 <button onClick={() => { setShowInd((v: boolean) => !v); setShowCandle(false); setShowOverlays(false); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: `1px solid ${indicators.length > 0 ? 'var(--iris-violet)' : 'var(--hairline-strong)'}`, background: indicators.length > 0 ? 'rgba(107,70,255,0.08)' : 'transparent', color: indicators.length > 0 ? 'var(--iris-violet)' : 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: isMobile ? 9 : 10, transition: 'all 0.12s' }}>
@@ -1275,12 +1241,12 @@ export const TradeView = ({
     const [indicators, setIndicators] = useState<string[]>(savedChartPrefs?.indicators || []);
     const [showInd, setShowInd]           = useState(false);
     const [showCandle, setShowCandle]     = useState(false);
-    const [showOverlays, setShowOverlays] = useState(false);
+    // overlays removed — lines were unreliable; chart renders clean
     const [indConfigId, setIndConfigId]   = useState<string | null>(null);
-    const [overlays, setOverlays]         = useState(savedChartPrefs?.overlays || { entry: true, tp: true, sl: true, liq: true, openPos: true });
+    // overlays disabled
     const indRef      = useRef<HTMLDivElement>(null);
     const candleRef   = useRef<HTMLDivElement>(null);
-    const overlaysRef = useRef<HTMLDivElement>(null);
+    // overlaysRef removed
     const [isMobile, setIsMobile]         = useState(false);
 
     useEffect(() => {
@@ -1293,7 +1259,6 @@ export const TradeView = ({
         const h = (e: MouseEvent) => {
             if (indRef.current && !indRef.current.contains(e.target as Node)) setShowInd(false);
             if (candleRef.current && !candleRef.current.contains(e.target as Node)) setShowCandle(false);
-            if (overlaysRef.current && !overlaysRef.current.contains(e.target as Node)) setShowOverlays(false);
         };
         document.addEventListener('mousedown', h);
         return () => document.removeEventListener('mousedown', h);
@@ -1391,11 +1356,6 @@ export const TradeView = ({
         return next;
     });
     const handleTfChange  = (t: string) => { setTf(t); onTimeframeChange?.(t); onChartPrefsChange?.({ chartTf: t }); };
-    const onOverlayToggle = (key: string) => setOverlays((p: any) => {
-        const next = { ...p, [key]: !p[key] };
-        onChartPrefsChange?.({ overlays: next });
-        return next;
-    });
     const onIndicatorConfig = (id: string) => { setIndConfigId(id); setShowInd(false); };
     const onIndicatorConfirm = (id: string) => { toggleIndicator(id); setIndConfigId(null); };
 
@@ -1554,9 +1514,7 @@ export const TradeView = ({
                     chartStyle={chartStyle} setChartStyle={(s: any) => { setChartStyle(s); onChartPrefsChange?.({ chartStyle: s }); }}
                     showInd={showInd} setShowInd={setShowInd}
                     showCandle={showCandle} setShowCandle={setShowCandle}
-                    showOverlays={showOverlays} setShowOverlays={setShowOverlays}
-                    overlays={overlays} onOverlayToggle={onOverlayToggle}
-                    indRef={indRef} candleRef={candleRef} overlaysRef={overlaysRef}
+                    indRef={indRef} candleRef={candleRef}
                     onPairClick={() => setPairOpen(true)}
                     onIndicatorConfig={onIndicatorConfig}
                     isMobile={isMobile}
@@ -1574,10 +1532,10 @@ export const TradeView = ({
                         externalTimeframe={tf}
                         externalChartStyle={chartStyle}
                         externalIndicators={indicators}
-                        showEntryLine={overlays.entry}
-                        showTPLine={overlays.tp}
-                        showSLLine={overlays.sl}
-                        showLiqLine={overlays.liq}
+                        showEntryLine={false}
+                        showTPLine={false}
+                        showSLLine={false}
+                        showLiqLine={false}
                         liqPrice={estLiqPrice > 0 ? estLiqPrice : undefined}
                     />
                 </div>

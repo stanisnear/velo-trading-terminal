@@ -175,7 +175,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
   });
 
   return (
-    <div style={{ width: '100%', maxWidth: 1360, margin: '0 auto', paddingBottom: 80 }} className="animate-fade-in">
+    <div style={{ width: '100%', maxWidth: 1360, margin: '0 auto', paddingBottom: 80, paddingLeft: 16, paddingRight: 16 }} className="animate-fade-in">
 
       {/* Responsive styles */}
       <style>{`
@@ -225,7 +225,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           { label: 'Gainers',       value: String(gainers),        icon: <TrendingUp size={13}/>,   color: 'var(--pnl-up)' },
           { label: 'Losers',        value: String(losers),         icon: <TrendingDown size={13}/>, color: 'var(--pnl-down)' },
         ].map(s => (
-          <div key={s.label} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 12, backdropFilter: 'blur(20px)', padding: '10px 14px' }}>
+          <div key={s.label} className="vp" style={{ borderRadius: 14, padding: '10px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4, color: s.color }}>{s.icon}<span style={{ ...S.label, fontSize: 9, color: 'inherit' }}>{s.label}</span></div>
             <div style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: s.color }}>{s.value}</div>
           </div>
@@ -262,7 +262,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
       </div>
 
       {/* Table */}
-      <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(24px)', overflow: 'clip' }}>
+      <div className="vp" style={{ borderRadius: 18, overflow: 'clip' }}>
 
         {/* Header */}
         <div className="mk-hdr">

@@ -3323,24 +3323,56 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                 />
             ) : (
             <div className="social-feed-grid">
-            {/* Left sidebar */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Left sidebar — discovery panel */}
+            <div className="social-feed-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                {/* Trending */}
                 <div className="vp" style={panel}>
                     <div style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }} />
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block', boxShadow: '0 0 8px var(--iris-violet)' }} />
                             <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>Trending</span>
                         </div>
                         {trendingTopics.length === 0 ? (
                             <p style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', padding: '8px 0' }}>No trending topics yet</p>
                         ) : trendingTopics.map((t, i) => (
-                            <div key={t.tag} onClick={() => { const sym = t.tag.startsWith('$') ? t.tag.slice(1) : null; if (sym) setActiveTickerWithURL(sym); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < trendingTopics.length - 1 ? '1px solid var(--hairline)' : 'none', cursor: t.tag.startsWith('$') ? 'pointer' : 'default' }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--iris-violet)', cursor: t.tag.startsWith('$') ? 'pointer' : 'default', fontWeight: 600 }}>{t.tag}</span>
+                            <div key={t.tag} onClick={() => { const sym = t.tag.startsWith('$') ? t.tag.slice(1) : null; if (sym) setActiveTickerWithURL(sym); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < trendingTopics.length - 1 ? '1px solid var(--hairline)' : 'none', cursor: t.tag.startsWith('$') ? 'pointer' : 'default', transition: 'opacity 0.12s' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--fg-subtle)', minWidth: 16 }}>#{i+1}</span>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--iris-violet)', fontWeight: 600 }}>{t.tag}</span>
+                                </div>
                                 <span style={{ ...S.label, fontSize: 9 }}>{t.count} {Number(t.count) === 1 ? 'post' : 'posts'}</span>
                             </div>
                         ))}
                     </div>
                 </div>
+
+                {/* Who to follow */}
+                <div className="vp" style={panel}>
+                    <div style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block', boxShadow: '0 0 8px var(--iris-violet)' }} />
+                            <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>Who to follow</span>
+                        </div>
+                        {traders.filter((t: any) => t.id !== user?.id).slice(0, 4).map((t: any) => (
+                            <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => onViewProfile(t)}>
+                                    <img src={t.avatar} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
+                                    <div>
+                                        <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 13, color: 'var(--fg)', letterSpacing: '-0.01em', margin: 0 }}>{t.username}</p>
+                                        <p style={{ ...S.label, fontSize: 9, margin: 0 }}>{t.handle}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => handleFollow(t.id)}
+                                    style={{ padding: '4px 11px', borderRadius: 20, border: '1px solid var(--hairline-strong)', background: user?.following?.includes(t.id) ? 'var(--chip-bg)' : 'oklch(0.55 0.24 295/0.12)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: user?.following?.includes(t.id) ? 'var(--fg-muted)' : 'var(--iris-violet)', cursor: 'pointer', transition: 'all 0.1s' }}>
+                                    {user?.following?.includes(t.id) ? 'Following' : 'Follow'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Copytrade Live Signals */}
                 <div className="vp" style={panel}>
                     <div style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -3357,9 +3389,38 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                         ))}
                     </div>
                 </div>
+
+                {/* Top Traders 24H */}
+                <div className="vp" style={panel}>
+                    <div style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block', boxShadow: '0 0 8px var(--iris-violet)' }} />
+                            <span style={{ ...S.label }}>Top Traders 24H</span>
+                        </div>
+                        {traders
+                            .filter((t: any) => t.id !== user?.id)
+                            .sort((a: any, b: any) => b.pnl - a.pnl)
+                            .slice(0, 5)
+                            .map((t: any, i: number) => (
+                                <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < 4 ? '1px solid var(--hairline)' : 'none', cursor: 'pointer' }}
+                                    onClick={() => onViewProfile(t)}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, color: 'var(--fg-subtle)', minWidth: 14 }}>#{i+1}</span>
+                                        <img src={t.avatar} style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)' }}>{t.username}</span>
+                                    </div>
+                                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.pnl >= 0 ? '+' : ''}${Math.abs(t.pnl).toFixed(0)}</span>
+                                </div>
+                            ))}
+                        {traders.filter((t: any) => t.id !== user?.id).length === 0 && (
+                            <p style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', padding: '8px 0' }}>No traders yet</p>
+                        )}
+                    </div>
+                </div>
+
             </div>
 
-            {/* Feed */}
+            {/* Right — tokens strip + compose + feed */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* Top Tokens Bar */}
                 <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} />
@@ -3397,13 +3458,15 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                 </div>
 
                 {/* Filter tabs */}
-                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--hairline)' }}>
-                    {['LATEST','TRENDING','FOLLOWING','SIGNALS'].map(f => (
-                        <button key={f} onClick={() => setFilter(f as any)}
-                            style={{ padding: '8px 16px', border: 'none', background: 'transparent', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--fg)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s', marginBottom: -1 }}>
-                            {f}
-                        </button>
-                    ))}
+                <div className="vp" style={{ ...panel, padding: 0, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', gap: 0 }}>
+                        {['LATEST','TRENDING','FOLLOWING','SIGNALS'].map(f => (
+                            <button key={f} onClick={() => setFilter(f as any)}
+                                style={{ flex: 1, padding: '11px 8px', border: 'none', background: filter === f ? 'oklch(0.55 0.24 295/0.10)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--iris-violet)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s' }}>
+                                {f}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Posts */}
@@ -3417,7 +3480,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                         </p>
                         <p style={{ ...S.label, fontSize: 10 }}>
                             {filter === 'SIGNALS' ? 'Traders publishing signals will show up here.'
-                                : filter === 'FOLLOWING' ? 'Check "Who to follow" on the right.'
+                                : filter === 'FOLLOWING' ? 'Follow traders from the sidebar.'
                                 : 'Markets move. So should the feed.'}
                         </p>
                     </div>
@@ -3426,55 +3489,6 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                         <PostCard post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={setActiveTickerWithURL} defaultOpenComments={forceOpenCommentsId === post.id} onSinglePost={onSinglePost} />
                     </div>
                 ))}
-            </div>
-
-            {/* Right sidebar */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="vp" style={panel}>
-                    <div style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }} />
-                            <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>Who to follow</span>
-                        </div>
-                        {traders.filter((t: any) => t.id !== user?.id).slice(0, 4).map((t: any) => (
-                            <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => onViewProfile(t)}>
-                                    <img src={t.avatar} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
-                                    <div>
-                                        <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 13, color: 'var(--fg)', letterSpacing: '-0.01em' }}>{t.username}</p>
-                                        <p style={{ ...S.label, fontSize: 9 }}>{t.handle}</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => handleFollow(t.id)}
-                                    style={{ padding: '5px 12px', borderRadius: 20, border: '1px solid var(--hairline-strong)', background: user?.following?.includes(t.id) ? 'var(--chip-bg)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: user?.following?.includes(t.id) ? 'var(--fg-muted)' : 'var(--fg)', cursor: 'pointer', transition: 'background 0.1s' }}>
-                                    {user?.following?.includes(t.id) ? 'Following' : 'Follow'}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="vp" style={panel}>
-                    <div style={{ padding: '14px 16px' }}>
-                        <p style={{ ...S.label, marginBottom: 12 }}>Top Traders 24H</p>
-                        {traders
-                            .filter((t: any) => t.id !== user?.id)
-                            .sort((a: any, b: any) => b.pnl - a.pnl)
-                            .slice(0, 3)
-                            .map((t: any) => (
-                                <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--hairline)', cursor: 'pointer' }}
-                                    onClick={() => onViewProfile(t)}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                                        <img src={t.avatar} style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)' }}>{t.username}</span>
-                                    </div>
-                                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.pnl >= 0 ? '+' : ''}${Math.abs(t.pnl).toFixed(0)}</span>
-                                </div>
-                            ))}
-                        {traders.filter((t: any) => t.id !== user?.id).length === 0 && (
-                            <p style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', padding: '8px 0' }}>No traders yet</p>
-                        )}
-                    </div>
-                </div>
             </div>
 
             </div>

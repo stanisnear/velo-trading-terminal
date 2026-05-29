@@ -115,30 +115,39 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
     // ── Logo wordmark ────────────────────────────────────────────────────
     const LX = 52, LY = 44;
-    const bugG = ctx.createLinearGradient(LX, LY, LX + 40, LY + 40);
-    bugG.addColorStop(0, '#7B3CE8'); bugG.addColorStop(0.6, '#3B5BFF'); bugG.addColorStop(1, '#2744B8');
-    ctx.fillStyle = bugG;
-    ctx.beginPath(); (ctx as any).roundRect(LX, LY, 40, 40, 12); ctx.fill();
-    const bugHL = ctx.createRadialGradient(LX + 12, LY + 8, 0, LX + 12, LY + 8, 30);
-    bugHL.addColorStop(0, 'rgba(255,255,255,0.38)'); bugHL.addColorStop(1, 'transparent');
-    ctx.fillStyle = bugHL; ctx.beginPath(); (ctx as any).roundRect(LX, LY, 40, 40, 12); ctx.fill();
-    ctx.fillStyle = '#F4F1E8'; ctx.font = 'italic 400 23px "Fraunces", "Times New Roman", serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('V', LX + 20, LY + 20);
+    // Clean wordmark — no colored bug, just the italic Velo type like the header
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillStyle = fgPrimary;
-    ctx.font = 'italic 400 42px "Fraunces", "Times New Roman", serif';
-    ctx.fillText('Velo', LX + 50, LY - 2);
+    ctx.font = 'italic 400 46px "Fraunces", "Times New Roman", serif';
+    ctx.fillText('Velo', LX, LY - 2);
+    const wordW = ctx.measureText('Velo').width;
+    // Subtle violet dot after wordmark
+    ctx.beginPath();
+    ctx.arc(LX + wordW + 8, LY + 10, 4, 0, Math.PI * 2);
+    ctx.fillStyle = isLight ? 'oklch(0.55 0.24 295 / 0.7)' : 'oklch(0.68 0.22 295 / 0.9)';
+    ctx.fill();
     ctx.fillStyle = fgMuted; ctx.font = '600 10px "Geist Mono", monospace';
-    ctx.fillText('PERPETUALS · SOCIAL LAYER', LX + 52, LY + 44);
+    ctx.fillText('PERPETUALS · SOCIAL LAYER', LX + 1, LY + 50);
+
+    // ── Holographic top accent bar ────────────────────────────────────────
+    if (!isLight) {
+      const holoGrad = ctx.createLinearGradient(0, 0, W, 0);
+      holoGrad.addColorStop(0, 'oklch(0.45 0.26 295 / 0.9)');
+      holoGrad.addColorStop(0.35, 'oklch(0.55 0.24 285 / 0.9)');
+      holoGrad.addColorStop(0.7, 'oklch(0.65 0.22 268 / 0.9)');
+      holoGrad.addColorStop(1, 'oklch(0.72 0.18 250 / 0.9)');
+      ctx.fillStyle = holoGrad;
+      ctx.fillRect(0, 0, W, 3);
+    }
 
     // ── Testnet pill (top right) ─────────────────────────────────────────
-    const pillW = 240, pillH = 36, pillX = W - pillW - 48, pillY = LY + 2;
-    ctx.fillStyle = isLight ? 'rgba(230,100,50,0.10)' : 'rgba(226,111,76,0.14)';
+    const pillW = 220, pillH = 32, pillX = W - pillW - 48, pillY = LY + 6;
+    ctx.fillStyle = isLight ? 'rgba(107,70,255,0.08)' : 'rgba(107,70,255,0.12)';
     ctx.beginPath(); (ctx as any).roundRect(pillX, pillY, pillW, pillH, 10); ctx.fill();
-    ctx.strokeStyle = isLight ? 'rgba(230,100,50,0.28)' : 'rgba(226,111,76,0.28)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = isLight ? 'rgba(107,70,255,0.25)' : 'rgba(107,70,255,0.3)'; ctx.lineWidth = 1;
     ctx.beginPath(); (ctx as any).roundRect(pillX, pillY, pillW, pillH, 10); ctx.stroke();
-    ctx.font = '700 11px "Geist Mono", monospace'; ctx.fillStyle = '#E26F4C';
+    ctx.font = '700 11px "Geist Mono", monospace';
+    ctx.fillStyle = isLight ? 'oklch(0.45 0.22 295)' : 'oklch(0.72 0.18 295)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('TESTNET · BASE SEPOLIA', pillX + pillW / 2, pillY + pillH / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -208,9 +217,17 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       const gap = 12, colW = (stripW - gap * (stats.length - 1)) / stats.length;
       stats.forEach((s, i) => {
         const cx = stripX + (colW + gap) * i;
-        ctx.fillStyle = isLight ? 'rgba(15,17,23,0.05)' : 'rgba(255,255,255,0.04)';
+        // Glass card background
+        ctx.fillStyle = isLight ? 'rgba(15,17,23,0.04)' : 'rgba(255,255,255,0.05)';
         ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 80, 14); ctx.fill();
-        ctx.strokeStyle = isLight ? 'rgba(15,17,23,0.09)' : 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
+        // Top shimmer
+        const shimmer = ctx.createLinearGradient(cx, stripY, cx, stripY + 30);
+        shimmer.addColorStop(0, isLight ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.08)');
+        shimmer.addColorStop(1, 'transparent');
+        ctx.fillStyle = shimmer;
+        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 30, 14); ctx.fill();
+        // Border
+        ctx.strokeStyle = isLight ? 'rgba(15,17,23,0.08)' : 'rgba(255,255,255,0.09)'; ctx.lineWidth = 1;
         ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 80, 14); ctx.stroke();
         ctx.font = '700 10px "Geist Mono", monospace'; ctx.fillStyle = fgMuted; ctx.textBaseline = 'top';
         ctx.fillText(s.label, cx + 16, stripY + 16);
