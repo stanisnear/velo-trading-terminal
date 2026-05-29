@@ -169,18 +169,18 @@ html.light .vp::before {
   border-radius: 11px;
   background:
     linear-gradient(150deg,
-      oklch(0.55 0.30 300) 0%,
-      oklch(0.42 0.30 288) 30%,
-      oklch(0.32 0.26 278) 65%,
-      oklch(0.24 0.20 270) 100%
+      oklch(0.72 0.28 308) 0%,
+      oklch(0.60 0.30 295) 40%,
+      oklch(0.50 0.30 280) 75%,
+      oklch(0.44 0.28 268) 100%
     );
   position: relative;
   flex-shrink: 0;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.30) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.25) inset,
-    0 8px 24px -6px oklch(0.42 0.30 288 / 0.75),
-    0 2px 6px -1px oklch(0.32 0.26 278 / 0.50);
+    0 -1px 0 rgba(0, 0, 0, 0.20) inset,
+    0 8px 24px -6px oklch(0.60 0.30 295 / 0.70),
+    0 2px 6px -1px oklch(0.50 0.30 280 / 0.45);
 }
 
 .bug::before,
@@ -190,8 +190,8 @@ html.light .vp::before {
   inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(115% 70% at 25% 8%, rgba(255, 255, 255, 0.65), transparent 50%),
-    radial-gradient(50% 40% at 75% 90%, oklch(0.55 0.30 300 / 0.30), transparent 70%);
+    radial-gradient(115% 70% at 25% 8%, rgba(255, 255, 255, 0.55), transparent 50%),
+    radial-gradient(50% 40% at 75% 90%, oklch(0.50 0.30 280 / 0.25), transparent 70%);
   pointer-events: none;
 }
 
