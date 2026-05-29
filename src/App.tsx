@@ -1142,7 +1142,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     {isNotifOpen && (
                         <>
                             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setNotifOpen(false)}/>
-                            <div style={{ position: 'fixed', right: 12, top: 80, width: 'min(320px, calc(100vw - 24px))', background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 18, boxShadow: '0 30px 60px rgba(0,0,0,0.45)', zIndex: 9999, overflow: 'hidden', backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)' }}>
+                            <div style={{ position: 'fixed', right: 12, top: 80, width: 'min(320px, calc(100vw - 24px))', background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 18, boxShadow: '0 30px 60px rgba(0,0,0,0.45)', zIndex: 9999, overflow: 'hidden', backdropFilter: 'blur(48px) saturate(1.8)', WebkitBackdropFilter: 'blur(48px) saturate(1.8)' }}>
                                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--hr)', ...S.label, fontSize: 10 }}>Notifications</div>
                                 <div className="custom-scrollbar" style={{ maxHeight: 320, overflowY: 'auto' }}>
                                     {notifications.length === 0
@@ -1228,7 +1228,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
     return (
         <>
             <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(5,6,8,0.72)', backdropFilter: 'blur(10px)', zIndex: 60, transition: 'opacity 0.25s', opacity: isOpen ? 1 : 0, pointerEvents: isOpen ? 'auto' : 'none' }}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(5,6,8,0.45)', backdropFilter: 'blur(4px)', zIndex: 60, transition: 'opacity 0.25s', opacity: isOpen ? 1 : 0, pointerEvents: isOpen ? 'auto' : 'none' }}
                 onClick={() => setSidebarOpen(false)}
             />
 
@@ -1238,9 +1238,9 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
                 zIndex: 70, display: 'flex', flexDirection: 'column',
                 transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
                 transition: 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
-                boxShadow: '12px 0 40px rgba(0,0,0,0.4)',
-                backdropFilter: 'blur(28px) saturate(1.35)',
-                WebkitBackdropFilter: 'blur(28px) saturate(1.35)',
+                boxShadow: '12px 0 40px rgba(0,0,0,0.25)',
+                backdropFilter: 'blur(40px) saturate(1.6)',
+                WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
             }}>
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', height: 60, borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
