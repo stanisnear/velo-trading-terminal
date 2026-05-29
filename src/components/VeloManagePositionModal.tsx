@@ -92,6 +92,11 @@ export const VeloManagePositionModal: React.FC<Props> = ({
     : null;
   const tpPct = tpPnl !== null && collateral > 0 ? (tpPnl / collateral) * 100 : null;
   const slPct = slPnl !== null && collateral > 0 ? (slPnl / collateral) * 100 : null;
+  // Slider positions derived from the current TP/SL price so the slider stays in
+  // sync with manual edits. Same semantics as the old quick-% buttons: the value
+  // is potential gain (TP) / loss (SL) on margin, capped at the old button ranges.
+  const tpSliderPct = tpPct !== null ? Math.min(500, Math.max(0, Math.round(tpPct)))  : 0;
+  const slSliderPct = slPct !== null ? Math.min(90,  Math.max(0, Math.round(-slPct))) : 0;
 
   const handle = async (kind: Tab) => {
     setBusy(true); setError(''); setLastTx(null);
@@ -374,13 +379,21 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                         </span>
                       </div>
                     )}
-                    <div style={{ display:'flex', gap:5, marginTop:7 }}>
-                      {[25,50,100,200,500].map(pct => (
-                        <button key={pct} onClick={() => {
+                    <div style={{ marginTop:9 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:5 }}>
+                        <span style={{ ...S.label, fontSize:9 }}>Target gain</span>
+                        <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:'var(--pnl-up)' }}>+{tpSliderPct}%</span>
+                      </div>
+                      <input type="range" min="0" max="500" step="5" value={tpSliderPct}
+                        onChange={(e) => {
+                          const pct = parseInt(e.target.value);
                           const sign = position.side==='LONG' ? 1 : -1;
-                          setTp(((position.entryPrice) + (pct/100/position.leverage)*position.entryPrice*sign).toFixed(4));
-                        }} disabled={!ok} style={chipStyle('green')}>+{pct}%</button>
-                      ))}
+                          setTp(pct <= 0 ? '' : ((position.entryPrice) + (pct/100/position.leverage)*position.entryPrice*sign).toFixed(4));
+                        }} disabled={!ok}
+                        style={{ width:'100%', accentColor:'oklch(0.78 0.18 150)', cursor: ok ? 'pointer' : 'not-allowed', opacity: ok ? 1 : 0.4 }}/>
+                      <div style={{ display:'flex', justifyContent:'space-between', ...S.mono, fontSize:8, color:'var(--fg-subtle)', marginTop:2 }}>
+                        <span>0%</span><span>100%</span><span>250%</span><span>500%</span>
+                      </div>
                     </div>
                   </div>
                   <div style={{ marginBottom:16 }}>
@@ -397,13 +410,21 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                         </span>
                       </div>
                     )}
-                    <div style={{ display:'flex', gap:5, marginTop:7 }}>
-                      {[10,25,50,75,90].map(pct => (
-                        <button key={pct} onClick={() => {
+                    <div style={{ marginTop:9 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:5 }}>
+                        <span style={{ ...S.label, fontSize:9 }}>Max loss</span>
+                        <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:'var(--pnl-down)' }}>-{slSliderPct}%</span>
+                      </div>
+                      <input type="range" min="0" max="90" step="5" value={slSliderPct}
+                        onChange={(e) => {
+                          const pct = parseInt(e.target.value);
                           const sign = position.side==='LONG' ? 1 : -1;
-                          setSl(((position.entryPrice) - (pct/100/position.leverage)*position.entryPrice*sign).toFixed(4));
-                        }} disabled={!ok} style={chipStyle('red')}>-{pct}%</button>
-                      ))}
+                          setSl(pct <= 0 ? '' : ((position.entryPrice) - (pct/100/position.leverage)*position.entryPrice*sign).toFixed(4));
+                        }} disabled={!ok}
+                        style={{ width:'100%', accentColor:'oklch(0.65 0.22 15)', cursor: ok ? 'pointer' : 'not-allowed', opacity: ok ? 1 : 0.4 }}/>
+                      <div style={{ display:'flex', justifyContent:'space-between', ...S.mono, fontSize:8, color:'var(--fg-subtle)', marginTop:2 }}>
+                        <span>0%</span><span>25%</span><span>50%</span><span>90%</span>
+                      </div>
                     </div>
                   </div>
                   <ActionBtn busy={busy} disabled={!ok} onClick={() => handle('TRIGGERS')} label="Save triggers"/>
@@ -489,14 +510,6 @@ export const VeloManagePositionModal: React.FC<Props> = ({
 };
 
 // helpers
-const chipStyle = (color: 'green' | 'red'): React.CSSProperties => ({
-  flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-  fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
-  background: color === 'green' ? 'rgba(34,197,94,0.07)' : 'rgba(255,80,80,0.07)',
-  boxShadow: color === 'green' ? '0 0 0 1px rgba(34,197,94,0.22) inset' : '0 0 0 1px rgba(255,80,80,0.22) inset',
-  color: color === 'green' ? 'var(--pnl-up)' : 'var(--pnl-down)',
-});
-
 const PriceInput: React.FC<{
   value: string; onChange: (v: string) => void;
   placeholder?: string; disabled?: boolean; accent?: 'green' | 'red' | 'violet';

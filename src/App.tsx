@@ -5862,7 +5862,17 @@ const App = () => {
 
         // Load all public profiles → traders list (real users only)
         if (isSupabaseConfigured()) {
-            fetchAllProfiles(100).then(async ({ data: profiles }) => {
+            // Retry transient empty/failed reads (burst load, or a brief token-
+            // refresh window) so social + leaderboard self-heal without a relog.
+            const withRetry = async <T,>(fn: () => Promise<T>, isEmpty: (r: T) => boolean, tries = 3): Promise<T> => {
+                let last = await fn().catch(() => null as unknown as T);
+                for (let i = 1; i < tries && (last == null || isEmpty(last)); i++) {
+                    await new Promise(r => setTimeout(r, 1500 * i));
+                    last = await fn().catch(() => last);
+                }
+                return last;
+            };
+            withRetry(() => fetchAllProfiles(100), (r: any) => !r?.data || r.data.length === 0).then(async ({ data: profiles }) => {
                 if (profiles && profiles.length > 0) {
                     // Load all follows to hydrate follower/following arrays
                     const { data: allFollows } = await supabase.from('follows').select('follower_id, following_id');
@@ -5916,7 +5926,7 @@ const App = () => {
             }).catch(e => console.warn('Failed to load profiles:', e));
 
             // Load posts
-            fetchPosts(50).then(posts => {
+            withRetry(() => fetchPosts(50), (p: any) => !p || p.length === 0).then(posts => {
                 if (posts.length > 0) setPosts(posts);
             }).catch(e => console.warn('Failed to load posts:', e));
         }
@@ -7318,8 +7328,27 @@ const App = () => {
                 // it) — otherwise the user opens with TP=85 and sees `- / -` until the
                 // next 5s poll picks up the actual value, by which time they think it
                 // didn't work and close the position.
-                const hasTp = typeof tp === 'number' && tp > 0;
-                const hasSl = typeof sl === 'number' && sl > 0;
+                // Validate TP/SL against the ACTUAL fill entry (result.entryPrice),
+                // not the price shown when the user clicked. A market order fills at
+                // the live oracle price, so a TP/SL chosen pre-fill can land on the
+                // wrong side of the real entry — the contract's setTriggers then
+                // reverts InvalidTrigger (TP must be above entry for a long, etc.)
+                // and the trigger silently never persists, so the keeper has nothing
+                // to act on. We catch that here, skip the invalid side, and tell the
+                // user exactly what happened instead of painting a TP that isn't real.
+                const fillEntry = (result as any).entryPrice ?? currentPrice;
+                const wantTp = typeof tp === 'number' && tp > 0;
+                const wantSl = typeof sl === 'number' && sl > 0;
+                const tpValid = wantTp && (side === 'LONG' ? (tp as number) > fillEntry : (tp as number) < fillEntry);
+                const slValid = wantSl && (side === 'LONG' ? (sl as number) < fillEntry : (sl as number) > fillEntry);
+                const skippedTrig: string[] = [];
+                if (wantTp && !tpValid) skippedTrig.push(`TP $${formatPrice(tp as number)} (${side === 'LONG' ? 'must be above' : 'must be below'} entry)`);
+                if (wantSl && !slValid) skippedTrig.push(`SL $${formatPrice(sl as number)} (${side === 'LONG' ? 'must be below' : 'must be above'} entry)`);
+                if (skippedTrig.length) {
+                  setToast({ message: `Filled at $${formatPrice(fillEntry)}. Not set: ${skippedTrig.join(' · ')}. Adjust from the position panel.`, type: 'INFO' });
+                }
+                const hasTp = tpValid;
+                const hasSl = slValid;
                 if (hasTp || hasSl) {
                   const tradeIdKey = result.tradeId.toString();
                   const newPosId = `velo_${tradeIdKey}`;
