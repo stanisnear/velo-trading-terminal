@@ -7234,51 +7234,12 @@ const App = () => {
                 return;
               }
 
-              // ── Merge path: if a V2 on-chain position already exists with the same
-              // pair + side + leverage, ADD collateral to it instead of creating a
-              // new tradeId. This matches Hyperliquid/Binance UX where "buy more"
-              // means "stack into your existing position" rather than "open another
-              // independent one". The user can still see separate positions if they
-              // open at a different leverage (which the modal above intercepts).
-              const sameDirection = existingPosition
-                && existingPosition.side === side
-                && existingPosition.leverage === leverage
-                && (existingPosition as any).onChain
-                && (existingPosition as any).onChainTradeId;
-              if (sameDirection) {
-                const tradeId = BigInt((existingPosition as any).onChainTradeId);
-                veloPerpsTrading.addMargin(tradeId, collateral).then(() => {
-                  setToast({ message: `Added $${collateral.toFixed(2)} margin to ${pairId}`, type: 'SUCCESS' });
-                  triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `+$${formatMoney(collateral)} margin`);
-                  playSound('CLICK');
-                  releaseLock();
-                  // Persist the add as an OPEN-style row so it appears in history
-                  if (user?.id && isSupabaseConfigured()) {
-                    const addHistory: TradeHistoryItem = {
-                      id: `add_velo_${tradeId.toString()}_${Date.now()}`,
-                      pair: pairId,
-                      side,
-                      entryPrice: existingPosition.entryPrice,
-                      exitPrice: 0,
-                      size: collateral * leverage,
-                      pnl: 0,
-                      timestamp: Date.now(),
-                      openedAt: Date.now(),
-                      leverage,
-                      marginMode,
-                      action: 'OPEN',
-                      onChain: true,
-                    } as any;
-                    setUser(prev => prev ? { ...prev, tradeHistory: [addHistory, ...prev.tradeHistory] } : prev);
-                    insertTradeHistory(user.id, addHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
-                  }
-                }).catch((e) => {
-                  const msg = e?.shortMessage || e?.message || 'Add margin failed';
-                  setToast({ message: `Add margin failed: ${msg}`, type: 'ERROR' });
-                  releaseLock();
-                });
-                return;
-              }
+              // ── Isolated margin: every market open is its own position ──────
+              // VeloPerps stores each open under a new tradeId. Opening another
+              // SOL position must NOT fold collateral into an existing one — in
+              // isolated mode they are independent positions with their own
+              // entry, leverage, and liquidation price. (Stacking via addMargin
+              // is exposed separately through the Manage Position modal.)
 
               veloPerpsTrading.openPosition({
                 pair: veloPair,
