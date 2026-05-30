@@ -10,8 +10,11 @@
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.45.0",
+    "@reown/appkit": "^1.7.8",
+    "@reown/appkit-adapter-wagmi": "^1.7.8",
     "@supabase/supabase-js": "^2.49.8",
     "@tanstack/react-query": "^5.62.0",
+    "@vercel/speed-insights": "^2.0.0",
     "lightweight-charts": "5.1.0",
     "lucide-react": "^0.574.0",
     "react": "^19.1.0",
@@ -20,9 +23,7 @@
     "uuid": "^11.1.0",
     "viem": "^2.21.0",
     "wagmi": "^2.13.0",
-    "zustand": "^5.0.12",
-    "@reown/appkit": "^1.7.8",
-    "@reown/appkit-adapter-wagmi": "^1.7.8"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@types/react": "^19.1.4",

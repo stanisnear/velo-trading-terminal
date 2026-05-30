@@ -98,6 +98,7 @@ import { MarketsView } from '@/components/ui/pages/MarketsView';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 
 import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe } from './utils/types';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 // --- Sound Service (Refined) ---
 const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
@@ -9419,6 +9420,7 @@ const App = () => {
                 />
             )}
         </div>
+            <SpeedInsights />
         </>
     )
 }
