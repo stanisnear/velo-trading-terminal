@@ -369,7 +369,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                     <div style={{ ...S.label, marginBottom:6, display:'flex', alignItems:'center', gap:5 }}>
                       <TrendingUp size={10} style={{ color:'var(--pnl-up)' }}/> Take profit
                     </div>
-                    <PriceInput value={tp} onChange={setTp} placeholder="Price — 0 to clear" disabled={!ok} accent="green"/>
+                    <PriceInput value={tp} onChange={setTp} placeholder="Price · 0 to clear" disabled={!ok} accent="green"/>
                     {tpPnl !== null && (
                       <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 12px', marginTop:6, borderRadius:10, background:'oklch(0.78 0.18 150 / 0.06)', border:'1px solid oklch(0.78 0.18 150 / 0.2)', animation:'vmp-pnl 0.2s ease' }}>
                         <span style={{ ...S.label, fontSize:9 }}>Expected profit</span>
@@ -400,7 +400,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                     <div style={{ ...S.label, marginBottom:6, display:'flex', alignItems:'center', gap:5 }}>
                       <TrendingDown size={10} style={{ color:'var(--pnl-down)' }}/> Stop loss
                     </div>
-                    <PriceInput value={sl} onChange={setSl} placeholder="Price — 0 to clear" disabled={!ok} accent="red"/>
+                    <PriceInput value={sl} onChange={setSl} placeholder="Price · 0 to clear" disabled={!ok} accent="red"/>
                     {slPnl !== null && (
                       <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 12px', marginTop:6, borderRadius:10, background:'oklch(0.65 0.22 15 / 0.06)', border:'1px solid oklch(0.65 0.22 15 / 0.2)', animation:'vmp-pnl 0.2s ease' }}>
                         <span style={{ ...S.label, fontSize:9 }}>Max loss</span>
@@ -523,12 +523,13 @@ const PriceInput: React.FC<{
     <input
       type="number" value={value} onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder} inputMode="decimal" step="any" disabled={disabled}
+      className="velo-price-field"
       style={{
         fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums',
-        width: '100%', padding: '12px 14px', borderRadius: 14, boxSizing: 'border-box' as const,
+        width: '100%', padding: '11px 14px', borderRadius: 14, boxSizing: 'border-box' as const,
         background: 'rgba(255,255,255,0.04)',
         border: `1px solid ${value ? accentColor : 'var(--hairline)'}`,
-        color: 'var(--fg)', fontSize: 15, fontWeight: 700, outline: 'none',
+        color: 'var(--fg)', fontSize: 14, fontWeight: 600, letterSpacing: '0.01em', outline: 'none',
         opacity: disabled ? 0.45 : 1, cursor: disabled ? 'not-allowed' : 'text',
         transition: 'border-color 0.15s',
       }}

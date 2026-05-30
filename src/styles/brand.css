@@ -463,3 +463,22 @@ html.light .velo-modal-card {
 @media (max-width: 768px) {
   .velo-modal-card { max-width: calc(100vw - 24px) !important; }
 }
+
+/* ── TP/SL price inputs ───────────────────────────────────────────────────────
+   The placeholder ("Price · 0 to clear") used to inherit the input's own 15px/700
+   value styling, so it rendered as a big bold heading and looked clumsy. Render
+   it as a small, light, muted hint that's clearly distinct from a typed value. */
+.velo-price-field::placeholder {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--fg-subtle);
+  opacity: 1; /* Firefox dims placeholders by default; keep our exact tone */
+}
+.velo-price-field::-webkit-input-placeholder {
+  font-size: 11.5px; font-weight: 500; letter-spacing: 0.02em; color: var(--fg-subtle);
+}
+/* Hide the number-spinner arrows that crowd the small field */
+.velo-price-field::-webkit-outer-spin-button,
+.velo-price-field::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.velo-price-field { -moz-appearance: textfield; appearance: textfield; }

@@ -112,15 +112,23 @@ body.light,
   --bg-2: #f0eef8;
   --bg-3: #e8e5f2;
   --fg: #0a0b18;
-  --fg-2: #50506a;
-  --fg-3: #9898b8;
-  --hr: rgba(90, 70, 160, 0.08);
-  --hr-2: rgba(90, 70, 160, 0.14);
-  --glass: rgba(240, 237, 250, 0.65);
-  --glass-2: rgba(252, 251, 255, 0.55);
+  --fg-2: #4a4a63;
+  /* Subtle text was #9898b8 — too faint on light panels, made labels in
+     modals and the sidebar hard to read. Darkened for real contrast. */
+  --fg-3: #74749a;
+  /* Hairlines were near-invisible (0.08/0.14); bumped so chips, rows and
+     panel edges actually read as separated surfaces in light mode. */
+  --hr: rgba(90, 70, 160, 0.12);
+  --hr-2: rgba(90, 70, 160, 0.20);
+  /* Glass surfaces were 0.55–0.65 opaque. Over the modal/drawer dark scrim
+     that let the scrim bleed through and turned panels muddy grey. Raised to
+     near-opaque so modals and the sidebar read as crisp light panels; the
+     backdrop-filter still gives a frosted edge. */
+  --glass: rgba(246, 244, 252, 0.86);
+  --glass-2: rgba(252, 251, 255, 0.94);
   --gl-edge: rgba(255, 255, 255, 0.90);
-  --chip: rgba(90, 70, 160, 0.055);
-  --chip-h: rgba(90, 70, 160, 0.10);
+  --chip: rgba(90, 70, 160, 0.07);
+  --chip-h: rgba(90, 70, 160, 0.13);
   --ambient:
     radial-gradient(75% 55% at 95% 5%, oklch(0.91 0.07 285 / 0.55), transparent 65%),
     radial-gradient(55% 40% at 5% 95%, oklch(0.92 0.06 250 / 0.40), transparent 60%);
