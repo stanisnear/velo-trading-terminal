@@ -2,7 +2,7 @@
 
 **Fully operational on Base Sepolia. Every trade is a real blockchain transaction. Every position is verifiable.**
 
-Live at [velo-trading-terminal.vercel.app](https://velo-trading-terminal.vercel.app)
+Live at [velotrading.live](https://velotrading.live)
 
 Velo is a decentralised perpetual futures exchange where every order, position, and settlement happens on-chain — no off-chain matching engine, no custody, no trust required. Underneath the trading terminal, a full social product lets traders post, follow, copy-trade, and compete on a transparent, on-chain-verified leaderboard.
 
@@ -37,7 +37,7 @@ Velo is a decentralised perpetual futures exchange where every order, position, 
 
 ## What Velo Is
 
-Velo is an oracle-priced perpetual futures protocol — the same execution model used by GMX, Gains Network, and Avantis. There is no traditional order book matching buyers and sellers. Instead, every trade is priced against a live Pyth Network oracle feed, collateral is held in the VeloPerps smart contract, and PnL is settled against a liquidity pool on close.
+Velo is an oracle-priced perpetual futures protocol — the same execution model used by GMX and Gains Network. There is no traditional order book matching buyers and sellers. Instead, every trade is priced against a live Pyth Network oracle feed, collateral is held in the VeloPerps smart contract, and PnL is settled against a liquidity pool on close.
 
 This architecture means:
 - **Zero slippage** on trade execution up to pool capacity — you get the oracle price, not a market-impact price
@@ -125,7 +125,7 @@ Close any fraction of a position (1–100%) via the "Close" button → portion s
 
 ## Trigger Price vs Fill Price
 
-This is the most important thing to understand about oracle-priced perpetuals, and it is **identical behaviour** to GMX, Gains Network, Avantis, and every other oracle perp.
+This is the most important thing to understand about oracle-priced perpetuals, and it is **identical behaviour** to GMX, Gains Network, and every other oracle perp.
 
 When a keeper executes a limit order, TP, or SL, two things happen in the same transaction:
 1. A fresh Pyth price update is pushed on-chain from Hermes

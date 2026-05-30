@@ -8,7 +8,7 @@
 
 Velo is a fully on-chain perpetual futures exchange with an integrated social trading layer. Every trade, every position, every settlement, and every leaderboard entry is backed by a verifiable blockchain transaction. There is no custody, no off-chain matching engine, and no way to fabricate a track record.
 
-Velo is live today on Base Sepolia. Every feature described in this document is working, deployed, and testable at [velo-trading-terminal.vercel.app](https://velo-trading-terminal.vercel.app).
+Velo is live today on Base Sepolia. Every feature described in this document is working, deployed, and testable at [velotrading.live](https://velotrading.live).
 
 ---
 
@@ -24,7 +24,7 @@ Velo solves both simultaneously. The exchange is trustless by construction — o
 
 ## What Makes Velo Different from Existing Protocols
 
-**vs GMX / Gains Network / Avantis:**
+**vs GMX / Gains Network:**
 These protocols pioneered the oracle-priced perpetual model that Velo uses. They are excellent execution engines but have no social product. Traders share screenshots on Twitter and Discord — unverifiable, easily faked, utterly unaccountable. Velo takes the same execution architecture and builds a provable social layer on top of it. Your profile is not a screenshot. It is a query against a blockchain.
 
 **vs dYdX / Hyperliquid:**
@@ -90,7 +90,7 @@ One behaviour worth explaining clearly for reviewers who test Velo:
 
 When a keeper executes a limit order, TP, or SL, the fill price may differ slightly from the trigger price. You might set a TP at $2,014 and see the position close at $2,011.
 
-**This is standard behaviour for all oracle-priced perpetual exchanges — GMX, Gains Network, Avantis, and Velo all work the same way.** It is not a bug.
+**This is standard behaviour for all oracle-priced perpetual exchanges — GMX, Gains Network, and Velo all work the same way.** It is not a bug.
 
 The reason: the keeper runs on Vercel's per-minute cron. When the trigger price is crossed, the keeper fires on the next minute tick. By the time the keeper's transaction mines, the oracle price may have moved slightly from the trigger level. The fill is always at the real oracle price at execution time.
 
@@ -240,7 +240,7 @@ Velo is not a whitepaper. It is not a demo. It is a working product:
 
 ## How to Test Velo
 
-1. Visit [velo-trading-terminal.vercel.app](https://velo-trading-terminal.vercel.app)
+1. Visit [velotrading.live](https://velotrading.live)
 2. Connect a wallet (MetaMask, or sign up with Google/Discord via social login)
 3. Your account is created automatically — 1,000 mUSDC funded, zero popups
 4. Open a limit order slightly below the current BTC/ETH price and wait ~60 seconds

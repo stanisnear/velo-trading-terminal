@@ -489,7 +489,7 @@ Velo uses the official TradingView Charting Library widget — not a custom char
 
 Bid/ask depth panel rendered next to the chart in TradeView.
 
-**Data source:** Velo Perps is an oracle-priced engine — trades settle against the Pyth price, not a central-limit order book, so there is no native book to stream. Rather than show depth from a third-party venue (the panel previously streamed Orderly Network's book, which is a *different market* than the one users trade against), the book is a reference depth ladder anchored to the live Pyth mark price (`OrderBook.tsx`). It re-centers as the oracle ticks, so the mid price always equals the price you fill at. A small "Pyth" tag and a live dot indicate the source.
+**Data source:** Velo Perps is an oracle-priced engine — trades settle against the Pyth price, not a central-limit order book. Rather than stream depth from a third-party venue (which is a different market than the one users trade against), the book is a reference depth ladder anchored to the live Pyth mark price. It re-centers as the oracle ticks, so the mid price always equals the price you fill at. A small "Pyth" tag and a live pulse dot indicate the source.
 
 **Display:**
 - Asks (offers to sell) above the mid-price in red
