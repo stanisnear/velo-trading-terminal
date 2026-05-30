@@ -1390,6 +1390,14 @@ export const TradeView = ({
     const crossBuyingPower    = Math.max(0, effectiveBalance + crossPnl);
     const buyingPower = marginMode === 'CROSS' ? crossBuyingPower : isolatedBuyingPower;
 
+    // Leverage of an open ISOLATED position is fixed at open — you change risk by
+    // adding/removing margin, not by re-levering in place. So when an isolated
+    // position is open on this pair, the leverage selector is locked to it and the
+    // "Increase/Reduce Leverage?" confirmation modal is suppressed. (Cross positions
+    // share a margin pool, so adjusting their leverage stays meaningful.)
+    const openPosOnPair = mergedPositions.find((p: Position) => p.pair === activePair.id && !p.isCopyTrade);
+    const leverageLocked = !!openPosOnPair && (openPosOnPair.marginMode || 'ISOLATED') === 'ISOLATED';
+
     const mm = 0.005, cpn = parseFloat(String(currentPrice));
     let estLiqPrice = 0;
     const sz = parseFloat(sizeAmount);
@@ -1688,9 +1696,15 @@ export const TradeView = ({
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Leverage</div>
-                                    <select value={leverage} onChange={e => {
+                                    <select value={leverage} disabled={leverageLocked} onChange={e => {
                                         const v = parseInt(e.target.value);
                                         const ex = mergedPositions.find((p: Position) => p.pair === activePair.id && !p.isCopyTrade);
+                                        if (ex && (ex.marginMode || 'ISOLATED') === 'ISOLATED') {
+                                            // Isolated: leverage is fixed at open. Keep the selector pinned
+                                            // to the position's leverage and don't pop the change modal.
+                                            setLeverage(ex.leverage);
+                                            return;
+                                        }
                                         if (ex) {
                                             const oldMargin = ex.size / ex.leverage;
                                             const newMargin = ex.size / v;
@@ -1718,7 +1732,7 @@ export const TradeView = ({
                                         } else {
                                             setLeverage(v);
                                         }
-                                    }} style={{ ...S.display, fontSize: 16, color: 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', cursor: 'pointer' }}>
+                                    }} style={{ ...S.display, fontSize: 16, color: leverageLocked ? 'var(--fg-muted)' : 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', cursor: leverageLocked ? 'not-allowed' : 'pointer', opacity: leverageLocked ? 0.7 : 1 }} title={leverageLocked ? 'Leverage is fixed while an isolated position is open. Add or remove margin to adjust risk.' : undefined}>
                                         {[1, 2, 5, 10, 20, 25].map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
                                     </select>
                                 </div>
