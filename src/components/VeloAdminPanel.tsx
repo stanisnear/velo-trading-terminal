@@ -789,7 +789,7 @@ export const VeloAdminPanel: React.FC = () => {
         <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
           This wallet runs TP/SL, liquidation, and conditional-order cron jobs every minute.
           It must hold Base Sepolia ETH to pay gas — if it runs dry, all automated execution stops.
-          Add <code style={{ fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VITE_KEEPER_ADDRESS</code> in Vercel env vars (the public address derived from your <code style={{ fontFamily: 'monospace', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VELO_SPONSOR_PRIVATE_KEY</code>) to enable monitoring here.
+          Add <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VITE_KEEPER_ADDRESS</code> in Vercel env vars (the public address derived from your <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VELO_SPONSOR_PRIVATE_KEY</code>) to enable monitoring here.
         </p>
 
         {!keeperAddress ? (

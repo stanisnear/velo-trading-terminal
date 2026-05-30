@@ -86,7 +86,7 @@ const VLogo = ({ size = 48 }: { size?: number }) => (
     boxShadow: `0 4px 20px oklch(0.55 0.24 295 / 0.4)`,
   }}>
     <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 80% at 28% 8%, rgba(255,255,255,0.38), transparent 55%)' }} />
-    <span style={{ fontFamily: 'Georgia,serif', fontSize: size * 0.46, color: '#fff', fontStyle: 'italic', fontWeight: 700, lineHeight: 1, position: 'relative', zIndex: 1 }}>V</span>
+    <span style={{ fontFamily: 'var(--font-display)', fontSize: size * 0.46, color: '#fff', fontStyle: 'italic', fontWeight: 700, lineHeight: 1, position: 'relative', zIndex: 1 }}>V</span>
   </div>
 );
 
@@ -110,7 +110,7 @@ const PrimaryBtn = ({ onClick, children, disabled = false }: {
     width: '100%', padding: 14,
     background: disabled ? 'var(--chip-bg, rgba(0,0,0,0.05))' : 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
     border: 'none', borderRadius: 13,
-    fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, fontWeight: 700,
+    fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 700,
     color: disabled ? 'var(--fg-subtle, rgba(0,0,0,0.3))' : '#fff',
     cursor: disabled ? 'not-allowed' : 'pointer',
     letterSpacing: '0.08em', textTransform: 'uppercase' as const,
@@ -127,7 +127,7 @@ const GhostBtn = ({ onClick, children }: { onClick: () => void; children: React.
   <button onClick={onClick} style={{
     width: '100%', padding: 11, background: 'none', borderRadius: 12,
     border: '1px solid var(--hairline-strong, rgba(0,0,0,0.1))',
-    fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, fontWeight: 700,
+    fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700,
     color: 'var(--fg-subtle)', cursor: 'pointer', letterSpacing: '0.06em',
     textTransform: 'uppercase' as const, transition: 'border-color 0.15s, color 0.15s',
   }}
@@ -145,8 +145,8 @@ const Field = ({ label, value, onChange, placeholder, type = 'text', autoFocus, 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-        <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' }}>{label}</span>
-        {optional && <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, opacity: 0.6 }}>Optional</span>}
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' }}>{label}</span>
+        {optional && <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, opacity: 0.6 }}>Optional</span>}
       </div>
       <input type={type} value={value} placeholder={placeholder} autoFocus={autoFocus}
         onChange={e => onChange(e.target.value)} onKeyDown={onKeyDown}
@@ -156,12 +156,12 @@ const Field = ({ label, value, onChange, placeholder, type = 'text', autoFocus, 
           background: 'var(--chip-bg, rgba(0,0,0,0.04))',
           border: `1.5px solid ${error ? 'oklch(0.62 0.22 25)' : focused ? 'oklch(0.55 0.24 295)' : 'var(--hairline-strong)'}`,
           borderRadius: 12,
-          fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 14,
+          fontFamily: "var(--font-mono)", fontSize: 14,
           color: 'var(--fg)', outline: 'none', transition: 'border-color 0.18s',
         }}
       />
-      {hint && !error && <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', margin: '5px 0 0', opacity: 0.7 }}>{hint}</p>}
-      {error && <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'oklch(0.62 0.22 25)', margin: '5px 0 0' }}>{error}</p>}
+      {hint && !error && <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-subtle)', margin: '5px 0 0', opacity: 0.7 }}>{hint}</p>}
+      {error && <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'oklch(0.62 0.22 25)', margin: '5px 0 0' }}>{error}</p>}
     </div>
   );
 };
@@ -169,8 +169,8 @@ const Field = ({ label, value, onChange, placeholder, type = 'text', autoFocus, 
 const WalletPill = ({ address }: { address: string }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 13px', background: 'oklch(0.78 0.18 150 / 0.07)', border: '1px solid oklch(0.78 0.18 150 / 0.2)', borderRadius: 11 }}>
     <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'oklch(0.78 0.18 150)', flexShrink: 0 }} />
-    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: 'var(--fg)', fontWeight: 600, flex: 1 }}>{address.slice(0, 10)}…{address.slice(-8)}</span>
-    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'oklch(0.78 0.18 150)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>Connected</span>
+    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: 'var(--fg)', fontWeight: 600, flex: 1 }}>{address.slice(0, 10)}…{address.slice(-8)}</span>
+    <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'oklch(0.78 0.18 150)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>Connected</span>
   </div>
 );
 
@@ -471,13 +471,13 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 transform: helloPhase >= 1 ? 'translateY(0)' : 'translateY(14px)',
                 transition: 'opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s',
               }}>
-                <h1 style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 36, fontWeight: 700, color: 'var(--fg)', margin: '0 0 10px', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 36, fontWeight: 700, color: 'var(--fg)', margin: '0 0 10px', letterSpacing: '-0.02em', lineHeight: 1 }}>
                   Hello.
                 </h1>
-                <p style={{ fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif', fontSize: 15, color: 'var(--fg-muted)', margin: '0 0 6px', lineHeight: 1.6, maxWidth: 300 }}>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg-muted)', margin: '0 0 6px', lineHeight: 1.6, maxWidth: 300 }}>
                   Welcome to Velo — real on-chain perps with up to 25× leverage.
                 </p>
-                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-subtle)', margin: 0, letterSpacing: '0.06em' }}>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-subtle)', margin: 0, letterSpacing: '0.06em' }}>
                   1,000 mUSDC · Base Sepolia · Non-custodial
                 </p>
               </div>
@@ -492,8 +492,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 18 }}>
                   {[['25×', 'Leverage'], ['0.1%', 'Fee / side'], ['Pyth', 'Oracle']].map(([v, l]) => (
                     <div key={l} style={{ textAlign: 'center' }}>
-                      <div style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 15, fontWeight: 700, color: 'oklch(0.55 0.24 295)', lineHeight: 1 }}>{v}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginTop: 3 }}>{l}</div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 15, fontWeight: 700, color: 'oklch(0.55 0.24 295)', lineHeight: 1 }}>{v}</div>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginTop: 3 }}>{l}</div>
                     </div>
                   ))}
                 </div>
@@ -508,13 +508,13 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'oklch(0.74 0.18 30 / 0.1)', border: '1.5px solid oklch(0.74 0.18 30 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="oklch(0.74 0.18 30)" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 </div>
-                <p style={{ fontFamily: 'Georgia,serif', fontSize: 18, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px' }}>Wrong network</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px' }}>Wrong network</p>
                 <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>
                   Velo runs on <strong style={{ color: 'var(--fg)' }}>Base Sepolia</strong>. Please switch your wallet.
                 </p>
               </div>
               {address && <WalletPill address={address} />}
-              <button onClick={() => switchChain({ chainId: EXPECTED_CHAIN_ID })} style={{ width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
+              <button onClick={() => switchChain({ chainId: EXPECTED_CHAIN_ID })} style={{ width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
                 Switch to Base Sepolia
               </button>
             </div>
@@ -526,8 +526,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <VLogo size={36} />
                 <div>
-                  <p style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Pick your handle</p>
-                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>New account · Step 1 of 3</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Pick your handle</p>
+                  <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>New account · Step 1 of 3</p>
                 </div>
               </div>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.65 }}>
@@ -536,8 +536,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               {address && <WalletPill address={address} />}
               <Field label="Username" value={username} onChange={v => { setUsername(v); setFieldError(''); }} placeholder="e.g. alpha_trader" autoFocus error={fieldError} hint="3–20 chars · letters, numbers, underscores" onKeyDown={e => e.key === 'Enter' && advance()} />
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 12, background: 'oklch(0.55 0.24 295 / 0.06)', border: '1px solid oklch(0.55 0.24 295 / 0.15)' }}>
-                <span style={{ color: 'oklch(0.55 0.24 295)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 13, fontWeight: 700, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>@</span>
-                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>Your handle is registered <span style={{ color: 'oklch(0.55 0.24 295)', fontWeight: 700 }}>on-chain</span> in the Velo Name Registry and tied permanently to your wallet.</p>
+                <span style={{ color: 'oklch(0.55 0.24 295)', fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>@</span>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>Your handle is registered <span style={{ color: 'oklch(0.55 0.24 295)', fontWeight: 700 }}>on-chain</span> in the Velo Name Registry and tied permanently to your wallet.</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <PrimaryBtn onClick={advance} disabled={!username.trim()}>Continue →</PrimaryBtn>
@@ -552,8 +552,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <VLogo size={36} />
                 <div>
-                  <p style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Stay in the loop</p>
-                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 2 of 3</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Stay in the loop</p>
+                  <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 2 of 3</p>
                 </div>
               </div>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.65 }}>
@@ -573,11 +573,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <VLogo size={36} />
                 <div>
-                  <p style={{ fontFamily: 'Georgia,serif', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Ready to launch</p>
-                  <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 3 of 3</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Ready to launch</p>
+                  <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 3 of 3</p>
                 </div>
               </div>
-              {globalError && <div style={{ padding: '10px 13px', borderRadius: 10, background: 'oklch(0.62 0.22 25 / 0.08)', border: '1px solid oklch(0.62 0.22 25 / 0.25)', color: 'oklch(0.62 0.22 25)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, lineHeight: 1.5 }}>{globalError}</div>}
+              {globalError && <div style={{ padding: '10px 13px', borderRadius: 10, background: 'oklch(0.62 0.22 25 / 0.08)', border: '1px solid oklch(0.62 0.22 25 / 0.25)', color: 'oklch(0.62 0.22 25)', fontFamily: "var(--font-mono)", fontSize: 12, lineHeight: 1.5 }}>{globalError}</div>}
               <div style={{ borderRadius: 14, border: '1px solid var(--hairline-strong)', overflow: 'hidden' }}>
                 {[
                   { lbl: 'Wallet', val: address ? `${address.slice(0,10)}…${address.slice(-8)}` : '—' },
@@ -587,13 +587,13 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                   { lbl: 'Starting balance', val: '1,000 mUSDC' },
                 ].map(({ lbl, val }, i, arr) => (
                   <div key={lbl} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 15px', borderBottom: i < arr.length - 1 ? '1px solid var(--hairline)' : 'none', background: i % 2 === 0 ? 'var(--chip-bg)' : 'transparent' }}>
-                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>{lbl}</span>
-                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, color: lbl === 'Starting balance' ? 'oklch(0.78 0.18 150)' : 'var(--fg)', fontWeight: 600, textAlign: 'right' as const, maxWidth: '58%', wordBreak: 'break-all' as const }}>{val}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>{lbl}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: lbl === 'Starting balance' ? 'oklch(0.78 0.18 150)' : 'var(--fg)', fontWeight: 600, textAlign: 'right' as const, maxWidth: '58%', wordBreak: 'break-all' as const }}>{val}</span>
                   </div>
                 ))}
               </div>
               <div style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)' }}>
-                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', margin: 0, lineHeight: 1.65 }}>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-subtle)', margin: 0, lineHeight: 1.65 }}>
                   Tapping "Create account" asks MetaMask for <strong style={{ color: 'var(--fg-muted)' }}>one gas-free signature</strong> to derive your trading wallet. No ETH is spent at this step.
                 </p>
               </div>
@@ -609,8 +609,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Creating @{username}</p>
-                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Setting up your account…</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Creating @{username}</p>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Setting up your account…</p>
               </div>
             </div>
           )}
@@ -618,12 +618,12 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>One signature needed</p>
-                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Derives your trading wallet — no gas, no ETH spent.</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>One signature needed</p>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Derives your trading wallet — no gas, no ETH spent.</p>
               </div>
               <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'oklch(0.55 0.24 295 / 0.06)', border: '1px solid oklch(0.55 0.24 295 / 0.18)' }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-muted)', letterSpacing: '0.04em' }}>Check MetaMask for the signature request</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-muted)', letterSpacing: '0.04em' }}>Check MetaMask for the signature request</span>
               </div>
             </div>
           )}
@@ -631,8 +631,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Topping up gas</p>
-                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Sending your trading wallet a little ETH…</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Topping up gas</p>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Sending your trading wallet a little ETH…</p>
               </div>
             </div>
           )}
@@ -640,11 +640,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Claiming 1,000 mUSDC</p>
-                <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Minting your testnet USDC on Base Sepolia…</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Claiming 1,000 mUSDC</p>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Minting your testnet USDC on Base Sepolia…</p>
               </div>
               {claimTxHash && (
-                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
+                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
                   View on BaseScan <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>
               )}
@@ -663,27 +663,27 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="oklch(0.78 0.18 150)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 11 9 16 18 6"/></svg>
                 </div>
               </div>
-              <p style={{ fontFamily: 'Georgia,serif', fontSize: 26, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.85s both' }}>You're live.</p>
-              <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 22px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.35s ease 1.0s both' }}>@{username} · trading wallet funded</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.85s both' }}>You're live.</p>
+              <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 22px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.35s ease 1.0s both' }}>@{username} · trading wallet funded</p>
               <div style={{ width: '100%', borderRadius: 16, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', overflow: 'hidden', marginBottom: 16, animation: 'vOnbSlideUp 0.35s ease 1.15s both' }}>
                 <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Balance credited</span>
-                  <span style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', fontSize: 26, fontWeight: 700, color: 'oklch(0.78 0.18 150)' }}>${(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Balance credited</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 26, fontWeight: 700, color: 'oklch(0.78 0.18 150)' }}>${(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
                 </div>
                 {burnerAddr && (
                   <div style={{ padding: '11px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Trading wallet</span>
-                    <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)' }}>{burnerAddr.slice(0,6)}…{burnerAddr.slice(-4)}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Trading wallet</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)' }}>{burnerAddr.slice(0,6)}…{burnerAddr.slice(-4)}</span>
                   </div>
                 )}
               </div>
               {claimTxHash && (
-                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, textDecoration: 'none', animation: 'vOnbSlideUp 0.35s ease 1.3s both' }}>
+                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, textDecoration: 'none', animation: 'vOnbSlideUp 0.35s ease 1.3s both' }}>
                   Claim tx on BaseScan <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>
               )}
               <div style={{ width: '100%', animation: 'vOnbSlideUp 0.35s ease 1.45s both' }}>
-                <button onClick={() => { completedRef.current = true; onClose(); }} style={{ width: '100%', padding: 14, borderRadius: 13, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
+                <button onClick={() => { completedRef.current = true; onClose(); }} style={{ width: '100%', padding: 14, borderRadius: 13, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
                   Start trading →
                 </button>
               </div>
@@ -702,15 +702,15 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
                 </div>
               </div>
-              <p style={{ fontFamily: 'Georgia,serif', fontSize: 22, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.82s both' }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.82s both' }}>
                 Welcome back{returningName ? `, ${returningName}` : ''}.
               </p>
-              <p style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 20px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.38s ease 1.0s both' }}>
+              <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 20px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.38s ease 1.0s both' }}>
                 Restoring your session…
               </p>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px 6px 9px', borderRadius: 6, background: 'oklch(0.55 0.24 295 / 0.07)', border: '1px solid oklch(0.55 0.24 295 / 0.18)', animation: 'vOnbSlideUp 0.36s ease 1.2s both' }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'oklch(0.55 0.24 295)', animation: 'vOnbLiveDot 1.8s ease-in-out infinite' }} />
-                <span style={{ fontFamily: "'JetBrains Mono','Fira Code',monospace", fontSize: 10, color: 'oklch(0.55 0.24 295)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontWeight: 600 }}>Velo · Authenticated</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'oklch(0.55 0.24 295)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontWeight: 600 }}>Velo · Authenticated</span>
               </div>
             </div>
           )}

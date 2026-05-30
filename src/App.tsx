@@ -6246,6 +6246,28 @@ const App = () => {
         }
     }, [authChecked, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Auto-heal social/leaderboard data without a manual page refresh.
+    // Symptom this addresses: feed + leaderboard occasionally go blank "after a
+    // while" and only return on refresh — a transient client-side drop (tab
+    // backgrounded long enough for Chrome to throttle/freeze it, a Realtime
+    // socket reconnect, or a token refresh) leaving stale/empty state on screen.
+    // Re-fetching on tab refocus and on a slow interval makes it self-recover.
+    // Both loaders inside loadSocialData are length>0-guarded, so a transient
+    // empty read can never clobber good data — this only ever repopulates.
+    useEffect(() => {
+        if (!authChecked || !isSupabaseConfigured()) return;
+        const heal = () => {
+            if (document.visibilityState !== 'visible') return;
+            loadSocialData();
+        };
+        document.addEventListener('visibilitychange', heal);
+        const id = setInterval(heal, 60000);
+        return () => {
+            document.removeEventListener('visibilitychange', heal);
+            clearInterval(id);
+        };
+    }, [authChecked, loadSocialData]);
+
     // Notifications had no retry path, so a session-restore fetch that raced the
     // Supabase JWT (RLS returns [] for the anon role) left the bell empty until a
     // full re-login. This mirrors the trade-history recovery effect: it runs once

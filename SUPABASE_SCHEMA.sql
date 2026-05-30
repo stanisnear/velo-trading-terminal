@@ -290,7 +290,17 @@ CREATE INDEX IF NOT EXISTS trade_history_user_created_idx
   ON public.trade_history (user_id, created_at DESC);
 ALTER TABLE public.trade_history ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Own trade history" ON public.trade_history;
+-- Owner can do anything with their own rows (insert/update/delete + read).
 CREATE POLICY "Own trade history" ON public.trade_history FOR ALL USING (auth.uid() = user_id);
+-- Public read of trade history powers the leaderboard win-rate calculation.
+-- Without this, the loadSocialData() win-rate query (SELECT user_id,pnl,action
+-- across all profiles) is RLS-filtered to only the current user's own rows, so
+-- every other trader's win rate falls back to a stale stored value. The
+-- leaderboard is a public "copy the best strategies" surface, so closed-trade
+-- pnl/action are intended to be visible. This permissive SELECT OR's with the
+-- owner policy above.
+DROP POLICY IF EXISTS "Public read trade history" ON public.trade_history;
+CREATE POLICY "Public read trade history" ON public.trade_history FOR SELECT USING (true);
 
 -- ── TRANSACTIONS ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.transactions (

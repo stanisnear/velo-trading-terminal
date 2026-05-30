@@ -49,7 +49,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       layout: {
         background: { type: ColorType.Solid, color: colors.background },
         textColor: colors.text,
-        fontFamily: "'-apple-system', sans-serif",
+        fontFamily: "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
       },
       width: chartContainerRef.current.clientWidth || 300,
       height: chartContainerRef.current.clientHeight || 200,
