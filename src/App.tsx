@@ -1077,7 +1077,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <button
-                    className="md:hidden"
+                    className="lg:hidden"
                     style={{
                         width: 36,
                         height: 36,
@@ -1098,7 +1098,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 </div>
             </div>
 
-            <div className="hidden md:flex" style={{ justifyContent: 'center' }}>
+            <div className="hidden lg:flex" style={{ justifyContent: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 14, background: 'var(--chip)', border: '1px solid var(--hr)', minWidth: 'fit-content' }}>
                 {navItems.map((item: any) => {
                     const isActive = activeTab === item.id;
@@ -1130,7 +1130,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifySelf: 'end' }}>
-                <div className="hidden md:flex chip" style={{ minWidth: 76, justifyContent: 'center', gap: 6 }}>
+                <div className="hidden lg:flex chip" style={{ minWidth: 76, justifyContent: 'center', gap: 6 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--fg-2)' }}>TESTNET</span>
                 </div>
                 <div style={{ position: 'relative' }}>
@@ -1170,7 +1170,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                         {/* Desktop: pill with name + avatar */}
                         <button
                             onClick={() => setAvatarPopupOpen(prev => !prev)}
-                            className="hidden md:flex"
+                            className="hidden lg:flex"
                             style={{ alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--velo-violet)')}
                             onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
@@ -1182,7 +1182,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                         </button>
                         {/* Mobile: square avatar button */}
                         <button
-                            className="md:hidden"
+                            className="lg:hidden"
                             onClick={() => setAvatarPopupOpen(prev => !prev)}
                             style={{ width: 36, height: 36, borderRadius: 12, overflow: 'hidden', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, flexShrink: 0, background: 'var(--chip)', padding: 0, cursor: 'pointer', transition: 'border-color 0.15s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}>
                             <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
@@ -1340,7 +1340,7 @@ const MobileBottomNav = ({ activeTab, setActiveTab, user }: any) => {
         { id: TabView.LEADERBOARD, icon: Trophy, label: 'Lead', requiresAuth: false },
     ].filter(item => !item.requiresAuth || user);
     return (
-        <div className="md:hidden fixed left-3 right-3 z-[60]" style={{ bottom: 'max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px))' }}>
+        <div className="lg:hidden fixed left-3 right-3 z-[60]" style={{ bottom: 'max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px))' }}>
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 6, padding: 8, borderRadius: 22, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(28px) saturate(1.3)', WebkitBackdropFilter: 'blur(28px) saturate(1.3)' }}>
                 {items.map((item) => {
                     const isActive = activeTab === item.id;
@@ -9296,7 +9296,7 @@ const App = () => {
                     }
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (60px height + 4px top + 8px gap = 72px) */}
-            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 md:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 72 : 'calc(72px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 72 : 'calc(72px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
