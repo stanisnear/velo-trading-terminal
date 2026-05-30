@@ -1443,7 +1443,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                 <h1 className="lb-hero-title" style={{ fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--fg)', lineHeight: 1, margin: '0 0 12px' }}>
                     Top <em style={{ fontStyle: 'italic' }}>Traders</em>
                 </h1>
-                <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Copy the most profitable strategies on Velo.</p>
+                <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Copy the most profitable traders on Velo.</p>
                 <div style={{ display: 'inline-flex', gap: 4, marginTop: 16, background: 'var(--chip-bg)', borderRadius: 10, padding: 4, border: '1px solid var(--hairline)' }}>
                     {(['24H','7D','30D','ALL'] as const).map((p) => (
                         <button key={p} onClick={() => setPeriod(p)} style={{ padding: '5px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', ...S_LB.mono, fontSize: 11, fontWeight: 700, background: period === p ? 'var(--bg-base-2)' : 'transparent', color: period === p ? 'var(--fg)' : 'var(--fg-subtle)', boxShadow: period === p ? '0 1px 4px rgba(0,0,0,0.3)' : 'none' }}>{p}</button>

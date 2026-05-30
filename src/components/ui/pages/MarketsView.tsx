@@ -370,10 +370,6 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           );
         })}
       </div>
-
-      <p style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', marginTop: 14 }}>
-        Prices · Binance &nbsp;·&nbsp; Market cap · CoinGecko &nbsp;·&nbsp; {filtered.length} of {PAIRS.length} markets · Click row to view token page
-      </p>
     </div>
   );
 };

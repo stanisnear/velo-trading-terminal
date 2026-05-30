@@ -142,7 +142,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
         .sm-ghost:hover { background: var(--chip-bg-hover) !important; border-color: oklch(0.55 0.24 295 / 0.35) !important; }
       `}</style>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9999, background:'oklch(0 0 0 / 0.62)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, overflowY:'auto', animation:'sm-overlay 0.22s ease both' }}>
-        <div onClick={e => e.stopPropagation()} style={{ position:'relative', width:'100%', maxWidth:500, background:'var(--modal-bg, var(--modal-bg))', borderRadius:28, border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.07) inset', backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)', overflow:'hidden', animation:'sm-card 0.36s cubic-bezier(0.22,1,0.36,1) both', color:'var(--fg)' }}>
+        <div onClick={e => e.stopPropagation()} style={{ position:'relative', width:'100%', maxWidth:500, maxHeight:'min(92dvh, 92vh)', display:'flex', flexDirection:'column', background:'var(--modal-bg, var(--modal-bg))', borderRadius:28, border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.07) inset', backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)', overflow:'hidden', animation:'sm-card 0.36s cubic-bezier(0.22,1,0.36,1) both', color:'var(--fg)' }}>
 
           {/* Velo accent stripe — violet→blue only */}
           <div style={{ position:'absolute', top:0, left:0, right:0, height:2.5, zIndex:3, background:VELO_STRIPE }} />
@@ -151,15 +151,13 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
           <div style={{ position:'absolute', top:-80, right:-80, width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, oklch(0.55 0.24 295 / 0.05) 0%, transparent 70%)', pointerEvents:'none', zIndex:0 }} />
 
           {/* Header */}
-          <div style={{ padding:'28px 28px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative', zIndex:1 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-              <div style={{ width:44, height:44, borderRadius:14, flexShrink:0, background:'linear-gradient(135deg, oklch(0.45 0.26 295), oklch(0.65 0.22 268))', boxShadow:'0 6px 20px oklch(0.55 0.24 295 / 0.4), 0 1px 0 rgba(255,255,255,0.25) inset', display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>
-                <div style={{ position:'absolute', inset:0, background:'radial-gradient(120% 80% at 25% 10%, rgba(255,255,255,0.3), transparent 55%)' }} />
-                <span style={{ ...F.display, fontSize:22, color:'#fff', fontWeight:700, position:'relative', zIndex:1 }}>V</span>
-              </div>
+          <div style={{ padding:'24px 24px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative', zIndex:1, flexShrink:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:13 }}>
+              <span style={{ ...F.display, fontSize:30, fontWeight:400, color:'var(--fg)', letterSpacing:'-0.03em', lineHeight:1, fontStyle:'italic' as const }}>Velo</span>
+              <div style={{ width:1, height:30, background:'var(--hairline-strong)', flexShrink:0 }} />
               <div>
-                <h1 style={{ ...F.display, fontSize:24, fontWeight:400, color:'var(--fg)', margin:0, lineHeight:1.1 }}>Wallet & Settings</h1>
-                <p style={{ ...F.mono, fontSize:10, color:'var(--fg-subtle)', margin:'3px 0 0', letterSpacing:'0.1em', textTransform:'uppercase' as const }}>Balances · Recovery · Preferences</p>
+                <h1 style={{ ...F.mono, fontSize:13, fontWeight:700, color:'var(--fg)', margin:0, lineHeight:1.1, letterSpacing:'0.04em' }}>Wallet &amp; Settings</h1>
+                <p style={{ ...F.mono, fontSize:9, color:'var(--fg-subtle)', margin:'3px 0 0', letterSpacing:'0.1em', textTransform:'uppercase' as const }}>Balances · Recovery · Preferences</p>
               </div>
             </div>
             <button onClick={onClose} style={{ width:32, height:32, borderRadius:10, flexShrink:0, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)', color:'var(--fg-muted)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background 0.15s' }}
@@ -169,7 +167,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
           </div>
 
           {/* Network pill */}
-          <div style={{ margin:'0 20px 14px', padding:'9px 14px', borderRadius:12, position:'relative', zIndex:1, background: networkOk ? 'oklch(0.80 0.18 150 / 0.06)' : 'oklch(0.76 0.14 60 / 0.08)', border:`1px solid ${networkOk ? 'oklch(0.80 0.18 150 / 0.22)' : 'oklch(0.76 0.14 60 / 0.28)'}`, display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ margin:'0 20px 14px', padding:'9px 14px', borderRadius:12, position:'relative', zIndex:1, flexShrink:0, background: networkOk ? 'oklch(0.80 0.18 150 / 0.06)' : 'oklch(0.76 0.14 60 / 0.08)', border:`1px solid ${networkOk ? 'oklch(0.80 0.18 150 / 0.22)' : 'oklch(0.76 0.14 60 / 0.28)'}`, display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ width:7, height:7, borderRadius:'50%', background: networkOk ? 'oklch(0.82 0.18 150)' : 'oklch(0.80 0.16 60)', boxShadow:`0 0 8px ${networkOk ? 'oklch(0.82 0.18 150 / 0.65)' : 'oklch(0.80 0.16 60 / 0.65)'}`, flexShrink:0 }} />
             <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', flex:1 }}>
               <span style={{ color:'var(--fg-subtle)', marginRight:8, letterSpacing:'0.08em' }}>NETWORK</span>
@@ -179,7 +177,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
           </div>
 
           {/* Body */}
-          <div style={{ padding:'0 20px 26px', display:'flex', flexDirection:'column', gap:10, maxHeight:'68vh', overflowY:'auto', position:'relative', zIndex:1 }}>
+          <div className="custom-scrollbar" style={{ padding:'0 20px', paddingBottom:'max(22px, env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:10, flex:1, minHeight:0, overflowY:'auto', position:'relative', zIndex:1 }}>
 
             <WalletCard kind="main" title="Main Wallet" subtitle={connector?.name || 'Connected wallet'} address={ownerAddress} eth={ownerEth} usdc={ownerUsdc} copied={copiedField === 'main'} onCopy={() => copy(ownerAddress, 'main')} />
 
