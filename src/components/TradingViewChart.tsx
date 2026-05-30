@@ -134,7 +134,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   // Branded chart surface — never pure white/black. Matches the obsidian dark
   // and soft-lavender light panel tokens so the chart sits in the brand rather
   // than punching a white hole in the page.
-  const BG = isDark ? '#0b0d12' : '#f0eef8';
+  const BG = isDark ? '#0b0d12' : '#f7f6fc';
 
   const tvSymbol = TV_SYMBOLS[pairName] || 'PYTH:BTCUSD';
   const tvInterval = TV_INTERVALS[timeframe] || '15';
@@ -179,7 +179,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     containerRef.current.appendChild(widgetDiv);
 
     const localBG = BG;
-    const localBG2 = isDark ? '#12141b' : '#e8e5f2';
+    const localBG2 = isDark ? '#12141b' : '#eeecf8';
     const localGRID = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,14,0.06)';
     const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(84,85,100,0.75)';
 
@@ -561,24 +561,12 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       {/* Chart widget container */}
       <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: BG }} />
 
-      {/* Chart blend layer — the free TradingView embed paints an opaque white
-          surface inside a cross-origin iframe in light theme and ignores our
-          background override, so we can't recolour its interior directly. This
-          overlay sits above the iframe (plain alpha compositing, pointer-events
-          none so the chart stays interactive) and washes the white candle field
-          toward the page's lavender tone. Kept light so TradingView's own dark
-          axis/legend text stays fully legible; only applied in light mode where
-          the white block is the problem (dark mode already matches the page). */}
-      {!isDark && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 14, pointerEvents: 'none',
-          background: 'rgba(220,215,240,0.42)',
-        }} />
-      )}
-      {/* Soft inner ring so the panel edge reads as intentional, not cropped */}
+      {/* No overlay tint on the chart — the page background is kept light enough
+          that the chart's own surface blends in without masking it (masking hurt
+          candle/text legibility). A faint inner ring just frames the panel. */}
       <div style={{
         position: 'absolute', inset: 0, zIndex: 16, pointerEvents: 'none',
-        boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(90,70,160,0.12)'}`,
+        boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(90,70,160,0.08)'}`,
         borderRadius: 'inherit',
       }} />
 
