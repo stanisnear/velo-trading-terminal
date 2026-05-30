@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { TradingViewChart } from './components/TradingViewChart';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { VeloAnimation, VeloAnimationKind } from './components/VeloAnimation';
 import { v4 as uuidv4 } from 'uuid';
 import { PortfolioChart } from './components/PortfolioChart';
@@ -9446,6 +9447,7 @@ const App = () => {
                 />
             )}
         </div>
+        <PWAInstallBanner />
         </>
     )
 }

@@ -8,6 +8,22 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://velotrading.live/" />
     <meta name="theme-color" content="#050608" />
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple PWA (iOS / macOS Safari "Add to Home Screen") -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VELO" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+
+    <!-- Microsoft Tiles -->
+    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
+    <meta name="msapplication-TileColor" content="#050608" />
+    <meta name="msapplication-config" content="none" />
+    <meta name="mobile-web-app-capable" content="yes" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -189,6 +205,30 @@
           t.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(seed);
         }
       }, true);
+    </script>
+
+    <script>
+      // Register PWA Service Worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => console.log('[VELO PWA] SW registered:', reg.scope))
+            .catch(err => console.warn('[VELO PWA] SW registration failed:', err));
+        });
+      }
+
+      // PWA install prompt — store for later use by the app
+      window.__veloInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.__veloInstallPrompt = e;
+        // Dispatch custom event so React can pick it up
+        window.dispatchEvent(new CustomEvent('velo:installable'));
+      });
+      window.addEventListener('appinstalled', () => {
+        window.__veloInstallPrompt = null;
+        window.dispatchEvent(new CustomEvent('velo:installed'));
+      });
     </script>
   </body>
 </html>
