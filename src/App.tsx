@@ -8960,9 +8960,59 @@ const App = () => {
                   return r;
                 },
                 partialClose: async (tradeId, fracBps, pair) => {
+                  const pos = managingPosition; // capture before async/modal close
                   const veloPair = (pair.replace('/', '-')) as any;
                   const r = await veloPerpsTrading.partialClose(tradeId, fracBps, veloPair);
                   setToast({ message: `Closed ${(fracBps / 100).toFixed(0)}% of position`, type: 'SUCCESS' });
+
+                  // Record the (partial) close so it shows in History + recent activity.
+                  // The contract settles realized PnL on-chain, but partialClose() only
+                  // returns a tx hash (unlike closePosition, which returns exitPrice/pnl),
+                  // so we derive the closed-portion PnL from the live mark price — the same
+                  // linear-perp formula the position row uses for its live PnL. The 5s
+                  // contract poll reconciles exact balances afterward. This was the gap:
+                  // partial closes (and 100% closes done through this modal) never wrote a
+                  // trade_history row, so they were missing from History and the dashboard.
+                  try {
+                    if (pos && user && isSupabaseConfigured()) {
+                      const fraction = Math.min(1, Math.max(0, fracBps / 10000));
+                      const exitPrice = marketPrices[pos.pair] || pos.entryPrice;
+                      const closedSize = pos.size * fraction;
+                      const dir = pos.side === 'LONG' ? 1 : -1;
+                      const pnl = pos.entryPrice > 0
+                        ? closedSize * ((exitPrice - pos.entryPrice) / pos.entryPrice) * dir
+                        : 0;
+                      const partialHistory: TradeHistoryItem = {
+                        id: `pclose_${pos.id}_${Date.now()}`,
+                        pair: pos.pair, side: pos.side,
+                        entryPrice: pos.entryPrice, exitPrice,
+                        size: closedSize, pnl, timestamp: Date.now(),
+                        openedAt: pos.timestamp, leverage: pos.leverage,
+                        marginMode: pos.marginMode, liquidationPrice: pos.liquidationPrice,
+                        action: 'CLOSE', copyTraderId: pos.copyTraderId,
+                        onChain: true, orderlyOrderUrl: r.explorerUrl,
+                      } as any;
+                      insertTradeHistory(user.id, partialHistory).catch((e: any) => console.warn('[velo] partial-close history failed:', e));
+                      setUser(prev => {
+                        if (!prev || prev.tradeHistory.some(h => h.id === partialHistory.id)) return prev;
+                        return {
+                          ...prev,
+                          realizedPnL: prev.realizedPnL + pnl,
+                          tradeHistory: [partialHistory, ...prev.tradeHistory],
+                          pnlHistory: [...(prev.pnlHistory || []), {
+                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            value: veloPerpsTrading.usdcBalance + pnl,
+                            timestamp: Date.now(),
+                          }],
+                        };
+                      });
+                      // Reflect the reduced (or fully closed) position immediately;
+                      // the next contract poll reconciles exact size/margin.
+                      setPositions(prev => fraction >= 0.999
+                        ? prev.filter(x => x.id !== pos.id)
+                        : prev.map(x => x.id === pos.id ? { ...x, size: x.size * (1 - fraction) } : x));
+                    }
+                  } catch (e) { console.warn('[velo] partial-close bookkeeping failed:', e); }
                   return r;
                 },
                 setTriggers: async (tradeId, tp, sl) => {

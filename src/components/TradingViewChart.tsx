@@ -135,8 +135,6 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   // and soft-lavender light panel tokens so the chart sits in the brand rather
   // than punching a white hole in the page.
   const BG = isDark ? '#0b0d12' : '#f0eef8';
-  // RGB channels of BG, for building the edge-feather gradient (rgba() with alpha).
-  const featherRGB = isDark ? '11,13,18' : '240,238,248';
 
   const tvSymbol = TV_SYMBOLS[pairName] || 'PYTH:BTCUSD';
   const tvInterval = TV_INTERVALS[timeframe] || '15';
@@ -563,22 +561,24 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       {/* Chart widget container */}
       <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: BG }} />
 
-      {/* Edge-blend overlay — the free TradingView embed paints its own opaque
-          surface inside a cross-origin iframe and ignores our paneProperties
-          background override, so in light mode it shows as a hard white block.
-          We can't recolour the iframe interior, but we CAN feather its edges
-          into the page tone: this radial wash is fully transparent over the
-          centre (candles stay crisp) and ramps to the surface colour at the
-          rim, so the chart dissolves into the page instead of punching a white
-          rectangle. pointer-events:none keeps the chart fully interactive. */}
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 15, pointerEvents: 'none',
-        background: `radial-gradient(140% 130% at 50% 42%, rgba(${featherRGB},0) 50%, rgba(${featherRGB},0.20) 80%, rgba(${featherRGB},0.72) 100%)`,
-      }} />
+      {/* Chart blend layer — the free TradingView embed paints an opaque white
+          surface inside a cross-origin iframe in light theme and ignores our
+          background override, so we can't recolour its interior directly. This
+          overlay sits above the iframe (plain alpha compositing, pointer-events
+          none so the chart stays interactive) and washes the white candle field
+          toward the page's lavender tone. Kept light so TradingView's own dark
+          axis/legend text stays fully legible; only applied in light mode where
+          the white block is the problem (dark mode already matches the page). */}
+      {!isDark && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 14, pointerEvents: 'none',
+          background: 'rgba(220,215,240,0.42)',
+        }} />
+      )}
       {/* Soft inner ring so the panel edge reads as intentional, not cropped */}
       <div style={{
         position: 'absolute', inset: 0, zIndex: 16, pointerEvents: 'none',
-        boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(90,70,160,0.10)'}`,
+        boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(90,70,160,0.12)'}`,
         borderRadius: 'inherit',
       }} />
 
