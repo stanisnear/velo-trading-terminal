@@ -1390,14 +1390,6 @@ export const TradeView = ({
     const crossBuyingPower    = Math.max(0, effectiveBalance + crossPnl);
     const buyingPower = marginMode === 'CROSS' ? crossBuyingPower : isolatedBuyingPower;
 
-    // Leverage of an open ISOLATED position is fixed at open — you change risk by
-    // adding/removing margin, not by re-levering in place. So when an isolated
-    // position is open on this pair, the leverage selector is locked to it and the
-    // "Increase/Reduce Leverage?" confirmation modal is suppressed. (Cross positions
-    // share a margin pool, so adjusting their leverage stays meaningful.)
-    const openPosOnPair = mergedPositions.find((p: Position) => p.pair === activePair.id && !p.isCopyTrade);
-    const leverageLocked = !!openPosOnPair && (openPosOnPair.marginMode || 'ISOLATED') === 'ISOLATED';
-
     const mm = 0.005, cpn = parseFloat(String(currentPrice));
     let estLiqPrice = 0;
     const sz = parseFloat(sizeAmount);
@@ -1696,16 +1688,15 @@ export const TradeView = ({
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Leverage</div>
-                                    <select value={leverage} disabled={leverageLocked} onChange={e => {
+                                    <select value={leverage} onChange={e => {
                                         const v = parseInt(e.target.value);
                                         const ex = mergedPositions.find((p: Position) => p.pair === activePair.id && !p.isCopyTrade);
-                                        if (ex && (ex.marginMode || 'ISOLATED') === 'ISOLATED') {
-                                            // Isolated: leverage is fixed at open. Keep the selector pinned
-                                            // to the position's leverage and don't pop the change modal.
-                                            setLeverage(ex.leverage);
-                                            return;
-                                        }
-                                        if (ex) {
+                                        // Only a CROSS position re-levers in place (shared margin pool),
+                                        // so it gets the confirmation modal. For an isolated position —
+                                        // or no position — the selector simply sets the leverage for the
+                                        // NEXT order, so you can trade the same coin at a different
+                                        // leverage. (Isolated leverage is fixed per position at open.)
+                                        if (ex && (ex.marginMode || 'ISOLATED') === 'CROSS') {
                                             const oldMargin = ex.size / ex.leverage;
                                             const newMargin = ex.size / v;
                                             const extra = newMargin - oldMargin; // positive = more margin needed (deleveraging), negative = margin freed (leveraging up)
@@ -1718,7 +1709,6 @@ export const TradeView = ({
                                                 return;
                                             }
 
-                                            // Show confirmation modal for both up and down — don't silently apply
                                             setLeverageModal({
                                                 needed: Math.abs(extra),
                                                 shortfall: 0,
@@ -1727,12 +1717,11 @@ export const TradeView = ({
                                                 direction: v > ex.leverage ? 'up' : 'down',
                                                 marginFreed: extra < 0 ? Math.abs(extra) : 0,
                                             });
-                                            // Don't update leverage state yet — wait for modal confirm
-                                            setLeverage(ex.leverage);
+                                            setLeverage(ex.leverage); // wait for modal confirm
                                         } else {
                                             setLeverage(v);
                                         }
-                                    }} style={{ ...S.display, fontSize: 16, color: leverageLocked ? 'var(--fg-muted)' : 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', cursor: leverageLocked ? 'not-allowed' : 'pointer', opacity: leverageLocked ? 0.7 : 1 }} title={leverageLocked ? 'Leverage is fixed while an isolated position is open. Add or remove margin to adjust risk.' : undefined}>
+                                    }} style={{ ...S.display, fontSize: 16, color: 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', cursor: 'pointer' }}>
                                         {[1, 2, 5, 10, 20, 25].map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
                                     </select>
                                 </div>
