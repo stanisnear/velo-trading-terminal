@@ -63,6 +63,13 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
   const [activityPage, setActivityPage] = useState(1);
+  const [isMobile, setIsMobile] = React.useState(() => window.innerWidth <= 640);
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
   const ACTIVITY_PER_PAGE = 8;
 
   // Use pre-computed values from App when available (single source of truth),
@@ -187,11 +194,11 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       {/* Top row */}
       <div className="dash-grid-main">
         {/* Portfolio card */}
-        <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: 320 }}>
+        <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
               <p style={{ ...S.label, marginBottom: 5 }}>Total Equity</p>
-              <p className="dash-equity-hero" style={{ ...S.display, fontSize: 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}>${formatMoney(equity)}</p>
+              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}>${formatMoney(equity)}</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
                   {totalPnl >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
@@ -210,7 +217,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               </div>
             )}
           </div>
-          <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: 160 }}>
+          <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: isMobile ? 100 : 160, maxHeight: isMobile ? 150 : undefined }}>
             <PortfolioChart data={getChartData()} theme={theme} />
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.

@@ -9328,7 +9328,7 @@ const App = () => {
                     }
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
-            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 'clamp(64px, 10vw, 72px)' : 'clamp(88px, 12vw, calc(72px + 24px))', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {

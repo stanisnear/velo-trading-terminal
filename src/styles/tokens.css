@@ -277,13 +277,13 @@ html.light iframe[id*="tradingview"] {
   background: #f7f6fc !important;
 }
 
-/* ── Mobile content offset: navbar is 60px flush, not 72px floating ──────── */
+/* ── Mobile content offset: navbar = 60px + safe-area-inset-top ──────────── */
 @media (max-width: 768px) {
   main.velo-main {
-    padding-top: 68px !important;
+    padding-top: calc(60px + env(safe-area-inset-top, 0px) + 8px) !important;
   }
   main.velo-main.trade-view {
-    padding-top: 60px !important;
+    padding-top: calc(60px + env(safe-area-inset-top, 0px)) !important;
   }
 }
 
@@ -396,6 +396,23 @@ html.light iframe[id*="tradingview"] {
   }
 }
 
+
+/* ── Dashboard equity hero: compact on mobile ────────────────────────────── */
+@media (max-width: 640px) {
+  .dash-equity-hero {
+    font-size: clamp(22px, 7vw, 28px) !important;
+    margin-bottom: 4px !important;
+  }
+  /* Portfolio card: don't enforce large min-height */
+  .dash-portfolio-card {
+    min-height: 0 !important;
+  }
+  /* Chart area: sensible height on mobile */
+  .dash-portfolio-chart {
+    min-height: 120px !important;
+    max-height: 160px !important;
+  }
+}
 /* ── Social/Token page ───────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   /* Token page header: smaller title */
@@ -715,4 +732,14 @@ html.light .navbar-container {
   box-shadow: 0 1px 0 rgba(255,255,255,0.85) inset,
     0 4px 24px -4px rgba(100, 70, 180, 0.12),
     0 0 0 1px rgba(160,130,220,0.10) !important;
+}
+
+/* ── Desktop main content: navbar floats at ~72px (60px + 4px gap + buffer) ─ */
+@media (min-width: 769px) {
+  main.velo-main {
+    padding-top: clamp(88px, 12vw, calc(72px + 24px));
+  }
+  main.velo-main.trade-view {
+    padding-top: clamp(64px, 10vw, 72px);
+  }
 }
