@@ -667,7 +667,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                     }}>
                         <Lock size={11} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
                         <span style={{ ...S.label, color: 'var(--fg-muted)', fontSize: 10 }}>Sign in to view positions</span>
-                        <Button onClick={onRequireAuth} className="px-3 h-6 text-[10px]">Log In</Button>
+                        <Button onClick={onRequireAuth} className="px-4 h-8 text-xs font-semibold" style={{ minWidth: 72, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>Log In</Button>
                     </div>
                 </div>
             )}
@@ -1602,15 +1602,30 @@ export const TradeView = ({
                                     boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.06) inset',
                                 }}>
                                     <div style={{
-                                        width: 38, height: 38, borderRadius: 11,
+                                        width: isMobile ? 48 : 38, height: isMobile ? 48 : 38, borderRadius: isMobile ? 14 : 11,
                                         background: 'var(--chip-bg)',
                                         border: '1px solid var(--hairline-strong)',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        <Lock size={15} style={{ color: 'var(--fg-subtle)' }} />
+                                        <Lock size={isMobile ? 20 : 15} style={{ color: 'var(--fg-subtle)' }} />
                                     </div>
-                                    <span style={{ ...S.label, color: 'var(--fg-muted)', fontSize: 10, textAlign: 'center' as const }}>Connect to trade</span>
-                                    <Button onClick={onRequireAuth} className="px-5 text-xs h-8">Log In</Button>
+                                    <span style={{ ...S.label, color: 'var(--fg-muted)', fontSize: isMobile ? 12 : 10, textAlign: 'center' as const }}>Connect to trade</span>
+                                    <Button
+                                        onClick={onRequireAuth}
+                                        className={isMobile ? 'w-full text-sm font-semibold' : 'px-5 text-xs h-8'}
+                                        style={isMobile ? {
+                                            minHeight: 48,
+                                            borderRadius: 14,
+                                            fontSize: 14,
+                                            fontWeight: 700,
+                                            width: '100%',
+                                            background: 'linear-gradient(135deg, #7B3CE8 0%, #3B5BFF 100%)',
+                                            color: '#fff',
+                                            border: 'none',
+                                            touchAction: 'manipulation',
+                                            WebkitTapHighlightColor: 'transparent',
+                                        } : {}}
+                                    >Log In</Button>
                                 </div>
                             </div>
                         )}
@@ -1792,12 +1807,14 @@ export const TradeView = ({
 
                             {/* Submit button */}
                             <button onClick={handleSubmit} disabled={parseFloat(sizeAmount) <= 0} style={{
-                                width: '100%', padding: isMobile ? '12px 0' : '11px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.15s',
+                                width: '100%', padding: isMobile ? '15px 0' : '11px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: isMobile ? 14 : 12, transition: 'all 0.15s',
                                 opacity: parseFloat(sizeAmount) <= 0 ? 0.35 : 1,
                                 background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
                                 color: side === 'LONG' ? '#0a1a10' : '#fff',
                                 boxShadow: side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
                                 marginTop: 2,
+                                touchAction: 'manipulation',
+                                WebkitTapHighlightColor: 'transparent',
                             }}>
                                 {user ? (
                                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
