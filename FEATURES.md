@@ -706,7 +706,6 @@ Velo ships a `manifest.json`, a service worker (`sw.js`), and a platform-aware i
 
 - **iOS Safari:** detects the platform and shows a step-by-step sheet (Share → Add to Home Screen → Add). Once installed, opens full-screen with `black-translucent` status bar so VELO's dark background extends edge-to-edge. All required `apple-touch-icon` sizes are provided.
 - **Android Chrome/Edge:** captures `beforeinstallprompt` and shows a branded banner — gradient V logo, one-tap Install button — that calls the native OS install flow. Banner dismisses permanently on install.
-- **macOS/Desktop Chrome/Edge:** subtle bottom-right nudge, auto-dismisses after 12 seconds. Safari picks up the manifest natively and exposes File → Add to Dock.
 - **Service worker caching strategy:** stale-while-revalidate for static assets; network-first for navigations; bypass for all WebSocket, Supabase, Orderly, Pyth, and `/api/` traffic so live market data is never served stale.
 - **Icons:** nine sizes (72×72 → 512×512) plus 180×180 Apple touch icon. All rendered from the canonical Velo SVG: `#7B3CE8 → #3B5BFF → #A8C8FF` gradient, glass highlight, italic Fraunces *V*.
 

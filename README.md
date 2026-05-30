@@ -362,12 +362,9 @@ Safari on iPhone and iPad does not expose the `beforeinstallprompt` API. Velo de
 **Android (Chrome / Edge / Samsung Browser)**
 The browser fires `beforeinstallprompt` after Velo passes the PWA installability checklist. A branded install banner appears — gradient V logo, app name, one-tap Install button — which calls `prompt()` on the deferred event. If the user accepts, the OS adds Velo to the home screen and the banner disappears permanently.
 
-**macOS / Desktop (Chrome, Edge, Safari)**
-A subtle bottom-right nudge appears with an Install button. It auto-dismisses after 12 seconds so it never blocks the interface. On macOS Safari, Velo appears in the File → Add to Dock menu natively once the manifest is detected.
-
 ### Install banner
 
-`PWAInstallBanner.tsx` handles all three platforms from a single component. It checks `display-mode: standalone` on load — if already installed, nothing renders. Dismissals are stored in `sessionStorage` so the banner never re-appears within a session. A `velo:installable` custom event is dispatched when the browser prompt becomes available, letting any part of the React tree react to it.
+`PWAInstallBanner.tsx` handles both mobile platforms from a single component. It checks `display-mode: standalone` on load — if already installed, nothing renders. Desktop browsers are intentionally excluded; the install experience is optimised for mobile traders. Dismissals are stored in `sessionStorage` so the banner never re-appears within a session. A `velo:installable` custom event is dispatched when the browser prompt becomes available, letting any part of the React tree react to it.
 
 ### Icons
 
