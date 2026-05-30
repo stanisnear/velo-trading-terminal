@@ -63,6 +63,11 @@ body.dark,
     radial-gradient(70% 50% at 88% 12%, oklch(0.55 0.20 245 / 0.22), transparent 65%),
     radial-gradient(80% 55% at 90% 88%, oklch(0.40 0.22 295 / 0.25), transparent 65%),
     radial-gradient(60% 45% at 8% 92%, oklch(0.55 0.18 230 / 0.18), transparent 60%);
+  /* App-shell background. Dark keeps its flat obsidian base (the --ambient
+     overlay above provides the glow); light paints a real purple↔light-blue
+     gradient here because the shell div sits ON TOP of <body>, hiding any
+     body background-image. */
+  --app-bg: var(--bg);
   --glass-shadow:
     0 1px 0 rgba(255,255,255,0.06) inset,
     0 -1px 0 rgba(0, 0, 0, 0.10) inset,
@@ -132,6 +137,16 @@ body.light,
   --ambient:
     radial-gradient(72% 52% at 96% 4%, oklch(0.95 0.05 288 / 0.34), transparent 64%),
     radial-gradient(58% 42% at 4% 98%, oklch(0.96 0.045 236 / 0.26), transparent 60%);
+  /* Visible light-mode page gradient (painted on the app shell, which covers
+     <body>). Near-white base with airy purple (top-left), light-blue (top-right)
+     and soft blue-violet (bottom) glows — colourful but still light. Dial the
+     /0.NN alphas down toward white, or up for more colour. */
+  --app-bg:
+    radial-gradient(at 6% 3%, oklch(0.93 0.075 290 / 0.55) 0px, transparent 44%),
+    radial-gradient(at 97% 5%, oklch(0.94 0.065 232 / 0.50) 0px, transparent 48%),
+    radial-gradient(at 88% 97%, oklch(0.93 0.06 258 / 0.42) 0px, transparent 50%),
+    radial-gradient(at 3% 98%, oklch(0.94 0.055 305 / 0.34) 0px, transparent 46%),
+    #fcfbff;
   --glass-shadow:
     0 1px 0 rgba(255,255,255,0.70) inset,
     0 -1px 0 rgba(90, 70, 160, 0.04) inset,

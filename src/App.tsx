@@ -1331,17 +1331,17 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
         </>
     );
 };
-const MobileBottomNav = ({ activeTab, setActiveTab }: any) => {
+const MobileBottomNav = ({ activeTab, setActiveTab, user }: any) => {
     const items = [
-        { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Home' },
-        { id: TabView.TRADE, icon: TrendingUp, label: 'Trade' },
-        { id: TabView.MARKETS, icon: BarChart2, label: 'Mkts' },
-        { id: TabView.SOCIAL, icon: MessageSquare, label: 'Social' },
-        { id: TabView.LEADERBOARD, icon: Trophy, label: 'Lead' },
-    ];
+        { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Home', requiresAuth: true },
+        { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
+        { id: TabView.MARKETS, icon: BarChart2, label: 'Mkts', requiresAuth: false },
+        { id: TabView.SOCIAL, icon: MessageSquare, label: 'Social', requiresAuth: false },
+        { id: TabView.LEADERBOARD, icon: Trophy, label: 'Lead', requiresAuth: false },
+    ].filter(item => !item.requiresAuth || user);
     return (
         <div className="md:hidden fixed left-3 right-3 z-[60]" style={{ bottom: 'max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px))' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, padding: 8, borderRadius: 22, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(28px) saturate(1.3)', WebkitBackdropFilter: 'blur(28px) saturate(1.3)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 6, padding: 8, borderRadius: 22, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(28px) saturate(1.3)', WebkitBackdropFilter: 'blur(28px) saturate(1.3)' }}>
                 {items.map((item) => {
                     const isActive = activeTab === item.id;
                     return (
@@ -8614,7 +8614,7 @@ const App = () => {
                 </div>
             </div>
         )}
-        <div className={`min-h-screen font-sans transition-colors duration-300 ${theme} mode-${theme === 'dark' ? 'dark' : 'light'}`} style={{ background: 'var(--bg-base)', color: 'var(--fg)', position: 'relative' }}>
+        <div className={`min-h-screen font-sans transition-colors duration-300 ${theme} mode-${theme === 'dark' ? 'dark' : 'light'}`} style={{ background: 'var(--app-bg, var(--bg-base))', color: 'var(--fg)', position: 'relative' }}>
             {/* Subtle ambient background — consistent across all pages */}
             <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, background: 'var(--ambient)', opacity: 0.35 }} />
             <VeloAnimation kind={anim?.kind ?? null} label={anim?.label} sublabel={anim?.sublabel} onDone={() => setAnim(null)} />
@@ -9406,7 +9406,7 @@ const App = () => {
                 }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
-            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
             {/* App-level order details modal — opened from notifications without tab switch */}
             {appOrderDetails && (
                 <OrderDetailsModal
