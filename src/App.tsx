@@ -97,7 +97,7 @@ import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 
-import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe } from './utils/types';
+import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS } from './utils/types';
 
 // --- Sound Service (Refined) ---
 const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
@@ -415,16 +415,27 @@ const calculateStats = (tradeHistory: TradeHistoryItem[]) => {
 };
 
 
-// Check if user is Supabase-verified (UUID format vs demo timestamp format)
-const isVerifiedUser = (userId: string) => {
-    // UUID format: 8-4-4-4-12 hex chars (Supabase auth UUIDs)
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-};
-// Verified badge component — blue check for Supabase users, gray for bots/mock
+// Whether a user id looks like a Supabase auth UUID (vs a demo/bot id). Used
+// only to decide whether a profile is worth fetching — NOT for the verified badge.
+const isSupabaseUserId = (userId: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
+// Verified badge is admin-controlled: it appears ONLY for users the protocol
+// owner assigned a verification reason to from the Admin panel (verified_reason
+// column). This module map is kept in sync each render from `traders` + `user`
+// (see the sync in the App component), so the module-level resolver below can be
+// used at any call site without threading state through every component.
+// (Previously this returned true for every Supabase UUID — which is every real
+// account — so all accounts showed as verified. That was the bug.)
+let VERIFIED_REASON_BY_ID: Record<string, string> = {};
+const isVerifiedUser = (userId: string) => !!VERIFIED_REASON_BY_ID[userId];
+// Verified badge component — only renders for admin-verified users.
 const VerifiedBadge = ({ userId, size = 16 }: { userId: string, size?: number }) => {
-    if (!isVerifiedUser(userId)) return null;
+    const reason = userId ? VERIFIED_REASON_BY_ID[userId] : null;
+    if (!reason) return null;
+    const label = VERIFICATION_LABELS[reason as keyof typeof VERIFICATION_LABELS] || 'Verified';
     return (
-        <span title="Verified Account" className="inline-flex items-center justify-center rounded-full shrink-0"
+        <span title={label} aria-label={`Verified — ${label}`} className="inline-flex items-center justify-center rounded-full shrink-0"
             style={{ width: size + 2, height: size + 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }}>
             <Check size={size * 0.6} style={{ color: '#0B0B0E' }} strokeWidth={3}/>
         </span>
@@ -4359,6 +4370,16 @@ const App = () => {
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
     const [traders, setTraders] = useState<Trader[]>([]);
     const [posts, setPosts] = useState<Post[]>([]);
+    // Keep the module-level verified-badge map in sync with admin-assigned
+    // verification on traders + the current user. Computed during render (before
+    // children render) so <VerifiedBadge> resolves against fresh data. Only ids
+    // with a non-null verifiedReason end up here, so the badge is admin-gated.
+    VERIFIED_REASON_BY_ID = React.useMemo(() => {
+        const m: Record<string, string> = {};
+        for (const t of traders) if (t?.id && t.verifiedReason) m[t.id] = t.verifiedReason as string;
+        if (user?.id && user.verifiedReason) m[user.id] = user.verifiedReason as string;
+        return m;
+    }, [traders, user]);
     const [positions, setPositions] = useState<Position[]>([]);
     const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]); 
     const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
@@ -6203,6 +6224,7 @@ const App = () => {
                         joinedDate:      p.created_at || new Date().toISOString(),
                         walletAddress:   p.wallet_address || null,
                         authMethod:      p.auth_method    || null,
+                        verifiedReason:  p.verified_reason || null,
                     };
                 });
                 setTraders(realTraders);
@@ -8464,8 +8486,8 @@ const App = () => {
                 setActiveTab(TabView.PUBLIC_PROFILE);
                 return;
             }
-            // Try Supabase lookup for verified users not in local traders
-            if (isSupabaseConfigured() && isVerifiedUser(profile.id)) {
+            // Try Supabase lookup for real accounts not in local traders
+            if (isSupabaseConfigured() && isSupabaseUserId(profile.id)) {
                 getProfile(profile.id).then(({ profile: p }) => {
                     if (p) {
                         const syntheticTrader: Trader = {
@@ -8483,7 +8505,12 @@ const App = () => {
                             activePositions: [],
                             isPrivate: false,
                             joinedDate: new Date().toISOString(),
+                            verifiedReason: p.verified_reason || null,
                         };
+                        // Seed the badge map for this fetched profile so the
+                        // verified badge resolves on their profile page even
+                        // though they're not in the local traders list.
+                        if (p.verified_reason) VERIFIED_REASON_BY_ID[profile.id] = p.verified_reason;
                         setViewingProfile(syntheticTrader);
                         setActiveTab(TabView.PUBLIC_PROFILE);
                     }

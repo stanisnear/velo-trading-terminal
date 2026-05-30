@@ -242,6 +242,7 @@ export function dbProfileToUserProfile(row: any): UserProfile {
     email:               row.email || '',
     walletAddress:       row.wallet_address || undefined,
     veloWalletAddress:   row.velo_wallet_address || undefined,
+    verifiedReason:      row.verified_reason || null,
   };
 }
 

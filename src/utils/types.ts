@@ -90,6 +90,8 @@ export interface UserProfile {
   /** Persisted Velo trading (burner) wallet address. Used to auto-detect when a
       device is missing the local burner and offer/trigger re-derivation. */
   veloWalletAddress?: string;
+  /** Admin-assigned verification reason (build 80+). NULL/undefined = unverified. */
+  verifiedReason?: VerificationReason | null;
 }
 
 export type NotificationType =
