@@ -1174,9 +1174,9 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     )}
                 </div>
 
-                <button onClick={toggleTheme} className="hidden lg:grid" style={{ placeItems: 'center', width: 36, height: 36, borderRadius: 12, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s' }}
+                <button onClick={toggleTheme} style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
-                    {theme === 'dark' ? <Sun size={15}/> : <Moon size={15}/>}
+                    {theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>}
                 </button>
 
                 {user ? (
@@ -1257,7 +1257,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
                 WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
             }}>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', height: 60, borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(60px + env(safe-area-inset-top, 0px))', borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ ...S.display, fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
                     </div>

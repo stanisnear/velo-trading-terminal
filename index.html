@@ -191,7 +191,7 @@
       .pnl-up { color: var(--pnl-up); }
       .pnl-down { color: var(--pnl-down); }
 
-      /* Mobile navbar: flush to top edge, full width, taller for easier tapping */
+      /* Mobile navbar: flush to top, grows to absorb safe-area (status bar) */
       @media (max-width: 1023px) {
         .navbar-mobile-flush {
           top: 0 !important;
@@ -204,9 +204,21 @@
           border-top: none !important;
           border-left: none !important;
           border-right: none !important;
-          height: 64px !important;
-          padding: 0 14px !important;
+          /* bar grows to include the status bar inset */
+          height: calc(60px + env(safe-area-inset-top, 0px)) !important;
+          padding-left: 14px !important;
+          padding-right: 14px !important;
           padding-top: env(safe-area-inset-top, 0px) !important;
+          padding-bottom: 0 !important;
+          /* push grid content below the status bar */
+          align-items: center !important;
+        }
+        /* Main content must clear the taller mobile navbar */
+        .velo-main {
+          padding-top: calc(60px + env(safe-area-inset-top, 0px) + 8px) !important;
+        }
+        .velo-main.trade-view {
+          padding-top: calc(60px + env(safe-area-inset-top, 0px)) !important;
         }
       }
     </style>
