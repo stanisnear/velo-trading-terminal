@@ -1085,25 +1085,27 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 WebkitBackdropFilter: 'blur(44px) saturate(1.9)',
                 boxShadow: 'var(--glass-shadow)',
             }}
-            className="navbar-container"
+            className="navbar-container navbar-mobile-flush"
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <button
                     className="lg:hidden"
                     style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 12,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
                         border: '1px solid var(--hr)',
                         background: 'var(--chip)',
                         cursor: 'pointer',
                         color: 'var(--fg-2)',
                         display: 'grid',
                         placeItems: 'center',
+                        touchAction: 'manipulation',
+                        WebkitTapHighlightColor: 'transparent',
                     }}
                     onClick={() => setMobileMenuOpen(true)}
                 >
-                    <Menu size={18} />
+                    <Menu size={20} />
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minWidth: 0 }} onClick={() => user && setActiveTab(TabView.DASHBOARD)}>
                     <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 28, color: 'var(--fg)', letterSpacing: '-0.04em', lineHeight: 1 }}>Velo</span>
@@ -1146,10 +1148,10 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--fg-2)' }}>TESTNET</span>
                 </div>
                 <div style={{ position: 'relative' }}>
-                    <button onClick={() => setNotifOpen(!isNotifOpen)} style={{ display: 'grid', placeItems: 'center', width: 36, height: 36, borderRadius: 12, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', position: 'relative', transition: 'all 0.12s' }}
+                    <button onClick={() => setNotifOpen(!isNotifOpen)} className="navbar-icon-btn" style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', position: 'relative', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
                         onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
-                        <Bell size={16}/>
-                        {unreadCount > 0 && <span style={{ position: 'absolute', top: 7, right: 7, width: 6, height: 6, background: 'var(--pnl-down)', borderRadius: '50%', border: '1.5px solid var(--bg)' }}/>}
+                        <Bell size={18}/>
+                        {unreadCount > 0 && <span style={{ position: 'absolute', top: 8, right: 8, width: 6, height: 6, background: 'var(--pnl-down)', borderRadius: '50%', border: '1.5px solid var(--bg)' }}/>}
                     </button>
                     {isNotifOpen && (
                         <>
@@ -1172,7 +1174,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     )}
                 </div>
 
-                <button onClick={toggleTheme} style={{ display: 'grid', placeItems: 'center', width: 36, height: 36, borderRadius: 12, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s' }}
+                <button onClick={toggleTheme} className="hidden lg:grid" style={{ placeItems: 'center', width: 36, height: 36, borderRadius: 12, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
                     {theme === 'dark' ? <Sun size={15}/> : <Moon size={15}/>}
                 </button>
@@ -1196,7 +1198,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                         <button
                             className="lg:hidden"
                             onClick={() => setAvatarPopupOpen(prev => !prev)}
-                            style={{ width: 36, height: 36, borderRadius: 12, overflow: 'hidden', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, flexShrink: 0, background: 'var(--chip)', padding: 0, cursor: 'pointer', transition: 'border-color 0.15s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}>
+                            style={{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, flexShrink: 0, background: 'var(--chip)', padding: 0, cursor: 'pointer', transition: 'border-color 0.15s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}>
                             <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                         </button>
                         {avatarPopupOpen && (
@@ -9325,8 +9327,8 @@ const App = () => {
                         }, 500);
                     }
                 }} totalEquity={totalEquity}/>
-            {/* Main content — top offset for fixed navbar (60px height + 4px top + 8px gap = 72px) */}
-            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 72 : 'calc(72px + 24px)', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+            {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
+            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingTop: activeTab === TabView.TRADE ? 'clamp(64px, 10vw, 72px)' : 'clamp(88px, 12vw, calc(72px + 24px))', paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {

@@ -190,6 +190,25 @@
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       .pnl-up { color: var(--pnl-up); }
       .pnl-down { color: var(--pnl-down); }
+
+      /* Mobile navbar: flush to top edge, full width, taller for easier tapping */
+      @media (max-width: 1023px) {
+        .navbar-mobile-flush {
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          transform: none !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          border-radius: 0 0 20px 20px !important;
+          border-top: none !important;
+          border-left: none !important;
+          border-right: none !important;
+          height: 64px !important;
+          padding: 0 14px !important;
+          padding-top: env(safe-area-inset-top, 0px) !important;
+        }
+      }
     </style>
   </head>
   <body>

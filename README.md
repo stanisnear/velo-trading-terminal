@@ -24,6 +24,7 @@ Velo is a decentralised perpetual futures exchange where every order, position, 
 - [Cross-Chain Deposits & Withdrawals](#cross-chain-deposits--withdrawals)
 - [Protocol Fees](#protocol-fees)
 - [Admin Panel](#admin-panel)
+- [Progressive Web App (PWA)](#progressive-web-app-pwa)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Deployed Contracts](#deployed-contracts)
@@ -342,6 +343,35 @@ Visible only to the contract owner wallet. Provides:
 - **Protocol stats** — open positions, lifetime volume, total fees, liquidation count
 - **Contract metadata** — all addresses with BaseScan links
 - **Keeper wallet balance** — monitors sponsor wallet ETH with low-balance warning
+
+---
+
+## Progressive Web App (PWA)
+
+Velo ships as a fully installable Progressive Web App. On every platform, users can add it to their home screen or dock and open it like a native application — no app store, no install process, no browser chrome.
+
+### How it works
+
+A `manifest.json` declares the app's name, icons, theme colour, and display mode (`standalone`). A service worker handles installation eligibility and caches static assets so the shell loads instantly on repeat visits. The `beforeinstallprompt` event is captured and held until the user is prompted, giving full control over when and how the install nudge appears.
+
+### Platform behaviour
+
+**iOS (Safari) — Add to Home Screen**
+Safari on iPhone and iPad does not expose the `beforeinstallprompt` API. Velo detects iOS and shows a step-by-step instruction sheet: tap Share → Add to Home Screen → Add. Once installed, Velo opens full-screen with `apple-mobile-web-app-status-bar-style: black-translucent`, so the status bar overlays the app background rather than pushing a white bar above it. The `apple-touch-icon` chain covers all retina sizes.
+
+**Android (Chrome / Edge / Samsung Browser)**
+The browser fires `beforeinstallprompt` after Velo passes the PWA installability checklist. A branded install banner appears — gradient V logo, app name, one-tap Install button — which calls `prompt()` on the deferred event. If the user accepts, the OS adds Velo to the home screen and the banner disappears permanently.
+
+**macOS / Desktop (Chrome, Edge, Safari)**
+A subtle bottom-right nudge appears with an Install button. It auto-dismisses after 12 seconds so it never blocks the interface. On macOS Safari, Velo appears in the File → Add to Dock menu natively once the manifest is detected.
+
+### Install banner
+
+`PWAInstallBanner.tsx` handles all three platforms from a single component. It checks `display-mode: standalone` on load — if already installed, nothing renders. Dismissals are stored in `sessionStorage` so the banner never re-appears within a session. A `velo:installable` custom event is dispatched when the browser prompt becomes available, letting any part of the React tree react to it.
+
+### Icons
+
+Nine icon sizes (72×72 → 512×512) plus a 180×180 Apple touch icon. All generated from the canonical Velo SVG: diagonal `#7B3CE8 → #3B5BFF → #A8C8FF` gradient background, glass highlight overlay, italic Fraunces *V* in `#F4F1E8`.
 
 ---
 

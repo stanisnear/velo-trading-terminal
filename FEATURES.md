@@ -690,15 +690,25 @@ VeloPerps uses a single-sided liquidity pool model. The pool is the protocol's m
 
 ---
 
-## 36. Mobile Experience
+## 36. Mobile Experience & PWA
 
-The full Velo interface is responsive and tested on iOS and Android.
+The full Velo interface is responsive and tested on iOS and Android. Velo is also a fully installable Progressive Web App — users on any platform can add it to their home screen or dock and open it like a native application, with no app store and no browser chrome.
 
-**Mobile-specific layout:** TradeView reflows to put the order entry panel below the chart. Position cards are vertically stacked with swipe-friendly tap targets. Feed posts are full-width with tap-to-expand comments. Bottom navigation bar: Trade, Markets, Social, Leaderboard, Profile.
+**Mobile-specific layout:** TradeView reflows to put the order entry panel below the chart. Position cards are vertically stacked with swipe-friendly tap targets. Feed posts are full-width with tap-to-expand comments. Bottom navigation bar: Trade, Markets, Social, Leaderboard — icons 22px, touch targets 62px tall, above the iOS safe-area inset.
 
 **Mobile wallet support:** Reown AppKit supports WalletConnect V2 for in-app browser wallets (MetaMask Mobile, Coinbase Wallet) and social logins (Google, Discord) that work natively on mobile without MetaMask.
 
 **Performance:** The trading wallet signs locally — no wallet app round-trips for each trade. Position polling every 5s. The chart loads asynchronously and doesn't block the order form.
+
+**Progressive Web App (PWA):**
+
+Velo ships a `manifest.json`, a service worker (`sw.js`), and a platform-aware install prompt component (`PWAInstallBanner.tsx`).
+
+- **iOS Safari:** detects the platform and shows a step-by-step sheet (Share → Add to Home Screen → Add). Once installed, opens full-screen with `black-translucent` status bar so VELO's dark background extends edge-to-edge. All required `apple-touch-icon` sizes are provided.
+- **Android Chrome/Edge:** captures `beforeinstallprompt` and shows a branded banner — gradient V logo, one-tap Install button — that calls the native OS install flow. Banner dismisses permanently on install.
+- **macOS/Desktop Chrome/Edge:** subtle bottom-right nudge, auto-dismisses after 12 seconds. Safari picks up the manifest natively and exposes File → Add to Dock.
+- **Service worker caching strategy:** stale-while-revalidate for static assets; network-first for navigations; bypass for all WebSocket, Supabase, Orderly, Pyth, and `/api/` traffic so live market data is never served stale.
+- **Icons:** nine sizes (72×72 → 512×512) plus 180×180 Apple touch icon. All rendered from the canonical Velo SVG: `#7B3CE8 → #3B5BFF → #A8C8FF` gradient, glass highlight, italic Fraunces *V*.
 
 ---
 

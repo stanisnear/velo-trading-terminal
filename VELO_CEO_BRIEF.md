@@ -91,12 +91,15 @@ All of the following are working on Base Sepolia today:
 - Protocol stats API at `/api/protocol-stats` — public JSON endpoint for external monitoring
 - Admin Panel — pair registration, fee withdrawal, pool reserves, keeper wallet monitoring
 - Vercel Pro deployment with HTTP security headers and edge caching
+- **Progressive Web App** — installable on iOS, Android, and macOS with a single tap. No app store required. Opens full-screen with native status bar treatment on every platform
 
 ---
 
 ## The Interface as a Product Decision
 
 Most DeFi protocols treat the interface as a wrapper around the contract. Velo treats it as part of the protocol. A few specific examples:
+
+**Velo installs like a native app.** On iOS, a single share-sheet tap adds it to the home screen — full-screen, black-translucent status bar, branded icon. On Android and desktop Chrome, a one-tap install prompt appears at the right moment and triggers the OS install flow. There is no app store submission, no review process, and no version lag. Users who install Velo open a trading terminal that looks and behaves like a native application. For a DeFi product targeting traders who live on their phones, this matters.
 
 The positions table has a **Buffer** column — the live percentage distance from the current mark price to your liquidation price. Most platforms show the liquidation price and let you compute the distance yourself. Buffer shows you directly, colour-coded (EXTREME below 2%, HIGH below 5%, MED below 10%, LOW above), updated as the price moves. At high leverage that number is more actionable than the liquidation price itself.
 
