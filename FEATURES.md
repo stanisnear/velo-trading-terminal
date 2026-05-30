@@ -1,6 +1,6 @@
 # Velo — Complete Feature Reference
 
-This document describes every feature Velo has built and deployed. It covers the full technical and product surface — from how a trading wallet is derived to how the social graph is stored, from the burner wallet's gas sponsor to the keeper's Pyth fee calculation. Everything here corresponds to working, deployed code on Base Sepolia.
+This document describes every feature Velo has built and deployed. It covers the full technical and product surface — from how a trading wallet is derived to how the social graph is stored, from the burner wallet's gas sponsor to the keeper's Pyth fee calculation, and the specific interface decisions that make the terminal feel different. Everything here corresponds to working, deployed code on Base Sepolia.
 
 ---
 
@@ -17,30 +17,33 @@ This document describes every feature Velo has built and deployed. It covers the
 9. [Liquidations](#9-liquidations)
 10. [Margin Management (Add / Reduce)](#10-margin-management-add--reduce)
 11. [Position Display & Monitoring](#11-position-display--monitoring)
-12. [Price Oracle Integration (Pyth Network)](#12-price-oracle-integration-pyth-network)
-13. [Keeper Infrastructure](#13-keeper-infrastructure)
-14. [Cross-Chain Bridging (LayerZero V2)](#14-cross-chain-bridging-layerzero-v2)
-15. [Withdrawals & Peer-to-Peer Send](#15-withdrawals--peer-to-peer-send)
-16. [On-Chain Username Registry (VeloRegistry)](#16-on-chain-username-registry-veloregistry)
-17. [Social Feed](#17-social-feed)
-18. [Profiles & Trade History](#18-profiles--trade-history)
-19. [Follow System](#19-follow-system)
-20. [Copy-Trading](#20-copy-trading)
-21. [Leaderboard](#21-leaderboard)
-22. [Notifications](#22-notifications)
-23. [Shareable Trade Cards](#23-shareable-trade-cards)
-24. [TradingView Chart](#24-tradingview-chart)
-25. [Order Book (Pyth-Anchored)](#25-order-book-pyth-anchored)
-26. [Markets View](#26-markets-view)
-27. [Dashboard & Portfolio Overview](#27-dashboard--portfolio-overview)
-28. [Admin Panel](#28-admin-panel)
-29. [Protocol Stats API](#29-protocol-stats-api)
-30. [Session Management & Auth](#30-session-management--auth)
-31. [Settings Panel](#31-settings-panel)
-32. [Liquidity Pool Model](#32-liquidity-pool-model)
-33. [Mobile Experience](#33-mobile-experience)
-34. [Theme System](#34-theme-system)
-35. [Security Architecture](#35-security-architecture)
+12. [Pre-Trade Risk Display](#12-pre-trade-risk-display)
+13. [Manage Position Modal](#13-manage-position-modal)
+14. [Order Details Modal](#14-order-details-modal)
+15. [Price Oracle Integration (Pyth Network)](#15-price-oracle-integration-pyth-network)
+16. [Keeper Infrastructure](#16-keeper-infrastructure)
+17. [Cross-Chain Bridging (LayerZero V2)](#17-cross-chain-bridging-layerzero-v2)
+18. [Withdrawals & Peer-to-Peer Send](#18-withdrawals--peer-to-peer-send)
+19. [On-Chain Username Registry (VeloRegistry)](#19-on-chain-username-registry-veloregistry)
+20. [Social Feed](#20-social-feed)
+21. [Profiles & Trade History](#21-profiles--trade-history)
+22. [Follow System](#22-follow-system)
+23. [Copy-Trading](#23-copy-trading)
+24. [Leaderboard](#24-leaderboard)
+25. [Notifications](#25-notifications)
+26. [Shareable Trade Cards](#26-shareable-trade-cards)
+27. [TradingView Chart](#27-tradingview-chart)
+28. [Order Book (Pyth-Anchored)](#28-order-book-pyth-anchored)
+29. [Markets View](#29-markets-view)
+30. [Dashboard & Portfolio Overview](#30-dashboard--portfolio-overview)
+31. [Admin Panel](#31-admin-panel)
+32. [Protocol Stats API](#32-protocol-stats-api)
+33. [Session Management & Auth](#33-session-management--auth)
+34. [Settings Panel](#34-settings-panel)
+35. [Liquidity Pool Model](#35-liquidity-pool-model)
+36. [Mobile Experience](#36-mobile-experience)
+37. [Theme System](#37-theme-system)
+38. [Security Architecture](#38-security-architecture)
 
 ---
 
@@ -57,7 +60,7 @@ Velo uses a wallet-first identity model. There are no passwords. There is no ema
 
 **Returning user flow:** A session cache (`velo_session_v1` in localStorage) stores the serialised user profile. On page load this is read synchronously so the UI renders immediately with the user logged in. Supabase's `INITIAL_SESSION` event runs in the background and overwrites with fresh data within 0–3 seconds.
 
-**Logout sentinel system:** Wagmi auto-reconnects to MetaMask within ~100ms of any page load (the dapp permission lives in the browser extension). Without a sentinel, logging out would immediately re-authenticate. The fix uses three layers: a URL parameter (`?logout=1`), a module-level IIFE that runs before React and wipes localStorage while setting `window.__veloLogoutLock = true`, and auth guards that check the lock before running any sign-in logic. The lock clears only when the user explicitly opens AppKit and initiates a fresh wallet connection — background auto-reconnects cannot clear it.
+**Logout sentinel system:** Wagmi auto-reconnects to MetaMask within ~100ms of any page load (the dapp permission lives in the browser extension). Without a sentinel, logging out would immediately re-authenticate. The fix uses three layers: a URL parameter (`?logout=1`), a module-level IIFE that runs before React and wipes localStorage while setting `window.__veloLogoutLock = true`, and auth guards that check the lock before running any sign-in logic. The lock clears only when the user explicitly opens AppKit and initiates a fresh wallet connection.
 
 ---
 
@@ -125,6 +128,10 @@ A market order opens a position immediately at the current Pyth oracle price.
 9. `tradeId → txHash` is persisted to localStorage so the position detail modal can link to the open transaction even after page reload
 10. UI polling (5s interval) picks up the new position from `fetchOpenPositions`
 
+**Duplicate-position lock:** A `isProcessing` ref prevents a second click firing a second order while the first transaction is in-flight. The lock is released only in terminal branches — success, failure, or validation reject. It is not released on a fixed timer. This was the root cause of a specific bug where rapid double-clicks opened two positions for the same intended trade.
+
+**Minimum collateral:** $1.00 USD. The contract requires `collateralUSDC_6 >= 1e6`. If the derived collateral is below this threshold, a specific toast message is shown before submission.
+
 ---
 
 ## 5. Isolated Margin Model
@@ -169,7 +176,7 @@ struct ConditionalOrder {
 
 **Execution:** The limit/stop keeper (`cron-conditional-orders.ts`) evaluates all open orders every minute and calls `executeConditionalOrder(orderId, pythUpdateData)` for triggered orders. The contract re-validates the trigger on-chain — the keeper cannot fill an order at the wrong price. `OrderNotTriggered` reverts are silently skipped.
 
-**Fill price vs trigger price:** The fill is at the oracle price when the keeper's transaction mines, not the trigger price. For a long limit at $2,000 — if ETH is at $1,998 at execution, you fill at $1,998 (price improvement). If ETH has bounced to $2,001, the contract reverts and the order stays open. See the README for a full explanation of why this is standard oracle-perp behaviour.
+**Fill price vs trigger price:** The fill is at the oracle price when the keeper's transaction mines, not the trigger price. For a long limit at $2,000 — if ETH is at $1,998 at execution, you fill at $1,998 (price improvement). If ETH has bounced to $2,001, the contract reverts and the order stays open. See the README for a full explanation.
 
 ---
 
@@ -183,7 +190,7 @@ TP and SL are on-chain trigger values stored inside the `Position` struct as `ta
 - Setting either to `0` clears that trigger
 - Contract reverts `InvalidTrigger` for any violation
 
-**Open-time TP/SL validation:** When a market order is submitted, the TP/SL is validated against the **actual fill price** (from the confirmed `PositionOpened` event), not the displayed pre-trade mark price. If the market moves between clicking "Buy" and the transaction mining, a TP set against the pre-tx price can end up on the wrong side of the actual entry. Invalid triggers are skipped with a precise explanation ("TP must be above entry for LONG. Actual entry: $X. Your TP: $Y. Adjust from the position panel.") — no silent failure.
+**Open-time TP/SL validation:** When a market order is submitted, the TP/SL is validated against the **actual fill price** from the confirmed `PositionOpened` event, not the displayed pre-trade mark price. If the market moves between clicking "Buy" and the transaction mining, a TP set against the pre-tx price can end up on the wrong side of the actual entry. Invalid triggers are skipped with a precise explanation — "TP must be above entry for LONG. Actual entry: $X. Your TP: $Y. Adjust from the position panel." — no silent failure.
 
 **TP/SL keeper (`cron-tp-sl.ts`):** Runs every minute. For each position with non-zero TP or SL:
 - Fetches fresh Pyth price from Hermes
@@ -193,7 +200,7 @@ TP and SL are on-chain trigger values stored inside the `Position` struct as `ta
 
 **Fill price note:** The fill price for a TP/SL is the oracle price at the moment the keeper's transaction mines — not the trigger price. This is standard oracle-perp behaviour. On mainnet with a keeper running every few seconds, this spread is negligible.
 
-**UI:** The position management modal's TRIGGERS tab has two brand sliders — green for TP (potential gain %), red for SL (potential loss %). The slider position corresponds to the gain/loss percentage at that price. Typing a price directly updates the slider. Changes are submitted on-chain via `setTriggers`.
+**UI in the Manage Position modal:** The TRIGGERS tab has two brand-coloured sliders on the same axis — green for TP (projected gain %), red for SL (projected loss %). Dragging the slider updates the price field; typing a price updates the slider. Both are linked bidirectionally. The panel also shows: current liquidation distance, projected PnL and ROE at the TP price, projected PnL and ROE at the SL price.
 
 ---
 
@@ -209,7 +216,7 @@ The contract:
 - Pays the partial payout (collateral fraction + PnL fraction − 0.10% close fee) to the owner
 - Position remains open with reduced size
 
-The UI exposes this through the per-position **"Close" button** (opens a slider modal to choose what fraction to close) distinct from **"Close 100%"** (which immediately closes the full position at market with no modal).
+The UI exposes this through the per-position **"Close" button** (opens a slider modal to choose what fraction to close, with a live USD preview of the size being closed) distinct from **"Close 100%"** (which immediately closes the full position at market with no modal, for speed).
 
 ---
 
@@ -221,9 +228,9 @@ A position is liquidatable when its unrealised loss exceeds 90% of its collatera
 
 **Permissionless:** `liquidate(tradeId, pythUpdateData)` can be called by any address. The caller receives 1% of the liquidated collateral as a bounty. The remainder accrues to the pool.
 
-**Liquidation keeper (`cron-liquidate.ts`):** Runs every minute. Reads all open positions, fetches fresh Pyth prices per unique pair from Hermes (bypassing on-chain cache staleness), computes unrealised PnL off-chain using the same arithmetic as `PerpsMath.sol`, and submits `liquidate` for underwater positions with the exact Pyth fee.
+**Liquidation keeper (`cron-liquidate.ts`):** Runs every minute. Reads all open positions, fetches fresh Pyth prices per unique pair from Hermes, computes unrealised PnL off-chain using the same arithmetic as `PerpsMath.sol`, and submits `liquidate` for underwater positions with the exact Pyth fee.
 
-**Liquidation price display:** Each position card shows the liquidation price in red. For a long at $2,000 with 10× leverage: liquidation price ≈ entry × (1 − 0.9/leverage) = $1,820.
+**Liquidation price display:** Each position card shows the liquidation price. The Buffer column shows the percentage distance from current mark to liquidation, colour-coded by risk tier (EXTREME < 2%, HIGH < 5%, MED < 10%, LOW ≥ 10%).
 
 ---
 
@@ -239,30 +246,112 @@ Both are accessible from the Manage Position modal → ADD / REDUCE tabs, signed
 
 ## 11. Position Display & Monitoring
 
-**Position cards (TradeView):** Each open position shows:
-- Pair name and LONG/SHORT badge
-- Entry price and current mark price
-- Live unrealised PnL in $ and %
-- Position size and effective leverage
-- Margin used
-- Liquidation price (red when margin risk is elevated)
-- TP/SL prices if set
-- **"Close" button** — opens the partial close modal (choose fraction via slider)
-- **"Close 100%" button** — immediate full market close with no modal
-- Share icon to post a trade card
+**Position table (TradeView, desktop):** A sticky-header table with the following columns — all column headers are hoverable tooltips:
 
-**Position detail modal:** Clicking any closed trade opens a full breakdown:
-- Entry price, exit price, price change %
-- Position size, leverage, margin used, margin mode
-- Liquidation price at time of trade
-- Opened/closed timestamps and duration
-- "View TX" link — deep link to the opening transaction on BaseScan, persisted in localStorage so the link survives page reloads
+| Column | What it shows |
+|--------|---------------|
+| Pair | Trading pair with asset logo |
+| Side | LONG / SHORT badge, colour-coded green/red |
+| Size | Notional value (collateral × leverage) |
+| Entry | Average fill price |
+| Mark | Live Pyth oracle price, same feed the contract settles on |
+| Liq. | Estimated liquidation price |
+| Buffer | Live % distance from mark to liquidation, colour-coded by risk tier |
+| PnL (ROE) | Unrealised PnL in USD · return on equity % |
+| TP/SL | Current take profit and stop loss prices if set |
+| Actions | Edit, share, close buttons |
 
-**Polling:** `useVeloPerpsTrading.ts` polls `fetchOpenPositions` and `fetchConditionalOrders` every 5 seconds via `setInterval`. Manual `refresh()` is called immediately after any write so the UI updates without waiting for the next poll tick.
+**Tabs:** Positions / Open Orders / History. Each tab shows a paginated list (5 per page). History captures all trade events — opens, closes, liquidations — not just closed positions.
+
+**Mobile layout:** Position cards are vertically stacked with all key metrics visible and tap-friendly action buttons.
+
+**Polling:** `useVeloPerpsTrading.ts` polls `fetchOpenPositions` and `fetchConditionalOrders` every 5 seconds. Manual `refresh()` is called immediately after any write so the UI updates without waiting for the next tick.
+
+**Position sync:** On-chain positions are the source of truth. After any write (open, close, TP/SL update), the local UI state is reconciled against the contract poll result on the next tick. Optimistic local updates are deliberately avoided — they would diverge from on-chain state and corrupt the equity display.
 
 ---
 
-## 12. Price Oracle Integration (Pyth Network)
+## 12. Pre-Trade Risk Display
+
+Before submitting any order, the entry panel shows three numbers derived from the current size and leverage inputs:
+
+**Est. Liq. Price** — the estimated liquidation price at the entered collateral and leverage, displayed in orange. For isolated margin: `entry ± (collateral × 0.9 / notional) × entry`. Updated in real-time as the user adjusts inputs.
+
+**Margin Risk** — a live classification computed from the percentage distance between the current mark price and the estimated liquidation price:
+
+| Risk level | Distance to liquidation | Colour |
+|------------|-------------------------|--------|
+| LOW | ≥ 10% | Green |
+| MEDIUM | 5–10% | Orange |
+| HIGH | 1–5% | Red |
+| EXTREME | < 1% | Dark red |
+
+**Free Balance** — buying power remaining after the proposed position is opened, so you can see at a glance whether you have margin left for further positions.
+
+These three fields are live — they update as you type in the size or leverage fields, before you've clicked anything.
+
+---
+
+## 13. Manage Position Modal
+
+Accessed via the edit icon on any open position card. Four tabs, all signed silently by the trading wallet.
+
+**TRIGGERS (TP/SL)**
+
+Two coloured sliders on the same axis — green above the current price for take profit, red below for stop loss (reversed for shorts). The slider position maps to the projected gain/loss percentage at that price. Price input field and slider are bidirectionally linked. The panel also shows:
+- Current liquidation distance
+- Projected PnL in USD at the TP price
+- Projected ROE % at the TP price
+- Projected PnL in USD at the SL price
+- Projected ROE % at the SL price
+
+Submits `setTriggers(tradeId, takeProfit_E18, stopLoss_E18)` on confirmation. Setting a slider to zero clears that trigger.
+
+**CLOSE (Partial Close)**
+
+A percentage slider from 1% to 100%. Below the slider, a live preview shows the exact USD size being closed at the selected fraction (e.g. "Closing $245.00 of $490.00"). Submit calls `partialClose(tradeId, fractionBps)`. The "Close 100%" button on the position card itself bypasses this modal for immediate full close.
+
+**ADD**
+
+Input for additional collateral to deposit. Shows the balance impact and the new estimated liquidation price before confirming. Calls `increaseCollateral(tradeId, amount)`.
+
+**REDUCE**
+
+Input for collateral to withdraw. Shows the new leverage and new liquidation price before confirming. Calls `decreaseCollateral(tradeId, amount, pythUpdateData)`.
+
+**Leverage change confirmation:** If the leverage slider is changed while an existing position is already open on that pair, a separate confirmation modal intercepts before any submission. It has three distinct states:
+- **Insufficient balance** — explains what's blocked and why
+- **Increasing leverage** — shows current liq. distance, new liq. distance (colour-coded), new liq. price, and a plain explanation. Confirm button turns orange
+- **Reducing leverage** — shows current and new liq. distance, how much free balance is released. Confirm button stays violet
+
+This modal exists because VeloPerps locks leverage at open time — there is no post-open leverage adjustment at the contract level. The modal prevents the common mistake of adjusting the leverage slider while a position is already open.
+
+---
+
+## 14. Order Details Modal
+
+Clicking any row in the History tab opens a full trade breakdown.
+
+**For closed trades:**
+- Pair, side, leverage, margin mode
+- Entry price, exit price, price change %
+- Position size, collateral used
+- Liquidation price at time of the trade
+- Opened timestamp, closed timestamp, duration
+- Final PnL in USD and ROE %
+- "View on BaseScan" — deep link to the closing transaction. Persisted in localStorage against the `tradeId` so the link survives page reloads and is available even after the position is gone from the active list
+
+**For open positions (accessed from Dashboard):**
+- All the above minus exit price and close timestamp
+- Current unrealised PnL
+
+**Keyboard:** Esc closes the modal.
+
+**BaseScan links:** Both the open transaction hash (persisted at open time) and the close transaction hash are linked if available. For faucet credits, the link points to BaseScan's address page rather than a transaction (the faucet is server-side with no on-chain tx hash).
+
+---
+
+## 15. Price Oracle Integration (Pyth Network)
 
 Velo uses **Pyth Network** with the pull-model architecture — prices are pushed into transactions rather than read from a continuously-updated on-chain state.
 
@@ -283,25 +372,24 @@ function normalisePythPrice(PythStructs.Price memory p) internal pure returns (u
 }
 ```
 
-**Staleness on testnet:** On Base Sepolia, the on-chain Pyth cache goes stale when no transactions have pushed updates recently. The keepers solve this by always including a fresh Hermes update in the keeper transaction — execution is never blocked by cache staleness.
+**Unified UI pricing — Pyth everywhere (`pythPriceService.ts`):** Every price shown anywhere in the app comes from Pyth, the same oracle the contract settles trades against.
+- **Live mark price** streams from Pyth's Hermes SSE endpoint (`/v2/updates/price/stream?ids[]=...&parsed=true`). One EventSource subscribes to all pairs at once and pushes ticks into `marketPrices`, which drives the ticker, the positions table mark column, the order book mid, and the chart's live price line
+- **Chart candles** come from the Pyth Benchmarks TradingView shim (`/v1/shims/tradingview/history`) — real Pyth OHLC in TradingView's native format
+- **Initial snapshot + 30s fallback** uses Hermes latest REST for all feeds in a single request
 
-**Unified UI pricing — Pyth everywhere (`pythPriceService.ts`):** Every price shown anywhere in the app comes from Pyth, the same oracle the contract settles trades against. There is no longer any Binance or Coinbase price on screen.
-- **Live mark price** streams from Pyth's Hermes SSE endpoint (`/v2/updates/price/stream?ids[]=...&parsed=true`). One EventSource subscribes to all pairs at once and pushes ticks into `marketPrices`, which drives the ticker, the positions table mark column, the order book mid, and the chart's live price line.
-- **Chart candles** come from the Pyth Benchmarks TradingView shim (`/v1/shims/tradingview/history`) — real Pyth OHLC, returned in the same shape the chart already consumed.
-- **Initial snapshot + 30s fallback** uses Hermes latest REST (`/v2/updates/price/latest`) for all feeds in a single request.
-- The 24h change % shown in Markets is cosmetic and still sourced from a public REST ticker; it is never compared against a fill price, so it introduces no inconsistency.
+The 24h change % shown in Markets is cosmetic and sourced from a public REST ticker; it is never compared against a fill price.
 
-**Why this matters:** entry price, mark price, order book, chart, and the fill notification now all read the same feed. The only variance you can see between your entry and the live mark is normal tick timing (entry is locked at fill; the mark keeps moving) — the previous cross-venue gap (fill on Pyth, ticker on Binance, chart on Coinbase) is gone.
+**Why this matters:** entry price, mark price, order book, chart, and the fill notification all read the same feed. The only variance between your entry and the live mark is normal tick timing.
 
 **17 supported pairs:** BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL — each mapped to a verified chain-independent Pyth feed ID.
 
 ---
 
-## 13. Keeper Infrastructure
+## 16. Keeper Infrastructure
 
 Three automated keeper jobs run every minute via Vercel Pro cron:
 
-**Parallel execution pattern (all three keepers):** First pass evaluates all positions/orders against fresh prices off-chain. Second pass fires all triggered transactions simultaneously and awaits all receipts in parallel via `Promise.all`. Ten simultaneous fills complete in approximately one block rather than ten sequential blocks.
+**Parallel execution pattern (all three keepers):** First pass evaluates all positions/orders against fresh prices off-chain. Second pass fires all triggered transactions simultaneously via `Promise.all`. Ten simultaneous fills complete in approximately one block rather than ten sequential blocks.
 
 **Critical — Pyth fee exactness:** The contract enforces `msg.value == PYTH.getUpdateFee(updateData)` with strict equality — any deviation reverts `PythFeeMismatch`. All three keepers query the exact fee on-chain before every submission. Hardcoding the Pyth fee (even as a "safe" overestimate) causes every keeper execution to silently revert.
 
@@ -328,7 +416,7 @@ Three automated keeper jobs run every minute via Vercel Pro cron:
 
 ---
 
-## 14. Cross-Chain Bridging (LayerZero V2)
+## 17. Cross-Chain Bridging (LayerZero V2)
 
 Velo mUSDC (VeloMockUSDC) is a LayerZero V2 OFT deployed on four Sepolia testnets.
 
@@ -347,7 +435,7 @@ Velo mUSDC (VeloMockUSDC) is a LayerZero V2 OFT deployed on four Sepolia testnet
 
 ---
 
-## 15. Withdrawals & Peer-to-Peer Send
+## 18. Withdrawals & Peer-to-Peer Send
 
 **Withdraw:** Move mUSDC from the trading wallet to any address on any supported chain. Only the free balance (not locked in open positions) is withdrawable. The modal shows "Available to withdraw" as total balance minus locked collateral.
 
@@ -359,7 +447,7 @@ Signed silently by the trading wallet. Used for tipping traders, peer payments, 
 
 ---
 
-## 16. On-Chain Username Registry (VeloRegistry)
+## 19. On-Chain Username Registry (VeloRegistry)
 
 VeloRegistry is a standalone Solidity contract mapping `@username → address` and `address → @username`.
 
@@ -373,7 +461,7 @@ VeloRegistry is a standalone Solidity contract mapping `@username → address` a
 
 ---
 
-## 17. Social Feed
+## 20. Social Feed
 
 A real-time, Twitter-style post feed stored in Supabase with Realtime subscriptions for live updates.
 
@@ -392,7 +480,7 @@ A real-time, Twitter-style post feed stored in Supabase with Realtime subscripti
 
 ---
 
-## 18. Profiles & Trade History
+## 21. Profiles & Trade History
 
 Every wallet address has a public profile page visible to all visitors (logged in or not).
 
@@ -410,7 +498,7 @@ Every wallet address has a public profile page visible to all visitors (logged i
 
 ---
 
-## 19. Follow System
+## 22. Follow System
 
 `follows` table in Supabase — a many-to-many graph mapping `follower_id → followed_id`.
 
@@ -418,7 +506,7 @@ Click "Follow" on any profile. The followed trader receives a notification. Togg
 
 ---
 
-## 20. Copy-Trading
+## 23. Copy-Trading
 
 Subscribe to any trader to automatically mirror their position openings.
 
@@ -435,7 +523,7 @@ Subscribe to any trader to automatically mirror their position openings.
 
 ---
 
-## 21. Leaderboard
+## 24. Leaderboard
 
 A public ranking of all Velo traders sorted by realised PnL, computed from on-chain trade history. Rankings cannot be faked — every entry corresponds to real transactions at real prices.
 
@@ -443,11 +531,11 @@ A public ranking of all Velo traders sorted by realised PnL, computed from on-ch
 
 **Filter:** Only traders with at least one closed trade appear.
 
-**Default feed:** New users who don't follow anyone see top-leaderboard traders' posts. This solves the cold-start problem — there's always interesting content from the best traders at the top of your feed.
+**Default feed:** New users who don't follow anyone see top-leaderboard traders' posts. This solves the cold-start problem — there's always content from the best traders at the top of your feed.
 
 ---
 
-## 22. Notifications
+## 25. Notifications
 
 In-app notification system stored in Supabase's `notifications` table with Realtime push.
 
@@ -457,35 +545,40 @@ In-app notification system stored in Supabase's `notifications` table with Realt
 
 ---
 
-## 23. Shareable Trade Cards
+## 26. Shareable Trade Cards
 
 Every closed position with |PnL| ≥ $0.50 triggers the share modal automatically.
 
-**Card rendering:** HTML5 Canvas, 1200×675 pixels (Twitter/Instagram optimal ratio). Three background styles: Obsidian (dark solid), Gradient (purple-to-blue prism), Hologram (iridescent). Configurable field visibility: pair, side, leverage, entry, exit, mark, size, collateral, PnL, trader handle. An unmissable "TESTNET · BASE SEPOLIA" watermark prevents confusion about real money.
+**Card rendering:** HTML5 Canvas, 1200×675 pixels (Twitter/Instagram optimal ratio). Three background styles:
+- **Obsidian** — very dark base with a faint grid and subtle ambient light
+- **Gradient** — purple-to-blue prism with layered radial gradients
+- **Hologram** — iridescent dual-bloom with contrasting highlight gradients
+
+Configurable field visibility: pair, side, leverage, entry, exit, mark, size, collateral, PnL, trader handle. A "TESTNET · BASE SEPOLIA" watermark is rendered on every card to prevent confusion about real money.
 
 **Export:**
 - **Download PNG** — saves the canvas as a `.png` file locally
 - **Share** — Web Share API on mobile (posts directly to Twitter, Instagram, Telegram); falls back to clipboard on desktop
 
-**Open position share:** Share icon next to each position card's close buttons opens the card with current mark price and unrealised PnL.
+**Open position share:** The share icon next to each position card opens the card with current mark price and unrealised PnL — before the position is closed.
 
 ---
 
-## 24. TradingView Chart
+## 27. TradingView Chart
 
 Velo uses the official TradingView Charting Library widget — not a custom chart implementation.
 
 **Features available:**
 - Full OHLCV candle chart for all 17 pairs
 - Timeframes: 1m, 5m, 15m, 1h, 4h, 1D (and more via TradingView's built-in list)
-- Full drawing tools: trend lines, Fibonacci retracement, horizontal rays, rectangles, text annotations, more
+- Full drawing tools: trend lines, Fibonacci retracement, horizontal rays, rectangles, text annotations
 - Full indicator library: RSI, MACD, Bollinger Bands, EMA (any period), VWAP, Volume, OBV, ATR, Stochastic, and the complete TradingView catalogue
-- Price data sourced from **Pyth** via TradingView's `PYTH:*` symbols (e.g. `PYTH:SOLUSD`) — the same oracle the contract settles on, so the chart, the ticker, and your fills all agree. All 22 listed symbols are verified to resolve on TradingView's Pyth source.
-- Chart state persists across tab switches — the component stays mounted and hidden, not destroyed and re-mounted
+- Price data sourced from **Pyth** via TradingView's `PYTH:*` symbols (e.g. `PYTH:SOLUSD`) — the same oracle the contract settles on, so the chart, the ticker, and your fills all agree
+- Chart state persists across tab switches — the component stays mounted and hidden, not destroyed and re-mounted, so drawing tools and indicator configuration are preserved
 
 ---
 
-## 25. Order Book (Pyth-Anchored)
+## 28. Order Book (Pyth-Anchored)
 
 Bid/ask depth panel rendered next to the chart in TradeView.
 
@@ -500,7 +593,7 @@ Bid/ask depth panel rendered next to the chart in TradeView.
 
 ---
 
-## 26. Markets View
+## 29. Markets View
 
 A grid of all 17 supported trading pairs with live price data.
 
@@ -508,9 +601,11 @@ A grid of all 17 supported trading pairs with live price data.
 
 **Pair search:** Filter the pair grid by name in real-time.
 
+**Token detail panel:** Clicking a pair opens an information panel with the asset's description, category, market cap rank, website, and whitepaper links where available.
+
 ---
 
-## 27. Dashboard & Portfolio Overview
+## 30. Dashboard & Portfolio Overview
 
 The landing tab for logged-in users.
 
@@ -526,7 +621,7 @@ The landing tab for logged-in users.
 
 ---
 
-## 28. Admin Panel
+## 31. Admin Panel
 
 Visible only to the VeloPerps contract owner wallet (`owner()` is read on app load; the tab only appears if the connected wallet matches).
 
@@ -542,7 +637,7 @@ Visible only to the VeloPerps contract owner wallet (`owner()` is read on app lo
 
 ---
 
-## 29. Protocol Stats API
+## 32. Protocol Stats API
 
 `GET /api/protocol-stats` — public JSON endpoint, CORS-open.
 
@@ -552,7 +647,7 @@ Visible only to the VeloPerps contract owner wallet (`owner()` is read on app lo
 
 ---
 
-## 30. Session Management & Auth
+## 33. Session Management & Auth
 
 Velo's auth combines wallet-based identity with Supabase session management.
 
@@ -567,7 +662,7 @@ Velo's auth combines wallet-based identity with Supabase session management.
 
 ---
 
-## 31. Settings Panel
+## 34. Settings Panel
 
 **Wallet section:** Main wallet address (linked to BaseScan), Velo Trading Wallet address (linked to BaseScan), ETH balance, mUSDC balance, "Reveal Private Key" (shows hex key for export), "Move $X mUSDC" (sweeps from main wallet to trading wallet if found there).
 
@@ -579,7 +674,7 @@ Velo's auth combines wallet-based identity with Supabase session management.
 
 ---
 
-## 32. Liquidity Pool Model
+## 35. Liquidity Pool Model
 
 VeloPerps uses a single-sided liquidity pool model. The pool is the protocol's mUSDC balance held in the contract address.
 
@@ -589,13 +684,13 @@ VeloPerps uses a single-sided liquidity pool model. The pool is the protocol's m
 - Close at loss: remaining collateral returned to trader, loss accrues to pool
 - Liquidation: liquidated collateral goes to the pool minus the 1% bounty
 
-**The pool is always the counterparty to every trade.** There are no other traders on the other side. This is the pure oracle-perp model — the protocol takes the opposite side of every trade. The pool profits when traders lose in aggregate, and loses when traders profit in aggregate.
+**The pool is always the counterparty to every trade.** There are no other traders on the other side. The protocol takes the opposite side of every trade. The pool profits when traders lose in aggregate, and loses when traders profit in aggregate.
 
 **Pool solvency:** No insurance fund exists on testnet. For mainnet, an insurance fund seeded from protocol fees (target: 5% of TVL) will be added.
 
 ---
 
-## 33. Mobile Experience
+## 36. Mobile Experience
 
 The full Velo interface is responsive and tested on iOS and Android.
 
@@ -607,7 +702,7 @@ The full Velo interface is responsive and tested on iOS and Android.
 
 ---
 
-## 34. Theme System
+## 37. Theme System
 
 A single CSS custom property system drives both light and dark modes.
 
@@ -630,11 +725,11 @@ A single CSS custom property system drives both light and dark modes.
 **Brand typography:**
 - `Fraunces` — display moments, PnL heroes, wordmark
 - `Geist` — all UI copy and controls
-- `Geist Mono` — every price, balance, timestamp, trade ID
+- `Geist Mono` — every price, balance, timestamp, trade ID. Used with `font-feature-settings: "tnum" 1` and `font-variant-numeric: tabular-nums` so numbers never shift horizontally as they update in live position tables
 
 ---
 
-## 35. Security Architecture
+## 38. Security Architecture
 
 **Smart contract security:**
 - `ReentrancyGuard` on all write functions
@@ -658,4 +753,4 @@ A single CSS custom property system drives both light and dark modes.
 
 ---
 
-*This document reflects the state of Velo as of the current testnet build on Base Sepolia (VeloPerpsV3.1, VERSION=31). All features described are implemented in the deployed codebase.*
+*This document reflects the state of Velo as of the current testnet build on Base Sepolia (VeloPerpsV3.1, VERSION=31). All features described are implemented in the deployed codebase. Live at [velotrading.live](https://velotrading.live).*

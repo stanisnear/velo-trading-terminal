@@ -12,11 +12,21 @@ Velo is live today on Base Sepolia. Every feature described in this document is 
 
 ---
 
+## Built by a Trader, for Traders
+
+Velo was built by someone who has traded across the full cycle — centralised exchanges, early DeFi perps, and everything in between. That experience is not in the pitch deck. It's in the product.
+
+Most DeFi trading terminals are built by engineers who researched what traders want. Velo was built by someone who knows what a liquidation feels like, what it means when your TP fills two dollars off, and why a 2% buffer on a 25× position is a different category of risk than a 15% buffer. The interface reflects that directly: every column in the position table has a hover tooltip with a precise definition, the order panel shows a live risk classification (LOW / MEDIUM / HIGH / EXTREME) before you submit, and the leverage change modal has three distinct states with actual explanations — not a generic confirmation prompt.
+
+This matters for a specific reason: DeFi trading products consistently fail at the terminal layer. The protocol mechanics are sound; the interface treats users like they've read the whitepaper. Velo is built on the premise that the interface is part of the product, not a skin on top of it.
+
+---
+
 ## The Problem Velo Solves
 
-Crypto trading has a trust problem. On centralised exchanges (Binance, Bybit, OKX), you trust the platform with your funds, you trust their reported prices, and you trust their reported PnL. Their internal ledgers are hidden. Their matching engines are opaque. When they fail — FTX, Celsius, Voyager — the losses are catastrophic and the warnings were invisible.
+Crypto trading has a trust problem. On centralised exchanges, you trust the platform with your funds, you trust their reported prices, and you trust their reported PnL. Their internal ledgers are hidden. Their matching engines are opaque. When they fail — the losses are catastrophic and the warnings were invisible.
 
-Decentralised perpetual exchanges exist (GMX, Gains Network, dYdX) but they solve only the custody problem. They do not solve the social problem: there is no way to verify another trader's claimed performance, no way to copy a provably profitable strategy with trustless enforcement, and no way to build a trading community where the numbers are real.
+Decentralised perpetual exchanges solve the custody problem. They do not solve the social problem: there is no way to verify another trader's claimed performance, no way to copy a provably profitable strategy with trustless enforcement, and no way to build a trading community where the numbers are real.
 
 Velo solves both simultaneously. The exchange is trustless by construction — on-chain settlement means the protocol cannot misappropriate funds. The social layer is trustless by construction — leaderboard rankings are computed from on-chain events, trade cards carry transaction hashes, and any claimed performance can be independently verified on a block explorer.
 
@@ -28,10 +38,10 @@ Velo solves both simultaneously. The exchange is trustless by construction — o
 These protocols pioneered the oracle-priced perpetual model that Velo uses. They are excellent execution engines but have no social product. Traders share screenshots on Twitter and Discord — unverifiable, easily faked, utterly unaccountable. Velo takes the same execution architecture and builds a provable social layer on top of it. Your profile is not a screenshot. It is a query against a blockchain.
 
 **vs dYdX / Hyperliquid:**
-These are centralised order book matching engines that happen to use a blockchain for settlement. Their prices are set by their own matching engines, not by a global oracle. Velo uses Pyth Network — the same price feed used by trillions in DeFi value — as the sole execution reference. No one controls the price.
+These are centralised order book matching engines that happen to use a blockchain for settlement. Their prices are set by their own matching engines, not by a global oracle. Velo uses Pyth Network — the same price feed used by hundreds of billions in DeFi value — as the sole execution reference. No one controls the price.
 
 **vs Copy-trading platforms (eToro, ZuluTrade):**
-These are centralised services with no on-chain enforcement. The leader can close the copy-trade relationship at will. Performance claims are not independently verifiable. Velo's planned V3 Vaults encode the copy-trade relationship in Solidity — the leader can only direct trades, not withdraw capital. The rules are in code, not in a terms-of-service document.
+These are centralised services with no on-chain enforcement. Performance claims are not independently verifiable. Velo's planned V3 Vaults encode the copy-trade relationship in Solidity — the leader can only direct trades, not withdraw capital. The rules are in code, not in a terms-of-service document.
 
 ---
 
@@ -84,6 +94,22 @@ All of the following are working on Base Sepolia today:
 
 ---
 
+## The Interface as a Product Decision
+
+Most DeFi protocols treat the interface as a wrapper around the contract. Velo treats it as part of the protocol. A few specific examples:
+
+The positions table has a **Buffer** column — the live percentage distance from the current mark price to your liquidation price. Most platforms show the liquidation price and let you compute the distance yourself. Buffer shows you directly, colour-coded (EXTREME below 2%, HIGH below 5%, MED below 10%, LOW above), updated as the price moves. At high leverage that number is more actionable than the liquidation price itself.
+
+The **pre-trade risk display** shows an estimated liquidation price and a risk tier before you submit. Not after — before. The logic is simple: a trader who knows their liquidation distance before entering is a trader who makes deliberate decisions. A trader who finds out after is a trader who gets surprised.
+
+The **leverage change confirmation modal** doesn't ask "are you sure?". It shows you your current liquidation distance, your new liquidation distance, what the liq. price moves to, and a plain-language explanation of what's happening. If you don't have the balance, it tells you that's why it's blocked, not just that it's blocked.
+
+**TP/SL validation runs against actual fill price**, not the pre-trade mark. If the market moves between your click and the transaction confirming, and your pre-set target ends up on the wrong side of your real entry, you get a specific error with the actual entry price and exactly what to adjust. No silent failures, no triggers sitting at prices that will never fire correctly.
+
+These aren't features. They're what a trading interface looks like when the person building it has been on the wrong end of each of these problems.
+
+---
+
 ## The Trigger Price vs Fill Price Behaviour on Testnet
 
 One behaviour worth explaining clearly for reviewers who test Velo:
@@ -94,18 +120,16 @@ When a keeper executes a limit order, TP, or SL, the fill price may differ sligh
 
 The reason: the keeper runs on Vercel's per-minute cron. When the trigger price is crossed, the keeper fires on the next minute tick. By the time the keeper's transaction mines, the oracle price may have moved slightly from the trigger level. The fill is always at the real oracle price at execution time.
 
-**This is a testnet infrastructure characteristic, not a protocol flaw.** On mainnet with a dedicated keeper running every few seconds (standard industry practice), this window narrows to near-zero. The same GMX position you close at a TP will fill within pennies of your trigger on mainnet. The protocol mechanism is correct — the testnet runner is intentionally lean.
+**This is a testnet infrastructure characteristic, not a protocol flaw.** On mainnet with a dedicated keeper running every few seconds, this window narrows to near-zero. The protocol mechanism is correct — the testnet runner is intentionally lean.
 
-The contract guarantees important protections: for limit orders, you can never fill worse than your limit price (a long limit buy always fills at or below the limit — you get price improvement if the market moves further in your favour). TP/SL executions fill at the live oracle price, which may be slightly past the trigger, but this is how every oracle perp works.
-
-**One oracle, everywhere.** Velo reads Pyth — and only Pyth — across the entire interface: the live ticker, the chart (TradingView's `PYTH:*` symbols), the order book, and the on-chain fill all come from the same feed. Earlier builds mixed sources (fills on Pyth, ticker on Binance, chart on Coinbase), which made an entry and the displayed mark look a few cents apart even though the trade was correct. That cross-venue gap is now gone: when a reviewer opens a position, the price they filled at is the price shown everywhere. The only remaining movement is normal time passing between the locked entry and the live mark.
+**One oracle, everywhere.** Velo reads Pyth — and only Pyth — across the entire interface: the live ticker, the chart (TradingView's `PYTH:*` symbols), the order book, and the on-chain fill all come from the same feed. When a reviewer opens a position, the price they filled at is the price shown everywhere on screen. The only movement is normal time passing between the locked entry and the live mark.
 
 ---
 
 ## Technology Stack
 
 **Smart contracts (Foundry + Solidity 0.8.22):**
-- `VeloPerpsV3.1` — the active perp engine (VERSION=31). Pyth pull-oracle, isolated margin, on-chain conditional orders, TP/SL triggers, partial close, liquidations, cross-margin ledger
+- `VeloPerpsV3.1` — the active perp engine (VERSION=31). Pyth pull-oracle, isolated margin, on-chain conditional orders, TP/SL triggers, partial close, liquidations
 - `VeloMockUSDC` — ERC-20 + LayerZero V2 OFT + faucet
 - `VeloRegistry` — on-chain `@username → 0x address` resolver
 - `PerpsMath.sol` — pure-Solidity PnL, liquidation threshold, and fee arithmetic library
@@ -188,7 +212,6 @@ Fully operational on Base Sepolia. All order types work. All three keepers run. 
 - Insurance fund seeded from protocol fees
 - Funding rate mechanism — hourly long/short payments to balance open interest
 - Chainlink as a secondary oracle circuit-breaker alongside Pyth
-- Cross-margin mode for portfolio margining
 - Multisig ownership (Safe, 3-of-5)
 - Dynamic fees scaled by trade size and protocol delta exposure
 - Dedicated keeper infrastructure on AWS (not Vercel crons)
@@ -206,19 +229,17 @@ Velo Vaults route trades to any compatible execution venue for best execution. P
 
 ## Future Infrastructure Investment
 
-The current testnet stack is lean by design. Mainnet requires a substantial infrastructure upgrade, all managed as code:
+The current testnet stack is lean by design. Mainnet requires a substantial infrastructure upgrade:
 
 **Keeper network:** From Vercel crons to a permissioned-then-permissionless validator set. Registered keeper nodes compete to submit fills first and earn the bounty. Initially Velo-operated on AWS EC2 in multiple regions (US-East, EU-West, AP-Southeast). Progressively opened to external operators who post a bond.
 
-**Multiple oracles:** Pyth as primary (pull-model efficiency). Chainlink as secondary circuit-breaker. If the two diverge beyond a configurable threshold, the protocol pauses fills until they reconverge. Eliminates single-oracle manipulation risk.
+**Multiple oracles:** Pyth as primary (pull-model efficiency). Chainlink as secondary circuit-breaker. If the two diverge beyond a configurable threshold, the protocol pauses fills until they reconverge.
 
 **Dedicated indexer:** A Graph subgraph or Ponder indexer replacing the current event-scan approach. Serves the Admin Panel, Leaderboard, and external integrations via a public GraphQL API.
 
-**AWS + Terraform:** EC2 keeper nodes, RDS PostgreSQL, Elasticache Redis, CloudFront CDN, CloudWatch + PagerDuty alerting. All infrastructure-as-code for reproducible deployments and clean audit trails.
+**AWS + Terraform:** EC2 keeper nodes, RDS PostgreSQL, Elasticache Redis, CloudFront CDN, CloudWatch + PagerDuty alerting. All infrastructure-as-code.
 
-**Smart contract upgrades:** UUPS proxy pattern with a 48-hour timelock on all upgrades, governed by the multisig. Emergency pause function for circuit-breaker scenarios.
-
-**Funding rate engine:** New contract module tracking long/short OI per pair, computing the standard imbalance-proportional funding rate, accruing per-block, and settling on position open/close. This keeps the protocol self-balancing without requiring a traditional order book.
+**Funding rate engine:** New contract module tracking long/short OI per pair, computing the standard imbalance-proportional funding rate, accruing per-block, and settling on position open/close.
 
 ---
 
@@ -232,9 +253,11 @@ Velo is not a whitepaper. It is not a demo. It is a working product:
 
 3. **The product is differentiated.** Oracle-priced perps exist. Social trading platforms exist. A protocol where your social trading claims are on-chain provable and every leaderboard entry has a transaction hash does not exist anywhere else today.
 
-4. **The roadmap is credible.** V2 (mainnet) requires an audit and infrastructure investment, not new protocol design. V3 (Vaults) is an extension of the existing contract architecture. The technology decisions made in V1 (oracle pricing, pull-model execution, isolated margin) are production-grade — the same choices made by the most successful DeFi perp protocols.
+4. **The interface matches the protocol quality.** The terminal was built by a trader who has lived the problems it solves — liquidations, off-by-two fills, interfaces that hide critical information until it's too late. That background is not decorative. It's why the Buffer column exists, why pre-trade risk tiers exist, and why TP/SL validation runs against the actual fill price.
 
-5. **The team ships.** This build represents multiple smart contracts (including a V3.1 iteration), a 9,000-line React frontend, three keeper services, a cross-chain bridge integration, a real-time social layer, and a fully automated onboarding system — all integrated and operational.
+5. **The roadmap is credible.** V2 (mainnet) requires an audit and infrastructure investment, not new protocol design. V3 (Vaults) is an extension of the existing contract architecture. The technology decisions made in V1 — oracle pricing, pull-model execution, isolated margin — are production-grade choices, the same ones made by the most successful DeFi perp protocols.
+
+6. **The team ships.** This build represents multiple smart contracts (including a V3.1 iteration), a 9,000-line React frontend, three keeper services, a cross-chain bridge integration, a real-time social layer, and a fully automated onboarding system — all integrated and operational.
 
 ---
 

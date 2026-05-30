@@ -10,6 +10,7 @@ Velo is a decentralised perpetual futures exchange where every order, position, 
 
 ## Table of Contents
 
+- [Built by a Trader, for Traders](#built-by-a-trader-for-traders)
 - [What Velo Is](#what-velo-is)
 - [How It Works End-to-End](#how-it-works-end-to-end)
 - [The Velo Trading Wallet](#the-velo-trading-wallet)
@@ -17,6 +18,7 @@ Velo is a decentralised perpetual futures exchange where every order, position, 
 - [Trigger Price vs Fill Price](#trigger-price-vs-fill-price)
 - [Keeper Infrastructure](#keeper-infrastructure)
 - [Price Oracle & Execution Model](#price-oracle--execution-model)
+- [Trading Interface Design](#trading-interface-design)
 - [The Social Layer](#the-social-layer)
 - [Leaderboard & Copy-Trading](#leaderboard--copy-trading)
 - [Cross-Chain Deposits & Withdrawals](#cross-chain-deposits--withdrawals)
@@ -35,9 +37,29 @@ Velo is a decentralised perpetual futures exchange where every order, position, 
 
 ---
 
+## Built by a Trader, for Traders
+
+Velo was built by someone who has traded across the full arc — centralised exchanges, early DeFi, and everything in between. That experience is embedded in every product decision, down to which columns appear in a position table and what happens when a TP fires two dollars off your trigger.
+
+The design philosophy is straightforward: get out of the way when a trader knows what they're doing, and surface exactly the right context when they don't. Every element in the interface exists for a reason. Every tooltip, every modal state, every colour threshold was a deliberate call.
+
+**What this looks like in practice:**
+
+Every column header in the positions table has a hover tooltip with a precise, unambiguous definition. "Buffer" shows the live percentage distance between the current mark price and your liquidation price — because that number matters more when a position is moving against you than the liquidation price itself. "Mark" is defined as the Pyth oracle price used for PnL and liquidation calculations. "Liq." tells you it's a force-close level. These aren't decorative — a trader who doesn't understand the difference between entry and mark will eventually be surprised by their PnL.
+
+The order entry panel shows a live risk classification (LOW / MEDIUM / HIGH / EXTREME) derived from the estimated liquidation distance before you hit submit. Colour-coded, updated in real-time as you adjust leverage or size. A trader who has felt what a liquidation looks like built that.
+
+The leverage change confirmation modal isn't a generic "are you sure?" dialog. It has three distinct states — blocked (insufficient balance), warning (increasing leverage moves your liq. price significantly closer), and informational (reducing, what the margin requirements are). It shows your current liquidation distance, your new liquidation distance, and what changes in plain language.
+
+TP and SL validation runs against your actual fill price from the on-chain event — not the pre-trade mark. If the market moves in the second between clicking Buy and the transaction mining, and your pre-set TP ends up on the wrong side of your real entry, you get a specific message explaining what happened and where to fix it. No silent failures.
+
+None of this comes from a product specification or a user research document. It comes from trading.
+
+---
+
 ## What Velo Is
 
-Velo is an oracle-priced perpetual futures protocol — the same execution model used by GMX and Gains Network. There is no traditional order book matching buyers and sellers. Instead, every trade is priced against a live Pyth Network oracle feed, collateral is held in the VeloPerps smart contract, and PnL is settled against a liquidity pool on close.
+Velo is an oracle-priced perpetual futures protocol. There is no traditional order book matching buyers and sellers. Instead, every trade is priced against a live Pyth Network oracle feed, collateral is held in the VeloPerps smart contract, and PnL is settled against a liquidity pool on close.
 
 This architecture means:
 - **Zero slippage** on trade execution up to pool capacity — you get the oracle price, not a market-impact price
@@ -65,7 +87,7 @@ Returning users are recognised from the session cache and bypass onboarding enti
 ### Opening a Position
 
 1. Select a pair (17 available: BTC, ETH, SOL, AVAX, LINK, DOGE, NEAR, INJ, APT, ARB, OP, SUI, TIA, SEI, RENDER, WLFI, POL)
-2. Choose LONG or SHORT, set collateral and leverage (up to 25×), choose ISOLATED margin mode
+2. Choose LONG or SHORT, set collateral and leverage (up to 25×)
 3. Click Buy/Long or Sell/Short — the trading wallet signs the transaction locally, no MetaMask popup
 4. The contract fetches the Pyth oracle price, pulls collateral via `safeTransferFrom`, charges a 0.10% open fee, and stores the Position struct keyed by a unique `tradeId`
 5. The position appears in the UI within 5 seconds (one polling interval)
@@ -90,7 +112,7 @@ Main Wallet (MetaMask)
   → privateKeyToAccount(privateKey) → { address, signing functions }
 ```
 
-Because `personal_sign` is deterministic, the same main wallet always derives the same trading wallet. **Recovery is automatic** — a user who clears their browser simply re-derives the same key by signing the same message on any device.
+Because `personal_sign` is deterministic, the same main wallet always derives the same trading wallet. **Recovery is automatic** — a user who clears their browser re-derives the same key by signing the same message on any device.
 
 Key properties:
 - Every trade signs locally in the browser — zero MetaMask popups after initial setup
@@ -133,9 +155,9 @@ When a keeper executes a limit order, TP, or SL, two things happen in the same t
 
 The price you set is the **trigger price** — the threshold the keeper watches for. The **fill price** is the live oracle price at the moment the keeper's transaction mines, which can differ by a few dollars depending on price movement in the window between the trigger being hit and the keeper's next cron tick (up to 60 seconds on Vercel).
 
-**Example:** You set a limit buy on ETH at $2,000. The price dips to $1,998 when the keeper fires. You fill at $1,998 — this is *price improvement* (you got in cheaper than your limit). If ETH bounced back to $2,001 by the time the tx mines, the contract reverts `OrderNotTriggered` and the order stays open for the next tick.
+**Example:** You set a limit buy on ETH at $2,000. The price dips to $1,998 when the keeper fires. You fill at $1,998 — price improvement. If ETH bounced back to $2,001 by the time the tx mines, the contract reverts `OrderNotTriggered` and the order stays open for the next tick.
 
-**For TP/SL:** A TP set at $2,014 might fill at $2,011 if price moved between the trigger being crossed and the keeper's transaction landing. This is not a bug — it is the inherent nature of keeper-executed oracle perps. On mainnet with a fast keeper (every few seconds on a dedicated server), this spread narrows to near-zero. On Base Sepolia testnet with Vercel's once-per-minute cron cadence, you may see fills a few dollars from your trigger in volatile markets. This is a **testnet/infrastructure characteristic**, not a protocol flaw.
+**For TP/SL:** A TP set at $2,014 might fill at $2,011 if price moved between the trigger crossing and the keeper's transaction landing. This is not a bug — it is the inherent nature of keeper-executed oracle perps. On mainnet with a fast keeper running every few seconds, this spread narrows to near-zero. On Base Sepolia with Vercel's once-per-minute cron, you may see fills a few dollars from your trigger in volatile markets. This is a **testnet infrastructure characteristic**, not a protocol flaw.
 
 ---
 
@@ -150,7 +172,7 @@ Velo runs three automated keeper jobs, each executing every minute via Vercel Pr
 4. All triggered orders fire in parallel — multiple fills complete in roughly one block
 
 ### TP/SL Keeper (`api/cron-tp-sl.ts`)
-1. Reads all open positions from the contract
+1. Reads all open positions with full position structs
 2. Fetches fresh Pyth prices per unique pair from Hermes (bypasses the on-chain cache staleness issue common on low-activity testnets)
 3. Evaluates TP/SL conditions off-chain using the same arithmetic as the contract
 4. Submits `closeIfTriggered` for triggered positions, all in parallel
@@ -181,18 +203,86 @@ Velo uses **Pyth Network** as its primary price oracle with the pull-model archi
 
 **Staleness on testnet:** On Base Sepolia (low activity), the on-chain Pyth cache can go stale. The keepers solve this by always including a fresh Hermes update in the keeper transaction — the price is always fresh at execution time regardless of on-chain cache state.
 
-### One Oracle, Everywhere — Unified Pyth Pricing
+### One Oracle, Everywhere
 
-Velo previously displayed Binance prices for the ticker and Coinbase prices on the chart while settling fills against Pyth — three venues, so a position could open at the Pyth price while the rest of the screen showed a number a few cents off. That was a permanent, confusing discrepancy, not timing noise.
-
-Velo now reads **Pyth and only Pyth** across the entire interface, so every number agrees with the price you actually fill at:
+Velo reads **Pyth and only Pyth** across the entire interface, so every number agrees with the price you actually fill at:
 
 - **Live mark price** streams from Pyth's Hermes SSE endpoint (`/v2/updates/price/stream`), the same feed the contract settles on
 - **Chart candles** come from the TradingView widget pointed at Pyth symbols (`PYTH:SOLUSD`, etc.) and from the Pyth Benchmarks OHLC shim
-- **The order book** is a reference depth ladder anchored to the live Pyth mark (Velo Perps is oracle-priced and has no native book; a third-party venue feed would show a different market)
+- **The order book** is a reference depth ladder anchored to the live Pyth mark — Velo Perps is oracle-priced and has no native book
 - **Fills, entry prices, and PnL** are the on-chain Pyth price, exactly as before
 
-The only difference you will ever see between your entry and the live mark is normal tick timing — your entry is locked at fill time while the mark keeps moving. That is identical to how every exchange behaves; what is gone is the cross-venue gap.
+The only variance you'll ever see between your entry and the live mark is normal tick timing — entry is locked at fill, the mark keeps moving. That's identical to how every exchange behaves.
+
+---
+
+## Trading Interface Design
+
+The interface is built to surface exactly what a trader needs to know, at the moment they need to know it.
+
+### Pre-Trade Risk Display
+
+Before submitting any order, the entry panel shows three numbers:
+
+- **Est. Liq. Price** — your estimated liquidation price at the current size and leverage, shown in orange
+- **Margin Risk** — a live classification (LOW / MEDIUM / HIGH / EXTREME) computed from the percentage distance between the current mark and the estimated liquidation price. Updates in real-time as you adjust leverage or size
+- **Free Balance** — buying power remaining after this position
+
+These aren't informational decorations. They're there because the trader who built this has had positions liquidated.
+
+### Position Table Column Tooltips
+
+Every column header in the positions table is a `cursor: help` element with a hover tooltip. The `ColTip` component anchors the tooltip to the trigger via `getBoundingClientRect` so it doesn't drift while the table scrolls, uses enter and leave delays to prevent accidental dismissals from cursor jitter, edge-clamps to stay visible near screen boundaries, and renders via a React portal so it always layers above everything else. The content:
+
+- **Pair** — Trading pair: the asset you are long or short against USD
+- **Side** — LONG profits when price rises, SHORT profits when price falls
+- **Size** — Total notional value of your position (margin × leverage)
+- **Entry** — Average price at which your position was opened
+- **Mark** — Current fair-market price used for PnL and liquidation calculations
+- **Liq.** — Liquidation price: your position is force-closed if the mark price reaches this level
+- **Buffer** — Distance between current mark price and your liquidation price, as a percentage. Lower = closer to forced close
+- **PnL (ROE)** — Unrealized profit/loss in USD · Return on equity (leverage-adjusted %)
+- **TP/SL** — Take Profit / Stop Loss prices. Click the edit icon to set or change them
+
+### The Buffer Column
+
+Buffer is not a standard column on most platforms. You get a liquidation price and you do the math yourself. Buffer shows you the percentage distance from current mark to liquidation, updated live. Colour-coded in the row: EXTREME (< 2%), HIGH (< 5%), MED (< 10%), LOW (≥ 10%). At high leverage, a 2% buffer means a 2% adverse move ends the position.
+
+### Leverage Change Confirmation
+
+VeloPerps locks leverage at the time a position is opened — there is no post-open leverage adjustment at the contract level. If you change the leverage slider while an existing position is open on that pair, the interface intercepts before submitting anything. The confirmation modal has three distinct states:
+
+- **Insufficient balance** — you don't have the free balance required. Explains what's blocked and why
+- **Increasing leverage** — shows current liq. distance, new liq. distance (colour-coded: red below 5%, orange below 10%, green above), new liq. price, and a plain explanation of what moves and by how much. Confirm button turns orange
+- **Reducing leverage** — shows current and new liq. distance, how much collateral is released back to free balance. Confirm button stays violet
+
+### TP/SL Validation Against Actual Fill Price
+
+When you enter a market order with a pre-set TP or SL, the targets are validated against your actual fill price from the `PositionOpened` event — not the mark price shown when you clicked. If the market moved between click and transaction confirmation and your pre-set TP ended up on the wrong side of the real entry, you receive a specific message:
+
+> "TP must be above entry for LONG. Actual entry: $X. Your TP: $Y. Adjust from the position panel."
+
+No silent failures, no triggers sitting at prices that will never execute correctly.
+
+### Manage Position Modal
+
+Four tabs, all signed silently by the trading wallet:
+
+**TRIGGERS (TP/SL)** — Two sliders on the same axis: green for take profit (projected gain %), red for stop loss (projected loss %). Price input and slider are bidirectionally linked — type a price, the slider moves; drag the slider, the price field updates. Shows projected PnL and ROE at each trigger price. Submits `setTriggers` on confirmation.
+
+**CLOSE** — Percentage slider from 1% to 100% with a live position size preview at the selected fraction. Shows the exact USD size being closed. Calls `partialClose(tradeId, fractionBps)`. The "Close 100%" button on the position card bypasses this modal entirely for speed.
+
+**ADD** — Deposit additional collateral into the position. Reduces effective leverage, moves the liquidation price further away. Balance impact shown before confirmation.
+
+**REDUCE** — Withdraw collateral from the position. Increases effective leverage. Requires a fresh Pyth price fetch for the contract's post-reduce leverage check.
+
+### Order Details Modal
+
+Clicking any entry in the History tab opens a full trade breakdown. For closed trades: entry price, exit price, price change %, position size, leverage, margin used, margin mode, liquidation price at time of trade, open and close timestamps, duration, and a deep link to the closing transaction on BaseScan. That link is persisted in localStorage against the `tradeId` so it survives page reloads. Esc closes the modal.
+
+### Number Formatting
+
+Every price, balance, and trade size uses `Geist Mono` with `font-feature-settings: "tnum" 1` and `font-variant-numeric: tabular-nums`. Numbers never shift horizontally as they update — which matters in a live position table where you're watching PnL move.
 
 ---
 
@@ -206,7 +296,7 @@ The only difference you will ever see between your entry and the live mark is no
 
 **Shareable Trade Cards** — Closed positions with PnL ≥ $0.50 prompt a share modal. The card renders on a 1200×675 canvas (Twitter/Instagram optimal) with three background styles (Obsidian, Gradient, Hologram). Download as PNG or share via the Web Share API.
 
-**On-Chain Username Registry** — `@handles` are stored in VeloRegistry. The Send modal resolves `@username → wallet address` on-chain. Username registration is a real transaction, not a Supabase row.
+**On-Chain Username Registry** — `@handles` are stored in VeloRegistry. The Send modal resolves `@username → wallet address` on-chain. Username registration is a real transaction, not a database row.
 
 ---
 
@@ -410,7 +500,7 @@ src/
 │   ├── veloPerpsService.ts         Full V3.1 ABI + contract wrappers
 │   ├── useVeloPerpsTrading.ts      5s polling React hook
 │   ├── pythService.ts              Pyth Hermes price fetch + staleness guard
-│   ├── pythPriceService.ts         Unified UI pricing — Hermes SSE live stream + Benchmarks candles
+│   ├── pythPriceService.ts         Unified UI pricing — Hermes SSE stream + Benchmarks candles
 │   ├── veloBurnerWallet.ts         Deterministic session key derivation
 │   ├── veloBurnerSetup.ts          First-run burner orchestration
 │   ├── bridgeService.ts            LayerZero V2 cross-chain transfer
@@ -482,7 +572,6 @@ VITE_ETH_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 
 # Pyth
 VITE_PYTH_HERMES_URL=https://hermes.pyth.network
-# Optional — Pyth Benchmarks OHLC shim for chart candles (defaults to this if unset)
 VITE_PYTH_BENCHMARKS_URL=https://benchmarks.pyth.network
 
 # Server-side only — never reaches the browser
@@ -529,7 +618,7 @@ Velo Vaults route trades to any compatible execution venue for best execution. P
 ## Future Infrastructure
 
 ### Keeper Network — From Cron to Validator Set
-Today's keepers run on Vercel's 60-second cron. For mainnet, a permissioned-then-permissionless keeper network where registered keeper nodes compete to submit fills and earn the bounty. Initially Velo-operated on AWS EC2 in multiple regions, progressively opened to external operators who post a bond.
+Today's keepers run on Vercel's 60-second cron. For mainnet, a permissioned-then-permissionless keeper network where registered nodes compete to submit fills and earn the bounty. Initially Velo-operated on AWS EC2 in multiple regions, progressively opened to external operators who post a bond.
 
 ### Multiple Oracle Sources
 Pyth remains primary. Chainlink added as a circuit-breaker — if the two oracles diverge beyond a configurable threshold, the protocol pauses fills until they reconverge.
@@ -538,27 +627,19 @@ Pyth remains primary. Chainlink added as a circuit-breaker — if the two oracle
 A Graph subgraph or custom Ponder indexer replacing the current event-scan approach. Serves the Admin Panel, Leaderboard, and external integrations via a public GraphQL API.
 
 ### AWS Infrastructure + Terraform
-Mainnet infrastructure managed as code:
-- EC2 instances for keeper nodes (multi-region: US-East, EU-West, AP-Southeast)
-- RDS PostgreSQL replacing Supabase for the production social database
-- Elasticache Redis for real-time price and position caching
-- CloudFront CDN for the frontend
-- CloudWatch + PagerDuty for keeper monitoring and alerting
+Mainnet infrastructure managed as code: EC2 keeper nodes (multi-region), RDS PostgreSQL, Elasticache Redis, CloudFront CDN, CloudWatch + PagerDuty alerting.
 
 ### Smart Contract Upgrades
 A UUPS or Beacon proxy pattern with a 48-hour timelock on all upgrades governed by the multisig. Emergency pause function for circuit-breaker scenarios.
 
 ### Funding Rate Engine
-A new contract module tracking long/short open interest per pair, computing the funding rate proportional to OI imbalance, accruing funding payments per block, and settling on position open/close/modify.
+A new contract module tracking long/short open interest per pair, computing the funding rate proportional to OI imbalance, accruing per block, and settling on position open/close/modify.
 
 ### Advanced Order Types
 - Trailing stop — SL that moves with the market
 - One-cancels-other (OCO) — linked TP/SL that cancel each other on fill
-- Time-weighted average price (TWAP) orders for large positions
+- TWAP orders for large positions
 - Reduce-only orders
-
-### Fee and Rewards Distribution
-A fee distributor contract splitting protocol fees between insurance fund (30%), protocol treasury (40%), and stakers/keepers (30%), with per-epoch reward distribution.
 
 ### Security and Audits
 Full audit by at least two independent firms (Spearbit, Trail of Bits, Cyfrin, or equivalent) before mainnet. Bug bounty program on Immunefi. Formal verification of the PerpsMath library.
