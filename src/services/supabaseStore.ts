@@ -1212,6 +1212,16 @@ export async function touchUserActivity(force = false): Promise<void> {
 // session, so all refresh paths funnel through this.
 let _refreshInFlight: Promise<boolean> | null = null;
 
+// Silent re-auth provider. The app registers a function that re-signs-in using
+// the wallet-derived deterministic credentials (same identity, no prompt). The
+// session manager calls it when a refresh is rejected (dead refresh token) or
+// when there's no session but the wallet is still connected. Returns true on a
+// successful fresh sign-in.
+let _reauthProvider: (() => Promise<boolean>) | null = null;
+export function registerReauthProvider(fn: (() => Promise<boolean>) | null): void {
+  _reauthProvider = fn;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  SESSION MANAGER (build 92)
 //
@@ -1267,8 +1277,18 @@ export async function refreshSessionNow(): Promise<boolean> {
     try {
       const { data, error } = await supabase.auth.refreshSession();
       if (error || !data?.session) {
-        // Distinguish "no session at all" (signed out) from "refresh rejected"
-        // (dead refresh-token family → needs re-auth).
+        // Refresh rejected → the refresh-token family is dead. The ONLY real
+        // recovery is a fresh sign-in. Because Velo derives its Supabase
+        // credentials deterministically from the connected wallet, we can do
+        // that silently (same identity, no prompt) — this is exactly what a
+        // manual logout/login does. Try it before declaring the session dead.
+        const recovered = _reauthProvider ? await _reauthProvider() : false;
+        if (recovered) {
+          setHealth('fresh');
+          const { data: { session: s2 } } = await supabase.auth.getSession();
+          if (s2) scheduleProactiveRefresh(s2);
+          return true;
+        }
         const { data: { session } } = await supabase.auth.getSession();
         setHealth(session ? 'expired' : 'signed-out');
         return false;
@@ -1292,7 +1312,11 @@ export async function ensureFreshSession(): Promise<boolean> {
   if (!isConfigured()) return false;
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { setHealth('signed-out'); return false; }
+    if (!session) {
+      // No session at all, but the wallet may still be connected (e.g. the
+      // session was dropped). Attempt a silent wallet re-auth.
+      return _reauthProvider ? _reauthProvider() : false;
+    }
     const expiresAtMs = (session.expires_at ?? 0) * 1000;
     if (expiresAtMs && expiresAtMs - Date.now() > 120_000) {
       return true; // comfortably valid

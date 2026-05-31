@@ -92,6 +92,7 @@ import {
   touchUserActivity,
   ensureFreshSession,
   onSessionHealth,
+  registerReauthProvider,
 } from './services/supabaseStore';
 import { trackPageView, setAnalyticsUser } from './services/analytics';
 
@@ -5377,6 +5378,30 @@ const App = () => {
     // Callback to hydrate app state on silent login (wallet reconnect → existing account)
     const silentLoginCallbackRef = useRef<((authUser: any, profile: any) => void) | null>(null);
 
+    // ── Silent re-auth provider for the session manager ─────────────────────
+    // When the Supabase session dies (refresh token revoked / no session) the
+    // session manager calls this to silently re-establish a session using the
+    // wallet-derived deterministic credentials — the SAME identity, no prompt.
+    // This is what makes blanked data reappear on its own instead of forcing a
+    // manual logout/login. Respects the logout sentinel so it never re-signs-in
+    // a user who just logged out.
+    useEffect(() => {
+        registerReauthProvider(async () => {
+            if (typeof window !== 'undefined' && (window as any).__veloLogoutLock) return false;
+            if (intentionalLogoutRef.current) return false;
+            if (!walletAddress) return false;
+            try {
+                const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
+                const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
+                const { data, error } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
+                return !!(data?.session && !error);
+            } catch {
+                return false;
+            }
+        });
+        return () => registerReauthProvider(null);
+    }, [walletAddress]);
+
     // Keep silentLoginCallbackRef current — restores session from silent wallet reconnect
     useEffect(() => {
       silentLoginCallbackRef.current = async (authUser: any, profile: any) => {
@@ -6313,23 +6338,29 @@ const App = () => {
         if (!authChecked || !isSupabaseConfigured()) return;
         const heal = async () => {
             if (document.visibilityState !== 'visible') return;
-            // Refresh an expired/near-expired JWT before re-reading, otherwise
-            // the heal just re-reads with a dead token and stays empty.
+            // Ensure a live session before re-reading. ensureFreshSession will
+            // refresh an expiring token, and — if the session is dead and the
+            // wallet is connected — silently re-auth via wallet creds. Without
+            // this the heal just re-reads with a dead token and stays empty.
             await ensureFreshSession();
             loadSocialData();
         };
+        // Heal immediately on setup (and whenever the wallet address resolves —
+        // on a page reload wagmi reconnects asynchronously, so the first run may
+        // happen before walletAddress is available for re-auth).
+        heal();
         document.addEventListener('visibilitychange', heal);
         const id = setInterval(heal, 60000);
         // When the session manager recovers the token (e.g. after a refocus
-        // refresh), immediately repopulate rather than waiting for the next
-        // heal tick — so data "reappears" the moment auth is healthy again.
+        // refresh or silent re-auth), immediately repopulate rather than waiting
+        // for the next heal tick — so data "reappears" the moment auth is healthy.
         const unsubHealth = onSessionHealth((h) => { if (h === 'fresh') loadSocialData(); });
         return () => {
             document.removeEventListener('visibilitychange', heal);
             clearInterval(id);
             unsubHealth();
         };
-    }, [authChecked, loadSocialData]);
+    }, [authChecked, loadSocialData, walletAddress]);
 
     // Notifications had no retry path, so a session-restore fetch that raced the
     // Supabase JWT (RLS returns [] for the anon role) left the bell empty until a
