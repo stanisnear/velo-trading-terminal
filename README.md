@@ -340,9 +340,39 @@ Visible only to the contract owner wallet. Provides:
 - **Pair registry** — view all 17 pairs, register pending pairs, pause/resume individual pairs
 - **Fee balance** — current accrued fees in mUSDC, one-click withdraw to owner wallet
 - **Pool reserves** — live contract mUSDC balance
-- **Protocol stats** — open positions, lifetime volume, total fees, liquidation count
-- **Contract metadata** — all addresses with BaseScan links
+- **Contract metadata** — all addresses with BaseScan links; the active-contract row and routing badge read the live on-chain `VERSION` (e.g. `v3.1`), so the panel never goes stale when a new contract is deployed
 - **Keeper wallet balance** — monitors sponsor wallet ETH with low-balance warning
+
+### Analytics & metrics
+
+The admin dashboard surfaces a full metrics suite across three data sources, refreshed together by the Refresh button:
+
+**Trading metrics** (`/api/protocol-stats`) — sourced from the app's own `trade_history` and `positions` records in Supabase, so they're version-agnostic (capture every trade regardless of which VeloPerps contract it routed to) and never depend on scanning chain events:
+- Lifetime volume (sum of opened notional), lifetime fees (0.10% per side, charged on **collateral** to match the contract), opens/closes, liquidations, realized PnL
+- Trailing 24h / 7d / 30d rollups for volume, trades, fees, and liquidations
+- **Open positions & open interest** — counted directly on-chain by enumerating live `tradeId`s on the active contract (closed positions are `delete`d from the contract, so a non-zero collateral = an open position). This is authoritative for V3.x where positions live in the contract, not the database.
+- Daily charts: volume, fees, opens vs closes, liquidations
+- On-chain cross-reference block: live `VERSION`, `nextTradeId` (lifetime opens), and `feeBalance`
+
+**User metrics** (`/api/user-stats`) — sourced from Supabase via the service-role key:
+- Total users, wallet-authenticated users, new signups (today / 7d / 30d)
+- DAU / WAU / MAU, computed from a `last_active_at` heartbeat (the client pings `touch_activity()` on load, on tab focus, and every 3 minutes); falls back to trade-history-derived activity if the migration hasn't run
+- Daily charts: signups and daily-active-users
+
+**Web analytics** (`/api/ga-stats`, optional) — live Google Analytics 4 numbers (active users 1d/7d/28d, pageviews, sessions, top pages) when a GA4 service account is configured; otherwise a connect-state card. GA event tracking itself is always on via `src/services/analytics.ts`.
+
+All three endpoints are public JSON and can be scraped by Datadog, Grafana, or custom dashboards on a schedule.
+
+### Required environment variables for metrics
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` | Lets `/api/protocol-stats` and `/api/user-stats` read the full `trade_history`, `positions`, and `profiles` tables past row-level security. Without it the trading/user cards are empty. |
+| `VITE_VELO_PERPS_V3_ADDRESS` | The active V3.1 contract address. Drives the version label, routing badge, on-chain open-position count, and the contract the stats API cross-references. |
+| `VITE_GA_MEASUREMENT_ID` | GA4 tag (`G-XXXX`). Optional — defaults to the built-in property; set to override. Enables visit/page-view tracking. |
+| `GA_PROPERTY_ID`, `GA_CLIENT_EMAIL`, `GA_PRIVATE_KEY` | Optional GA4 service-account creds to show live GA numbers inside the dashboard. |
+
+Run `SUPABASE_MIGRATION_BUILD91_ANALYTICS.sql` once to add the `last_active_at` column, the `user_activity_daily` table, and the `touch_activity()` heartbeat RPC that power DAU/WAU/MAU.
 
 ---
 
@@ -651,7 +681,7 @@ Today's keepers run on Vercel's 60-second cron. For mainnet, a permissioned-then
 Pyth remains primary. Chainlink added as a circuit-breaker — if the two oracles diverge beyond a configurable threshold, the protocol pauses fills until they reconverge.
 
 ### Dedicated Indexer
-A Graph subgraph or custom Ponder indexer replacing the current event-scan approach. Serves the Admin Panel, Leaderboard, and external integrations via a public GraphQL API.
+A Graph subgraph or custom Ponder indexer for mainnet scale. The metrics APIs currently aggregate from Supabase records plus O(1) on-chain reads (open positions/interest enumerated live from the contract); a subgraph would replace this with an event-sourced GraphQL API serving the Admin Panel, Leaderboard, and external integrations.
 
 ### AWS Infrastructure + Terraform
 Mainnet infrastructure managed as code: EC2 keeper nodes (multi-region), RDS PostgreSQL, Elasticache Redis, CloudFront CDN, CloudWatch + PagerDuty alerting.

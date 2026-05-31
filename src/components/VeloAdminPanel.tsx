@@ -768,7 +768,7 @@ export const VeloAdminPanel: React.FC = () => {
       <SectionLabel>Web analytics · Google Analytics</SectionLabel>
       <div style={{ marginBottom: 24 }}>
         {gaStatsLoading ? (
-          <div style={{ padding: 16, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)', ...S.label, color: 'var(--fg-subtle)' }}>
+          <div style={{ padding: 16, borderRadius: 14, background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)', ...S.label, color: 'var(--fg-subtle)' }}>
             Loading Google Analytics…
           </div>
         ) : gaStats && gaStats.configured && gaStats.ok ? (
@@ -884,7 +884,7 @@ export const VeloAdminPanel: React.FC = () => {
       {/* Data endpoint hint */}
       <div style={{
         padding: 12, marginBottom: 16, borderRadius: 10,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)', letterSpacing: '0.06em' }}>
@@ -928,7 +928,7 @@ export const VeloAdminPanel: React.FC = () => {
       {/* Pair registry */}
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: 0 }}>Trading pairs</h2>
@@ -959,7 +959,7 @@ export const VeloAdminPanel: React.FC = () => {
           {pairs.map((p) => (
             <div key={p.index} style={{
               padding: '14px 16px', borderRadius: 12,
-              background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+              background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
@@ -1025,7 +1025,7 @@ export const VeloAdminPanel: React.FC = () => {
       {/* Fees panel */}
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
       }}>
         <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 16px' }}>Protocol fees</h2>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1065,7 +1065,7 @@ export const VeloAdminPanel: React.FC = () => {
       {/* Keeper wallet */}
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
       }}>
         <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 4px' }}>Keeper wallet</h2>
         <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
@@ -1123,7 +1123,7 @@ export const VeloAdminPanel: React.FC = () => {
       {/* Pool management */}
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
       }}>
         <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 4px' }}>Liquidity pool</h2>
         <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
@@ -1259,7 +1259,7 @@ export const VeloAdminPanel: React.FC = () => {
       {/* ── Verifications (admin-controlled badges) ─────────────────────── */}
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
           <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: 0 }}>Verifications</h2>
@@ -1311,7 +1311,7 @@ export const VeloAdminPanel: React.FC = () => {
                 .map((u) => (
                 <div key={u.id} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10,
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+                  background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
                   flexWrap: 'wrap' as const,
                 }}>
                   <img src={u.avatar} alt="" style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0 }} />
@@ -1346,7 +1346,7 @@ export const VeloAdminPanel: React.FC = () => {
       {/* Contract metadata */}
       <div style={{
         padding: 20, borderRadius: 16,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
       }}>
         <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 16px' }}>Contract metadata</h2>
         <MetadataRow
@@ -1378,8 +1378,8 @@ const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 );
 
 const StatCard: React.FC<{ label: string; value: string; accent?: boolean }> = ({ label, value, accent }) => (  <div style={{
-    padding: 16, borderRadius: 14,
-    background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+    padding: 18, borderRadius: 18,
+    background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
   }}>
     <div style={S.label}>{label}</div>
     <div style={{
@@ -1393,8 +1393,8 @@ const StatCard: React.FC<{ label: string; value: string; accent?: boolean }> = (
 
 const ChartCard: React.FC<{ title: string; icon?: React.ReactNode; children: React.ReactNode }> = ({ title, icon, children }) => (
   <div style={{
-    padding: 16, borderRadius: 14,
-    background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
+    padding: 18, borderRadius: 18,
+    background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(20px) saturate(1.8)', WebkitBackdropFilter: 'blur(20px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
   }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
       {icon}

@@ -37,7 +37,7 @@ This document describes every feature Velo has built and deployed. It covers the
 29. [Markets View](#29-markets-view)
 30. [Dashboard & Portfolio Overview](#30-dashboard--portfolio-overview)
 31. [Admin Panel](#31-admin-panel)
-32. [Protocol Stats API](#32-protocol-stats-api)
+32. [Metrics & Analytics APIs](#32-metrics--analytics-apis)
 33. [Session Management & Auth](#33-session-management--auth)
 34. [Settings Panel](#34-settings-panel)
 35. [Liquidity Pool Model](#35-liquidity-pool-model)
@@ -631,19 +631,36 @@ Visible only to the VeloPerps contract owner wallet (`owner()` is read on app lo
 
 **Pool reserves:** Live contract mUSDC balance — the pool that pays out winners.
 
-**Protocol stats:** Currently open positions, lifetime volume, fees, opens, closes, liquidations.
+**Version-aware metadata:** The contract-metadata block reads the live on-chain `VERSION` constant and renders the active-contract row, header subtitle, and routing badge accordingly (e.g. `VeloPerps v3.1`, `ROUTING TO V3.1`). Deploying a new contract version updates the panel automatically — nothing is hardcoded.
+
+**Trading metrics:** Lifetime volume, lifetime fees, opens/closes, liquidations, realized PnL, plus trailing 24h / 7d / 30d rollups (volume, trades, fees, liquidations) and daily charts (volume, fees, opens-vs-closes, liquidations). **Open positions and open interest** are counted live on-chain (see §32).
+
+**User metrics:** Total users, wallet-authenticated users, new signups (today/7d/30d), and DAU / WAU / MAU, with daily signup and daily-active-user charts (see §32).
+
+**Web analytics:** Live Google Analytics 4 numbers (active users, pageviews, sessions, top pages) when a GA4 service account is configured, else a connect-state card.
 
 **Keeper wallet balance:** Live ETH readout with low-balance warning (below 0.005 ETH). If the keeper wallet runs dry, TP/SL, liquidations, and conditional orders stop executing.
 
 ---
 
-## 32. Protocol Stats API
+## 32. Metrics & Analytics APIs
 
-`GET /api/protocol-stats` — public JSON endpoint, CORS-open.
+Three public, CORS-open JSON endpoints power the admin dashboard and are equally usable for external monitoring, Datadog/Grafana scraping, and grant reporting.
 
-**Returns:** Lifetime totals (volume, fees, opens, closes, liquidations, bounties, current open positions) and daily buckets (per-day breakdown).
+**`GET /api/protocol-stats` — trading metrics.** Source of truth is the app's own `trade_history` + `positions` records in Supabase (read with the service-role key), so metrics are version-agnostic across V1/V2/V3/V3.1 and don't rely on scanning chain events (Base Sepolia is ~20M blocks deep; full event scans time out and the contracts keep no cumulative-volume counter on-chain). Returns lifetime totals, 24h/7d/30d rollups, realized PnL, and daily buckets.
+- **Volume** = sum of opened notional (`size` = collateral × leverage). Notional is the standard perps volume definition and is intentionally a large multiple of collateral.
+- **Fees** = 0.10% per side charged on **collateral** (`size ÷ leverage`), matching the contract's `applyBpsFee(OPEN_FEE_BPS)` — not 0.10% of notional. A volume-weighted average leverage backfills close rows that don't store leverage.
+- **Open positions / open interest** are read directly on-chain: it reads `nextTradeId`, enumerates every `tradeId`, calls `getPosition`, and counts those still live (closed positions are `delete`d → zeroed). Open interest sums collateral × leverage across them.
+- **On-chain cross-reference block:** live `VERSION`, `nextTradeId` (lifetime opens), `feeBalance`.
+- Edge cache 30s, stale-while-revalidate 60s.
 
-**Technical:** Walks `PositionOpened`, `PositionClosed`, `PositionLiquidated`, `FeesWithdrawn` events from contract genesis. Edge cache: 30s, stale-while-revalidate: 60s. Available for external monitoring, dashboards, and grant reporting.
+**`GET /api/user-stats` — growth & engagement.** Reads `profiles`, `trade_history` via the service-role key. Returns total users, wallet users, new signups (today/7d/30d), DAU/WAU/MAU, and daily signup + daily-active series. DAU/WAU/MAU come from a `last_active_at` heartbeat (client calls the `touch_activity()` RPC on load, on tab focus, and every 3 min, upserting `user_activity_daily`); if the migration hasn't run it falls back to trade-history-derived activity. Edge cache 60s.
+
+**`GET /api/ga-stats` — Google Analytics 4 (optional).** Mints a service-account JWT (dependency-free, Node `crypto`), exchanges it for an access token, and calls the GA4 Data API `runReport` for active users (1d/7d/28d), pageviews, sessions, and top pages. Returns `{ configured: false }` when GA env vars are absent. Edge cache 120s.
+
+**Client tracking** (`src/services/analytics.ts`): loads gtag from `VITE_GA_MEASUREMENT_ID`, fires a virtual `page_view` on every tab change (SPA-correct), and exposes `trackEvent` / `setAnalyticsUser`. No-op when the measurement ID is absent.
+
+**Environment variables:** `SUPABASE_SERVICE_ROLE_KEY` (required for trading + user metrics), `VITE_VELO_PERPS_V3_ADDRESS` (active contract for version label + on-chain counts), `VITE_GA_MEASUREMENT_ID` (tracking), and `GA_PROPERTY_ID` / `GA_CLIENT_EMAIL` / `GA_PRIVATE_KEY` (optional, for in-dashboard GA numbers). Run `SUPABASE_MIGRATION_BUILD91_ANALYTICS.sql` once to enable the activity heartbeat.
 
 ---
 

@@ -88,8 +88,9 @@ All of the following are working on Base Sepolia today:
 
 **Infrastructure:**
 - Three automated keepers running every minute (limit/stop fills, TP/SL closes, liquidations)
-- Protocol stats API at `/api/protocol-stats` — public JSON endpoint for external monitoring
-- Admin Panel — pair registration, fee withdrawal, pool reserves, keeper wallet monitoring
+- **Full analytics suite** across three public JSON endpoints: `/api/protocol-stats` (volume, fees, open interest, liquidations, 24h/7d/30d rollups, on-chain open-position counts), `/api/user-stats` (total users, DAU/WAU/MAU, signups), and `/api/ga-stats` (Google Analytics 4). All scrapeable by Datadog/Grafana for monitoring and grant reporting.
+- Admin Panel — version-aware contract metadata, pair registration, fee withdrawal, pool reserves, keeper wallet monitoring, plus the live trading/user/web-analytics dashboards above
+- Google Analytics 4 tracking live across the app (SPA-correct page views + event tracking)
 - Vercel Pro deployment with HTTP security headers and edge caching
 - **Progressive Web App** — installable on iOS and Android with a single tap. No app store required. Opens full-screen with native status bar treatment on mobile
 
@@ -238,7 +239,7 @@ The current testnet stack is lean by design. Mainnet requires a substantial infr
 
 **Multiple oracles:** Pyth as primary (pull-model efficiency). Chainlink as secondary circuit-breaker. If the two diverge beyond a configurable threshold, the protocol pauses fills until they reconverge.
 
-**Dedicated indexer:** A Graph subgraph or Ponder indexer replacing the current event-scan approach. Serves the Admin Panel, Leaderboard, and external integrations via a public GraphQL API.
+**Dedicated indexer:** A Graph subgraph or Ponder indexer for scale. Today the metrics APIs aggregate from the app's Supabase records plus O(1) on-chain reads (open positions/interest enumerated live from the contract) — fast and reliable at testnet volume. A subgraph would replace this with an event-sourced GraphQL API serving the Admin Panel, Leaderboard, and external integrations at mainnet scale.
 
 **AWS + Terraform:** EC2 keeper nodes, RDS PostgreSQL, Elasticache Redis, CloudFront CDN, CloudWatch + PagerDuty alerting. All infrastructure-as-code.
 
