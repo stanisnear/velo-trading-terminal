@@ -4600,57 +4600,63 @@ const App = () => {
       }
     }, [walletAddress, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Auto-recovery of the trading (burner) wallet ──────────────────────────
+    // ── Trading (burner) wallet re-derivation gate ───────────────────────────
     // The burner private key lives only in this browser's localStorage. On a NEW
     // machine, a returning user (profile has velo_wallet_address) has no local
-    // burner, so we must prompt a single signature to deterministically
-    // re-derive the exact same wallet/funds.
+    // burner and MUST authorize a signature to deterministically re-derive the
+    // exact same wallet/funds.
     //
-    // Previously this was a ONE-SHOT attempt: if the prompt fired before the
-    // wallet was fully ready and threw, the single attempt was consumed and it
-    // never retried — leaving the user to re-derive manually in Settings. Now it
-    // is resilient: it only fires once the wallet is actually connected, it
-    // retries after transient failures (cooldown-guarded so it never spams the
-    // wallet popup), and it re-prompts when the user lands on the Trade tab
-    // (the natural "sign to proceed" moment).
+    // Rather than silently auto-firing the signature (which wallets often block
+    // when not triggered by a user gesture, and which leaves confused users
+    // hunting for the manual button in Settings), we surface an explicit,
+    // persistent modal. It stays until the user completes it — and re-appears if
+    // they land on Trade without a wallet — so nobody is left stranded.
     const burnerRecoveredRef = useRef(false);
-    const burnerRecoverCooldownRef = useRef(0);
+    const [needsRederive, setNeedsRederive] = useState(false);
+    const [rederiving, setRederiving] = useState(false);
+    const [rederiveError, setRederiveError] = useState<string | null>(null);
     useEffect(() => {
       const expected = user?.veloWalletAddress?.toLowerCase();
-      if (!user || !walletAddress || !isWalletConnected || !expected) return;
-      if (burnerRecoveredRef.current) return;
-      // Already have a local burner? Mark recovered and stop.
-      if (loadStoredBurner(walletAddress)?.veloAddress) { burnerRecoveredRef.current = true; return; }
-      // Cooldown so a rejected/failed prompt doesn't immediately re-fire on every
-      // render or tab change.
-      if (Date.now() - burnerRecoverCooldownRef.current < 10_000) return;
-      burnerRecoverCooldownRef.current = Date.now();
+      if (!user || !walletAddress || !isWalletConnected || !expected) { setNeedsRederive(false); return; }
+      if (burnerRecoveredRef.current) { setNeedsRederive(false); return; }
+      // Already have a local burner that matches? Nothing to do.
+      const local = loadStoredBurner(walletAddress)?.veloAddress?.toLowerCase();
+      if (local && local === expected) { burnerRecoveredRef.current = true; setNeedsRederive(false); return; }
+      // Missing (or mismatched) local burner → prompt the user to authorize.
+      setNeedsRederive(true);
+    }, [user, walletAddress, isWalletConnected, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-      (async () => {
-        try {
-          setToast({ message: 'Restoring your trading wallet — confirm in your wallet', type: 'INFO' });
-          const recovered = await getOrCreateVeloBurner(walletAddress as `0x${string}`, signMessageAsync as any);
-          if (recovered.veloAddress.toLowerCase() !== expected) {
-            // Derived a different wallet than the one on record — don't trust it.
-            try { localStorage.removeItem(`velo_burner_${walletAddress.toLowerCase()}`); } catch {}
-            setToast({ message: 'Could not auto-restore — recover manually in Wallet & Settings', type: 'ERROR' });
-            return; // leave burnerRecoveredRef false; cooldown prevents spam
-          }
-          burnerRecoveredRef.current = true;
-          setBurnerAddress(recovered.veloAddress as `0x${string}`);
-          veloPerpsTrading.reloadBurner();
-          setToast({ message: 'Trading wallet restored', type: 'SUCCESS' });
-        } catch (e: any) {
-          // Transient failure or user rejection — DON'T consume the attempt
-          // permanently. The cooldown above throttles re-prompts; it will try
-          // again on the next trigger (tab change, refocus, or re-render) so a
-          // single fluke never strands the user on manual recovery.
-          if (!/reject|denied|cancel/i.test(e?.message || '')) {
-            console.warn('[velo] burner auto-recovery failed (will retry):', e?.message);
-          }
+    // User-initiated re-derivation. A click-triggered signature is far more
+    // reliable than a programmatic one, and keeps the user in control.
+    const handleRederive = useCallback(async () => {
+      const expected = user?.veloWalletAddress?.toLowerCase();
+      if (!walletAddress || !expected) return;
+      setRederiving(true);
+      setRederiveError(null);
+      try {
+        const recovered = await getOrCreateVeloBurner(walletAddress as `0x${string}`, signMessageAsync as any);
+        if (recovered.veloAddress.toLowerCase() !== expected) {
+          // Derived a different wallet than the one on record — don't trust it.
+          try { localStorage.removeItem(`velo_burner_${walletAddress.toLowerCase()}`); } catch {}
+          setRederiveError('That signature derived a different wallet. Make sure you are connected with the same wallet you originally signed up with, then try again.');
+          return;
         }
-      })();
-    }, [user, walletAddress, isWalletConnected, activeTab, signMessageAsync]); // eslint-disable-line react-hooks/exhaustive-deps
+        burnerRecoveredRef.current = true;
+        setBurnerAddress(recovered.veloAddress as `0x${string}`);
+        veloPerpsTrading.reloadBurner();
+        setNeedsRederive(false);
+        setToast({ message: 'Trading wallet restored', type: 'SUCCESS' });
+      } catch (e: any) {
+        if (/reject|denied|cancel/i.test(e?.message || '')) {
+          setRederiveError('Signature declined. You need to authorize it to restore your trading wallet and trade.');
+        } else {
+          setRederiveError('Could not restore the wallet. Please try again.');
+          console.warn('[velo] burner re-derivation failed:', e?.message);
+        }
+      } finally {
+        setRederiving(false);
+      }
+    }, [user, walletAddress, signMessageAsync]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Activity refetch on tab focus — the body of the effect described in the
     // comment block higher up. Placed here because it needs `user` in scope.
@@ -5833,7 +5839,6 @@ const App = () => {
                 userLoadedFromDB.current = false;
                 autoRecoverAttemptedRef.current = false;
                 burnerRecoveredRef.current = false;
-                burnerRecoverCooldownRef.current = 0;
                 freshWalletConnectRef.current = false;
                 // Always wipe the cached session snapshot. SIGNED_OUT fires
                 // from both our explicit handleLogout AND any Supabase-side
@@ -7269,7 +7274,6 @@ const App = () => {
         sessionRestoredRef.current = false;
         autoRecoverAttemptedRef.current = false;
         burnerRecoveredRef.current = false;
-        burnerRecoverCooldownRef.current = 0;
         freshWalletConnectRef.current = false;
         socialLoginHandledRef.current = false;
         setLoginReturningName('');
@@ -8737,6 +8741,36 @@ const App = () => {
             <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, background: 'var(--ambient)', opacity: 0.35 }} />
             <VeloAnimation kind={anim?.kind ?? null} label={anim?.label} sublabel={anim?.sublabel} onDone={() => setAnim(null)} />
             {toast && <ToastNotification message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+            {/* Trading-wallet re-derivation gate — shown when a returning user is
+                on a device without their local burner. Persistent until done. */}
+            {needsRederive && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: 16 }}>
+                <div style={{ width: 'min(420px, 100%)', background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 20, boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(40px) saturate(1.8)', WebkitBackdropFilter: 'blur(40px) saturate(1.8)', padding: 24, position: 'relative' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 22, color: 'var(--fg)', marginBottom: 8 }}>Restore your trading wallet</div>
+                  <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5, margin: '0 0 18px' }}>
+                    You're signed in on a new device. Authorize one signature to restore your Velo trading wallet — it re-derives the <strong>same address and funds</strong>. This is required before you can trade. It costs nothing and isn't a transaction.
+                  </p>
+                  {rederiveError && (
+                    <div style={{ fontSize: 12, color: 'var(--pnl-down)', background: 'color-mix(in oklab, var(--pnl-down) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--pnl-down) 30%, transparent)', borderRadius: 10, padding: '10px 12px', marginBottom: 14, lineHeight: 1.45 }}>
+                      {rederiveError}
+                    </div>
+                  )}
+                  <button
+                    onClick={handleRederive}
+                    disabled={rederiving}
+                    style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: rederiving ? 'wait' : 'pointer', background: 'var(--velo-violet, oklch(0.55 0.24 295))', color: '#fff', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontSize: 12, opacity: rederiving ? 0.7 : 1, transition: 'opacity 0.15s' }}>
+                    {rederiving ? 'Waiting for signature…' : 'Authorize & restore wallet'}
+                  </button>
+                  <button
+                    onClick={() => setNeedsRederive(false)}
+                    disabled={rederiving}
+                    style={{ width: '100%', padding: '10px 0 0', marginTop: 10, border: 'none', background: 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontSize: 10 }}>
+                    Not now
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Wire silentLoginCallbackRef to onAuth for silent wallet reconnect logins */}
             {/* We set this inline via a side-effect-safe ref assignment in the effect above */}
             <VeloOnboardingModal

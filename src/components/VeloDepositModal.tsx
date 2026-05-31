@@ -406,10 +406,6 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
         {/* Header */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'22px 22px 14px', flexShrink:0, position:'relative', zIndex:1 }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <div style={{ width:38, height:38, borderRadius:12, background:'linear-gradient(135deg, oklch(0.45 0.26 295), oklch(0.65 0.22 268))', boxShadow:'0 4px 14px oklch(0.55 0.24 295 / 0.38)', display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden', flexShrink:0 }}>
-              <div style={{ position:'absolute', inset:0, background:'radial-gradient(120% 80% at 25% 10%, rgba(255,255,255,0.28), transparent 55%)' }}/>
-              <span style={{ fontFamily:'var(--font-display)', fontStyle:'italic', fontSize:18, color:'#fff', fontWeight:700, position:'relative', zIndex:1 }}>V</span>
-            </div>
             <div>
               <span style={{ ...S.display, fontSize:20, color:'var(--fg)', fontWeight:400 }}>Funds</span>
               <div style={{ ...S.mono, fontSize:10, color:'var(--fg-subtle)', marginTop:2, letterSpacing:'0.08em', textTransform:'uppercase' as const }}>Deposit · Withdraw</div>
