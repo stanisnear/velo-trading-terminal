@@ -82,6 +82,7 @@ interface ProtocolStats {
   daily_buckets: Array<{
     date: string;
     volume_usd: number;
+    fees_usd?: number;
     opens: number;
     closes: number;
     liquidations: number;
@@ -832,7 +833,7 @@ export const VeloAdminPanel: React.FC = () => {
 
           <ChartCard title="Daily fees (est.)" icon={<Activity size={13} style={{ color: 'var(--iris-coral)' }} />}>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={stats.daily_buckets.map(b => ({ ...b, total_fees: b.volume_usd * 0.001 }))}>
+              <BarChart data={stats.daily_buckets.map(b => ({ ...b, total_fees: b.fees_usd ?? 0 }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" opacity={0.3} />
                 <XAxis dataKey="date" stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} tickFormatter={(d) => d.slice(5)} />
                 <YAxis stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} tickFormatter={(v) => `$${Number(v).toFixed(0)}`} />

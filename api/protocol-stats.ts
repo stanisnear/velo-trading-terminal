@@ -140,28 +140,50 @@ export default async function handler(req: any, res: any) {
     const nowSec = Math.floor(Date.now() / 1000);
     const within = (iso: string, days: number) => new Date(iso).getTime() / 1000 >= nowSec - days * 86400;
 
+    // Fee basis: the contract charges OPEN_FEE_BPS / CLOSE_FEE_BPS on the
+    // *collateral*, not the notional (see VeloPerps openPosition:
+    // openFee = collateral.applyBpsFee(OPEN_FEE_BPS)). collateral = size/leverage.
+    const FEE_RATE = 0.001; // 10 bps = 0.10% per side
+    // Notional-weighted average leverage from rows that have it, used as a
+    // fallback for CLOSE rows (which don't carry leverage).
+    let levNotional = 0, levColl = 0;
+    for (const r of rows) {
+      const size = Number(r.size || 0);
+      const lev = Number(r.leverage || 0);
+      if (size > 0 && lev > 0) { levNotional += size; levColl += size / lev; }
+    }
+    const avgLeverage = levColl > 0 ? levNotional / levColl : 1;
+    const collateralOf = (size: number, lev: number) =>
+      lev > 0 ? size / lev : (avgLeverage > 0 ? size / avgLeverage : size);
+
     let totalVolume = 0, totalOpens = 0, totalCloses = 0, totalLiquidations = 0;
-    let realizedPnl = 0;
-    const roll = { v24: 0, v7: 0, v30: 0, t24: 0, t7: 0, t30: 0, liq24: 0, liq7: 0, liq30: 0 };
-    const buckets = new Map<string, { date: string; volume_usd: number; opens: number; closes: number; liquidations: number }>();
+    let realizedPnl = 0, totalFees = 0;
+    const roll = { v24: 0, v7: 0, v30: 0, t24: 0, t7: 0, t30: 0, liq24: 0, liq7: 0, liq30: 0, f24: 0, f7: 0, f30: 0 };
+    const buckets = new Map<string, { date: string; volume_usd: number; fees_usd: number; opens: number; closes: number; liquidations: number }>();
     const getB = (iso: string) => {
       const k = dayStr(new Date(iso));
-      if (!buckets.has(k)) buckets.set(k, { date: k, volume_usd: 0, opens: 0, closes: 0, liquidations: 0 });
+      if (!buckets.has(k)) buckets.set(k, { date: k, volume_usd: 0, fees_usd: 0, opens: 0, closes: 0, liquidations: 0 });
       return buckets.get(k)!;
     };
 
     for (const r of rows) {
       const size = Number(r.size || 0);
+      const lev = Number(r.leverage || 0);
+      const fee = collateralOf(size, lev) * FEE_RATE; // per-side fee on collateral
       const b = getB(r.created_at);
       if (r.action === 'OPEN') {
-        totalVolume += size; totalOpens += 1;
-        b.volume_usd += size; b.opens += 1;
-        if (within(r.created_at, 1))  { roll.v24 += size; roll.t24 += 1; }
-        if (within(r.created_at, 7))  { roll.v7  += size; roll.t7  += 1; }
-        if (within(r.created_at, 30)) { roll.v30 += size; roll.t30 += 1; }
+        totalVolume += size; totalOpens += 1; totalFees += fee;
+        b.volume_usd += size; b.fees_usd += fee; b.opens += 1;
+        if (within(r.created_at, 1))  { roll.v24 += size; roll.t24 += 1; roll.f24 += fee; }
+        if (within(r.created_at, 7))  { roll.v7  += size; roll.t7  += 1; roll.f7  += fee; }
+        if (within(r.created_at, 30)) { roll.v30 += size; roll.t30 += 1; roll.f30 += fee; }
       } else if (r.action === 'CLOSE') {
-        totalCloses += 1; b.closes += 1;
+        totalCloses += 1; totalFees += fee;
+        b.closes += 1; b.fees_usd += fee;
         realizedPnl += Number(r.pnl || 0);
+        if (within(r.created_at, 1))  roll.f24 += fee;
+        if (within(r.created_at, 7))  roll.f7  += fee;
+        if (within(r.created_at, 30)) roll.f30 += fee;
         if (isLiquidation(r)) {
           totalLiquidations += 1; b.liquidations += 1;
           if (within(r.created_at, 1))  roll.liq24 += 1;
@@ -175,6 +197,7 @@ export default async function handler(req: any, res: any) {
 
     res.status(200).json({
       ...out,
+      avg_leverage: avgLeverage,
       lifetime: {
         total_volume_usd: totalVolume,
         total_opens: totalOpens,
@@ -182,16 +205,17 @@ export default async function handler(req: any, res: any) {
         total_liquidations: totalLiquidations,
         currently_open: currentlyOpen,
         realized_pnl_usd: realizedPnl,
-        // Fee estimate from volume (open-side, 0.10%). Live accrued fees come
-        // from the contract read above (out.onchain.fee_balance_usd).
-        total_open_fees_usd: totalVolume * 0.001,
-        total_fees_usd: totalVolume * 0.001,
+        // Gross lifetime fees, estimated as 0.10% of collateral per side
+        // (open + close). Live accrued fees (net of withdrawals) come from the
+        // on-chain feeBalance read above → out.onchain.fee_balance_usd.
+        total_fees_usd: totalFees,
+        total_open_fees_usd: totalFees,
       },
       rollups: {
         volume_24h: roll.v24, volume_7d: roll.v7, volume_30d: roll.v30,
         trades_24h: roll.t24, trades_7d: roll.t7, trades_30d: roll.t30,
         liquidations_24h: roll.liq24, liquidations_7d: roll.liq7, liquidations_30d: roll.liq30,
-        fees_24h: roll.v24 * 0.001, fees_7d: roll.v7 * 0.001, fees_30d: roll.v30 * 0.001,
+        fees_24h: roll.f24, fees_7d: roll.f7, fees_30d: roll.f30,
       },
       daily_buckets: dailyBuckets,
     });
