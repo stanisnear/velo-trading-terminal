@@ -93,6 +93,8 @@ import {
   ensureFreshSession,
   onSessionHealth,
   registerReauthProvider,
+  cacheGet,
+  cacheSet,
 } from './services/supabaseStore';
 import { trackPageView, setAnalyticsUser } from './services/analytics';
 
@@ -4397,8 +4399,8 @@ const App = () => {
         return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
     }, [user?.id]);
 
-    const [traders, setTraders] = useState<Trader[]>([]);
-    const [posts, setPosts] = useState<Post[]>([]);
+    const [traders, setTraders] = useState<Trader[]>(() => cacheGet<Trader[]>('traders') || []);
+    const [posts, setPosts] = useState<Post[]>(() => cacheGet<Post[]>('posts') || []);
     // Keep the module-level verified-badge map in sync with admin-assigned
     // verification on traders + the current user. Computed during render (before
     // children render) so <VerifiedBadge> resolves against fresh data. Only ids
@@ -4599,20 +4601,30 @@ const App = () => {
     }, [walletAddress, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Auto-recovery of the trading (burner) wallet ──────────────────────────
-    // The burner private key lives only in this browser's localStorage. If the
-    // user is logged in and their profile has a persisted velo_wallet_address (so
-    // they HAVE set up a trading wallet before) but this device has no local
-    // burner, we automatically prompt a single signature to re-derive it — the
-    // derivation is deterministic, so it regenerates the exact same wallet/funds.
-    // We verify the derived address matches the DB value before trusting it, so a
-    // mismatch (e.g. different main wallet) never silently strands funds.
+    // The burner private key lives only in this browser's localStorage. On a NEW
+    // machine, a returning user (profile has velo_wallet_address) has no local
+    // burner, so we must prompt a single signature to deterministically
+    // re-derive the exact same wallet/funds.
+    //
+    // Previously this was a ONE-SHOT attempt: if the prompt fired before the
+    // wallet was fully ready and threw, the single attempt was consumed and it
+    // never retried — leaving the user to re-derive manually in Settings. Now it
+    // is resilient: it only fires once the wallet is actually connected, it
+    // retries after transient failures (cooldown-guarded so it never spams the
+    // wallet popup), and it re-prompts when the user lands on the Trade tab
+    // (the natural "sign to proceed" moment).
+    const burnerRecoveredRef = useRef(false);
+    const burnerRecoverCooldownRef = useRef(0);
     useEffect(() => {
       const expected = user?.veloWalletAddress?.toLowerCase();
-      if (!user || !walletAddress || !expected) return;
-      if (autoRecoverAttemptedRef.current) return;
-      // Already have a local burner? Nothing to recover.
-      if (loadStoredBurner(walletAddress)?.veloAddress) return;
-      autoRecoverAttemptedRef.current = true;
+      if (!user || !walletAddress || !isWalletConnected || !expected) return;
+      if (burnerRecoveredRef.current) return;
+      // Already have a local burner? Mark recovered and stop.
+      if (loadStoredBurner(walletAddress)?.veloAddress) { burnerRecoveredRef.current = true; return; }
+      // Cooldown so a rejected/failed prompt doesn't immediately re-fire on every
+      // render or tab change.
+      if (Date.now() - burnerRecoverCooldownRef.current < 10_000) return;
+      burnerRecoverCooldownRef.current = Date.now();
 
       (async () => {
         try {
@@ -4620,23 +4632,25 @@ const App = () => {
           const recovered = await getOrCreateVeloBurner(walletAddress as `0x${string}`, signMessageAsync as any);
           if (recovered.veloAddress.toLowerCase() !== expected) {
             // Derived a different wallet than the one on record — don't trust it.
-            // Clear it so we don't shadow the real (funded) wallet, and tell the user.
             try { localStorage.removeItem(`velo_burner_${walletAddress.toLowerCase()}`); } catch {}
             setToast({ message: 'Could not auto-restore — recover manually in Wallet & Settings', type: 'ERROR' });
-            return;
+            return; // leave burnerRecoveredRef false; cooldown prevents spam
           }
+          burnerRecoveredRef.current = true;
           setBurnerAddress(recovered.veloAddress as `0x${string}`);
           veloPerpsTrading.reloadBurner();
           setToast({ message: 'Trading wallet restored', type: 'SUCCESS' });
         } catch (e: any) {
-          // User rejected the signature or it failed — leave the manual recovery
-          // path in Settings available; don't nag again this session.
+          // Transient failure or user rejection — DON'T consume the attempt
+          // permanently. The cooldown above throttles re-prompts; it will try
+          // again on the next trigger (tab change, refocus, or re-render) so a
+          // single fluke never strands the user on manual recovery.
           if (!/reject|denied|cancel/i.test(e?.message || '')) {
-            console.warn('[velo] auto-recovery failed:', e?.message);
+            console.warn('[velo] burner auto-recovery failed (will retry):', e?.message);
           }
         }
       })();
-    }, [user, walletAddress, signMessageAsync]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user, walletAddress, isWalletConnected, activeTab, signMessageAsync]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Activity refetch on tab focus — the body of the effect described in the
     // comment block higher up. Placed here because it needs `user` in scope.
@@ -5818,6 +5832,8 @@ const App = () => {
                 sessionRestoredRef.current = false;
                 userLoadedFromDB.current = false;
                 autoRecoverAttemptedRef.current = false;
+                burnerRecoveredRef.current = false;
+                burnerRecoverCooldownRef.current = 0;
                 freshWalletConnectRef.current = false;
                 // Always wipe the cached session snapshot. SIGNED_OUT fires
                 // from both our explicit handleLogout AND any Supabase-side
@@ -6286,11 +6302,12 @@ const App = () => {
                     };
                 });
                 setTraders(realTraders);
+                cacheSet('traders', realTraders);
             }
         }).catch((e: any) => console.warn('Failed to load profiles:', e));
 
         withRetry(() => fetchPosts(50), (p: any) => !p || p.length === 0).then((posts: any) => {
-            if (posts && posts.length > 0) setPosts(posts);
+            if (posts && posts.length > 0) { setPosts(posts); cacheSet('posts', posts); }
         }).catch((e: any) => console.warn('Failed to load posts:', e));
     }, [withRetry]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -7251,6 +7268,8 @@ const App = () => {
         userLoadedFromDB.current = false;
         sessionRestoredRef.current = false;
         autoRecoverAttemptedRef.current = false;
+        burnerRecoveredRef.current = false;
+        burnerRecoverCooldownRef.current = 0;
         freshWalletConnectRef.current = false;
         socialLoginHandledRef.current = false;
         setLoginReturningName('');

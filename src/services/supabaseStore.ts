@@ -1378,3 +1378,36 @@ export function initSessionManager(): void {
     if (session) scheduleProactiveRefresh(session);
   });
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  LAST-KNOWN-GOOD CACHE (build 92)
+//
+//  Stale-while-revalidate for PUBLIC, global datasets (traders/leaderboard and
+//  the public feed). The UI hydrates from cache on mount so it's never empty,
+//  then loadSocialData() revalidates in the background and replaces the cache
+//  with fresh data. Only cache public/global data here — never per-user private
+//  data (notifications, positions) which must not leak across accounts on a
+//  shared machine.
+// ════════════════════════════════════════════════════════════════════════════
+const CACHE_PREFIX = 'velo_cache_v1_';
+
+export function cacheGet<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object' && 'v' in parsed) ? (parsed.v as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function cacheSet(key: string, value: any): void {
+  try {
+    // Skip empties so a transient empty read never overwrites good cache.
+    if (Array.isArray(value) && value.length === 0) return;
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ v: value, t: Date.now() }));
+  } catch {
+    /* storage full / disabled — non-fatal */
+  }
+}
