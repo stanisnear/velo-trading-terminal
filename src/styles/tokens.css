@@ -53,21 +53,26 @@ body.dark,
   --fg-3: #4a4d57;
   --hr: rgba(255, 255, 255, 0.06);
   --hr-2: rgba(255, 255, 255, 0.12);
-  --glass: rgba(16, 18, 28, 0.23);
-  --glass-2: rgba(16, 18, 28, 0.38);
+  --glass: rgba(16, 18, 28, 0.20);
+  --glass-2: rgba(16, 18, 28, 0.36);
   --gl-edge: rgba(255, 255, 255, 0.16);
   --chip: rgba(255, 255, 255, 0.05);
   --chip-h: rgba(255, 255, 255, 0.1);
   --ambient:
-    radial-gradient(80% 60% at 12% 18%, oklch(0.45 0.26 285 / 0.32), transparent 60%),
-    radial-gradient(70% 50% at 88% 12%, oklch(0.55 0.20 245 / 0.22), transparent 65%),
-    radial-gradient(80% 55% at 90% 88%, oklch(0.40 0.22 295 / 0.25), transparent 65%),
-    radial-gradient(60% 45% at 8% 92%, oklch(0.55 0.18 230 / 0.18), transparent 60%);
+    radial-gradient(80% 60% at 12% 18%, oklch(0.45 0.26 285 / 0.42), transparent 60%),
+    radial-gradient(70% 50% at 88% 12%, oklch(0.55 0.20 245 / 0.32), transparent 65%),
+    radial-gradient(80% 55% at 90% 88%, oklch(0.40 0.22 295 / 0.36), transparent 65%),
+    radial-gradient(60% 45% at 8% 92%, oklch(0.55 0.18 230 / 0.28), transparent 60%);
   /* App-shell background. Dark keeps its flat obsidian base (the --ambient
      overlay above provides the glow); light paints a real purple↔light-blue
      gradient here because the shell div sits ON TOP of <body>, hiding any
      body background-image. */
-  --app-bg: var(--bg);
+  --app-bg:
+    radial-gradient(at 8% 4%, oklch(0.46 0.21 290 / 0.45) 0px, transparent 48%),
+    radial-gradient(at 95% 6%, oklch(0.50 0.17 235 / 0.36) 0px, transparent 52%),
+    radial-gradient(at 88% 96%, oklch(0.43 0.19 300 / 0.40) 0px, transparent 54%),
+    radial-gradient(at 4% 96%, oklch(0.48 0.16 250 / 0.30) 0px, transparent 50%),
+    #0a0c16;
   --glass-shadow:
     0 1px 0 rgba(255,255,255,0.13) inset,
     0 -1px 0 rgba(0, 0, 0, 0.16) inset,
