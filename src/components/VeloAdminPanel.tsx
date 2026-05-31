@@ -24,7 +24,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import {
-  VELO_PERPS_ADDRESS, VELO_PERPS_V1_ADDRESS, VELO_PERPS_V2_ADDRESS, IS_V2,
+  VELO_PERPS_ADDRESS, VELO_PERPS_V1_ADDRESS, VELO_PERPS_V2_ADDRESS, VELO_PERPS_V3_ADDRESS, IS_V2, IS_V3,
   VELO_PERPS_ABI, VELO_USDC_BASE,
   fetchPoolBalance, baseScanAddressUrl, baseScanTxUrl,
   PAIR_LABEL, type VeloPairLabel, type PairIndex,
@@ -54,17 +54,24 @@ import { PYTH_FEED_IDS } from '@/services/pythService';
 // Protocol stats payload from /api/protocol-stats
 interface ProtocolStats {
   ok: boolean;
+  source?: string;
+  onchain?: {
+    active_address: string;
+    version: number;
+    version_label: string;
+    next_trade_id: number;
+    onchain_total_opens: number;
+    fee_balance_usd: number;
+  };
   lifetime: {
     total_volume_usd: number;
-    total_open_fees_usd: number;
-    total_close_fees_usd: number;
-    total_fees_usd: number;
     total_opens: number;
     total_closes: number;
     total_liquidations: number;
-    total_liquidation_bounty_usd: number;
     currently_open: number;
-    total_fee_withdrawals: number;
+    realized_pnl_usd?: number;
+    total_open_fees_usd: number;
+    total_fees_usd: number;
   };
   rollups?: {
     volume_24h: number; volume_7d: number; volume_30d: number;
@@ -75,8 +82,6 @@ interface ProtocolStats {
   daily_buckets: Array<{
     date: string;
     volume_usd: number;
-    open_fees_usd: number;
-    close_fees_usd: number;
     opens: number;
     closes: number;
     liquidations: number;
@@ -116,8 +121,14 @@ interface GaStats {
   error?: string;
 }
 
-const S = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+// Format an on-chain VERSION uint (e.g. 31 → "v3.1", 3 → "v3") for display.
+const verLabel = (v: number): string => {
+  if (!v) return 'v?';
+  if (v >= 10) return `v${Math.floor(v / 10)}.${v % 10}`;
+  return `v${v}`;
+};
+
+const S = {  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
@@ -173,6 +184,7 @@ export const VeloAdminPanel: React.FC = () => {
   const [openFeeBps, setOpenFeeBps] = useState(0);
   const [closeFeeBps, setCloseFeeBps] = useState(0);
   const [maxLeverage, setMaxLeverage] = useState(0);
+  const [contractVersion, setContractVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -215,6 +227,11 @@ export const VeloAdminPanel: React.FC = () => {
       setMaxLeverage(Number(maxLev));
       setFeeBalance(Number(formatUnits(fees as bigint, 6)));
       setPoolBalance(pool);
+      // Active contract VERSION (e.g. 31 → "3.1") — best-effort, non-blocking.
+      try {
+        const ver = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'VERSION' });
+        setContractVersion(Number(ver));
+      } catch { /* older contract without VERSION */ }
 
       // Keeper wallet ETH balance
       if (keeperAddress && keeperAddress.startsWith('0x')) {
@@ -561,7 +578,7 @@ export const VeloAdminPanel: React.FC = () => {
         <div>
           <h1 style={{ ...S.display, fontSize: 40, color: 'var(--fg)', margin: 0 }}>Protocol Admin</h1>
           <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)', margin: '4px 0 0', letterSpacing: '0.05em' }}>
-            VeloPerps · Base Sepolia
+            VeloPerps {verLabel(contractVersion)} · Base Sepolia
           </p>
         </div>
         <button
@@ -769,13 +786,13 @@ export const VeloAdminPanel: React.FC = () => {
         ) : (
           <div style={{ padding: 16, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
             <p style={{ ...S.mono, fontSize: 11, color: 'oklch(0.80 0.16 60)', margin: '0 0 6px', fontWeight: 700 }}>
-              {gaStats?.error ? 'GOOGLE ANALYTICS ERROR' : 'GOOGLE ANALYTICS NOT CONNECTED'}
+              {gaStats?.error ? 'GOOGLE ANALYTICS ERROR' : 'LIVE NUMBERS NOT CONNECTED'}
             </p>
             <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 10px', lineHeight: 1.6 }}>
               {gaStats?.error
                 ? `The GA Data API returned an error: ${gaStats.error}`
-                : 'Tracking is live as soon as VITE_GA_MEASUREMENT_ID is set — visits flow into your GA4 property.'}
-              {' '}To show live numbers here, give a GA4 service account Viewer access and set
+                : 'Tracking is already live — visits and page views are flowing into your GA4 property right now (view them at analytics.google.com).'}
+              {' '}This card only pulls those numbers back into the dashboard. To enable it, give a GA4 service account Viewer access and set
               {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_PROPERTY_ID</code>,
               {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_CLIENT_EMAIL</code>, and
               {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_PRIVATE_KEY</code> in Vercel.
@@ -813,9 +830,9 @@ export const VeloAdminPanel: React.FC = () => {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Daily fees" icon={<Activity size={13} style={{ color: 'var(--iris-coral)' }} />}>
+          <ChartCard title="Daily fees (est.)" icon={<Activity size={13} style={{ color: 'var(--iris-coral)' }} />}>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={stats.daily_buckets.map(b => ({ ...b, total_fees: b.open_fees_usd + b.close_fees_usd }))}>
+              <BarChart data={stats.daily_buckets.map(b => ({ ...b, total_fees: b.volume_usd * 0.001 }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" opacity={0.3} />
                 <XAxis dataKey="date" stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} tickFormatter={(d) => d.slice(5)} />
                 <YAxis stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} tickFormatter={(v) => `$${Number(v).toFixed(0)}`} />
@@ -1324,14 +1341,24 @@ export const VeloAdminPanel: React.FC = () => {
         background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
       }}>
         <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 16px' }}>Contract metadata</h2>
-        <MetadataRow label="VeloPerps V2 (active)" value={VELO_PERPS_V2_ADDRESS} link={baseScanAddressUrl(VELO_PERPS_V2_ADDRESS)} />
+        <MetadataRow
+          label={`VeloPerps ${verLabel(contractVersion)} (active)`}
+          value={VELO_PERPS_ADDRESS}
+          link={baseScanAddressUrl(VELO_PERPS_ADDRESS)}
+        />
+        {VELO_PERPS_V3_ADDRESS && VELO_PERPS_V3_ADDRESS.length === 42 && VELO_PERPS_V3_ADDRESS.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase() && (
+          <MetadataRow label="VeloPerps V3" value={VELO_PERPS_V3_ADDRESS} link={baseScanAddressUrl(VELO_PERPS_V3_ADDRESS)} />
+        )}
+        {VELO_PERPS_V2_ADDRESS && VELO_PERPS_V2_ADDRESS.length === 42 && VELO_PERPS_V2_ADDRESS.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase() && (
+          <MetadataRow label="VeloPerps V2" value={VELO_PERPS_V2_ADDRESS} link={baseScanAddressUrl(VELO_PERPS_V2_ADDRESS)} />
+        )}
         <MetadataRow label="VeloPerps V1 (legacy)" value={VELO_PERPS_V1_ADDRESS} link={baseScanAddressUrl(VELO_PERPS_V1_ADDRESS)} />
         <MetadataRow label="mUSDC" value={VELO_USDC_BASE} link={baseScanAddressUrl(VELO_USDC_BASE)} />
         <MetadataRow label="Owner" value={contractOwner || '-'} />
         <MetadataRow label="Connected" value={address || '-'} />
         <div style={{ marginTop: 12, padding: '10px 0', borderTop: '1px solid var(--hairline)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)' }}>V2: add/reduce margin, partial close, on-chain TP/SL, 0.25% keeper bounty</span>
-          {IS_V2 && <span style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-up)', fontWeight: 700 }}>ROUTING TO V2</span>}
+          <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)' }}>add/reduce margin, partial close, on-chain TP/SL, 0.25% keeper bounty</span>
+          <span style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-up)', fontWeight: 700 }}>ROUTING TO {verLabel(contractVersion).toUpperCase()}</span>
         </div>
       </div>
     </div>

@@ -1,256 +1,209 @@
 // api/protocol-stats.ts
 //
-// Returns aggregated protocol metrics by scanning on-chain events across every
-// deployed VeloPerps contract version (V1 + V2 + V3):
-//   - lifetime: total_volume_usd, fees, opens/closes, liquidations, currently_open
-//   - rollups:  volume / trades / fees over the trailing 24h, 7d, and 30d
-//   - daily_buckets: [{ date, volume, fees, opens, closes, liquidations }, ...]
+// Protocol trading metrics for the Admin dashboard.
 //
-// Caller intent: the Admin panel renders the cards + charts from this payload.
-// External monitoring (Datadog, Grafana, etc.) can scrape it on a schedule.
+// SOURCE OF TRUTH = the app's own records in Supabase (trade_history +
+// positions). This is fast, version-agnostic (every trade is recorded
+// regardless of which VeloPerps contract it routed to: V1/V2/V3/V3.1), and —
+// unlike scanning PositionOpened events — never times out. Base Sepolia is
+// ~20M blocks deep; paginating getLogs from genesis on a serverless function
+// is not viable, and the contracts don't keep a cumulative-volume counter
+// on-chain, so events were the only on-chain path and they don't scale here.
 //
-// Two correctness fixes over the old single-shot version:
-//   1. We scan ALL contract addresses (V1/V2/V3), not just the legacy fallback,
-//      so activity that routed to the active contract is no longer dropped.
-//   2. getLogs is PAGINATED in block-range chunks. Base Sepolia's public RPC
-//      rejects an unbounded fromBlock:0 → latest range, which previously made
-//      the whole endpoint 500 (and the UI render "—"). We walk in CHUNK_SIZE
-//      windows from START_BLOCK to the head.
+// We DO read three O(1) values from the active contract for cross-reference:
+//   VERSION       → so the dashboard shows the right contract version (3.1, …)
+//   nextTradeId   → lifetime opens as counted on-chain (sanity check vs db)
+//   feeBalance    → accrued fees (USDC, 6dp)
+//
+// Returns:
+//   lifetime: volume, fees-from-history, opens/closes, liquidations, open count
+//   rollups:  volume / trades / liquidations over trailing 24h / 7d / 30d
+//   onchain:  { version, version_label, active_address, next_trade_id, fee_balance_usd }
+//   daily_buckets: [{ date, volume_usd, opens, closes, liquidations }, ...]
 
-import { createPublicClient, http, parseAbiItem } from 'viem';
+import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 
-// Every version we've deployed. Empty/duplicate entries are filtered out.
-const CANDIDATE_ADDRESSES = [
-  process.env.VITE_VELO_PERPS_V3_ADDRESS,
-  process.env.VITE_VELO_PERPS_V2_ADDRESS,
-  process.env.VITE_VELO_PERPS_ADDRESS,
-  '0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163', // V1 hardcoded fallback
-]
-  .filter((a): a is string => !!a && a.startsWith('0x') && a.length === 42)
-  .map((a) => a.toLowerCase());
+// ── Supabase REST ──────────────────────────────────────────────────────────
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL ||
+  'https://btgfoekgvyvdflzjfehz.supabase.co';
+const SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY || '';
+const REST = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1`;
 
-const VELO_PERPS_ADDRESSES = Array.from(new Set(CANDIDATE_ADDRESSES)) as `0x${string}`[];
-
-// Block window for getLogs pagination. Base Sepolia public RPCs cap ranges
-// (commonly 10k blocks); 9k keeps us safely under. START_BLOCK lets you skip
-// scanning pre-deployment history once the contracts are settled.
-const CHUNK_SIZE = BigInt(process.env.STATS_LOG_CHUNK || '9000');
-const START_BLOCK = BigInt(process.env.STATS_START_BLOCK || '0');
-
-const EVENTS = {
-  opened:      parseAbiItem('event PositionOpened(uint256 indexed tradeId, address indexed trader, uint16 indexed pairIndex, bool isLong, uint16 leverage, uint64 collateralUSDC_6, uint128 entryPrice_E18)'),
-  closed:      parseAbiItem('event PositionClosed(uint256 indexed tradeId, address indexed trader, uint16 indexed pairIndex, uint128 exitPrice_E18, int256 pnl_6, uint64 payout_6, uint64 closeFee_6)'),
-  liquidated:  parseAbiItem('event PositionLiquidated(uint256 indexed tradeId, address indexed trader, address indexed liquidator, uint128 markPrice_E18, uint64 bounty_6)'),
-  feesWithdrawn: parseAbiItem('event FeesWithdrawn(address indexed to, uint256 amount_6)'),
-};
-
-interface DailyBucket {
-  date: string;             // YYYY-MM-DD
-  volume_usd: number;       // sum of opened notional that day
-  open_fees_usd: number;    // 0.10% of opened notional
-  close_fees_usd: number;   // sum of closeFee_6 / 1e6
-  opens: number;
-  closes: number;
-  liquidations: number;
+function sbHeaders(extra: Record<string, string> = {}) {
+  return { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json', ...extra };
+}
+async function countRows(table: string, filter = ''): Promise<number> {
+  const url = `${REST}/${table}?select=id${filter ? `&${filter}` : ''}`;
+  const res = await fetch(url, { headers: sbHeaders({ Prefer: 'count=exact', Range: '0-0' }) });
+  if (!res.ok) return 0;
+  const cr = res.headers.get('content-range') || '';
+  const total = cr.split('/')[1];
+  return total && total !== '*' ? parseInt(total, 10) : 0;
 }
 
-// Paginated getLogs across a single address for one event. Tolerates RPCs that
-// reject wide ranges by chunking; individual chunk failures are skipped rather
-// than failing the whole scan.
-async function getLogsPaged(
-  client: any,
-  address: `0x${string}`,
-  event: any,
-  fromBlock: bigint,
-  toBlock: bigint,
-): Promise<any[]> {
-  const out: any[] = [];
-  for (let start = fromBlock; start <= toBlock; start += CHUNK_SIZE) {
-    const end = start + CHUNK_SIZE - 1n > toBlock ? toBlock : start + CHUNK_SIZE - 1n;
-    try {
-      const logs = await client.getLogs({ address, event, fromBlock: start, toBlock: end });
-      if (logs.length) out.push(...logs);
-    } catch (err) {
-      // Some RPCs still complain — narrow the window once and retry in halves.
-      try {
-        const mid = start + (end - start) / 2n;
-        const [a, b] = await Promise.all([
-          client.getLogs({ address, event, fromBlock: start, toBlock: mid }),
-          client.getLogs({ address, event, fromBlock: mid + 1n, toBlock: end }),
-        ]);
-        out.push(...a, ...b);
-      } catch {
-        // Give up on this window; keep going so partial data still renders.
-        console.warn(`[protocol-stats] getLogs window ${start}-${end} failed for ${address}`);
-      }
-    }
+// ── Active contract (version resolution mirrors veloPerpsService) ────────────
+function activeAddress(): `0x${string}` | null {
+  const v3 = process.env.VITE_VELO_PERPS_V3_ADDRESS || '';
+  const v2 = process.env.VITE_VELO_PERPS_V2_ADDRESS || '';
+  const v1 = process.env.VITE_VELO_PERPS_ADDRESS || '0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163';
+  const pick = [v3, v2, v1].find((a) => a && a.startsWith('0x') && a.length === 42);
+  return (pick as `0x${string}`) || null;
+}
+const VERSION_ABI = [
+  { type: 'function', name: 'VERSION',     stateMutability: 'view', inputs: [], outputs: [{ type: 'uint16' }] },
+  { type: 'function', name: 'nextTradeId', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'feeBalance',  stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+] as const;
+
+function versionLabel(v: number): string {
+  if (!v) return 'unknown';
+  if (v >= 10) return `v${Math.floor(v / 10)}.${v % 10}`; // 31 → v3.1
+  return `v${v}`;                                          // 3 → v3
+}
+
+const isoDaysAgo = (d: number) => new Date(Date.now() - d * 86400_000).toISOString();
+const dayStr = (d: Date) => d.toISOString().slice(0, 10);
+
+interface TradeRow {
+  size: number | null;
+  action: string | null;
+  pnl: number | null;
+  leverage: number | null;
+  exit_price: number | null;
+  liquidation_price: number | null;
+  created_at: string;
+}
+
+// A close is treated as a liquidation when the exit landed on the liquidation
+// price, or (fallback) when the loss wiped ~the entire margin.
+function isLiquidation(r: TradeRow): boolean {
+  if (r.action !== 'CLOSE') return false;
+  if (r.liquidation_price != null && r.exit_price != null &&
+      Math.abs(r.exit_price - r.liquidation_price) < 1e-9) return true;
+  if (r.leverage && r.leverage > 0 && r.size && r.pnl != null) {
+    const margin = r.size / r.leverage;
+    if (r.pnl <= -margin * 0.999) return true;
   }
-  return out;
+  return false;
 }
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
 
-  const rpcUrl = process.env.VITE_BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
-  const publicClient: any = createPublicClient({ chain: baseSepolia, transport: http(rpcUrl) });
+  const out: any = { ok: true, generated_at: new Date().toISOString(), source: 'supabase' };
 
-  if (VELO_PERPS_ADDRESSES.length === 0) {
-    res.status(200).json({ ok: false, error: 'No VeloPerps address configured', lifetime: emptyLifetime(), rollups: emptyRollups(), daily_buckets: [] });
+  // ── On-chain cross-reference (O(1), best-effort) ───────────────────────────
+  try {
+    const addr = activeAddress();
+    if (addr) {
+      const rpcUrl = process.env.VITE_BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+      const client: any = createPublicClient({ chain: baseSepolia, transport: http(rpcUrl) });
+      const [version, nextId, fee] = await Promise.all([
+        client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'VERSION' }).catch(() => 0),
+        client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'nextTradeId' }).catch(() => 0n),
+        client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'feeBalance' }).catch(() => 0n),
+      ]);
+      out.onchain = {
+        active_address: addr,
+        version: Number(version),
+        version_label: versionLabel(Number(version)),
+        next_trade_id: Number(nextId),
+        onchain_total_opens: Math.max(0, Number(nextId) - 1),
+        fee_balance_usd: Number(fee) / 1e6,
+      };
+    }
+  } catch (e: any) {
+    console.warn('[protocol-stats] on-chain read failed:', e?.message);
+  }
+
+  // ── Trading metrics from Supabase ──────────────────────────────────────────
+  if (!SERVICE_KEY) {
+    res.status(200).json({ ...out, ok: false, error: 'Supabase key not configured', lifetime: emptyLifetime(), rollups: emptyRollups(), daily_buckets: [] });
     return;
   }
 
   try {
-    const head = await publicClient.getBlockNumber();
-    const fromBlock = START_BLOCK;
+    // Pull trade history (testnet volumes are small; cap generously).
+    const url = `${REST}/trade_history?select=size,action,pnl,leverage,exit_price,liquidation_price,created_at&order=created_at.asc&limit=100000`;
+    const thRes = await fetch(url, { headers: sbHeaders() });
+    if (!thRes.ok) throw new Error(`trade_history HTTP ${thRes.status}`);
+    const rows: TradeRow[] = await thRes.json();
 
-    // Scan every contract version for every event type, paginated.
-    const perAddress = await Promise.all(
-      VELO_PERPS_ADDRESSES.map(async (addr) => {
-        const [openLogs, closeLogs, liqLogs, withdrawLogs] = await Promise.all([
-          getLogsPaged(publicClient, addr, EVENTS.opened, fromBlock, head),
-          getLogsPaged(publicClient, addr, EVENTS.closed, fromBlock, head),
-          getLogsPaged(publicClient, addr, EVENTS.liquidated, fromBlock, head),
-          getLogsPaged(publicClient, addr, EVENTS.feesWithdrawn, fromBlock, head),
-        ]);
-        return { openLogs, closeLogs, liqLogs, withdrawLogs };
-      })
-    );
+    // Current open positions = live count of the positions table.
+    const currentlyOpen = await countRows('positions');
 
-    const openLogs   = perAddress.flatMap((p) => p.openLogs);
-    const closeLogs  = perAddress.flatMap((p) => p.closeLogs);
-    const liqLogs    = perAddress.flatMap((p) => p.liqLogs);
-    const withdrawLogs = perAddress.flatMap((p) => p.withdrawLogs);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const within = (iso: string, days: number) => new Date(iso).getTime() / 1000 >= nowSec - days * 86400;
 
-    // Resolve block timestamps once per unique block.
-    const uniqueBlocks = new Set<bigint>();
-    for (const l of [...openLogs, ...closeLogs, ...liqLogs, ...withdrawLogs]) {
-      if (l.blockNumber) uniqueBlocks.add(l.blockNumber);
-    }
-    const blockTimestamps = new Map<bigint, number>();
-    // Batch in groups to avoid hammering the RPC with thousands of parallel calls.
-    const blockList = Array.from(uniqueBlocks);
-    const BATCH = 25;
-    for (let i = 0; i < blockList.length; i += BATCH) {
-      const slice = blockList.slice(i, i + BATCH);
-      await Promise.all(slice.map(async (bn) => {
-        try {
-          const b = await publicClient.getBlock({ blockNumber: bn });
-          blockTimestamps.set(bn, Number(b.timestamp));
-        } catch { /* skip */ }
-      }));
-    }
-
-    const dayKey = (ts: number) => new Date(ts * 1000).toISOString().slice(0, 10);
-    const mkBucket = (date: string): DailyBucket => ({
-      date, volume_usd: 0, open_fees_usd: 0, close_fees_usd: 0, opens: 0, closes: 0, liquidations: 0,
-    });
-    const buckets = new Map<string, DailyBucket>();
-    const getBucket = (ts: number): DailyBucket => {
-      const k = dayKey(ts);
-      if (!buckets.has(k)) buckets.set(k, mkBucket(k));
+    let totalVolume = 0, totalOpens = 0, totalCloses = 0, totalLiquidations = 0;
+    let realizedPnl = 0;
+    const roll = { v24: 0, v7: 0, v30: 0, t24: 0, t7: 0, t30: 0, liq24: 0, liq7: 0, liq30: 0 };
+    const buckets = new Map<string, { date: string; volume_usd: number; opens: number; closes: number; liquidations: number }>();
+    const getB = (iso: string) => {
+      const k = dayStr(new Date(iso));
+      if (!buckets.has(k)) buckets.set(k, { date: k, volume_usd: 0, opens: 0, closes: 0, liquidations: 0 });
       return buckets.get(k)!;
     };
 
-    const nowSec = Math.floor(Date.now() / 1000);
-    const DAY = 86400;
-    const within = (ts: number, days: number) => ts >= nowSec - days * DAY;
-
-    // Rolling-window aggregates.
-    const roll = {
-      v24: 0, v7: 0, v30: 0,
-      t24: 0, t7: 0, t30: 0,   // trades opened
-      f24: 0, f7: 0, f30: 0,   // open fees
-      liq24: 0, liq7: 0, liq30: 0,
-    };
-
-    let totalVolume = 0, totalOpenFees = 0, totalCloseFees = 0;
-    let totalLiquidations = 0, totalLiquidationBounty = 0;
-
-    for (const l of openLogs) {
-      const ts = l.blockNumber ? (blockTimestamps.get(l.blockNumber) ?? 0) : 0;
-      if (!ts) continue;
-      const args = l.args as any;
-      const collateral = Number(args.collateralUSDC_6) / 1e6;
-      const leverage = Number(args.leverage);
-      const notional = collateral * leverage;
-      const openFee = collateral * 0.001; // 0.10%
-      const b = getBucket(ts);
-      b.volume_usd += notional; b.open_fees_usd += openFee; b.opens += 1;
-      totalVolume += notional; totalOpenFees += openFee;
-      if (within(ts, 1))  { roll.v24 += notional; roll.t24 += 1; roll.f24 += openFee; }
-      if (within(ts, 7))  { roll.v7  += notional; roll.t7  += 1; roll.f7  += openFee; }
-      if (within(ts, 30)) { roll.v30 += notional; roll.t30 += 1; roll.f30 += openFee; }
-    }
-    for (const l of closeLogs) {
-      const ts = l.blockNumber ? (blockTimestamps.get(l.blockNumber) ?? 0) : 0;
-      if (!ts) continue;
-      const args = l.args as any;
-      const closeFee = Number(args.closeFee_6) / 1e6;
-      const b = getBucket(ts);
-      b.close_fees_usd += closeFee; b.closes += 1;
-      totalCloseFees += closeFee;
-    }
-    for (const l of liqLogs) {
-      const ts = l.blockNumber ? (blockTimestamps.get(l.blockNumber) ?? 0) : 0;
-      if (!ts) continue;
-      const args = l.args as any;
-      const bounty = Number(args.bounty_6) / 1e6;
-      const b = getBucket(ts);
-      b.liquidations += 1;
-      totalLiquidations += 1; totalLiquidationBounty += bounty;
-      if (within(ts, 1))  roll.liq24 += 1;
-      if (within(ts, 7))  roll.liq7  += 1;
-      if (within(ts, 30)) roll.liq30 += 1;
+    for (const r of rows) {
+      const size = Number(r.size || 0);
+      const b = getB(r.created_at);
+      if (r.action === 'OPEN') {
+        totalVolume += size; totalOpens += 1;
+        b.volume_usd += size; b.opens += 1;
+        if (within(r.created_at, 1))  { roll.v24 += size; roll.t24 += 1; }
+        if (within(r.created_at, 7))  { roll.v7  += size; roll.t7  += 1; }
+        if (within(r.created_at, 30)) { roll.v30 += size; roll.t30 += 1; }
+      } else if (r.action === 'CLOSE') {
+        totalCloses += 1; b.closes += 1;
+        realizedPnl += Number(r.pnl || 0);
+        if (isLiquidation(r)) {
+          totalLiquidations += 1; b.liquidations += 1;
+          if (within(r.created_at, 1))  roll.liq24 += 1;
+          if (within(r.created_at, 7))  roll.liq7  += 1;
+          if (within(r.created_at, 30)) roll.liq30 += 1;
+        }
+      }
     }
 
     const dailyBuckets = Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     res.status(200).json({
-      ok: true,
-      contracts: VELO_PERPS_ADDRESSES,
-      scanned_from_block: Number(fromBlock),
-      scanned_to_block: Number(head),
-      generated_at: new Date().toISOString(),
+      ...out,
       lifetime: {
         total_volume_usd: totalVolume,
-        total_open_fees_usd: totalOpenFees,
-        total_close_fees_usd: totalCloseFees,
-        total_fees_usd: totalOpenFees + totalCloseFees,
-        total_opens: openLogs.length,
-        total_closes: closeLogs.length,
+        total_opens: totalOpens,
+        total_closes: totalCloses,
         total_liquidations: totalLiquidations,
-        total_liquidation_bounty_usd: totalLiquidationBounty,
-        currently_open: Math.max(0, openLogs.length - closeLogs.length - totalLiquidations),
-        total_fee_withdrawals: withdrawLogs.length,
+        currently_open: currentlyOpen,
+        realized_pnl_usd: realizedPnl,
+        // Fee estimate from volume (open-side, 0.10%). Live accrued fees come
+        // from the contract read above (out.onchain.fee_balance_usd).
+        total_open_fees_usd: totalVolume * 0.001,
+        total_fees_usd: totalVolume * 0.001,
       },
       rollups: {
         volume_24h: roll.v24, volume_7d: roll.v7, volume_30d: roll.v30,
         trades_24h: roll.t24, trades_7d: roll.t7, trades_30d: roll.t30,
-        fees_24h: roll.f24, fees_7d: roll.f7, fees_30d: roll.f30,
         liquidations_24h: roll.liq24, liquidations_7d: roll.liq7, liquidations_30d: roll.liq30,
+        fees_24h: roll.v24 * 0.001, fees_7d: roll.v7 * 0.001, fees_30d: roll.v30 * 0.001,
       },
       daily_buckets: dailyBuckets,
     });
   } catch (e: any) {
     console.error('[protocol-stats] error:', e);
-    res.status(500).json({ error: e?.shortMessage || e?.message || 'Stats query failed' });
+    res.status(500).json({ ...out, ok: false, error: e?.message || 'Stats query failed', lifetime: emptyLifetime(), rollups: emptyRollups(), daily_buckets: [] });
   }
 }
 
 function emptyLifetime() {
-  return {
-    total_volume_usd: 0, total_open_fees_usd: 0, total_close_fees_usd: 0, total_fees_usd: 0,
-    total_opens: 0, total_closes: 0, total_liquidations: 0, total_liquidation_bounty_usd: 0,
-    currently_open: 0, total_fee_withdrawals: 0,
-  };
+  return { total_volume_usd: 0, total_opens: 0, total_closes: 0, total_liquidations: 0, currently_open: 0, realized_pnl_usd: 0, total_open_fees_usd: 0, total_fees_usd: 0 };
 }
 function emptyRollups() {
-  return {
-    volume_24h: 0, volume_7d: 0, volume_30d: 0,
-    trades_24h: 0, trades_7d: 0, trades_30d: 0,
-    fees_24h: 0, fees_7d: 0, fees_30d: 0,
-    liquidations_24h: 0, liquidations_7d: 0, liquidations_30d: 0,
-  };
+  return { volume_24h: 0, volume_7d: 0, volume_30d: 0, trades_24h: 0, trades_7d: 0, trades_30d: 0, liquidations_24h: 0, liquidations_7d: 0, liquidations_30d: 0, fees_24h: 0, fees_7d: 0, fees_30d: 0 };
 }
