@@ -90,6 +90,8 @@ import {
   uploadBanner,
   onPersistenceError,
   touchUserActivity,
+  ensureFreshSession,
+  onSessionHealth,
 } from './services/supabaseStore';
 import { trackPageView, setAnalyticsUser } from './services/analytics';
 
@@ -6209,6 +6211,11 @@ const App = () => {
     // the initial fetch fires before the JWT is active).
     const loadSocialData = useCallback(async () => {
         if (!isSupabaseConfigured()) return;
+        // Keep the JWT fresh first — an expired token makes every RLS read
+        // resolve as the anon role and return [], which is exactly the
+        // "data wiped out, refresh doesn't help" symptom. Refreshing here
+        // means the retries below run with a valid authenticated token.
+        await ensureFreshSession();
         withRetry(() => fetchAllProfiles(100), (r: any) => !r?.data || r.data.length === 0).then(async (result: any) => {
             const profiles = result?.data;
             if (profiles && profiles.length > 0) {
@@ -6304,15 +6311,23 @@ const App = () => {
     // empty read can never clobber good data — this only ever repopulates.
     useEffect(() => {
         if (!authChecked || !isSupabaseConfigured()) return;
-        const heal = () => {
+        const heal = async () => {
             if (document.visibilityState !== 'visible') return;
+            // Refresh an expired/near-expired JWT before re-reading, otherwise
+            // the heal just re-reads with a dead token and stays empty.
+            await ensureFreshSession();
             loadSocialData();
         };
         document.addEventListener('visibilitychange', heal);
         const id = setInterval(heal, 60000);
+        // When the session manager recovers the token (e.g. after a refocus
+        // refresh), immediately repopulate rather than waiting for the next
+        // heal tick — so data "reappears" the moment auth is healthy again.
+        const unsubHealth = onSessionHealth((h) => { if (h === 'fresh') loadSocialData(); });
         return () => {
             document.removeEventListener('visibilitychange', heal);
             clearInterval(id);
+            unsubHealth();
         };
     }, [authChecked, loadSocialData]);
 

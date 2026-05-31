@@ -1206,3 +1206,151 @@ export async function touchUserActivity(force = false): Promise<void> {
     console.warn('[supabase] touch_activity threw:', e?.message);
   }
 }
+
+// Shared single-flight guard for token refreshes (used by the session manager
+// below). A double refresh can rotate the refresh-token family and kill the
+// session, so all refresh paths funnel through this.
+let _refreshInFlight: Promise<boolean> | null = null;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  SESSION MANAGER (build 92)
+//
+//  Industry-standard session resilience so app data never silently blanks.
+//
+//  The failure mode it eliminates: the Supabase access token (JWT) lives ~1h.
+//  Once it expires, every RLS-protected read resolves as the `anon` role and
+//  returns [] — blanking feeds, leaderboards, positions, notifications, etc.
+//  A plain refresh re-reads with the same stale token, so it stays empty.
+//
+//  Strategy (token-level, so it covers EVERY read in the app at once):
+//    1. Proactive scheduled refresh — re-arm a timer to refresh ~90s before
+//       each token's real expiry (read from session.expires_at). The token is
+//       therefore never allowed to expire while the app is open.
+//    2. Recovery triggers — refresh immediately on tab refocus and on the
+//       browser coming back online (covers a backgrounded tab whose refresh
+//       timer the browser throttled/froze past expiry).
+//    3. Single-flight — concurrent refreshes are de-duped (a double refresh can
+//       rotate the refresh-token family and kill the session).
+//    4. Health signalling — broadcasts 'fresh' / 'refreshing' / 'expired' so the
+//       UI can show a quiet "reconnecting…" state and auto-recover instead of
+//       showing silent empties.
+// ════════════════════════════════════════════════════════════════════════════
+
+export type SessionHealth = 'fresh' | 'refreshing' | 'expired' | 'signed-out';
+type HealthListener = (h: SessionHealth) => void;
+
+let _health: SessionHealth = 'fresh';
+const _healthListeners = new Set<HealthListener>();
+let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let _managerInit = false;
+
+function setHealth(h: SessionHealth) {
+  if (h === _health) return;
+  _health = h;
+  _healthListeners.forEach((fn) => { try { fn(h); } catch { /* ignore */ } });
+}
+
+export function getSessionHealth(): SessionHealth { return _health; }
+
+export function onSessionHealth(fn: HealthListener): () => void {
+  _healthListeners.add(fn);
+  return () => { _healthListeners.delete(fn); };
+}
+
+/** Force a token refresh now (single-flight). Returns true if a fresh session
+ *  exists afterward. Safe to call from anywhere. */
+export async function refreshSessionNow(): Promise<boolean> {
+  if (!isConfigured()) return false;
+  if (_refreshInFlight) return _refreshInFlight;
+  setHealth('refreshing');
+  _refreshInFlight = (async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error || !data?.session) {
+        // Distinguish "no session at all" (signed out) from "refresh rejected"
+        // (dead refresh-token family → needs re-auth).
+        const { data: { session } } = await supabase.auth.getSession();
+        setHealth(session ? 'expired' : 'signed-out');
+        return false;
+      }
+      setHealth('fresh');
+      scheduleProactiveRefresh(data.session);
+      return true;
+    } catch (e: any) {
+      console.warn('[session] refresh threw:', e?.message);
+      setHealth('expired');
+      return false;
+    } finally {
+      _refreshInFlight = null;
+    }
+  })();
+  return _refreshInFlight;
+}
+
+/** Refresh only if the token is expired or within the safety window. */
+export async function ensureFreshSession(): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setHealth('signed-out'); return false; }
+    const expiresAtMs = (session.expires_at ?? 0) * 1000;
+    if (expiresAtMs && expiresAtMs - Date.now() > 120_000) {
+      return true; // comfortably valid
+    }
+    return refreshSessionNow();
+  } catch (e: any) {
+    console.warn('[session] ensureFreshSession threw:', e?.message);
+    return false;
+  }
+}
+
+/** (Re)arm the proactive refresh timer to fire ~90s before this token expires. */
+function scheduleProactiveRefresh(session: { expires_at?: number } | null) {
+  if (_refreshTimer) { clearTimeout(_refreshTimer); _refreshTimer = null; }
+  if (!session?.expires_at) return;
+  const expiresAtMs = session.expires_at * 1000;
+  // Fire 90s early; clamp to [5s, 30min] so a bogus far-future expiry can't
+  // park the timer for hours and a near-expiry token refreshes promptly.
+  const lead = 90_000;
+  const delay = Math.max(5_000, Math.min(expiresAtMs - Date.now() - lead, 30 * 60_000));
+  _refreshTimer = setTimeout(() => {
+    // Only spend a refresh when the tab is actually in use; a hidden tab will
+    // refresh on refocus instead (keeps cross-tab rotation churn down).
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      scheduleProactiveRefresh(session); // re-check shortly without refreshing
+      return;
+    }
+    refreshSessionNow();
+  }, delay);
+}
+
+/** Initialise the manager once at app boot. Idempotent. */
+export function initSessionManager(): void {
+  if (_managerInit || !isConfigured() || typeof window === 'undefined') return;
+  _managerInit = true;
+
+  // Re-arm the schedule whenever the session changes.
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') {
+      if (_refreshTimer) { clearTimeout(_refreshTimer); _refreshTimer = null; }
+      setHealth('signed-out');
+      return;
+    }
+    if (session) {
+      setHealth('fresh');
+      scheduleProactiveRefresh(session as any);
+    }
+  });
+
+  // Recovery triggers: refocus + back-online. Both are the classic moments a
+  // backgrounded tab wakes with an expired token.
+  const onVisible = () => { if (document.visibilityState === 'visible') ensureFreshSession(); };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', () => { ensureFreshSession(); });
+  window.addEventListener('focus', onVisible);
+
+  // Arm immediately from the current session.
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) scheduleProactiveRefresh(session);
+  });
+}
