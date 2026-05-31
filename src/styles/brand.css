@@ -83,8 +83,8 @@ html.light body::after {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
-  backdrop-filter: blur(20px) saturate(1.8);
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
   box-shadow: var(--glass-shadow);
   position: relative;
   overflow: hidden;
@@ -95,8 +95,8 @@ html.light .glass,
 html.light .glass-strong,
 html.light .glass-panel,
 html.light .vp {
-  backdrop-filter: blur(18px) saturate(1.7) brightness(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.7) brightness(1.05);
+  backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
 }
 
 .glass-strong {

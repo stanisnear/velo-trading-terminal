@@ -53,9 +53,9 @@ body.dark,
   --fg-3: #4a4d57;
   --hr: rgba(255, 255, 255, 0.06);
   --hr-2: rgba(255, 255, 255, 0.12);
-  --glass: rgba(14, 16, 26, 0.34);
-  --glass-2: rgba(14, 16, 26, 0.46);
-  --gl-edge: rgba(255, 255, 255, 0.14);
+  --glass: rgba(16, 18, 28, 0.26);
+  --glass-2: rgba(16, 18, 28, 0.40);
+  --gl-edge: rgba(255, 255, 255, 0.16);
   --chip: rgba(255, 255, 255, 0.05);
   --chip-h: rgba(255, 255, 255, 0.1);
   --ambient:
@@ -69,10 +69,10 @@ body.dark,
      body background-image. */
   --app-bg: var(--bg);
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.12) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.18) inset,
-    0 18px 44px -14px rgba(0, 0, 0, 0.58),
-    0 4px 12px -4px rgba(0, 0, 0, 0.32);
+    0 1px 0 rgba(255,255,255,0.14) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.20) inset,
+    0 24px 56px -18px rgba(0, 0, 0, 0.62),
+    0 8px 22px -8px rgba(0, 0, 0, 0.38);
   --modal-bg: rgba(10, 12, 20, 0.75);
   --podium-gold-bg: linear-gradient(160deg, rgba(42, 23, 68, 0.9), rgba(26, 16, 48, 0.95));
   --podium-silver-bg: linear-gradient(160deg, rgba(19, 21, 30, 0.92), rgba(12, 14, 20, 0.98));
@@ -129,9 +129,9 @@ body.light,
      that let the scrim bleed through and turned panels muddy grey. Raised to
      near-opaque so modals and the sidebar read as crisp light panels; the
      backdrop-filter still gives a frosted edge. */
-  --glass: rgba(247, 245, 253, 0.72);
-  --glass-2: rgba(252, 251, 255, 0.92);
-  --gl-edge: rgba(255, 255, 255, 0.95);
+  --glass: rgba(248, 246, 254, 0.55);
+  --glass-2: rgba(252, 251, 255, 0.88);
+  --gl-edge: rgba(255, 255, 255, 0.96);
   --chip: rgba(90, 70, 160, 0.07);
   --chip-h: rgba(90, 70, 160, 0.13);
   --ambient:
@@ -148,10 +148,10 @@ body.light,
     radial-gradient(at 3% 98%, oklch(0.94 0.055 305 / 0.34) 0px, transparent 46%),
     #fcfbff;
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.95) inset,
+    0 1px 0 rgba(255,255,255,0.96) inset,
     0 -1px 0 rgba(90, 70, 160, 0.05) inset,
-    0 14px 36px -10px rgba(100, 80, 175, 0.18),
-    0 3px 10px -3px rgba(100, 80, 175, 0.09);
+    0 22px 52px -16px rgba(120, 100, 195, 0.28),
+    0 8px 20px -8px rgba(120, 100, 195, 0.14);
   --modal-bg: rgba(248, 246, 255, 0.82);
   --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
   --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
@@ -702,8 +702,8 @@ body.modal-open .navbar-container {
 [style*="var(--glass-bg-strong)"],
 [style*="var(--glass-2)"],
 [style*="var(--modal-bg)"] {
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
 }
 
 /* Stronger blur for modals */
@@ -716,8 +716,8 @@ body.modal-open .navbar-container {
 html.light [style*="var(--glass-bg)"],
 html.light [style*="var(--glass-bg-strong)"],
 html.light [style*="var(--glass-2)"] {
-  -webkit-backdrop-filter: blur(18px) saturate(1.7) brightness(1.05);
-  backdrop-filter: blur(18px) saturate(1.7) brightness(1.05);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
+  backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
 }
 
 /* Navbar: always fullblur, mode-aware border */
