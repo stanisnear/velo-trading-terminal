@@ -53,8 +53,8 @@ body.dark,
   --fg-3: #4a4d57;
   --hr: rgba(255, 255, 255, 0.06);
   --hr-2: rgba(255, 255, 255, 0.12);
-  --glass: rgba(16, 18, 28, 0.26);
-  --glass-2: rgba(16, 18, 28, 0.40);
+  --glass: rgba(16, 18, 28, 0.23);
+  --glass-2: rgba(16, 18, 28, 0.38);
   --gl-edge: rgba(255, 255, 255, 0.16);
   --chip: rgba(255, 255, 255, 0.05);
   --chip-h: rgba(255, 255, 255, 0.1);
@@ -69,10 +69,10 @@ body.dark,
      body background-image. */
   --app-bg: var(--bg);
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.14) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.20) inset,
-    0 24px 56px -18px rgba(0, 0, 0, 0.62),
-    0 8px 22px -8px rgba(0, 0, 0, 0.38);
+    0 1px 0 rgba(255,255,255,0.13) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.16) inset,
+    0 8px 22px -10px rgba(0, 0, 0, 0.50),
+    0 2px 6px -3px rgba(0, 0, 0, 0.30);
   --modal-bg: rgba(10, 12, 20, 0.75);
   --podium-gold-bg: linear-gradient(160deg, rgba(42, 23, 68, 0.9), rgba(26, 16, 48, 0.95));
   --podium-silver-bg: linear-gradient(160deg, rgba(19, 21, 30, 0.92), rgba(12, 14, 20, 0.98));
@@ -129,8 +129,8 @@ body.light,
      that let the scrim bleed through and turned panels muddy grey. Raised to
      near-opaque so modals and the sidebar read as crisp light panels; the
      backdrop-filter still gives a frosted edge. */
-  --glass: rgba(248, 246, 254, 0.55);
-  --glass-2: rgba(252, 251, 255, 0.88);
+  --glass: rgba(248, 246, 254, 0.50);
+  --glass-2: rgba(252, 251, 255, 0.86);
   --gl-edge: rgba(255, 255, 255, 0.96);
   --chip: rgba(90, 70, 160, 0.07);
   --chip-h: rgba(90, 70, 160, 0.13);
@@ -142,16 +142,16 @@ body.light,
      and soft blue-violet (bottom) glows — colourful but still light. Dial the
      /0.NN alphas down toward white, or up for more colour. */
   --app-bg:
-    radial-gradient(at 6% 3%, oklch(0.93 0.075 290 / 0.55) 0px, transparent 44%),
-    radial-gradient(at 97% 5%, oklch(0.94 0.065 232 / 0.50) 0px, transparent 48%),
-    radial-gradient(at 88% 97%, oklch(0.93 0.06 258 / 0.42) 0px, transparent 50%),
-    radial-gradient(at 3% 98%, oklch(0.94 0.055 305 / 0.34) 0px, transparent 46%),
-    #fcfbff;
+    radial-gradient(at 6% 3%, oklch(0.90 0.11 290 / 0.70) 0px, transparent 46%),
+    radial-gradient(at 97% 5%, oklch(0.91 0.095 232 / 0.64) 0px, transparent 50%),
+    radial-gradient(at 88% 97%, oklch(0.90 0.09 258 / 0.56) 0px, transparent 52%),
+    radial-gradient(at 3% 98%, oklch(0.91 0.085 305 / 0.46) 0px, transparent 48%),
+    #f3effb;
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.96) inset,
-    0 -1px 0 rgba(90, 70, 160, 0.05) inset,
-    0 22px 52px -16px rgba(120, 100, 195, 0.28),
-    0 8px 20px -8px rgba(120, 100, 195, 0.14);
+    0 1px 0 rgba(255,255,255,0.95) inset,
+    0 -1px 0 rgba(90, 70, 160, 0.04) inset,
+    0 8px 22px -10px rgba(120, 100, 195, 0.20),
+    0 2px 6px -3px rgba(120, 100, 195, 0.10);
   --modal-bg: rgba(248, 246, 255, 0.82);
   --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
   --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
