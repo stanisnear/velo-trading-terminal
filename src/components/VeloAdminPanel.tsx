@@ -62,6 +62,9 @@ interface ProtocolStats {
     next_trade_id: number;
     onchain_total_opens: number;
     fee_balance_usd: number;
+    open_positions?: number | null;
+    open_interest_usd?: number | null;
+    open_count_partial?: boolean;
   };
   lifetime: {
     total_volume_usd: number;
@@ -621,6 +624,10 @@ export const VeloAdminPanel: React.FC = () => {
         <StatCard
           label="Liquidations"
           value={statsLoading ? '…' : stats ? `${stats.lifetime.total_liquidations}` : '—'}
+        />
+        <StatCard
+          label="Open interest"
+          value={statsLoading ? '…' : stats?.onchain?.open_interest_usd != null ? `$${stats.onchain.open_interest_usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
         />
       </div>
 

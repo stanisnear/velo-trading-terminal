@@ -57,7 +57,56 @@ const VERSION_ABI = [
   { type: 'function', name: 'VERSION',     stateMutability: 'view', inputs: [], outputs: [{ type: 'uint16' }] },
   { type: 'function', name: 'nextTradeId', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'feeBalance',  stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  {
+    type: 'function', name: 'getPosition', stateMutability: 'view',
+    inputs: [{ name: 'tradeId', type: 'uint256' }],
+    outputs: [{
+      type: 'tuple',
+      components: [
+        { name: 'owner',              type: 'address' },
+        { name: 'pairIndex',          type: 'uint16'  },
+        { name: 'isLong',             type: 'bool'    },
+        { name: 'leverage',           type: 'uint16'  },
+        { name: 'marginMode',         type: 'uint8'   },
+        { name: 'collateralUSDC_6',   type: 'uint64'  },
+        { name: 'entryPrice_E18',     type: 'uint128' },
+        { name: 'openedAt',           type: 'uint64'  },
+        { name: 'takeProfit_E18',     type: 'uint128' },
+        { name: 'stopLoss_E18',       type: 'uint128' },
+        { name: 'originalNotional_6', type: 'uint128' },
+      ],
+    }],
+  },
 ] as const;
+
+// Count currently-open positions protocol-wide by enumerating tradeIds and
+// checking which are still live. The contract `delete`s a position on close,
+// so an open position is one with non-zero collateral. nextTradeId-1 is the
+// highest id ever minted; on testnet this is small. Capped for safety.
+const MAX_ENUMERATE = Number(process.env.STATS_MAX_POSITIONS || '5000');
+async function countOpenPositionsOnChain(client: any, addr: `0x${string}`, nextTradeId: number) {
+  const lastId = Math.min(Math.max(0, nextTradeId - 1), MAX_ENUMERATE);
+  let open = 0;
+  let openInterestUsd = 0;
+  const BATCH = 40;
+  for (let start = 1; start <= lastId; start += BATCH) {
+    const ids: number[] = [];
+    for (let i = start; i < start + BATCH && i <= lastId; i++) ids.push(i);
+    const results = await Promise.allSettled(ids.map((id) =>
+      client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'getPosition', args: [BigInt(id)] })
+    ));
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue;
+      const p: any = r.value;
+      const coll = Number(p.collateralUSDC_6 || 0n);
+      if (coll > 0 && p.owner && p.owner !== '0x0000000000000000000000000000000000000000') {
+        open += 1;
+        openInterestUsd += (coll / 1e6) * Number(p.leverage || 0);
+      }
+    }
+  }
+  return { open, openInterestUsd, partial: nextTradeId - 1 > MAX_ENUMERATE };
+}
 
 function versionLabel(v: number): string {
   if (!v) return 'unknown';
@@ -96,6 +145,7 @@ export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
 
   const out: any = { ok: true, generated_at: new Date().toISOString(), source: 'supabase' };
+  let onchainOpen: number | null = null;
 
   // ── On-chain cross-reference (O(1), best-effort) ───────────────────────────
   try {
@@ -108,13 +158,20 @@ export default async function handler(req: any, res: any) {
         client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'nextTradeId' }).catch(() => 0n),
         client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'feeBalance' }).catch(() => 0n),
       ]);
+      const nextIdNum = Number(nextId);
+      // Enumerate live positions on-chain (closed ones are deleted → zeroed).
+      const openInfo = await countOpenPositionsOnChain(client, addr, nextIdNum).catch(() => null);
+      if (openInfo) onchainOpen = openInfo.open;
       out.onchain = {
         active_address: addr,
         version: Number(version),
         version_label: versionLabel(Number(version)),
-        next_trade_id: Number(nextId),
-        onchain_total_opens: Math.max(0, Number(nextId) - 1),
+        next_trade_id: nextIdNum,
+        onchain_total_opens: Math.max(0, nextIdNum - 1),
         fee_balance_usd: Number(fee) / 1e6,
+        open_positions: openInfo ? openInfo.open : null,
+        open_interest_usd: openInfo ? openInfo.openInterestUsd : null,
+        open_count_partial: openInfo ? openInfo.partial : false,
       };
     }
   } catch (e: any) {
@@ -134,8 +191,10 @@ export default async function handler(req: any, res: any) {
     if (!thRes.ok) throw new Error(`trade_history HTTP ${thRes.status}`);
     const rows: TradeRow[] = await thRes.json();
 
-    // Current open positions = live count of the positions table.
-    const currentlyOpen = await countRows('positions');
+    // Currently-open positions: prefer the on-chain enumeration (authoritative
+    // for V3.1, where positions live in the contract, not the positions table).
+    // Fall back to the Supabase positions table only if the chain read failed.
+    const currentlyOpen = onchainOpen != null ? onchainOpen : await countRows('positions');
 
     const nowSec = Math.floor(Date.now() / 1000);
     const within = (iso: string, days: number) => new Date(iso).getTime() / 1000 >= nowSec - days * 86400;
