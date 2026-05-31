@@ -89,7 +89,9 @@ import {
   uploadAvatar,
   uploadBanner,
   onPersistenceError,
+  touchUserActivity,
 } from './services/supabaseStore';
+import { trackPageView, setAnalyticsUser } from './services/analytics';
 
 
 // Extracted page components
@@ -4373,6 +4375,25 @@ const App = () => {
     // Bumped after intentional logout clears, to re-arm socialLoginEffect when wallet stays connected
     const [retryAuthTick, setRetryAuthTick] = useState(0);
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
+
+    // ── Analytics: virtual page_view on tab change (SPA navigation) ──────────
+    useEffect(() => {
+        try { trackPageView(`/${String(activeTab).toLowerCase()}`, `VELO · ${String(activeTab)}`); } catch (_) { /* no-op */ }
+    }, [activeTab]);
+
+    // ── Activity heartbeat: powers DAU / WAU / MAU in the admin dashboard ────
+    // Fires when a user is present (mount + tab focus regained) and every 3 min
+    // while the tab stays open. No-op when logged out or Supabase unconfigured.
+    useEffect(() => {
+        if (!user?.id) return;
+        try { setAnalyticsUser(user.id); } catch (_) { /* no-op */ }
+        touchUserActivity(true);
+        const interval = setInterval(() => touchUserActivity(), 180_000);
+        const onVisible = () => { if (document.visibilityState === 'visible') touchUserActivity(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
+    }, [user?.id]);
+
     const [traders, setTraders] = useState<Trader[]>([]);
     const [posts, setPosts] = useState<Post[]>([]);
     // Keep the module-level verified-badge map in sync with admin-assigned

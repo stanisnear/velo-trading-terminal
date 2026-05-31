@@ -1165,3 +1165,44 @@ export async function setUserVerification(
   }
   return { error: null };
 }
+
+/**
+ * Activity heartbeat (build 91+). Marks the signed-in user as active "now" so
+ * the admin dashboard can compute DAU / WAU / MAU and a daily-active chart.
+ *
+ * Primary path: the security-definer RPC `touch_activity()`, which stamps
+ * profiles.last_active_at = now() AND upserts a row into user_activity_daily
+ * for today (giving us historical DAU). If the RPC isn't deployed yet
+ * (pre-migration), we fall back to a direct profiles update so current
+ * DAU/WAU/MAU still works even before the table exists.
+ *
+ * Safe to call frequently — it's a cheap upsert keyed on (user_id, day).
+ */
+let _lastHeartbeat = 0;
+export async function touchUserActivity(force = false): Promise<void> {
+  if (!isConfigured()) return;
+  const now = Date.now();
+  // Throttle to at most once every 60s unless forced.
+  if (!force && now - _lastHeartbeat < 60_000) return;
+  _lastHeartbeat = now;
+
+  try {
+    const { error } = await supabase.rpc('touch_activity');
+    if (!error) return;
+    const code = (error as any).code;
+    // RPC absent (pre-migration) → fall back to a direct column update.
+    if (code === 'PGRST202' || code === '42883') {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase
+        .from('profiles')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('id', user.id);
+      return;
+    }
+    // Any other error is non-fatal; activity tracking is best-effort.
+    console.warn('[supabase] touch_activity failed:', error.message);
+  } catch (e: any) {
+    console.warn('[supabase] touch_activity threw:', e?.message);
+  }
+}

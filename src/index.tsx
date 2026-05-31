@@ -7,7 +7,11 @@ import ReactDOM from 'react-dom/client';
 import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from './services/web3Config';
+import { initAnalytics } from './services/analytics';
 import App from './App';
+
+// Initialize Google Analytics (no-op unless VITE_GA_MEASUREMENT_ID is set).
+initAnalytics();
 
 // Force AppKit modal web component above all Velo modals (which sit at z-index 9999).
 // AppKit renders <w3m-modal> as a top-level web component; without this it can

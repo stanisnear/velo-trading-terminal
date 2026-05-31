@@ -66,6 +66,12 @@ interface ProtocolStats {
     currently_open: number;
     total_fee_withdrawals: number;
   };
+  rollups?: {
+    volume_24h: number; volume_7d: number; volume_30d: number;
+    trades_24h: number; trades_7d: number; trades_30d: number;
+    fees_24h: number;   fees_7d: number;   fees_30d: number;
+    liquidations_24h: number; liquidations_7d: number; liquidations_30d: number;
+  };
   daily_buckets: Array<{
     date: string;
     volume_usd: number;
@@ -75,6 +81,39 @@ interface ProtocolStats {
     closes: number;
     liquidations: number;
   }>;
+}
+
+// User growth + engagement payload from /api/user-stats
+interface UserStats {
+  ok: boolean;
+  configured: boolean;
+  activity_source?: string;
+  total_users?: number;
+  wallet_users?: number;
+  new_users_today?: number;
+  new_users_7d?: number;
+  new_users_30d?: number;
+  dau?: number;
+  wau?: number;
+  mau?: number;
+  daily_signups?: Array<{ date: string; count: number }>;
+  daily_active?: Array<{ date: string; count: number }>;
+  error?: string;
+}
+
+// Google Analytics payload from /api/ga-stats
+interface GaStats {
+  ok: boolean;
+  configured: boolean;
+  property_id?: string | null;
+  active_users_1d?: number;
+  active_users_7d?: number;
+  active_users_28d?: number;
+  page_views_7d?: number;
+  page_views_28d?: number;
+  sessions_7d?: number;
+  top_pages?: Array<{ path: string; views: number }>;
+  error?: string;
 }
 
 const S = {
@@ -140,6 +179,10 @@ export const VeloAdminPanel: React.FC = () => {
   const [lastTx, setLastTx] = useState<{ hash: `0x${string}`; label: string } | null>(null);
   const [stats, setStats] = useState<ProtocolStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [userStatsLoading, setUserStatsLoading] = useState(true);
+  const [gaStats, setGaStats] = useState<GaStats | null>(null);
+  const [gaStatsLoading, setGaStatsLoading] = useState(true);
 
   // ── Verifications (build 80+) ─────────────────────────────────────────────
   // Admin allowlist is stored in `velo_admins`. The verify RPC re-checks
@@ -240,6 +283,38 @@ export const VeloAdminPanel: React.FC = () => {
     }
   };
   useEffect(() => { if (isOwner) fetchStats(); }, [isOwner]);
+
+  // Fetch /api/user-stats — total users, DAU/WAU/MAU, signup & active charts.
+  const fetchUserStats = async () => {
+    setUserStatsLoading(true);
+    try {
+      const res = await fetch('/api/user-stats');
+      const data: UserStats = await res.json();
+      setUserStats(data);
+    } catch (e) {
+      console.warn('[admin] user-stats fetch failed', e);
+      setUserStats(null);
+    } finally {
+      setUserStatsLoading(false);
+    }
+  };
+  useEffect(() => { if (isOwner) fetchUserStats(); }, [isOwner]);
+
+  // Fetch /api/ga-stats — live Google Analytics numbers (optional integration).
+  const fetchGaStats = async () => {
+    setGaStatsLoading(true);
+    try {
+      const res = await fetch('/api/ga-stats');
+      const data: GaStats = await res.json();
+      setGaStats(data);
+    } catch (e) {
+      console.warn('[admin] ga-stats fetch failed', e);
+      setGaStats(null);
+    } finally {
+      setGaStatsLoading(false);
+    }
+  };
+  useEffect(() => { if (isOwner) fetchGaStats(); }, [isOwner]);
 
   // Verifications loader. Hydrates on mount if Supabase is configured AND
   // the connected wallet has a Supabase session linked to a velo_admins row.
@@ -490,7 +565,7 @@ export const VeloAdminPanel: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={refresh}
+          onClick={() => { refresh(); fetchStats(); fetchUserStats(); fetchGaStats(); }}
           style={{
             ...S.mono, padding: '8px 14px', borderRadius: 10,
             background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)',
@@ -529,6 +604,188 @@ export const VeloAdminPanel: React.FC = () => {
           label="Liquidations"
           value={statsLoading ? '…' : stats ? `${stats.lifetime.total_liquidations}` : '—'}
         />
+      </div>
+
+      {/* Trailing-24h trading activity — from /api/protocol-stats rollups */}
+      <SectionLabel>Trading · last 24h</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 12 }}>
+        <StatCard
+          label="24h volume"
+          value={statsLoading ? '…' : stats?.rollups ? `$${stats.rollups.volume_24h.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+          accent={!!stats?.rollups && stats.rollups.volume_24h > 0}
+        />
+        <StatCard
+          label="24h trades"
+          value={statsLoading ? '…' : stats?.rollups ? `${stats.rollups.trades_24h}` : '—'}
+        />
+        <StatCard
+          label="24h fees"
+          value={statsLoading ? '…' : stats?.rollups ? `$${stats.rollups.fees_24h.toFixed(2)}` : '—'}
+        />
+        <StatCard
+          label="24h liquidations"
+          value={statsLoading ? '…' : stats?.rollups ? `${stats.rollups.liquidations_24h}` : '—'}
+        />
+      </div>
+
+      {/* 7d / 30d volume rollups */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 24 }}>
+        <StatCard
+          label="7d volume"
+          value={statsLoading ? '…' : stats?.rollups ? `$${stats.rollups.volume_7d.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+        />
+        <StatCard
+          label="30d volume"
+          value={statsLoading ? '…' : stats?.rollups ? `$${stats.rollups.volume_30d.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+        />
+        <StatCard
+          label="7d trades"
+          value={statsLoading ? '…' : stats?.rollups ? `${stats.rollups.trades_7d}` : '—'}
+        />
+        <StatCard
+          label="30d trades"
+          value={statsLoading ? '…' : stats?.rollups ? `${stats.rollups.trades_30d}` : '—'}
+        />
+      </div>
+
+      {/* ── Users & engagement — from /api/user-stats ───────────────────────── */}
+      <SectionLabel>Users &amp; engagement</SectionLabel>
+      {userStats && userStats.configured === false ? (
+        <div style={{ padding: 14, marginBottom: 24, borderRadius: 12, background: 'rgba(255,180,60,0.06)', border: '1px solid rgba(255,180,60,0.2)' }}>
+          <p style={{ ...S.mono, fontSize: 11, color: 'oklch(0.80 0.16 60)', margin: '0 0 4px', fontWeight: 700 }}>USER STATS NOT CONFIGURED</p>
+          <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.5 }}>
+            Set <code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>SUPABASE_SERVICE_ROLE_KEY</code> in your Vercel env so <code style={{ ...S.mono, fontSize: 11 }}>/api/user-stats</code> can read totals, then run <code style={{ ...S.mono, fontSize: 11 }}>SUPABASE_MIGRATION_BUILD91_ANALYTICS.sql</code> to enable DAU/WAU/MAU.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 12 }}>
+            <StatCard
+              label="Total users"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.total_users ?? 0).toLocaleString('en-US')}` : '—'}
+              accent={!!userStats && (userStats.total_users ?? 0) > 0}
+            />
+            <StatCard
+              label="DAU"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.dau ?? 0).toLocaleString('en-US')}` : '—'}
+            />
+            <StatCard
+              label="WAU"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.wau ?? 0).toLocaleString('en-US')}` : '—'}
+            />
+            <StatCard
+              label="MAU"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.mau ?? 0).toLocaleString('en-US')}` : '—'}
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <StatCard
+              label="Wallet users"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.wallet_users ?? 0).toLocaleString('en-US')}` : '—'}
+            />
+            <StatCard
+              label="New today"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.new_users_today ?? 0).toLocaleString('en-US')}` : '—'}
+            />
+            <StatCard
+              label="New · 7d"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.new_users_7d ?? 0).toLocaleString('en-US')}` : '—'}
+            />
+            <StatCard
+              label="New · 30d"
+              value={userStatsLoading ? '…' : userStats ? `${(userStats.new_users_30d ?? 0).toLocaleString('en-US')}` : '—'}
+            />
+          </div>
+          {userStats?.activity_source === 'trade_history' && (
+            <p style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', margin: '0 0 16px' }}>
+              Active-user counts derived from trade history — run SUPABASE_MIGRATION_BUILD91_ANALYTICS.sql for full browse-activity DAU/WAU/MAU.
+            </p>
+          )}
+
+          {/* User growth charts */}
+          {userStats && (userStats.daily_signups?.length || userStats.daily_active?.length) ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 24 }}>
+              <ChartCard title="Daily signups" icon={<TrendingUp size={13} style={{ color: 'var(--iris-violet)' }} />}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={userStats.daily_signups || []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" opacity={0.3} />
+                    <XAxis dataKey="date" stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} tickFormatter={(d) => String(d).slice(5)} />
+                    <YAxis allowDecimals={false} stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-base-2)', border: '1px solid var(--hairline)', borderRadius: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }} labelStyle={{ color: 'var(--fg)' }} formatter={(v: any) => [v, 'Signups']} />
+                    <Bar dataKey="count" fill="oklch(0.68 0.22 295)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard title="Daily active users" icon={<Activity size={13} style={{ color: 'var(--iris-lime)' }} />}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={userStats.daily_active || []}>
+                    <defs>
+                      <linearGradient id="dauGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="oklch(0.78 0.20 150)" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="oklch(0.78 0.20 150)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" opacity={0.3} />
+                    <XAxis dataKey="date" stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} tickFormatter={(d) => String(d).slice(5)} />
+                    <YAxis allowDecimals={false} stroke="var(--fg-subtle)" style={{ fontFamily: 'var(--font-mono)', fontSize: 9 }} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-base-2)', border: '1px solid var(--hairline)', borderRadius: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }} labelStyle={{ color: 'var(--fg)' }} formatter={(v: any) => [v, 'Active users']} />
+                    <Area type="monotone" dataKey="count" stroke="oklch(0.78 0.20 150)" strokeWidth={2} fill="url(#dauGradient)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {/* ── Web analytics (Google Analytics) ────────────────────────────────── */}
+      <SectionLabel>Web analytics · Google Analytics</SectionLabel>
+      <div style={{ marginBottom: 24 }}>
+        {gaStatsLoading ? (
+          <div style={{ padding: 16, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)', ...S.label, color: 'var(--fg-subtle)' }}>
+            Loading Google Analytics…
+          </div>
+        ) : gaStats && gaStats.configured && gaStats.ok ? (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 12 }}>
+              <StatCard label="GA active · 24h"  value={`${(gaStats.active_users_1d ?? 0).toLocaleString('en-US')}`} accent={(gaStats.active_users_1d ?? 0) > 0} />
+              <StatCard label="GA active · 7d"   value={`${(gaStats.active_users_7d ?? 0).toLocaleString('en-US')}`} />
+              <StatCard label="GA active · 28d"  value={`${(gaStats.active_users_28d ?? 0).toLocaleString('en-US')}`} />
+              <StatCard label="Pageviews · 7d"   value={`${(gaStats.page_views_7d ?? 0).toLocaleString('en-US')}`} />
+            </div>
+            {gaStats.top_pages && gaStats.top_pages.length > 0 && (
+              <div style={{ padding: 16, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
+                <div style={{ ...S.label, marginBottom: 10 }}>Top pages · 7d</div>
+                {gaStats.top_pages.map((p, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < gaStats.top_pages!.length - 1 ? '1px solid var(--hairline)' : 'none' }}>
+                    <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>{p.path}</span>
+                    <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>{p.views.toLocaleString('en-US')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ padding: 16, borderRadius: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
+            <p style={{ ...S.mono, fontSize: 11, color: 'oklch(0.80 0.16 60)', margin: '0 0 6px', fontWeight: 700 }}>
+              {gaStats?.error ? 'GOOGLE ANALYTICS ERROR' : 'GOOGLE ANALYTICS NOT CONNECTED'}
+            </p>
+            <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 10px', lineHeight: 1.6 }}>
+              {gaStats?.error
+                ? `The GA Data API returned an error: ${gaStats.error}`
+                : 'Tracking is live as soon as VITE_GA_MEASUREMENT_ID is set — visits flow into your GA4 property.'}
+              {' '}To show live numbers here, give a GA4 service account Viewer access and set
+              {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_PROPERTY_ID</code>,
+              {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_CLIENT_EMAIL</code>, and
+              {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_PRIVATE_KEY</code> in Vercel.
+            </p>
+            <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer"
+              style={{ ...S.mono, fontSize: 11, color: 'var(--iris-violet)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              Open Google Analytics <ExternalLink size={11} />
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Charts — volume and fees over time */}
@@ -606,7 +863,7 @@ export const VeloAdminPanel: React.FC = () => {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)', letterSpacing: '0.06em' }}>
-          ENDPOINT  <code style={{ color: 'var(--fg)' }}>/api/protocol-stats</code>  ·  Datadog, Grafana, or custom dashboards can scrape this URL on a schedule.
+          ENDPOINTS  <code style={{ color: 'var(--fg)' }}>/api/protocol-stats</code> · <code style={{ color: 'var(--fg)' }}>/api/user-stats</code> · <code style={{ color: 'var(--fg)' }}>/api/ga-stats</code>  ·  Datadog, Grafana, or custom dashboards can scrape these on a schedule.
         </span>
         <a href="/api/protocol-stats" target="_blank" rel="noopener noreferrer"
           style={{ ...S.mono, fontSize: 10, color: 'var(--iris-violet)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1081,8 +1338,11 @@ export const VeloAdminPanel: React.FC = () => {
   );
 };
 
-const StatCard: React.FC<{ label: string; value: string; accent?: boolean }> = ({ label, value, accent }) => (
-  <div style={{
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div style={{ ...S.label, fontSize: 11, color: 'var(--fg-muted)', margin: '4px 0 10px' }}>{children}</div>
+);
+
+const StatCard: React.FC<{ label: string; value: string; accent?: boolean }> = ({ label, value, accent }) => (  <div style={{
     padding: 16, borderRadius: 14,
     background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)',
   }}>
