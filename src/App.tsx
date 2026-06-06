@@ -1087,7 +1087,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 gap: 14,
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 18,
-                background: 'var(--glass-bg)',
+                background: 'var(--nav-bg)',
                 backdropFilter: 'blur(44px) saturate(1.9)',
                 WebkitBackdropFilter: 'blur(44px) saturate(1.9)',
                 boxShadow: 'var(--glass-shadow)',

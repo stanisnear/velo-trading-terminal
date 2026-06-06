@@ -4,6 +4,29 @@
 
 ---
 
+## Session — SEO/routing, OG images, blog section, navbar blend
+
+**App**
+- **Header now matches the page.** The floating nav pill used `--glass-bg` (frosted *white*),
+  which read as a lighter band over the obsidian page. Added a `--nav-bg` token tinted with the
+  page's own background (`color-mix(in oklab, var(--bg) 72%, transparent)` dark; near-white light)
+  and pointed the navbar at it, so the header reads as the same colour as the page, just frosted.
+- **OG image** set to the branded testnet key-art (`public/og-image.png`, 1200×630). Meta already
+  referenced `app.velotrading.live/og-image.png`.
+- `vite build` ✓.
+
+**Landing** (separate `velo-landing` repo)
+- **Blog moved to a nested, SEO-correct route:** `/article-velo-testnet` → `/blog/velo-is-live-on-base-sepolia`
+  (file under `blog/`). All asset refs made root-absolute so nested routes don't break.
+- **Full SEO pass:** canonical, robots, theme-color, Open Graph + Twitter cards on every page;
+  JSON-LD (Organization + WebSite on home, TechArticle on docs, Blog on the index, BlogPosting +
+  BreadcrumbList on the post). Added `sitemap.xml` and `robots.txt`.
+- **Branded OG image** generated for the landing (`assets/og-image.png`, 1200×630).
+- **"Latest from the blog"** featured-post section added to the homepage under the "Don't trust it.
+  Check it." closer.
+
+---
+
 ## Session — v3.1 follow-ups (warmth + favicon + landing hardening)
 
 - **App colors warmed up.** The v3 ambient was too cold/neutral. Reintroduced restrained
