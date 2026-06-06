@@ -1,12 +1,12 @@
 {
-  "name": "VELO | Social Perps",
-  "short_name": "VELO",
-  "description": "On-chain perpetual futures with social conviction, copy trading, and a prismatic trading terminal.",
+  "name": "Velo — Social Perps",
+  "short_name": "Velo",
+  "description": "A SocialFi perpetual futures terminal on Base. 17 markets, up to 25× leverage, Pyth-priced fills — provable on-chain.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#050608",
-  "theme_color": "#050608",
+  "background_color": "#060709",
+  "theme_color": "#060709",
   "scope": "/",
   "lang": "en",
   "categories": ["finance", "utilities"],
@@ -26,14 +26,14 @@
       "sizes": "1200x630",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "VELO Trading Terminal"
+      "label": "Velo Trading Terminal"
     },
     {
       "src": "/og-image-square.png",
       "sizes": "600x600",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "VELO Trading Terminal"
+      "label": "Velo Trading Terminal"
     }
   ]
 }

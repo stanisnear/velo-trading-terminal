@@ -66,8 +66,7 @@ body::before {
 
 body::after {
   background:
-    linear-gradient(115deg, transparent 30%, oklch(0.62 0.22 268 / 0.08) 45%, transparent 60%),
-    linear-gradient(125deg, transparent 60%, oklch(0.55 0.24 295 / 0.06) 72%, transparent 84%);
+    linear-gradient(115deg, transparent 34%, oklch(0.62 0.22 268 / 0.05) 47%, transparent 60%);
   mix-blend-mode: screen;
 }
 
@@ -83,8 +82,8 @@ html.light body::after {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
-  backdrop-filter: blur(24px) saturate(1.8);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(34px) saturate(1.6);
+  -webkit-backdrop-filter: blur(34px) saturate(1.6);
   box-shadow: var(--glass-shadow);
   position: relative;
   overflow: hidden;
@@ -95,8 +94,8 @@ html.light .glass,
 html.light .glass-strong,
 html.light .glass-panel,
 html.light .vp {
-  backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
+  backdrop-filter: blur(34px) saturate(1.6) brightness(1.05);
+  -webkit-backdrop-filter: blur(34px) saturate(1.6) brightness(1.05);
 }
 
 .glass-strong {
@@ -153,8 +152,8 @@ html.light .vp::before {
 }
 
 .glass-input:focus {
-  border-color: color-mix(in oklab, var(--velo-violet) 52%, white 12%);
-  box-shadow: 0 0 0 2px oklch(0.55 0.24 295 / 0.14);
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 20%, transparent);
 }
 
 .wordmark {
@@ -259,9 +258,10 @@ html.light .vp::before {
 }
 
 .btn.primary {
-  background: var(--fg);
-  color: var(--bg);
-  border-color: transparent;
+  background: linear-gradient(180deg, #2b2f3a, #14161c);
+  color: #fff;
+  border-color: var(--hr-2);
+  font-weight: 600;
 }
 
 .btn.prism {
@@ -450,10 +450,10 @@ html.light .velo-modal-card {
   z-index: 2;
   background: linear-gradient(
     90deg,
-    oklch(0.45 0.26 295) 0%,
-    oklch(0.55 0.24 285) 35%,
-    oklch(0.65 0.22 268) 70%,
-    oklch(0.72 0.18 250) 100%
+    oklch(0.58 0.22 292) 0%,
+    oklch(0.60 0.22 282) 35%,
+    oklch(0.62 0.22 268) 70%,
+    oklch(0.80 0.12 242) 100%
   );
   opacity: 1;
 }

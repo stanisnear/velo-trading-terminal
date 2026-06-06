@@ -7,31 +7,35 @@
 
   --velo-blue: oklch(0.62 0.22 268);
   --velo-blue-deep: oklch(0.42 0.24 270);
-  --velo-blue-ice: oklch(0.88 0.10 250);
-  --velo-violet: oklch(0.55 0.24 295);
-  --velo-mauve: oklch(0.72 0.16 320);
+  --velo-blue-ice: oklch(0.86 0.10 248);
+  --velo-violet: oklch(0.58 0.22 292);
+  --velo-mauve: oklch(0.74 0.15 318);
   --velo-bone: #f4f1e8;
   --velo-paper: #f2f0fa;
   --velo-ink: #0a0b18;
-  --velo-obsidian: #050608;
+  --velo-obsidian: #060709;
 
-  --pnl-up: oklch(0.80 0.18 152);
+  --pnl-up: oklch(0.80 0.17 152);
   --pnl-down: oklch(0.66 0.22 25);
 
+  /* Brand gradient — used sparingly: thin hairline accents, the wordmark
+     sweep, small 3D accents. Never a full-bleed background. */
+  --brand-gradient: linear-gradient(140deg, oklch(0.70 0.20 290), oklch(0.64 0.16 244));
+
+  /* Prism survives only as thin accents now (modal top-bar, verified tick,
+     prism chips). Retuned to the violet→blue brand hues. */
   --prism: linear-gradient(
     135deg,
-    oklch(0.55 0.24 295) 0%,
-    oklch(0.62 0.22 268) 35%,
-    oklch(0.78 0.16 230) 65%,
-    oklch(0.88 0.10 250) 100%
+    oklch(0.58 0.22 292) 0%,
+    oklch(0.62 0.22 268) 50%,
+    oklch(0.80 0.12 240) 100%
   );
   --prism-vivid: linear-gradient(
     135deg,
-    oklch(0.45 0.26 295) 0%,
-    oklch(0.55 0.24 285) 25%,
-    oklch(0.62 0.22 268) 50%,
-    oklch(0.72 0.18 235) 75%,
-    oklch(0.85 0.12 230) 100%
+    oklch(0.55 0.23 292) 0%,
+    oklch(0.58 0.22 285) 30%,
+    oklch(0.62 0.22 268) 60%,
+    oklch(0.80 0.13 242) 100%
   );
 
   --r-xs: 7px;
@@ -45,35 +49,42 @@
 html.dark,
 body.dark,
 .dark {
-  --bg: #050608;
-  --bg-2: #0b0d12;
-  --bg-3: #12141b;
-  --fg: #ecedf1;
-  --fg-2: #8e919b;
-  --fg-3: #4a4d57;
-  --hr: rgba(255, 255, 255, 0.06);
-  --hr-2: rgba(255, 255, 255, 0.12);
-  --glass: rgba(16, 18, 28, 0.20);
-  --glass-2: rgba(16, 18, 28, 0.90);
-  --gl-edge: rgba(255, 255, 255, 0.16);
+  --bg: #060709;
+  --bg-2: #0c0e13;
+  --bg-3: #13151c;
+  --fg: #edeef2;
+  --fg-2: #9a9ea9;
+  --fg-3: #5c5f6a;
+  --hr: rgba(255, 255, 255, 0.08);
+  --hr-2: rgba(255, 255, 255, 0.14);
+  --accent: oklch(0.62 0.18 280);
+  --accent-text: oklch(0.80 0.12 278);
+  /* Real frosted glass — neutral white transparency over obsidian, not a
+     tinted gray box. The blur + hairline + inset highlight carry the surface. */
+  --glass: rgba(255, 255, 255, 0.045);
+  /* Strong glass stays near-opaque obsidian so modals, dropdowns and dialogs
+     read crisply over the dark scrim (the frosted --glass alone is too sheer). */
+  --glass-2: rgba(14, 16, 24, 0.86);
+  --gl-edge: rgba(255, 255, 255, 0.14);
+  --glass-ring: rgba(255, 255, 255, 0.06);
   --chip: rgba(255, 255, 255, 0.05);
   --chip-h: rgba(255, 255, 255, 0.1);
+  /* Near-neutral ambient — a faint cool light, barely there. Color is a
+     whisper on dark; the blooms shouldn't read as a purple theme. */
   --ambient:
-    radial-gradient(80% 60% at 12% 18%, oklch(0.45 0.26 285 / 0.32), transparent 60%),
-    radial-gradient(70% 50% at 88% 12%, oklch(0.55 0.20 245 / 0.22), transparent 65%),
-    radial-gradient(80% 55% at 90% 88%, oklch(0.40 0.22 295 / 0.25), transparent 65%),
-    radial-gradient(60% 45% at 8% 92%, oklch(0.55 0.18 230 / 0.18), transparent 60%);
+    radial-gradient(58% 50% at 12% 6%,  oklch(0.62 0.03 255 / 0.16), transparent 62%),
+    radial-gradient(54% 46% at 92% 4%,  oklch(0.66 0.02 250 / 0.10), transparent 64%),
+    radial-gradient(64% 52% at 96% 98%, oklch(0.55 0.03 260 / 0.12), transparent 66%);
   /* App-shell background. Dark keeps its flat obsidian base (the --ambient
-     overlay above provides the glow); light paints a real purple↔light-blue
-     gradient here because the shell div sits ON TOP of <body>, hiding any
-     body background-image. */
+     overlay provides the faint glow); light paints a whisper-neutral wash
+     here because the shell div sits ON TOP of <body>. */
   --app-bg: var(--bg);
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.13) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.16) inset,
-    0 8px 22px -10px rgba(0, 0, 0, 0.50),
-    0 2px 6px -3px rgba(0, 0, 0, 0.30);
-  --modal-bg: rgba(10, 12, 20, 0.75);
+    0 1px 0 var(--gl-edge) inset,
+    0 0 0 1px var(--glass-ring) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.30) inset,
+    0 40px 90px -38px rgba(0, 0, 0, 0.9);
+  --modal-bg: rgba(10, 11, 16, 0.72);
   --podium-gold-bg: linear-gradient(160deg, rgba(42, 23, 68, 0.9), rgba(26, 16, 48, 0.95));
   --podium-silver-bg: linear-gradient(160deg, rgba(19, 21, 30, 0.92), rgba(12, 14, 20, 0.98));
   --podium-bronze-bg: linear-gradient(160deg, rgba(18, 22, 34, 0.92), rgba(10, 13, 20, 0.98));
@@ -113,46 +124,41 @@ body.dark,
 html.light,
 body.light,
 .light {
-  --bg: #fbfafe;
+  --bg: #fcfbff;
   --bg-2: #f5f4fc;
   --bg-3: #eeecf8;
   --fg: #0a0b18;
-  --fg-2: #4a4a63;
-  /* Subtle text was #9898b8 — too faint on light panels, made labels in
-     modals and the sidebar hard to read. Darkened for real contrast. */
-  --fg-3: #74749a;
-  /* Hairlines were near-invisible (0.08/0.14); bumped so chips, rows and
-     panel edges actually read as separated surfaces in light mode. */
-  --hr: rgba(90, 70, 160, 0.12);
-  --hr-2: rgba(90, 70, 160, 0.20);
-  /* Glass surfaces were 0.55–0.65 opaque. Over the modal/drawer dark scrim
-     that let the scrim bleed through and turned panels muddy grey. Raised to
-     near-opaque so modals and the sidebar read as crisp light panels; the
-     backdrop-filter still gives a frosted edge. */
-  --glass: rgba(248, 246, 254, 0.50);
-  --glass-2: rgba(252, 251, 255, 0.86);
+  --fg-2: #4c4c63;
+  --fg-3: #8a8aa6;
+  --hr: rgba(20, 22, 30, 0.09);
+  --hr-2: rgba(20, 22, 30, 0.15);
+  --accent: oklch(0.52 0.19 280);
+  --accent-text: oklch(0.46 0.17 280);
+  /* Light frosted glass — high white transparency. Strong glass stays
+     near-opaque so modals/dropdowns read as crisp light panels over scrims. */
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-2: rgba(252, 251, 255, 0.90);
   --gl-edge: rgba(255, 255, 255, 0.96);
-  --chip: rgba(90, 70, 160, 0.07);
-  --chip-h: rgba(90, 70, 160, 0.13);
+  --glass-ring: rgba(255, 255, 255, 0.5);
+  --chip: rgba(20, 22, 30, 0.04);
+  --chip-h: rgba(20, 22, 30, 0.08);
+  /* Near-neutral light ambient — a faint cool wash, barely there. */
   --ambient:
-    radial-gradient(72% 52% at 96% 4%, oklch(0.95 0.05 288 / 0.34), transparent 64%),
-    radial-gradient(58% 42% at 4% 98%, oklch(0.96 0.045 236 / 0.26), transparent 60%);
-  /* Visible light-mode page gradient (painted on the app shell, which covers
-     <body>). Near-white base with airy purple (top-left), light-blue (top-right)
-     and soft blue-violet (bottom) glows — colourful but still light. Dial the
-     /0.NN alphas down toward white, or up for more colour. */
+    radial-gradient(58% 50% at 6% 4%,  oklch(0.92 0.015 255 / 0.7), transparent 56%),
+    radial-gradient(56% 46% at 98% 4%, oklch(0.93 0.012 250 / 0.6), transparent 58%),
+    radial-gradient(64% 52% at 92% 98%,oklch(0.92 0.014 262 / 0.5), transparent 60%);
+  /* Light app-shell wash — whisper-neutral blooms on near-white. The shell
+     covers <body>, so the page tint lives here; keep it barely-there. */
   --app-bg:
-    radial-gradient(at 6% 3%, oklch(0.93 0.075 290 / 0.55) 0px, transparent 44%),
-    radial-gradient(at 97% 5%, oklch(0.94 0.065 232 / 0.50) 0px, transparent 48%),
-    radial-gradient(at 88% 97%, oklch(0.93 0.06 258 / 0.42) 0px, transparent 50%),
-    radial-gradient(at 3% 98%, oklch(0.94 0.055 305 / 0.34) 0px, transparent 46%),
+    radial-gradient(at 6% 4%,   oklch(0.93 0.02 255 / 0.55) 0px, transparent 50%),
+    radial-gradient(at 97% 5%,  oklch(0.94 0.018 250 / 0.45) 0px, transparent 52%),
+    radial-gradient(at 90% 97%, oklch(0.93 0.018 262 / 0.40) 0px, transparent 54%),
     #fcfbff;
   --glass-shadow:
-    0 1px 0 rgba(255,255,255,0.95) inset,
-    0 -1px 0 rgba(90, 70, 160, 0.04) inset,
-    0 8px 22px -10px rgba(120, 100, 195, 0.20),
-    0 2px 6px -3px rgba(120, 100, 195, 0.10);
-  --modal-bg: rgba(248, 246, 255, 0.82);
+    0 1px 0 var(--gl-edge) inset,
+    0 22px 54px -26px rgba(108, 82, 188, 0.26),
+    0 6px 18px -10px rgba(108, 82, 188, 0.13);
+  --modal-bg: rgba(252, 251, 255, 0.85);
   --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
   --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
   --podium-bronze-bg: linear-gradient(160deg, rgba(168, 200, 255, 0.22), rgba(236, 233, 246, 0.9));
@@ -702,22 +708,22 @@ body.modal-open .navbar-container {
 [style*="var(--glass-bg-strong)"],
 [style*="var(--glass-2)"],
 [style*="var(--modal-bg)"] {
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(34px) saturate(1.6);
+  backdrop-filter: blur(34px) saturate(1.6);
 }
 
 /* Stronger blur for modals */
 [style*="var(--modal-bg)"] {
-  -webkit-backdrop-filter: blur(32px) saturate(1.7);
-  backdrop-filter: blur(32px) saturate(1.7);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  backdrop-filter: blur(40px) saturate(1.6);
 }
 
 /* Light mode: ensure glass panels have visible frosted depth */
 html.light [style*="var(--glass-bg)"],
 html.light [style*="var(--glass-bg-strong)"],
 html.light [style*="var(--glass-2)"] {
-  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
-  backdrop-filter: blur(24px) saturate(1.8) brightness(1.06);
+  -webkit-backdrop-filter: blur(34px) saturate(1.6) brightness(1.05);
+  backdrop-filter: blur(34px) saturate(1.6) brightness(1.05);
 }
 
 /* Navbar: always fullblur, mode-aware border */
@@ -727,11 +733,11 @@ html.light [style*="var(--glass-2)"] {
 }
 
 html.light .navbar-container {
-  background: rgba(240, 237, 250, 0.72) !important;
-  border-color: rgba(160, 130, 220, 0.18) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.85) inset,
-    0 4px 24px -4px rgba(100, 70, 180, 0.12),
-    0 0 0 1px rgba(160,130,220,0.10) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border-color: rgba(20, 22, 30, 0.10) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.95) inset,
+    0 10px 30px -12px rgba(108, 82, 188, 0.14),
+    0 0 0 1px rgba(20,22,30,0.06) !important;
 }
 
 /* ── Desktop main content: navbar floats at ~72px (60px + 4px gap + buffer) ─ */

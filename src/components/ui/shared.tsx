@@ -84,11 +84,9 @@ export const Button = ({ children, onClick, variant = 'primary', className = '',
     const base = "px-5 py-2.5 rounded-[14px] font-medium text-sm transition-all duration-150 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed border";
     const variantStyles: Record<string, React.CSSProperties> = {
         primary: {
-            background: 'var(--prism-vivid)',
-            backgroundSize: '200% 100%',
-            animation: 'prismSlide 14s linear infinite',
-            color: 'var(--velo-bone)',
-            borderColor: 'transparent',
+            background: 'linear-gradient(180deg, #2b2f3a, #14161c)',
+            color: '#fff',
+            borderColor: 'var(--hr-2)',
         },
         secondary: {
             background: 'var(--chip)',
