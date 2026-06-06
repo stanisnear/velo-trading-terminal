@@ -8,7 +8,9 @@
 
 Velo is a fully on-chain perpetual futures exchange with an integrated social trading layer. Every trade, every position, every settlement, and every leaderboard entry is backed by a verifiable blockchain transaction. There is no custody, no off-chain matching engine, and no way to fabricate a track record.
 
-Velo is live today on Base Sepolia. Every feature described in this document is working, deployed, and testable at [velotrading.live](https://velotrading.live).
+Velo is live today on Base Sepolia. Every feature described in this document is working, deployed, and testable in the terminal at [app.velotrading.live](https://app.velotrading.live), with a dedicated marketing site at [velotrading.live](https://velotrading.live).
+
+Velo also ships with a complete, distinctive brand identity — the "Obsidian glass" system (a refined serif wordmark, frosted-glass surfaces, and a restrained violet→blue palette) — applied consistently across both the marketing site and the trading terminal. The product looks and feels finished, not like a hackathon prototype.
 
 ---
 
@@ -267,7 +269,7 @@ Velo is not a whitepaper. It is not a demo. It is a working product:
 
 ## How to Test Velo
 
-1. Visit [velotrading.live](https://velotrading.live)
+1. Open the terminal at [app.velotrading.live](https://app.velotrading.live)
 2. Connect a wallet (MetaMask, or sign up with Google/Discord via social login)
 3. Your account is created automatically — 1,000 mUSDC funded, zero popups
 4. Open a limit order slightly below the current BTC/ETH price and wait ~60 seconds

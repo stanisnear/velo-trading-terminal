@@ -67,9 +67,6 @@ body.dark,
   --glass-2: rgba(14, 16, 24, 0.86);
   --gl-edge: rgba(255, 255, 255, 0.14);
   --glass-ring: rgba(255, 255, 255, 0.06);
-  /* Nav surface — tinted with the page's own obsidian so the header reads as
-     the SAME colour as the page (just frosted), instead of a lighter glass band. */
-  --nav-bg: color-mix(in oklab, var(--bg) 72%, transparent);
   --chip: rgba(255, 255, 255, 0.05);
   --chip-h: rgba(255, 255, 255, 0.1);
   /* Ambient glow — restrained brand violet/blue blooms. Warmer than a flat
@@ -145,7 +142,6 @@ body.light,
   --glass-2: rgba(252, 251, 255, 0.90);
   --gl-edge: rgba(255, 255, 255, 0.96);
   --glass-ring: rgba(255, 255, 255, 0.5);
-  --nav-bg: color-mix(in oklab, #ffffff 80%, transparent);
   --chip: rgba(20, 22, 30, 0.04);
   --chip-h: rgba(20, 22, 30, 0.08);
   /* Light ambient — gentle violet/blue wash, airy but present. */
@@ -734,16 +730,14 @@ html.light [style*="var(--glass-2)"] {
 
 /* Navbar: always fullblur, mode-aware border */
 .navbar-container {
-  -webkit-backdrop-filter: blur(44px) saturate(1.9) !important;
-  backdrop-filter: blur(44px) saturate(1.9) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.1) !important;
+  backdrop-filter: blur(8px) saturate(1.1) !important;
 }
 
 html.light .navbar-container {
-  background: rgba(255, 255, 255, 0.72) !important;
-  border-color: rgba(20, 22, 30, 0.10) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.95) inset,
-    0 10px 30px -12px rgba(108, 82, 188, 0.14),
-    0 0 0 1px rgba(20,22,30,0.06) !important;
+  background: var(--glass-bg) !important;
+  border-color: var(--hairline) !important;
+  box-shadow: var(--glass-shadow) !important;
 }
 
 /* ── Desktop main content: navbar floats at ~72px (60px + 4px gap + buffer) ─ */

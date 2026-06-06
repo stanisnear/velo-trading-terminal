@@ -779,4 +779,4 @@ A single CSS custom property system drives both light and dark modes.
 
 ---
 
-*This document reflects the state of Velo as of the current testnet build on Base Sepolia (VeloPerpsV3.1, VERSION=31). All features described are implemented in the deployed codebase. Live at [velotrading.live](https://velotrading.live).*
+*This document reflects the state of Velo as of the current testnet build on Base Sepolia (VeloPerpsV3.1, VERSION=31). All features described are implemented in the deployed codebase. The trading terminal is live at [app.velotrading.live](https://app.velotrading.live), with the marketing site at [velotrading.live](https://velotrading.live).*

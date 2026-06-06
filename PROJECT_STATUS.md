@@ -4,6 +4,23 @@
 
 ---
 
+## Session — header material match, minimal OG, docs refresh
+
+- **Header now uses the exact panel material.** Root cause of the "header is a different colour"
+  issue: the nav forced `blur(44px) saturate(1.9)` with an obsidian fill, while every dashboard
+  panel uses `var(--glass-bg)` + `var(--hairline)` + `blur(8px) saturate(1.1)` + `var(--glass-shadow)`.
+  Matched the navbar to that exact recipe (and removed the interim `--nav-bg` token), so the header
+  reads as the same frosted glass as the cards in both themes.
+- **Landing OG simplified** to the minimal brand mark — the Fraunces italic "Velo" wordmark
+  (white→violet→blue) on near-black with `PROVABLE · SOCIAL · ON-CHAIN`, matching the shared
+  reference. Replaces the busier key-art version.
+- **Docs refreshed** (`README.md`, `FEATURES.md`, `VELO_Overview.md`): the domain split
+  (terminal → `app.velotrading.live`, marketing → `velotrading.live`) and the "Obsidian glass"
+  brand identity now applied across both surfaces. (`VELO_Overview.md` is the exec/"CEO" brief.)
+- `vite build` ✓.
+
+---
+
 ## Session — SEO/routing, OG images, blog section, navbar blend
 
 **App**

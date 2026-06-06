@@ -1085,11 +1085,11 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 gridTemplateColumns: 'auto 1fr auto',
                 alignItems: 'center',
                 gap: 14,
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: '1px solid var(--hairline)',
                 borderRadius: 18,
-                background: 'var(--nav-bg)',
-                backdropFilter: 'blur(44px) saturate(1.9)',
-                WebkitBackdropFilter: 'blur(44px) saturate(1.9)',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(8px) saturate(1.1)',
+                WebkitBackdropFilter: 'blur(8px) saturate(1.1)',
                 boxShadow: 'var(--glass-shadow)',
             }}
             className="navbar-container navbar-mobile-flush"

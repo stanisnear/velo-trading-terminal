@@ -2,7 +2,9 @@
 
 **Fully operational on Base Sepolia. Every trade is a real blockchain transaction. Every position is verifiable.**
 
-Live at [velotrading.live](https://velotrading.live)
+**Marketing site:** [velotrading.live](https://velotrading.live)  ·  **Live terminal:** [app.velotrading.live](https://app.velotrading.live)
+
+> Velo runs as two surfaces sharing one brand system: a marketing landing on the apex domain (`velotrading.live`) and the trading terminal on the `app.` subdomain (`app.velotrading.live`).
 
 Velo is a decentralised perpetual futures exchange where every order, position, and settlement happens on-chain — no off-chain matching engine, no custody, no trust required. Underneath the trading terminal, a full social product lets traders post, follow, copy-trade, and compete on a transparent, on-chain-verified leaderboard.
 
@@ -422,6 +424,7 @@ Nine icon sizes (72×72 → 512×512) plus a 180×180 Apple touch icon. All gene
 - Lightweight Charts 5.1 — additional charting
 - Lucide React — icon system
 - Fraunces + Geist + Geist Mono — brand typography
+- Design system — the "Obsidian glass" visual identity: OKLCH design tokens, frosted-glass surfaces, restrained violet→blue accents, and a faint ambient glow, all driven from `src/styles/tokens.css` + `brand.css` (light/dark theming cascades from the tokens). The same brand system powers the `velotrading.live` marketing site, so the terminal and the landing read as one product.
 
 **Backend / Data**
 - Supabase (PostgreSQL + Realtime) — social graph, profile metadata, trade history index, notifications
