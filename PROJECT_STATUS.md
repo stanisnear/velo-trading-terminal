@@ -4,6 +4,23 @@
 
 ---
 
+## Session — v3.1 follow-ups (warmth + favicon + landing hardening)
+
+- **App colors warmed up.** The v3 ambient was too cold/neutral. Reintroduced restrained
+  brand violet/blue into `--ambient` (dark) and `--ambient` + `--app-bg` (light) — alive but
+  well short of the old saturation. Tokens only; cascades app-wide.
+- **App favicon restored** to the gradient-V tile (distinct from the landing, which uses a
+  neutral obsidian-V favicon). App `index.html` SVG + canvas fallback reverted to the brand gradient.
+- **Landing rendering hardened.** The deployed landing was rendering with giant un-styled SVGs —
+  a serving failure where `landing.css` arrived partial (hero/nav styled, later sections not).
+  Verified the files themselves are correct via headless Chromium (with and without JS). To make
+  it deploy-proof, all CSS + JS are now **inlined into each HTML page** (no external css/js
+  requests), so partial-CSS failures are impossible. Also switched the landing to **clean routing**
+  (`cleanUrls`, extensionless links, no `#hash` in the address bar; section nav smooth-scrolls via JS).
+- `vite build` ✓.
+
+---
+
 ## Session — v3 "Obsidian glass" rebrand applied to the app
 
 **Goal:** Bring the trading app in line with the new v3 landing brand ("Obsidian glass"),

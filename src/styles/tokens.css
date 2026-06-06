@@ -69,12 +69,14 @@ body.dark,
   --glass-ring: rgba(255, 255, 255, 0.06);
   --chip: rgba(255, 255, 255, 0.05);
   --chip-h: rgba(255, 255, 255, 0.1);
-  /* Near-neutral ambient — a faint cool light, barely there. Color is a
-     whisper on dark; the blooms shouldn't read as a purple theme. */
+  /* Ambient glow — restrained brand violet/blue blooms. Warmer than a flat
+     neutral (the product surface should feel a touch alive), but well short of
+     the old crypto-casino saturation. */
   --ambient:
-    radial-gradient(58% 50% at 12% 6%,  oklch(0.62 0.03 255 / 0.16), transparent 62%),
-    radial-gradient(54% 46% at 92% 4%,  oklch(0.66 0.02 250 / 0.10), transparent 64%),
-    radial-gradient(64% 52% at 96% 98%, oklch(0.55 0.03 260 / 0.12), transparent 66%);
+    radial-gradient(72% 56% at 12% 12%, oklch(0.50 0.16 288 / 0.22), transparent 62%),
+    radial-gradient(64% 50% at 90% 8%,  oklch(0.56 0.13 250 / 0.16), transparent 64%),
+    radial-gradient(72% 54% at 92% 92%, oklch(0.46 0.15 296 / 0.18), transparent 64%),
+    radial-gradient(58% 46% at 6% 94%,  oklch(0.55 0.12 235 / 0.13), transparent 60%);
   /* App-shell background. Dark keeps its flat obsidian base (the --ambient
      overlay provides the faint glow); light paints a whisper-neutral wash
      here because the shell div sits ON TOP of <body>. */
@@ -142,17 +144,17 @@ body.light,
   --glass-ring: rgba(255, 255, 255, 0.5);
   --chip: rgba(20, 22, 30, 0.04);
   --chip-h: rgba(20, 22, 30, 0.08);
-  /* Near-neutral light ambient — a faint cool wash, barely there. */
+  /* Light ambient — gentle violet/blue wash, airy but present. */
   --ambient:
-    radial-gradient(58% 50% at 6% 4%,  oklch(0.92 0.015 255 / 0.7), transparent 56%),
-    radial-gradient(56% 46% at 98% 4%, oklch(0.93 0.012 250 / 0.6), transparent 58%),
-    radial-gradient(64% 52% at 92% 98%,oklch(0.92 0.014 262 / 0.5), transparent 60%);
-  /* Light app-shell wash — whisper-neutral blooms on near-white. The shell
-     covers <body>, so the page tint lives here; keep it barely-there. */
+    radial-gradient(58% 50% at 6% 4%,  oklch(0.93 0.05 288 / 0.6), transparent 56%),
+    radial-gradient(56% 46% at 98% 4%, oklch(0.93 0.045 250 / 0.5), transparent 58%),
+    radial-gradient(64% 52% at 92% 98%,oklch(0.93 0.045 262 / 0.45), transparent 60%);
+  /* Light app-shell wash — soft violet (top-left), blue (top-right) and
+     blue-violet (bottom) glows on near-white. Colourful but still light. */
   --app-bg:
-    radial-gradient(at 6% 4%,   oklch(0.93 0.02 255 / 0.55) 0px, transparent 50%),
-    radial-gradient(at 97% 5%,  oklch(0.94 0.018 250 / 0.45) 0px, transparent 52%),
-    radial-gradient(at 90% 97%, oklch(0.93 0.018 262 / 0.40) 0px, transparent 54%),
+    radial-gradient(at 6% 4%,   oklch(0.93 0.06 290 / 0.5) 0px, transparent 48%),
+    radial-gradient(at 97% 5%,  oklch(0.94 0.05 248 / 0.42) 0px, transparent 50%),
+    radial-gradient(at 90% 97%, oklch(0.93 0.05 262 / 0.36) 0px, transparent 52%),
     #fcfbff;
   --glass-shadow:
     0 1px 0 var(--gl-edge) inset,
