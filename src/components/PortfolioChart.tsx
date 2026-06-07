@@ -47,7 +47,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: colors.background },
+        background: { type: ColorType.Solid, color: 'rgba(0, 0, 0, 0)' },
         textColor: colors.text,
         fontFamily: "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
       },
@@ -80,8 +80,8 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
     // the rgba equivalent of `oklch(0.68 0.22 295)` (Velo iris violet) here.
     const series = chart.addSeries(AreaSeries, {
         lineColor: 'rgb(140, 90, 255)',
-        topColor: theme === 'dark' ? 'rgba(140, 90, 255, 0.45)' : 'rgba(120, 70, 240, 0.22)',
-        bottomColor: theme === 'dark' ? 'rgba(80, 40, 180, 0.05)' : 'rgba(140, 90, 255, 0.0)',
+        topColor: theme === 'dark' ? 'rgba(140, 90, 255, 0.38)' : 'rgba(120, 70, 240, 0.20)',
+        bottomColor: theme === 'dark' ? 'rgba(120, 70, 240, 0.0)' : 'rgba(140, 90, 255, 0.0)',
         lineWidth: 2,
     });
 

@@ -4,6 +4,29 @@
 
 ---
 
+## Session — clean glass shadow, blend equity chart
+
+**App (fixed, build-verified)**
+- **Glass shadow simplified.** The old `--glass-shadow` stacked a top highlight, an inner ring,
+  a bottom dark inset, and a heavy 40/90px drop shadow — that busy "double-edge" is the weird
+  look on every panel. Reduced to a faint top edge + one soft drop shadow
+  (`0 1px 0 rgba(255,255,255,0.04) inset, 0 14px 36px -26px rgba(0,0,0,0.7)`).
+- **Equity chart now blends.** `PortfolioChart` painted a solid `#0e0d14` background, so it sat
+  as a distinct dark rectangle inside the glass panel. Set the chart background to transparent
+  and faded the area fill fully to 0 alpha so it melts into the panel.
+
+**Open / needs more than a blind edit**
+- *Notifications not working* and *history/recent-activity not capturing the latest large
+  position*: both are data-layer (Supabase). Notifications only populate from rows written to the
+  `notifications` table; history relies on `trade_history` + its public-read RLS policy. The
+  pending Supabase migrations (`trade_history` RLS, `verified_reason`) likely need to be run, and
+  the rest needs debugging against the live app + DB — not safe to fix blind.
+- *3D animated icon set like the landing*: the landing's step/bento icons are inline SVG/CSS, not
+  reusable asset files, so matching them in the app is a dedicated design build, not a swap.
+- *Social restructure / "markets shown differently"*: needs a concrete target layout.
+
+---
+
 ## Session — remove copytrade UI, align meta, fix blog font
 
 **App**
