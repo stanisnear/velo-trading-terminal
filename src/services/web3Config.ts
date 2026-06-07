@@ -78,8 +78,8 @@ createAppKit({
   metadata: {
     name: 'Velo Trading Terminal',
     description: 'SocialFi perpetual futures trading on Base Sepolia.',
-    url: 'https://velo-trading-terminal.vercel.app',
-    icons: ['https://velo-trading-terminal.vercel.app/favicon.ico'],
+    url: 'https://app.velotrading.live',
+    icons: ['https://app.velotrading.live/favicon.ico'],
   },
   // Force EOA-only accounts (no ERC-4337 smart account layer).
   defaultAccountTypes: { eip155: 'eoa' },
@@ -102,7 +102,7 @@ createAppKit({
   tokens: {
     'eip155:84532': {
       address: '0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699',
-      image: 'https://velo-trading-terminal.vercel.app/favicon.ico',
+      image: 'https://app.velotrading.live/favicon.ico',
     },
   },
   themeMode: 'dark',

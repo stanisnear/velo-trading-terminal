@@ -4,6 +4,31 @@
 
 ---
 
+## Session — fix console errors (service worker, wallet URL, link proxy)
+
+**App (fixed, build-verified)**
+- **Service worker rewritten (`public/sw.js`, cache `velo-v2`).** Root of most console spam:
+  it tried to `cache.put` `chrome-extension://` requests (wallet extensions) and cross-origin
+  error/opaque responses, and its navigate handler could resolve to `undefined` →
+  "Failed to convert value to 'Response'". Now it only touches same-origin http(s) GETs, caches
+  only clean same-origin 200s, lets all cross-origin + `/api/` through natively, and always
+  returns a real Response for navigations. Bumping to `velo-v2` purges the stale `velo-v1` cache.
+- **Wallet metadata URL fixed (`web3Config.ts`).** Reown/WalletConnect `metadata.url` + icons +
+  token image were hardcoded to the old `velo-trading-terminal.vercel.app`; the mismatch with
+  `app.velotrading.live` triggered the WalletConnect warning and can break connection (likely a
+  contributor to the flaky sign-on). Now `app.velotrading.live`.
+- **Link previews via own serverless endpoint (`api/og.js`).** Replaced the public
+  `api.allorigins.win` proxy (blocked by CORS from the app origin) with a same-origin Vercel
+  function that fetches + parses OG metadata server-side and edge-caches it — fast, reliable,
+  no CORS. `LinkPreviewCard` now calls `/api/og?url=`.
+
+**Notes**
+- `cdn.tailwindcss.com` production warning remains (the app uses Tailwind utility classes via the
+  CDN; moving it to a build dependency is a separate, riskier change — left for now).
+- Supabase auth-lock warning is benign (gotrue recovers; React StrictMode artifact).
+
+---
+
 ## Session — clean glass shadow, blend equity chart
 
 **App (fixed, build-verified)**

@@ -1,5 +1,7 @@
 // VELO PWA Service Worker
-const CACHE_NAME = 'velo-v1';
+// v2 — only caches same-origin GET assets, never third-party / extension
+// requests, and always returns a valid Response for navigations.
+const CACHE_NAME = 'velo-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -8,15 +10,13 @@ const STATIC_ASSETS = [
   '/icons/apple-touch-icon.png',
 ];
 
-// Install: cache core static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).catch(() => {})
   );
   self.skipWaiting();
 });
 
-// Activate: clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -26,47 +26,45 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch strategy: network-first for API/WS calls, cache-first for static assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  // Only ever touch http(s) GET requests. This skips chrome-extension://,
+  // ws://, data:, etc. — the source of the "scheme unsupported" cache errors.
+  if (request.method !== 'GET') return;
   const url = new URL(request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
-  // Always go network for: WebSocket upgrades, external APIs, Supabase, wagmi RPCs
-  if (
-    request.method !== 'GET' ||
-    url.protocol === 'ws:' ||
-    url.protocol === 'wss:' ||
-    url.hostname.includes('supabase') ||
-    url.hostname.includes('alchemy') ||
-    url.hostname.includes('infura') ||
-    url.hostname.includes('orderly') ||
-    url.hostname.includes('pyth') ||
-    url.hostname.includes('dicebear') ||
-    url.pathname.startsWith('/api/')
-  ) {
-    return; // Let browser handle natively
-  }
+  const sameOrigin = url.origin === self.location.origin;
 
-  // For same-origin navigation requests: network-first, fallback to cached shell
+  // Let the browser handle anything cross-origin (RPCs, Supabase, CORS proxies,
+  // wallet infra, fonts, CDNs) and our own /api functions natively — never cache.
+  if (!sameOrigin || url.pathname.startsWith('/api/')) return;
+
+  // SPA navigations: network-first, fall back to the cached shell, and ALWAYS
+  // resolve to a real Response (never undefined → no "Failed to convert" error).
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/'))
+      fetch(request).catch(async () => {
+        const shell = await caches.match('/');
+        return shell || new Response('', { status: 504, statusText: 'Offline' });
+      })
     );
     return;
   }
 
-  // For static assets (JS/CSS/fonts/images): stale-while-revalidate
+  // Same-origin static assets: stale-while-revalidate, caching only clean
+  // same-origin 200s (response.type 'basic').
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
       const cached = await cache.match(request);
-      const networkFetch = fetch(request).then((response) => {
-        if (response && response.status === 200 && response.type !== 'opaque') {
-          cache.put(request, response.clone());
+      const network = fetch(request).then((response) => {
+        if (response && response.ok && response.type === 'basic') {
+          cache.put(request, response.clone()).catch(() => {});
         }
         return response;
-      }).catch(() => null);
-
-      return cached || await networkFetch;
+      }).catch(() => cached);
+      return cached || network;
     })
   );
 });

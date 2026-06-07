@@ -1710,23 +1710,13 @@ const LinkPreviewCard = ({ url }: { url: string }) => {
     useEffect(() => {
         let cancelled = false;
         setLoading(true); setErrored(false); setMeta(null);
-        // Use allorigins proxy to fetch OG metadata
-        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        fetch(proxy)
+        // Same-origin serverless endpoint (no CORS, edge-cached) returns parsed OG meta.
+        const endpoint = `/api/og?url=${encodeURIComponent(url)}`;
+        fetch(endpoint)
             .then(r => r.json())
-            .then(data => {
+            .then(meta => {
                 if (cancelled) return;
-                const html = data.contents || '';
-                const getTag = (prop: string) => {
-                    const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i'))
-                        || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, 'i'));
-                    return m ? m[1] : undefined;
-                };
-                const title = getTag('og:title') || getTag('twitter:title') || (html.match(/<title[^>]*>([^<]+)<\/title>/i) || [])[1];
-                const description = getTag('og:description') || getTag('twitter:description') || getTag('description');
-                const image = getTag('og:image') || getTag('twitter:image');
-                const siteName = getTag('og:site_name');
-                if (title || description || image) setMeta({ title, description, image, siteName });
+                if (meta && (meta.title || meta.description || meta.image)) setMeta(meta);
                 else setErrored(true);
             })
             .catch(() => { if (!cancelled) setErrored(true); })
