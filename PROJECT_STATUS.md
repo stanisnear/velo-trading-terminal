@@ -4,6 +4,31 @@
 
 ---
 
+## Session — remove copytrade UI, align meta, fix blog font
+
+**App**
+- **Copytrade removed everywhere it surfaced** (it isn't a working feature yet): the social
+  "Copytrade · Live" signals panel, the "Copy trade" buttons on trade-signal posts, the
+  "Copy Trader" button on profiles, and the leaderboard podium "Copy Trader" label (now
+  "View Profile" — the button already navigated to the profile).
+- **SEO/meta aligned with the landing.** App `index.html` title + OG/Twitter title now read
+  "Velo — Provable. Social. On-chain." and the OG/Twitter description matches the landing's
+  ("A SocialFi perpetual futures terminal on Base. 17 markets, up to 25× leverage, Pyth-priced
+  fills — every trade provable on-chain."). Removed the old "copy trading / Don't trust it"
+  wording. Default in-app document title aligned too.
+- `vite build` ✓.
+
+**Landing**
+- **Blog widget font corrected** to match actual branding: the `/blog` post titles use Geist
+  sans 600, not Fraunces — so the homepage "Latest writing" heading and card title are now
+  Geist sans (was the off-brand Fraunces italic).
+
+**Still open:** Dashboard tab-click freeze + sign-on race (need a live repro detail); in-feed
+rich-link "like X" polish (separate pass). Further social-page visual polish is decluttered via
+the copytrade removal — happy to target specific elements if flagged.
+
+---
+
 ## Session — minimal OG, social cards, font simplify, trade fixes
 
 **Landing**

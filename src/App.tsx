@@ -1567,7 +1567,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                                 style={{ width: '100%', padding: '11px', borderRadius: 11, background: 'var(--podium-btn-hover-bg)', border: `1px solid ${accentColor}44`, ...S_LB.mono, fontSize: 11, fontWeight: 700, color: accentColor, cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase' as const, transition: 'all 0.15s' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${accentColor}22`; (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}88`; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--podium-btn-hover-bg)'; (e.currentTarget as HTMLElement).style.borderColor = `${accentColor}44`; }}>
-                                {isSelf ? 'View Profile' : 'Copy Trader'}
+                                View Profile
                             </button>
                         </div>
                     )
@@ -1998,7 +1998,6 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
                                     <span style={{ ...S.label }}>· {post.tradeDetails.leverage}× · Entry {post.tradeDetails.entry}</span>
                                 </div>
                             </div>
-                            <button onClick={() => handleCopyTrade(post)} style={{ padding: '7px 16px', borderRadius: 20, background: 'var(--iris-violet)', border: 'none', ...S.mono, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase' as const }}>Copy trade</button>
                         </div>
                     )}
                     {/* Actions */}
@@ -3066,7 +3065,6 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
                             </div>
                             <div style={{ ...S.label, fontSize: 10 }}>{post.tradeDetails.leverage}× leverage · Entry @ {post.tradeDetails.entry}</div>
                         </div>
-                        <button onClick={() => handleCopyTrade(post)} style={{ padding: '9px 20px', borderRadius: 20, background: 'var(--iris-violet)', border: 'none', ...S.mono, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase' as const, boxShadow: '0 4px 14px oklch(0.68 0.22 295 / 0.35)' }}>Copy trade</button>
                     </div>
                 )}
 
@@ -3402,24 +3400,6 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                     style={{ padding: '4px 11px', borderRadius: 20, border: '1px solid var(--hairline-strong)', background: user?.following?.includes(t.id) ? 'var(--chip-bg)' : 'oklch(0.55 0.24 295/0.12)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: user?.following?.includes(t.id) ? 'var(--fg-muted)' : 'var(--iris-violet)', cursor: 'pointer', transition: 'all 0.1s' }}>
                                     {user?.following?.includes(t.id) ? 'Following' : 'Follow'}
                                 </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Copytrade Live Signals */}
-                <div className="vp" style={panel}>
-                    <div style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                            <span style={{ ...S.label }}>Copytrade · Live</span>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: liveSignals.length > 0 ? 'var(--pnl-up)' : 'var(--fg-subtle)', boxShadow: liveSignals.length > 0 ? '0 0 6px var(--pnl-up)' : 'none', display: 'inline-block' }} />
-                        </div>
-                        {liveSignals.length === 0 ? (
-                            <p style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', padding: '8px 0' }}>No live signals yet</p>
-                        ) : liveSignals.map((sig: any) => (
-                            <div key={sig.handle + sig.pair} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}>
-                                <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)', fontWeight: 700 }}>{sig.handle}</span>
-                                <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: sig.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{sig.side} {sig.pair}</span>
                             </div>
                         ))}
                     </div>
@@ -3839,10 +3819,6 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
                                 <button onClick={onFollow}
                                     style={{ ...pillBtn, background: isFollowing ? 'var(--chip-bg)' : 'var(--fg)', border: isFollowing ? '1px solid var(--hairline-strong)' : 'none', color: isFollowing ? 'var(--fg)' : 'var(--bg-base)' }}>
                                     {isFollowing ? 'Following' : 'Follow'}
-                                </button>
-                                <button onClick={onCopy}
-                                    style={{ ...pillBtn, background: isCopying ? 'oklch(0.66 0.22 25/0.1)' : 'var(--iris-violet)', border: isCopying ? '1px solid oklch(0.66 0.22 25/0.3)' : 'none', color: isCopying ? 'var(--pnl-down)' : '#fff' }}>
-                                    {isCopying ? 'Stop Copy' : 'Copy Trader'}
                                 </button>
                             </>
                         )}
@@ -6075,7 +6051,7 @@ const App = () => {
         } else if (activeTab === TabView.SOCIAL && activeSocialTicker) {
             document.title = `$${activeSocialTicker} | VELO Social`;
         } else {
-            document.title = 'VELO | SocialFi Exchange';
+            document.title = 'Velo — Provable. Social. On-chain.';
         }
     }, [activeTab, activePair, marketPrices, activeSocialTicker]);
 
