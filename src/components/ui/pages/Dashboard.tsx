@@ -7,7 +7,7 @@ import { OrderDetailsModal } from '@/components/ui/OrderDetailsModal';
 import { baseScanAddressUrl, VELO_PERPS_ADDRESS } from '@/services/veloPerpsService';
 
 const S = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+  display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans, system-ui, sans-serif)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,

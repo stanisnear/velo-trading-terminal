@@ -4,6 +4,33 @@
 
 ---
 
+## Session — minimal OG, social cards, font simplify, trade fixes
+
+**Landing**
+- OG image reverted to a truly minimal mark: single-colour bone "Velo" (no gradient), no top
+  text, faint neutral glow, `PROVABLE · SOCIAL · ON-CHAIN` below.
+- Blog widget pinned to the brand Fraunces serif ("Latest writing" + card title italic).
+
+**App**
+- **Font simplified.** All `S.display` definitions (App.tsx ×9 + Dashboard.tsx) flipped from
+  Fraunces *italic* to upright Fraunces — keeps the brand serif (so it still matches the landing)
+  but drops the fussy slant on section labels, usernames, the equity figure, etc. Wordmark stays
+  italic everywhere.
+- **Social market cards** (`TopTokensBar`) made compact (padding 10→9, gap 8→6, sparkline 24→18,
+  price 14→13) and given `var(--glass-shadow)` so they read as the same material as the panels
+  (they were the same fill but lacked the shadow → looked flatter/"more transparent").
+- **Trade history** rows put on one line (left column is now a horizontal flex; pair/side/action
+  and entry/size/PnL sit inline instead of stacked).
+- **Cost label** → "Margin (cost)" (behaviour was already correct: margin = cost, size = notional).
+- **Market selector** (`PairSelector`) anchored top-left instead of dead-centre on open.
+- `vite build` ✓.
+
+**Still open** (need a live repro, not safe to fix blind): Dashboard tab-click freeze
+(pointer/z-index — need to know if hovering tabs shows a pointer cursor); sign-on chain-switch
+race. In-feed rich-link cards rendering "like X" is a separate feature pass.
+
+---
+
 ## Session — header material match, minimal OG, docs refresh
 
 - **Header now uses the exact panel material.** Root cause of the "header is a different colour"

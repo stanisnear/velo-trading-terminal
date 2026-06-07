@@ -692,10 +692,9 @@ html.light iframe[id*="tradingview"] {
   }
 }
 
-/* ── Modal open: push navbar behind backdrops ──────────────────────────────── */
-body.modal-open .navbar-container {
-  z-index: 1 !important;
-}
+/* ── Modal open: navbar stays at its normal z-index (30); modal backdrops
+   (z-index 60+) already cover it, and keeping it interactive avoids the
+   header becoming unclickable if a modal flag ever sticks open. ── */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    VELO GLASS MORPHISM — Global backdrop-filter for all panels

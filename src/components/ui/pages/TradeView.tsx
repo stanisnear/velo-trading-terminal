@@ -69,7 +69,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
     );
     return (
         <div className="animate-fade-in" onClick={onClose}
-            style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)' }}>
+            style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', padding: '80px 16px 16px 20px', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)' }}>
             <div onClick={(e: any) => e.stopPropagation()}
                 style={{ width: '100%', maxWidth: 360, maxHeight: 570, display: 'flex', flexDirection: 'column', borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden' }}>
                 <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--hairline)' }}>
@@ -923,7 +923,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                     onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--chip-bg)'; }}
                                     onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-base-2)'; }}
                                 >
-                                    <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                           <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>{t.pair} </span>
                                           <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: t.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.side}</span>
@@ -1698,7 +1698,7 @@ export const TradeView = ({
                             {/* Cost + Leverage */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--chip-bg)', borderRadius: 12, padding: isMobile ? '8px 12px' : '5px 10px', border: '1px solid var(--hairline)' }}>
                                 <div>
-                                    <div style={{ ...S.label, marginBottom: 1 }}>Cost</div>
+                                    <div style={{ ...S.label, marginBottom: 1 }}>Margin (cost)</div>
                                     <div style={{ ...S.display, fontSize: isMobile ? 16 : 14, color: 'var(--fg)' }}>${formatMoney(cost)}</div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>

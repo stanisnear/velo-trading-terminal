@@ -1077,7 +1077,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                 top: 'var(--nav-top, 4px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                zIndex: anyModalOpen ? 1 : 30,
+                zIndex: 30,
                 width: 'min(1600px, calc(100% - 24px))',
                 padding: '0 14px',
                 height: 60,
@@ -1242,7 +1242,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
 
     const S = {
         mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
         label:   { fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' },
     };
 
@@ -1266,7 +1266,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(60px + env(safe-area-inset-top, 0px))', borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ ...S.display, fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
+                        <span style={{ ...S.display, fontStyle: 'italic', fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
                     </div>
                     <button onClick={() => setSidebarOpen(false)} style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 12, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', color: 'var(--fg-2)' }}>
                         <X size={15}/>
@@ -1402,7 +1402,7 @@ const MobileBottomNav = ({ activeTab, setActiveTab, user }: any) => {
 }
 const S_LB = {
     mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
-    display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+    display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
     label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' as const },
 };
 const podiumGolds = [
@@ -1891,7 +1891,7 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
     useEffect(() => { if (defaultOpenComments) setShowComments(true); }, [defaultOpenComments]);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' },
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' as const },
     };
 
@@ -2120,7 +2120,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
 
     const drawSparkline = (data: number[], up: boolean) => {
         if (!data || data.length < 2) return null;
-        const w = 100, h = 24;
+        const w = 100, h = 18;
         const min = Math.min(...data), max = Math.max(...data);
         const range = max - min || 1;
         const pts = data.map((v, i) => {
@@ -2155,7 +2155,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                     return (
                         <div key={p.symbol}
                             onClick={() => onTickerClick(p.symbol)}
-                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 12, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', padding: '10px 12px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8 }}
+                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 12, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', padding: '9px 11px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 6 }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}
                         >
@@ -2172,7 +2172,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                                 </span>
                             </div>
                             <div>
-                                <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 4 }}>
+                                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 3 }}>
                                     {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}
                                 </span>
                                 {drawSparkline(spark, up)}
@@ -2594,7 +2594,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
@@ -2987,7 +2987,7 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
 
@@ -3298,7 +3298,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
     };
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
@@ -3802,7 +3802,7 @@ const WallCompose = ({ user, targetId, targetName, onPostCreate, placeholder, tr
 const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, isCopying, showUsersModal, onViewProfile, stats }: any) => {
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const realizedPnl = stats?.realizedPnl ?? profile.pnl ?? profile.pnlTotal ?? 0;
@@ -3898,7 +3898,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
     const activePositions = positions.filter((p: Position) => !p.isCopyTrade);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const tabBtn = (t: string): React.CSSProperties => ({
@@ -3968,7 +3968,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
     const isCopying = user?.copying.includes(trader.id);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     // Fetch trader's real positions from Supabase when TRADES tab is opened
@@ -4120,7 +4120,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
                  textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
         mono:  { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        disp:  { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+        disp:  { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
     };
 
     const RiskBar = ({ value, max = 25 }: { value: number; max?: number }) => {
