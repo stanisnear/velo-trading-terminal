@@ -9406,12 +9406,23 @@ const App = () => {
                     }
                 }} isNotifOpen={notifOpen} setNotifOpen={(open: boolean) => {
                     setNotifOpen(open);
-                    // Mark all read when panel opens
                     if (open && user && isSupabaseConfigured()) {
+                        // Always pull the latest notifications from Supabase when the
+                        // panel opens, so existing/older rows show — not just realtime ones.
+                        fetchNotifications(user.id).then(fresh => {
+                            if (fresh.length > 0) {
+                                setNotifications(prev => {
+                                    const ids = new Set(fresh.map((n: any) => n.id));
+                                    const localOnly = (prev || []).filter((n: any) => !ids.has(n.id));
+                                    return [...fresh, ...localOnly];
+                                });
+                            }
+                        }).catch(() => {});
+                        // Mark all read shortly after (clears the unread highlight).
                         setTimeout(() => {
                             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
                             markAllNotificationsRead(user.id).catch(() => {});
-                        }, 500);
+                        }, 800);
                     }
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}

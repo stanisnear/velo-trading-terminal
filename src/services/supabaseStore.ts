@@ -886,9 +886,14 @@ export async function recordTransaction(
 // ══════════════════════════════════════════════════════════════════
 
 export async function fetchNotifications(userId: string): Promise<Notification[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('notifications').select('*')
     .eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+  if (error) {
+    console.warn('[velo] fetchNotifications ERROR:', error.code, error.message, '— user_id queried:', userId);
+  } else {
+    console.info('[velo] fetchNotifications:', (data || []).length, 'rows for user_id', userId);
+  }
   return (data || []).map((r: any): Notification => ({
     id: r.id, type: r.type, message: r.message,
     timestamp: new Date(r.created_at).getTime(),

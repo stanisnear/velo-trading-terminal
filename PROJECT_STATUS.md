@@ -4,6 +4,29 @@
 
 ---
 
+## Session — glass cleanup, brand orbs, notif pull-on-open, mobile landing
+
+**App (build-verified)**
+- **Glass shadow stripped to a clean soft drop** (`--glass-shadow` now just
+  `0 12px 34px -24px rgba(0,0,0,0.5)`). Removed the white top-edge inset that read as an ugly
+  "light halo" on every panel — more transparent/minimal across all pages.
+- **Orb palette rebranded** to violet/indigo/blue/sky + green (on-chain). Dropped off-brand
+  amber/cyan. Highlight softened slightly toward the landing's matte clay feel.
+- **Notifications now pull from Supabase on every bell-open** (fetch + merge, never wipes on
+  empty), so existing/older rows show — not just realtime ones. Added a console log to
+  `fetchNotifications` (`[velo] fetchNotifications: N rows` or an RLS error) to diagnose whether
+  empty = zero rows or a `user_id`/RLS mismatch.
+
+**Landing (render-verified at 390px)**
+- **Mobile how-it-works fix:** flow cards stacked vertically and `.flow-art` kept at full 116px so
+  the absolutely-positioned 3D children stop overflowing into the text (was shrinking the box to
+  92px while children kept 116px coords → the overlap in the screenshot).
+
+**Open:** if notifications still show empty after this, the console log will say why — likely the
+stored rows' `user_id` doesn't equal the session `auth.uid()` (needs a quick diagnostic query).
+
+---
+
 ## Session — orb icons (landing clay-badge), notification wipe fix
 
 **App (build-verified)**

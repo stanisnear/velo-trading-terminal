@@ -25,18 +25,19 @@ const panel: React.CSSProperties = {
 };
 
 const Ico3D = ({ tone, size = 30, children }: { tone: { grad: string; glow: string }; size?: number; children: React.ReactNode }) => (
-  <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: tone.grad, boxShadow: `0 8px 20px -5px ${tone.glow}, 0 1px 0 rgba(255,255,255,0.45) inset, 0 -3px 8px -4px rgba(0,0,0,0.5) inset`, animation: 'veloFloat 4.5s ease-in-out infinite' }}>
-    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(60% 50% at 32% 16%, rgba(255,255,255,0.62), transparent 60%)', pointerEvents: 'none' }} />
+  <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: tone.grad, boxShadow: `0 8px 20px -5px ${tone.glow}, 0 1px 0 rgba(255,255,255,0.4) inset, 0 -3px 8px -4px rgba(0,0,0,0.5) inset`, animation: 'veloFloat 4.5s ease-in-out infinite' }}>
+    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(58% 48% at 33% 18%, rgba(255,255,255,0.5), transparent 62%)', pointerEvents: 'none' }} />
     <div style={{ position: 'relative', zIndex: 1, color: '#fff', display: 'flex', filter: 'drop-shadow(0 1px 1.5px rgba(0,0,0,0.4))' }}>{children}</div>
   </div>
 );
 
+// Brand-cohesive: violet (primary) → indigo → blue → sky, plus green for on-chain.
 const iconBg = {
-  amber:  { grad: 'linear-gradient(150deg, oklch(0.86 0.14 80), oklch(0.62 0.16 62))',  glow: 'oklch(0.70 0.16 70 / 0.6)' },
-  green:  { grad: 'linear-gradient(150deg, oklch(0.82 0.17 158), oklch(0.52 0.17 160))', glow: 'oklch(0.62 0.17 158 / 0.6)' },
-  violet: { grad: 'linear-gradient(150deg, oklch(0.72 0.18 292), oklch(0.50 0.20 282))', glow: 'oklch(0.60 0.22 290 / 0.75)' },
-  blue:   { grad: 'linear-gradient(150deg, oklch(0.74 0.16 250), oklch(0.48 0.19 262))', glow: 'oklch(0.58 0.19 258 / 0.7)' },
-  cyan:   { grad: 'linear-gradient(150deg, oklch(0.82 0.13 210), oklch(0.54 0.15 218))', glow: 'oklch(0.62 0.15 212 / 0.6)' },
+  violet: { grad: 'linear-gradient(150deg, oklch(0.72 0.18 292), oklch(0.50 0.20 282))', glow: 'oklch(0.60 0.22 290 / 0.7)' },
+  green:  { grad: 'linear-gradient(150deg, oklch(0.80 0.16 158), oklch(0.50 0.17 160))', glow: 'oklch(0.60 0.17 158 / 0.55)' },
+  indigo: { grad: 'linear-gradient(150deg, oklch(0.66 0.17 278), oklch(0.44 0.19 268))', glow: 'oklch(0.54 0.19 274 / 0.7)' },
+  blue:   { grad: 'linear-gradient(150deg, oklch(0.72 0.16 250), oklch(0.46 0.19 258))', glow: 'oklch(0.56 0.19 254 / 0.7)' },
+  sky:    { grad: 'linear-gradient(150deg, oklch(0.80 0.12 232), oklch(0.52 0.15 242))', glow: 'oklch(0.60 0.15 238 / 0.6)' },
 };
 
 // Solid primary action button — no animation
@@ -266,7 +267,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div style={panel}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <Ico3D tone={iconBg.amber}><Star size={13}/></Ico3D>
+                <Ico3D tone={iconBg.violet}><Star size={13}/></Ico3D>
                 <span style={S.label}>Performance</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -322,7 +323,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div style={panel}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Ico3D tone={iconBg.violet}><Activity size={13}/></Ico3D>
+                <Ico3D tone={iconBg.indigo}><Activity size={13}/></Ico3D>
                 <span style={S.label}>Margin & exposure</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -447,7 +448,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       {/* Recent Activity */}
       <div style={{ ...panel, overflowX: 'auto' }}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: 9 }}>
-          <Ico3D tone={iconBg.cyan}><History size={13}/></Ico3D>
+          <Ico3D tone={iconBg.sky}><History size={13}/></Ico3D>
           <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Recent Activity</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
