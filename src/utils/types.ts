@@ -116,6 +116,10 @@ export interface Comment {
   authorAvatar: string;
   content: string;
   timestamp: string;
+  parentId?: string | null;   // reply thread: id of parent comment
+  likes: number;
+  likedBy: string[];          // user ids who liked this comment
+  replies?: Comment[];        // populated client-side from flat list
 }
 
 export interface Post {

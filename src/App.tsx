@@ -38,6 +38,7 @@ import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
+import { CommentThread } from './components/CommentThread';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
@@ -60,6 +61,7 @@ import {
   toggleRepost as supabaseRepost,
   addComment as supabaseComment,
   deleteComment as supabaseDeleteComment,
+  toggleCommentLike as supabaseToggleCommentLike,
   deleteAccount as supabaseDeleteAccount,
   toggleFollow as supabaseFollow,
   fetchPositions,
@@ -1978,71 +1980,13 @@ const renderContentWithMentions = (content: string, onViewProfile: (p: any) => v
     });
 };
 
-const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost }: any) => {
+const PostCard = ({ post, user, onLike, onRepost, onComment, onLikeComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost }: any) => {
     const hasLiked = post.likedBy.includes(user?.id);
     const hasReposted = post.repostedBy.includes(user?.id);
     // Author can delete their own post from any wall; wall owner can also delete posts on their wall
     const canDelete = user && onDelete && (user.id === post.authorId || user.id === post.targetProfileId);
     const [showComments, setShowComments] = useState(defaultOpenComments || false);
-    const [commentText, setCommentText] = useState('');
-    const [isSubmittingComment, setIsSubmittingComment] = useState(false);
     const [shareToast, setShareToast] = useState(false);
-    const [commentMentionQuery, setCommentMentionQuery] = useState<string | null>(null);
-    const [commentMentionTrigger, setCommentMentionTrigger] = useState<'@' | '$' | null>(null);
-    const [commentMentionStart, setCommentMentionStart] = useState(0);
-    const [commentMentionIdx, setCommentMentionIdx] = useState(0);
-    const commentInputRef = useRef<HTMLInputElement>(null);
-
-    const commentMentionResults: any[] = React.useMemo ? (() => {
-        if (commentMentionQuery === null) return [];
-        const q = commentMentionQuery.toLowerCase();
-        if (commentMentionTrigger === '$') {
-            if (!q) return []; // don't show anything until at least 1 char typed
-            return SOCIAL_FEATURED_PAIRS.filter(p =>
-                p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
-            ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
-        }
-        if (commentMentionTrigger === '@' && q.length > 0) {
-            return traders.filter((t: any) => {
-                if (t.id === user?.id) return false;
-                return (t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q);
-            }).slice(0, 5);
-        }
-        return [];
-    })() : [];
-
-    const handleCommentTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        const cursor = e.target.selectionStart ?? val.length;
-        setCommentText(val);
-        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
-        if (atMatch) {
-            setCommentMentionTrigger('@'); setCommentMentionQuery(atMatch[1]);
-            setCommentMentionStart(cursor - atMatch[0].length); setCommentMentionIdx(0);
-        } else if (dollarMatch) {
-            setCommentMentionTrigger('$'); setCommentMentionQuery(dollarMatch[1]);
-            setCommentMentionStart(cursor - dollarMatch[0].length); setCommentMentionIdx(0);
-        } else {
-            setCommentMentionQuery(null); setCommentMentionTrigger(null);
-        }
-    };
-
-    const completeCommentMention = (item: any) => {
-        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
-        const cursor = commentInputRef.current?.selectionStart ?? commentMentionStart + (commentMentionQuery?.length ?? 0) + 1;
-        const before = commentText.slice(0, commentMentionStart);
-        const after = commentText.slice(cursor);
-        setCommentText(before + insertion + ' ' + after);
-        setCommentMentionQuery(null); setCommentMentionTrigger(null);
-        setTimeout(() => {
-            if (commentInputRef.current) {
-                const pos = before.length + insertion.length + 1;
-                commentInputRef.current.focus();
-                commentInputRef.current.setSelectionRange(pos, pos);
-            }
-        }, 0);
-    };
 
     // If defaultOpenComments flips (notification routing), open comments
     useEffect(() => { if (defaultOpenComments) setShowComments(true); }, [defaultOpenComments]);
@@ -2086,14 +2030,6 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
             setShareToast(true);
             setTimeout(() => setShareToast(false), 2000);
         } catch (_) {}
-    };
-
-    const handleSubmitComment = async () => {
-        if (!commentText.trim() || isSubmittingComment) return;
-        setIsSubmittingComment(true);
-        await onComment(post.id, commentText.trim());
-        setCommentText('');
-        setIsSubmittingComment(false);
     };
 
     return (
@@ -2175,78 +2111,17 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
                     </div>
                     {/* Comments section */}
                     {showComments && (
-                        <div style={{ marginTop: 12, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-                            {/* Existing comments */}
-                            {post.comments.length > 0 && (
-                                <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    {post.comments.map((c: any) => (
-                                        <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                                            <img
-                                                src={c.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.authorHandle}`}
-                                                style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0, cursor: 'pointer' }}
-                                                onClick={() => onViewProfile({ id: c.authorId })}
-                                                title={`View ${c.authorHandle}'s profile`}
-                                            />
-                                            <div style={{ background: 'var(--chip-bg)', borderRadius: 10, padding: '6px 10px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <span
-                                                        style={{ ...S.display, fontSize: 12, color: 'var(--fg)', marginRight: 4, cursor: 'pointer' }}
-                                                        onClick={() => onViewProfile({ id: c.authorId })}
-                                                    >{c.authorHandle}</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', marginRight: 6, fontWeight: 700, letterSpacing: '0.06em' }}>{(() => { const d = new Date(c.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)' }}>{renderContentWithMentions(c.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}</span>
-                                                </div>
-                                                {user && (user.id === c.authorId || user.id === post.authorId) && onDeleteComment && (
-                                                    <button
-                                                        onClick={() => onDeleteComment(post.id, c.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: '2px 4px', borderRadius: 4, flexShrink: 0, opacity: 0.6, transition: 'opacity 0.1s' }}
-                                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}
-                                                        title="Delete comment"
-                                                    ><Trash2 size={11}/></button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {/* Comment input */}
-                            {user ? (
-                                <div style={{ position: 'relative' }}>
-                                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                                        <img src={user.avatar} style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
-                                        <div style={{ flex: 1, display: 'flex', gap: 6, alignItems: 'center', background: 'var(--chip-bg)', borderRadius: 20, padding: '4px 4px 4px 12px', border: '1px solid var(--hairline)' }}>
-                                            <input
-                                                ref={commentInputRef}
-                                                value={commentText}
-                                                onChange={handleCommentTextChange}
-                                                onKeyDown={e => {
-                                                    if (commentMentionQuery !== null && commentMentionResults.length > 0) {
-                                                        if (e.key === 'ArrowDown') { e.preventDefault(); setCommentMentionIdx(i => Math.min(i+1, commentMentionResults.length-1)); return; }
-                                                        if (e.key === 'ArrowUp') { e.preventDefault(); setCommentMentionIdx(i => Math.max(i-1, 0)); return; }
-                                                        if (e.key === 'Tab') { e.preventDefault(); completeCommentMention(commentMentionResults[commentMentionIdx]); return; }
-                                                        if (e.key === 'Escape') { setCommentMentionQuery(null); setCommentMentionTrigger(null); return; }
-                                                    }
-                                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitComment(); }
-                                                }}
-                                                onBlur={() => setTimeout(() => { setCommentMentionQuery(null); setCommentMentionTrigger(null); }, 150)}
-                                                placeholder="Write a comment... @mention or $TICKER"
-                                                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg)', minWidth: 0 }}
-                                            />
-                                            <button
-                                                onClick={handleSubmitComment}
-                                                disabled={!commentText.trim() || isSubmittingComment}
-                                                style={{ padding: '5px 12px', borderRadius: 16, background: commentText.trim() ? 'var(--iris-violet)' : 'var(--chip-bg)', border: 'none', ...S.mono, fontSize: 11, fontWeight: 700, color: commentText.trim() ? '#fff' : 'var(--fg-subtle)', cursor: commentText.trim() ? 'pointer' : 'default', transition: 'all 0.1s', flexShrink: 0 }}>
-                                                Post
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <MentionDropdown results={commentMentionResults} anchorRef={commentInputRef} activeIndex={commentMentionIdx} onSelect={completeCommentMention} onHover={setCommentMentionIdx} />
-                                </div>
-                            ) : (
-                                <p style={{ ...S.label, textAlign: 'center', padding: '8px 0' }}>Log in to comment</p>
-                            )}
-                        </div>
+                        <CommentThread
+                            post={post}
+                            user={user}
+                            traders={traders}
+                            onComment={onComment}
+                            onDeleteComment={onDeleteComment}
+                            onLikeComment={onLikeComment || (() => {})}
+                            onViewProfile={onViewProfile}
+                            onTickerClick={onTickerClick}
+                            compact={true}
+                        />
                     )}
                 </div>
             </div>
@@ -2696,7 +2571,7 @@ const TokenInteractiveChart = ({
     );
 };
 
-const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
+const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onLikeComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
     const [activeTab, setActiveTab] = useState<'posts' | 'news'>('posts');
     const [news, setNews] = useState<any[]>([]);
     const [newsLoading, setNewsLoading] = useState(true);
@@ -3010,7 +2885,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                     <p style={{ ...S.label, fontSize: 10 }}>Be the first to mention ${ticker} in the feed.</p>
                                 </div>
                             ) : tickerPosts.map((post: any) => (
-                                <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={(t: string) => { if (onNavigateToTicker) onNavigateToTicker(t); }} onSinglePost={onSinglePost} />
+                                <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={(t: string) => { if (onNavigateToTicker) onNavigateToTicker(t); }} onSinglePost={onSinglePost} />
                             ))}
                         </div>
                     )}
@@ -3128,7 +3003,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 };
 
 // ─── Single Post View (like Twitter /status/:id) ────────────────────────────
-const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
+const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComment, onLikeComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
     const post = posts.find((p: any) => p.id === postId);
 
     // Update page title and OG meta for this post
@@ -3258,89 +3133,24 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
             </div>
 
             {/* Comments section */}
-            <div style={{ marginTop: 16 }}>
-                <div style={{ ...S.label, fontSize: 11, marginBottom: 12, paddingLeft: 4 }}>
-                    {post.comments.length} {post.comments.length === 1 ? 'Comment' : 'Comments'}
-                </div>
-
-                {/* Write comment */}
-                {user && <SinglePostCommentBox post={post} user={user} onComment={onComment} traders={traders} />}
-
-                {/* Existing comments */}
-                {post.comments.length === 0 ? (
-                    <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
-                        <MessageCircle size={28} style={{ color: 'var(--fg-subtle)', marginBottom: 8 }} />
-                        <p style={{ ...S.display, fontSize: 18, color: 'var(--fg-subtle)' }}>No comments yet.</p>
-                        <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', marginTop: 4 }}>Be the first to comment.</p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {post.comments.map((c: any) => {
-                            const canDeleteComment = user && onDeleteComment && (user.id === c.authorId || user.id === post.authorId);
-                            return (
-                                <div key={c.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '14px 18px', display: 'flex', gap: 12 }}>
-                                    <img src={c.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.authorHandle}`}
-                                        style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0, cursor: 'pointer' }}
-                                        onClick={() => onViewProfile({ id: c.authorId })} />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)', cursor: 'pointer' }} onClick={() => onViewProfile({ id: c.authorId })}>{c.authorHandle}</span>
-                                                <span style={{ ...S.label, fontSize: 10 }}>{(() => { const d = new Date(c.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
-                                            </div>
-                                            {canDeleteComment && (
-                                                <button onClick={() => onDeleteComment(post.id, c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: 2, transition: 'color 0.1s' }}
-                                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--pnl-down)'}
-                                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg-subtle)'}>
-                                                    <Trash2 size={13}/>
-                                                </button>
-                                            )}
-                                        </div>
-                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg)', lineHeight: 1.55 }}>
-                                            {renderContentWithMentions(c.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}
-                                        </p>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
+            <CommentThread
+                post={post}
+                user={user}
+                traders={traders}
+                onComment={onComment}
+                onDeleteComment={onDeleteComment}
+                onLikeComment={onLikeComment || (() => {})}
+                onViewProfile={onViewProfile}
+                onTickerClick={onTickerClick}
+                compact={false}
+            />
         </div>
     );
 };
 
 // Comment box for single post view
-const SinglePostCommentBox = ({ post, user, onComment, traders }: any) => {
-    const [text, setText] = useState('');
-    const [loading, setLoading] = useState(false);
-    const submit = async () => {
-        if (!text.trim() || loading) return;
-        setLoading(true);
-        await onComment(post.id, text.trim());
-        setText('');
-        setLoading(false);
-    };
-    return (
-        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '14px 18px', display: 'flex', gap: 12, marginBottom: 10 }}>
-            <img src={user.avatar} style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <textarea value={text} onChange={e => setText(e.target.value)}
-                    placeholder="Add a comment…"
-                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(); }}
-                    style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg)', resize: 'none', height: 56, lineHeight: 1.5 }} />
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={submit} disabled={!text.trim() || loading}
-                        style={{ padding: '7px 18px', borderRadius: 20, background: text.trim() ? 'var(--iris-violet)' : 'var(--chip-bg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: text.trim() ? '#fff' : 'var(--fg-subtle)', cursor: text.trim() ? 'pointer' : 'default', letterSpacing: '0.05em', transition: 'all 0.15s', boxShadow: text.trim() ? '0 4px 14px oklch(0.68 0.22 295 / 0.3)' : 'none' }}>
-                        {loading ? '…' : 'Reply'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
-const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
+const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, onLikeComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
     const [newPostContent, setNewPostContent] = useState('');
     const [filter, setFilter] = useState<'LATEST' | 'TRENDING' | 'FOLLOWING' | 'SIGNALS'>('LATEST');
     const [feedMentionQuery, setFeedMentionQuery] = useState<string | null>(null);
@@ -3498,6 +3308,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     onLike={onLike}
                     onRepost={onRepost}
                     onComment={onComment}
+                    onLikeComment={onLikeComment}
                     onViewProfile={onViewProfile}
                     showUsersModal={showUsersModal}
                     onDeletePost={onDeletePost}
@@ -3656,7 +3467,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     </div>
                 ) : filteredPosts.map((post: any) => (
                     <div key={post.id} id={`post-${post.id}`}>
-                        <PostCard post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={setActiveTickerWithURL} defaultOpenComments={forceOpenCommentsId === post.id} onSinglePost={onSinglePost} />
+                        <PostCard post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={setActiveTickerWithURL} defaultOpenComments={forceOpenCommentsId === post.id} onSinglePost={onSinglePost} />
                     </div>
                 ))}
             </div>
@@ -4019,7 +3830,7 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
         </div>
     );
 };
-const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCreate, positions, onLike, onRepost, onComment, showUsersModal, onViewProfile, onDeletePost, onDeleteComment, onDeleteAccount, onTickerClick }: any) => {
+const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCreate, positions, onLike, onRepost, onComment, onLikeComment, showUsersModal, onViewProfile, onDeletePost, onDeleteComment, onDeleteAccount, onTickerClick }: any) => {
     const [isEditOpen, setEditOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'POSTS' | 'REPOSTS' | 'TRADES'>('POSTS');
     const stats = calculateStats(user.tradeHistory);
@@ -4061,12 +3872,12 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                             <WallCompose user={user} targetId={user.id} targetName="your wall" onPostCreate={onPostCreate} placeholder="Post on your wall\u2026 Use @handle to tag someone" traders={traders} />
                         </div>
                         {userPosts.length === 0 ? emptyMsg('No posts yet.') : userPosts.map((post: Post) => (
-                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
+                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
                         ))}
                     </>
                 )}
                 {activeTab === 'REPOSTS' && (userReposts.length === 0 ? emptyMsg('No reposts yet.') : userReposts.map((post: Post) => (
-                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
+                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
                 )))}
                 {activeTab === 'TRADES' && (activePositions.length === 0 ? emptyMsg('No active manual trades.') : activePositions.map((p: Position) => (
                     <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
@@ -4084,9 +3895,9 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
         </div>
     );
 };
-const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFollow, handleCopyTrade, onRequireAuth, onViewProfile, showUsersModal, positions, onUpdateProfile, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onDeleteAccount, onPostCreate, marketPrices, onTickerClick }: any) => {
+const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFollow, handleCopyTrade, onRequireAuth, onViewProfile, showUsersModal, positions, onUpdateProfile, onLike, onRepost, onComment, onLikeComment, onDeletePost, onDeleteComment, onDeleteAccount, onPostCreate, marketPrices, onTickerClick }: any) => {
     if (user && user.id === trader.id) {
-        return <ProfileView user={user} handleUpdateProfile={onUpdateProfile} posts={posts} traders={traders} positions={positions} onLike={onLike} onRepost={onRepost} onComment={onComment} showUsersModal={showUsersModal} onViewProfile={onViewProfile} onDeletePost={onDeletePost} onDeleteComment={onDeleteComment} onDeleteAccount={onDeleteAccount} onPostCreate={onPostCreate} onTickerClick={onTickerClick}/>;
+        return <ProfileView user={user} handleUpdateProfile={onUpdateProfile} posts={posts} traders={traders} positions={positions} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} showUsersModal={showUsersModal} onViewProfile={onViewProfile} onDeletePost={onDeletePost} onDeleteComment={onDeleteComment} onDeleteAccount={onDeleteAccount} onPostCreate={onPostCreate} onTickerClick={onTickerClick}/>;
     }
     const [activeTab, setActiveTab] = useState<'POSTS' | 'REPOSTS' | 'TRADES'>('POSTS');
     const [newPostContent, setNewPostContent] = useState('');
@@ -4157,12 +3968,12 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                             </div>
                         )}
                         {traderPosts.length === 0 ? emptyMsg('No posts yet.') : traderPosts.map((post: Post) => (
-                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
+                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
                         ))}
                     </>
                 )}
                 {activeTab === 'REPOSTS' && (traderReposts.length === 0 ? emptyMsg('No reposts yet.') : traderReposts.map((post: Post) => (
-                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
+                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
                 )))}
                 {activeTab === 'TRADES' && (
                     loadingPositions ? emptyMsg('Loading trades…')
@@ -6404,7 +6215,11 @@ const App = () => {
                     const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', c.author_id).single();
                     if (profile) { authorHandle = profile.handle || '@unknown'; authorAvatar = profile.avatar_url || ''; }
                 } catch {}
-                const newComment: Comment = { id: c.id, authorId: c.author_id, authorHandle, authorAvatar, content: c.content, timestamp: c.created_at };
+                const newComment: Comment = {
+                    id: c.id, authorId: c.author_id, authorHandle, authorAvatar,
+                    content: c.content, timestamp: c.created_at,
+                    parentId: c.parent_id || null, likes: 0, likedBy: [],
+                };
                 setPosts(prev => prev.map(p => {
                     if (p.id !== c.post_id) return p;
                     if (p.comments.some((ex: any) => ex.id === c.id)) return p; // exact dup
@@ -6424,9 +6239,31 @@ const App = () => {
                 const del = payload.old;
                 setPosts(prev => prev.map(p =>
                     p.id === del.post_id
-                        ? { ...p, comments: p.comments.filter((c: any) => c.id !== del.id) }
+                        ? { ...p, comments: p.comments.filter((c: any) => c.id !== del.id && c.parentId !== del.id) }
                         : p
                 ));
+            })
+            // Subscribe to comment likes in real-time
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_likes' }, (payload: any) => {
+                const cl = payload.new;
+                setPosts(prev => prev.map(post => ({
+                    ...post,
+                    comments: post.comments.map((cm: Comment) => {
+                        if (cm.id !== cl.comment_id || cm.likedBy.includes(cl.user_id)) return cm;
+                        return { ...cm, likes: cm.likes + 1, likedBy: [...cm.likedBy, cl.user_id] };
+                    }),
+                })));
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_likes' }, (payload: any) => {
+                const cl = payload.old;
+                setPosts(prev => prev.map(post => ({
+                    ...post,
+                    comments: post.comments.map((cm: Comment) => {
+                        if (cm.id !== cl.comment_id) return cm;
+                        const newLikedBy = cm.likedBy.filter((id: string) => id !== cl.user_id);
+                        return { ...cm, likes: newLikedBy.length, likedBy: newLikedBy };
+                    }),
+                })));
             })
             .subscribe();
             
@@ -8633,22 +8470,26 @@ const App = () => {
             }
         }
     };
-    const handleComment = async (pid: string, c: string) => {
+    const handleComment = async (pid: string, c: string, parentId?: string | null) => {
         if (!user) return openAppKitModal();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to comment', type: 'INFO' }); return; }
         if (!c.trim()) return;
         const tempId = `c_${Date.now()}`;
-        const tempComment: Comment = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString() };
+        const tempComment: Comment = {
+            id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar,
+            content: c, timestamp: new Date().toISOString(),
+            parentId: parentId || null, likes: 0, likedBy: [],
+        };
         const targetPost = posts.find(p => p.id === pid);
         const postAuthorId = targetPost?.authorId;
         // Optimistic add
         setPosts(prev => prev.map(p => p.id === pid ? {...p, comments: [...p.comments, tempComment]} : p));
         if (isSupabaseConfigured()) {
-            const { data: newComment } = await supabaseComment(pid, user.id, c).catch(() => ({ data: null })) as any;
+            const { data: newComment } = await supabaseComment(pid, user.id, c, parentId).catch(() => ({ data: null })) as any;
             if (newComment?.id) {
-                // Replace temp comment with real DB comment (fixes disappear-on-refresh)
+                // Replace temp comment with real DB comment
                 setPosts(prev => prev.map(p => p.id === pid
-                    ? { ...p, comments: p.comments.map(cm => cm.id === tempId ? { ...cm, id: newComment.id, timestamp: newComment.created_at || cm.timestamp } : cm) }
+                    ? { ...p, comments: p.comments.map(cm => cm.id === tempId ? { ...cm, id: newComment.id, timestamp: newComment.created_at || cm.timestamp, parentId: newComment.parent_id || null } : cm) }
                     : p
                 ));
             }
@@ -8671,11 +8512,31 @@ const App = () => {
             }
         }
     };
+    const handleLikeComment = (commentId: string) => {
+        if (!user) return openAppKitModal();
+        // Optimistic toggle
+        setPosts(prev => prev.map(post => ({
+            ...post,
+            comments: post.comments.map((cm: Comment) => {
+                if (cm.id !== commentId) return cm;
+                const liked = cm.likedBy.includes(user.id);
+                return {
+                    ...cm,
+                    likes: liked ? cm.likes - 1 : cm.likes + 1,
+                    likedBy: liked ? cm.likedBy.filter((id: string) => id !== user.id) : [...cm.likedBy, user.id],
+                };
+            }),
+        })));
+        if (isSupabaseConfigured()) {
+            supabaseToggleCommentLike(commentId, user.id).catch(e => console.warn('[velo] toggleCommentLike failed:', e));
+        }
+    };
     const doDeleteComment = async (postId: string, commentId: string) => {
         if (!user) return;
+        // Also remove any replies to this comment
         setPosts(prev => prev.map(p =>
             p.id === postId
-                ? { ...p, comments: p.comments.filter((c: any) => c.id !== commentId) }
+                ? { ...p, comments: p.comments.filter((c: any) => c.id !== commentId && c.parentId !== commentId) }
                 : p
         ));
         if (isSupabaseConfigured()) {
@@ -9698,13 +9559,13 @@ const App = () => {
                 </> }
                 {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
-                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
+                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
                 ))}
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} walletAddress={walletAddress} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
-                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
-                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
             <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} />
