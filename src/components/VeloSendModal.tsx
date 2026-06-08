@@ -97,8 +97,13 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
 
   // When resolvedAddress changes, try to find the recipient's trading wallet
   // from their Supabase profile. Falls back to the resolved (main) address.
+  // IMPORTANT: set sendToAddress = resolvedAddress immediately so canSend
+  // is not blocked while the async Supabase lookup is in-flight. The lookup
+  // then upgrades it to the burner/trading wallet if one exists.
   useEffect(() => {
     if (!resolvedAddress) { setSendToAddress(null); return; }
+    // Unblock the Send button right away with the best address we have.
+    setSendToAddress(resolvedAddress);
     supabase
       .from('profiles')
       .select('velo_wallet_address')
@@ -106,13 +111,12 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
       .maybeSingle()
       .then(({ data }) => {
         const tradingWallet = data?.velo_wallet_address;
-        setSendToAddress(
-          (tradingWallet && isAddress(tradingWallet))
-            ? tradingWallet as `0x${string}`
-            : resolvedAddress
-        );
+        if (tradingWallet && isAddress(tradingWallet)) {
+          setSendToAddress(tradingWallet as `0x${string}`);
+        }
+        // else: already set to resolvedAddress above — no-op
       })
-      .catch(() => setSendToAddress(resolvedAddress));
+      .catch(() => { /* already set to resolvedAddress — safe to ignore */ });
   }, [resolvedAddress]);
 
   // Read sender's mUSDC balance on open
@@ -228,11 +232,12 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
         chain: baseSepolia,
       });
       setTxHash(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
 
-      // Tell host so it can fire Supabase notifications for sender + recipient.
-      // resolveState === 'username_found' means recipientInput is an @handle
-      // that matched a Velo user.
+      // Fire onSuccess as soon as the transaction hash exists — the transfer
+      // is already submitted to the mempool at this point. Waiting for the
+      // receipt before calling onSuccess caused a silent failure mode where
+      // a network timeout would let the funds leave but record nothing in
+      // Supabase (no notification, no activity row, no toast for the sender).
       const recipientHandle = resolveState === 'username_found'
         ? recipientInput.replace(/^@/, '').toLowerCase()
         : undefined;
@@ -242,6 +247,11 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
         recipientHandle,
         amount: amountNum,
       });
+
+      // Wait for on-chain confirmation before showing DONE. If this times out
+      // the record is already saved (onSuccess ran above) — user sees a spinner
+      // briefly longer but the transfer is not lost.
+      await publicClient.waitForTransactionReceipt({ hash });
 
       setStep('DONE');
     } catch (e: any) {
