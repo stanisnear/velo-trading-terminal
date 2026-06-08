@@ -7396,6 +7396,8 @@ const App = () => {
         setOpenOrders([]);
         setNotifications([]);
         clearNotifCache();
+        setChartPrefs({
+            chartTf:    DEFAULT_PREFERENCES.chartTf,
             chartStyle: DEFAULT_PREFERENCES.chartStyle,
             indicators: DEFAULT_PREFERENCES.indicators,
             overlays:   DEFAULT_PREFERENCES.overlays,
