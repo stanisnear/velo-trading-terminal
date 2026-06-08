@@ -37,6 +37,7 @@ import { VeloAdminPanel } from './components/VeloAdminPanel';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
+import { CreatePostModal } from './components/CreatePostModal';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
@@ -910,8 +911,9 @@ const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccount }: an
     );
 };
 // ── Delete Post Confirmation Modal ───────────────────────────────────────────
-const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
+const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm, itemType = 'post' }: { isOpen: boolean; onClose: () => void; onConfirm: () => void; itemType?: 'post' | 'comment' }) => {
     if (!isOpen) return null;
+    const label = itemType === 'comment' ? 'comment' : 'post';
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in" onClick={onClose}>
             <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
@@ -926,7 +928,7 @@ const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolea
                             <Trash2 size={18} style={{ color: 'var(--pnl-down)' }} />
                         </div>
                         <div>
-                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Delete post?</div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Delete {label}?</div>
                             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>This action cannot be undone.</div>
                         </div>
                     </div>
@@ -940,113 +942,6 @@ const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolea
     );
 };
 
-// ── Create Post Modal ─────────────────────────────────────────────────────────
-const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] }: { isOpen: boolean; onClose: () => void; user: any; onSubmit: (content: string) => Promise<void>; traders?: any[] }) => {
-    const [content, setContent] = React.useState('');
-    const [posting, setPosting] = React.useState(false);
-    const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
-    const [mentionTrigger, setMentionTrigger] = React.useState<'@' | '$' | null>(null);
-    const [mentionStart, setMentionStart] = React.useState(0);
-    const [mentionIdx, setMentionIdx] = React.useState(0);
-    const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-    React.useEffect(() => {
-        if (isOpen) { setContent(''); setPosting(false); setMentionQuery(null); setTimeout(() => textareaRef.current?.focus(), 80); }
-    }, [isOpen]);
-
-    const mentionResults: any[] = React.useMemo(() => {
-        if (mentionQuery === null) return [];
-        const q = mentionQuery.toLowerCase();
-        if (mentionTrigger === '$' && q) {
-            return SOCIAL_FEATURED_PAIRS.filter(p => p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
-        }
-        if (mentionTrigger === '@' && q.length > 0) {
-            return traders.filter((t: any) => t.id !== user?.id && ((t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q))).slice(0, 5);
-        }
-        return [];
-    }, [mentionQuery, mentionTrigger, traders, user]);
-
-    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const val = e.target.value;
-        const cursor = e.target.selectionStart ?? val.length;
-        setContent(val);
-        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
-        if (atMatch) { setMentionTrigger('@'); setMentionQuery(atMatch[1]); setMentionStart(cursor - atMatch[0].length); setMentionIdx(0); }
-        else if (dollarMatch) { setMentionTrigger('$'); setMentionQuery(dollarMatch[1]); setMentionStart(cursor - dollarMatch[0].length); setMentionIdx(0); }
-        else { setMentionQuery(null); setMentionTrigger(null); }
-    };
-
-    const completeMention = (item: any) => {
-        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
-        const cursor = textareaRef.current?.selectionStart ?? mentionStart + (mentionQuery?.length ?? 0) + 1;
-        const before = content.slice(0, mentionStart);
-        const after = content.slice(cursor);
-        setContent(before + insertion + ' ' + after);
-        setMentionQuery(null); setMentionTrigger(null);
-        setTimeout(() => { if (textareaRef.current) { const p = before.length + insertion.length + 1; textareaRef.current.focus(); textareaRef.current.setSelectionRange(p, p); } }, 0);
-    };
-
-    const handleSubmit = async () => {
-        if (!content.trim() || posting) return;
-        setPosting(true);
-        await onSubmit(content.trim());
-        setPosting(false);
-        onClose();
-    };
-
-    if (!isOpen || !user) return null;
-
-    return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in" onClick={onClose}>
-            <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
-                width: '100%', maxWidth: 540, background: 'var(--glass-bg-strong)',
-                border: '1px solid var(--hairline-strong)', borderRadius: 20,
-                overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
-            }}>
-                <div style={{ height: 3, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }} />
-                <div style={{ padding: '20px 20px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                        <img src={user.avatar} style={{ width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
-                        <div>
-                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 16, color: 'var(--fg)', letterSpacing: '-0.02em' }}>{user.username}</div>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.04em' }}>{user.handle}</div>
-                        </div>
-                        <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', padding: 4 }}><X size={18} /></button>
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                        <textarea
-                            ref={textareaRef}
-                            value={content}
-                            onChange={handleTextChange}
-                            onKeyDown={e => {
-                                if (mentionQuery !== null && mentionResults.length > 0) {
-                                    if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i+1, mentionResults.length-1)); return; }
-                                    if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i-1, 0)); return; }
-                                    if (e.key === 'Tab') { e.preventDefault(); completeMention(mentionResults[mentionIdx]); return; }
-                                    if (e.key === 'Escape') { setMentionQuery(null); setMentionTrigger(null); return; }
-                                }
-                                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit();
-                            }}
-                            onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionTrigger(null); }, 150)}
-                            placeholder="What's happening in the markets? Use @handle or $BTC to tag"
-                            rows={5}
-                            style={{ width: '100%', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 12, padding: '12px 14px', fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg)', outline: 'none', resize: 'none', lineHeight: 1.6, boxSizing: 'border-box' as const }}
-                        />
-                        <MentionDropdown results={mentionResults} anchorRef={textareaRef} activeIndex={mentionIdx} onSelect={completeMention} onHover={setMentionIdx} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.06em' }}>@handle · $TICKER · Cmd+Enter to post</span>
-                        <button onClick={handleSubmit} disabled={!content.trim() || posting}
-                            style={{ padding: '9px 22px', borderRadius: 20, background: content.trim() ? 'var(--fg)' : 'var(--chip-bg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: content.trim() ? 'var(--bg-base)' : 'var(--fg-subtle)', cursor: content.trim() && !posting ? 'pointer' : 'default', letterSpacing: '0.05em', opacity: posting ? 0.7 : 1, transition: 'all 0.15s' }}>
-                            {posting ? 'Posting…' : 'Post'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const UsersListModal = ({ isOpen, onClose, title, userIds, traders, onViewProfile }: any) => {
     const [fetchedUsers, setFetchedUsers] = useState<any[]>([]);
@@ -4665,7 +4560,7 @@ const App = () => {
     const [socialOpenCommentsPostId, setSocialOpenCommentsPostId] = useState<string | null>(null);
     // Single post view — like Twitter's /status/:id
     const [singlePostId, setSinglePostId] = useState<string | null>(null);
-    const [deletePostConfirm, setDeletePostConfirm] = useState<{ isOpen: boolean; postId: string | null; onConfirm: (() => void) | null }>({ isOpen: false, postId: null, onConfirm: null });
+    const [deletePostConfirm, setDeletePostConfirm] = useState<{ isOpen: boolean; postId: string | null; onConfirm: (() => void) | null; itemType: 'post' | 'comment' }>({ isOpen: false, postId: null, onConfirm: null, itemType: 'post' });
     const [createPostModalOpen, setCreatePostModalOpen] = useState(false);
     const [activePair, setActivePair] = useState(PAIRS[0]);
     // Clear social focus state when leaving the Social tab
@@ -6428,7 +6323,7 @@ const App = () => {
         
         // Subscribe to new posts in real-time
         const channel = supabase
-            .channel('social-sync')
+            .channel(`velo-social-${Math.random().toString(36).slice(2, 8)}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
                 const p = payload.new;
                 // Fetch author profile
@@ -6499,6 +6394,30 @@ const App = () => {
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload: any) => {
                 const del = payload.old;
                 setPosts(prev => prev.filter(p => p.id !== del.id));
+            })
+            // Subscribe to comment insertions in real-time
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, async (payload: any) => {
+                const c = payload.new;
+                let authorHandle = '@unknown';
+                let authorAvatar = '';
+                try {
+                    const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', c.author_id).single();
+                    if (profile) { authorHandle = profile.handle || '@unknown'; authorAvatar = profile.avatar_url || ''; }
+                } catch {}
+                const newComment: Comment = { id: c.id, authorId: c.author_id, authorHandle, authorAvatar, content: c.content, timestamp: c.created_at };
+                setPosts(prev => prev.map(p => {
+                    if (p.id !== c.post_id) return p;
+                    if (p.comments.some((ex: any) => ex.id === c.id)) return p; // exact dup
+                    const tempIdx = p.comments.findIndex((ex: any) =>
+                        ex.id.startsWith('c_') && ex.authorId === c.author_id && ex.content === c.content
+                    );
+                    if (tempIdx !== -1) {
+                        const updated = [...p.comments];
+                        updated[tempIdx] = newComment;
+                        return { ...p, comments: updated };
+                    }
+                    return { ...p, comments: [...p.comments, newComment] };
+                }));
             })
             // Subscribe to comment deletions
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, (payload: any) => {
@@ -7029,85 +6948,7 @@ const App = () => {
         return () => { unsub(); pythPriceStream.disconnect(); clearInterval(restTimer); };
     }, []);
 
-    // Real-time social feed subscription (Supabase Realtime)
-    useEffect(() => {
-        if (!isSupabaseConfigured()) return;
-        const channel = subscribeSocialFeed({
-            onNewPost: async (rawPost: any) => {
-                // Fetch author profile and enrich
-                let profile: any = null;
-                try {
-                    const r = await supabase.from('profiles').select('handle, avatar_url').eq('id', rawPost.author_id).single();
-                    profile = r.data;
-                } catch (_) {}
-                const post: Post = {
-                    id: rawPost.id, authorId: rawPost.author_id,
-                    authorHandle: profile?.handle || '@unknown',
-                    authorAvatar: profile?.avatar_url || '',
-                    content: rawPost.content, image: rawPost.image_url,
-                    timestamp: rawPost.created_at,
-                    likes: 0, likedBy: [], reposts: 0, repostedBy: [], comments: [],
-                    isTradeSignal: rawPost.is_trade_signal || false,
-                    targetProfileId: rawPost.target_profile_id || undefined,
-                };
-                setPosts(prev => prev.some(p => p.id === post.id) ? prev : [post, ...prev]);
-            },
-            onLike: (like: any) => {
-                setPosts(prev => prev.map(p => {
-                    if (p.id === like.post_id && !p.likedBy.includes(like.user_id)) {
-                        return { ...p, likedBy: [...p.likedBy, like.user_id], likes: p.likedBy.length + 1 };
-                    }
-                    return p;
-                }));
-            },
-            onUnlike: (like: any) => {
-                setPosts(prev => prev.map(p => {
-                    if (p.id === like.post_id) {
-                        const newLikedBy = p.likedBy.filter(uid => uid !== like.user_id);
-                        return { ...p, likedBy: newLikedBy, likes: newLikedBy.length };
-                    }
-                    return p;
-                }));
-            },
-            onComment: async (c: any) => {
-                // Look up real author profile instead of hardcoding '@user'
-                let authorHandle = '@unknown';
-                let authorAvatar = '';
-                try {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('handle, avatar_url')
-                        .eq('id', c.author_id)
-                        .single();
-                    if (profile) {
-                        authorHandle = profile.handle || '@unknown';
-                        authorAvatar = profile.avatar_url || '';
-                    }
-                } catch {}
-                const newComment: Comment = {
-                    id: c.id, authorId: c.author_id,
-                    authorHandle, authorAvatar,
-                    content: c.content, timestamp: c.created_at,
-                };
-                setPosts(prev => prev.map(p => {
-                    if (p.id !== c.post_id) return p;
-                    // Replace matching temp comment (same author, content starts with same text) OR skip exact dup
-                    if (p.comments.some(ex => ex.id === c.id)) return p; // exact dup
-                    const tempIdx = p.comments.findIndex(ex =>
-                        ex.id.startsWith('c_') && ex.authorId === c.author_id && ex.content === c.content
-                    );
-                    if (tempIdx !== -1) {
-                        // Replace temp with real
-                        const updated = [...p.comments];
-                        updated[tempIdx] = newComment;
-                        return { ...p, comments: updated };
-                    }
-                    return { ...p, comments: [...p.comments, newComment] };
-                }));
-            },
-        });
-        return () => { supabase.removeChannel(channel); };
-    }, []);
+    // Real-time social feed is handled by the unified social-sync channel above
 
     // Real-time notifications for the logged-in user
     useEffect(() => {
@@ -8682,10 +8523,10 @@ const App = () => {
         }
         return { ok: true };
     };
-    const handleCreatePost = async (c: string, tradeSignal?: any, targetProfileId?: string) => { 
-        if(!user) return openAppKitModal(); 
-        if(!walletAddress) { setToast({ message: 'Connect a crypto wallet to post', type: 'INFO' }); return; }
-        if (!c.trim()) return;
+    const handleCreatePost = async (c: string, tradeSignal?: any, targetProfileId?: string): Promise<string | null> => { 
+        if(!user) { openAppKitModal(); return null; }
+        if(!walletAddress) { setToast({ message: 'Connect a crypto wallet to post', type: 'INFO' }); return null; }
+        if (!c.trim()) return null;
         const tempId = `p_${Date.now()}`;
         // Optimistic local update with temp id
         const tempPost: Post = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[], isTradeSignal: !!tradeSignal, tradeDetails: tradeSignal, targetProfileId };
@@ -8716,9 +8557,11 @@ const App = () => {
                         createNotification(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you: "${c.slice(0, 80)}${c.length > 80 ? '…' : ''}"`, data.id)
                             .catch(() => {});
                     }
+                    return data.id as string;
                 }
             }
         }
+        return null;
     };
     // Wraps any delete-post action with a confirmation modal
     const handleDeletePostWithConfirm = (id: string, onConfirmedDelete: (id: string) => Promise<void>) => {
@@ -8726,16 +8569,18 @@ const App = () => {
             isOpen: true,
             postId: id,
             onConfirm: () => onConfirmedDelete(id),
+            itemType: 'post',
         });
     };
 
-    // Creates a post then redirects to the token page if a $TICKER was mentioned
+    // Creates a post then navigates directly to the new post's URL
     const handleCreatePostFromModal = async (content: string) => {
-        await handleCreatePost(content);
-        setToast({ message: '🎉 Post published!', type: 'SUCCESS' });
-        // Always navigate to the social feed so the new post is visible
+        const postId = await handleCreatePost(content);
+        setToast({ message: 'Post published!', type: 'SUCCESS' });
         setActiveSocialTicker(null);
-        setSinglePostId(null);
+        if (postId) {
+            setSinglePostId(postId);
+        }
         setActiveTab(TabView.SOCIAL);
     };
 
@@ -8826,7 +8671,7 @@ const App = () => {
             }
         }
     };
-    const handleDeleteComment = async (postId: string, commentId: string) => {
+    const doDeleteComment = async (postId: string, commentId: string) => {
         if (!user) return;
         setPosts(prev => prev.map(p =>
             p.id === postId
@@ -8840,6 +8685,15 @@ const App = () => {
                 setToast({ message: 'Failed to delete comment', type: 'ERROR' });
             }
         }
+    };
+    const handleDeleteComment = (postId: string, commentId: string) => {
+        if (!user) return;
+        setDeletePostConfirm({
+            isOpen: true,
+            postId: commentId,
+            onConfirm: () => doDeleteComment(postId, commentId),
+            itemType: 'comment',
+        });
     };
 
     const handleDeleteAccount = async () => {
@@ -9868,8 +9722,9 @@ const App = () => {
             {/* Delete Post Confirmation Modal */}
             <DeletePostConfirmModal
                 isOpen={deletePostConfirm.isOpen}
-                onClose={() => setDeletePostConfirm({ isOpen: false, postId: null, onConfirm: null })}
+                onClose={() => setDeletePostConfirm({ isOpen: false, postId: null, onConfirm: null, itemType: 'post' })}
                 onConfirm={() => { if (deletePostConfirm.onConfirm) deletePostConfirm.onConfirm(); }}
+                itemType={deletePostConfirm.itemType}
             />
             {/* Create Post Modal (from navbar) */}
             <CreatePostModal
