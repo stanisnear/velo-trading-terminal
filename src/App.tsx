@@ -1163,18 +1163,119 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     {isNotifOpen && (
                         <>
                             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setNotifOpen(false)}/>
-                            <div style={{ position: 'fixed', right: 12, top: 80, width: 'min(320px, calc(100vw - 24px))', background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 18, boxShadow: '0 30px 60px rgba(0,0,0,0.45)', zIndex: 9999, overflow: 'hidden', backdropFilter: 'blur(48px) saturate(1.8)', WebkitBackdropFilter: 'blur(48px) saturate(1.8)' }}>
-                                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--hr)', ...S.label, fontSize: 10 }}>Notifications</div>
-                                <div className="custom-scrollbar" style={{ maxHeight: 320, overflowY: 'auto' }}>
-                                    {notifications.length === 0
-                                        ? <p style={{ padding: 16, textAlign: 'center', ...S.label, fontSize: 10, color: 'var(--fg-3)' }}>No notifications</p>
-                                        : notifications.slice().reverse().map((n: any) => (
-                                            <div key={n.id} onClick={() => { onNotificationClick(n); setNotifOpen(false); }} style={{ padding: '12px 16px', borderBottom: '1px solid var(--hr)', cursor: 'pointer', background: !n.read ? 'color-mix(in oklab, var(--velo-violet) 12%, transparent)' : 'transparent', transition: 'background 0.1s' }}
-                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = !n.read ? 'color-mix(in oklab, var(--velo-violet) 12%, transparent)' : 'transparent')}>
-                                                <p style={{ ...S.mono, fontSize: 10, color: 'var(--fg-3)', marginBottom: 4 }}>{new Date(n.timestamp).toLocaleTimeString()}</p>
-                                                <p style={{ ...S.mono, fontSize: 12, color: 'var(--fg)' }}>{n.message}</p>
-                                            </div>
-                                        ))}
+                            <div style={{
+                                position: 'fixed', right: 12, top: 76,
+                                width: 'min(360px, calc(100vw - 24px))',
+                                background: 'color-mix(in oklab, var(--bg) 82%, transparent)',
+                                border: '1px solid var(--hr-2)',
+                                borderRadius: 20,
+                                boxShadow: '0 0 0 1px color-mix(in oklab, var(--velo-violet) 14%, transparent), 0 32px 72px -16px rgba(0,0,0,0.55), 0 8px 24px -8px rgba(0,0,0,0.3)',
+                                zIndex: 9999,
+                                overflow: 'hidden',
+                                backdropFilter: 'blur(60px) saturate(2)',
+                                WebkitBackdropFilter: 'blur(60px) saturate(2)',
+                            }}>
+                                {/* Header */}
+                                <div style={{
+                                    padding: '14px 18px 12px',
+                                    borderBottom: '1px solid var(--hr)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: 'color-mix(in oklab, var(--velo-violet) 5%, transparent)',
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>Notifications</span>
+                                        {unreadCount > 0 && (
+                                            <span style={{
+                                                fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
+                                                letterSpacing: '0.06em', padding: '2px 6px',
+                                                borderRadius: 999, background: 'var(--velo-violet)',
+                                                color: '#fff', lineHeight: 1.4,
+                                            }}>{unreadCount}</span>
+                                        )}
+                                    </div>
+                                    {notifications.length > 0 && (
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
+                                            {notifications.length} total
+                                        </span>
+                                    )}
+                                </div>
+                                {/* List */}
+                                <div className="custom-scrollbar" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                                    {notifications.length === 0 ? (
+                                        <div style={{ padding: '32px 18px', textAlign: 'center' }}>
+                                            <Bell size={22} style={{ color: 'var(--fg-3)', margin: '0 auto 10px', display: 'block', opacity: 0.4 }}/>
+                                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--fg-3)', margin: 0 }}>No notifications yet</p>
+                                        </div>
+                                    ) : (
+                                        [...notifications].sort((a: any, b: any) => b.timestamp - a.timestamp).map((n: any, i: number) => {
+                                            const d = new Date(n.timestamp);
+                                            const now = new Date();
+                                            const isToday = d.toDateString() === now.toDateString();
+                                            const isYesterday = d.toDateString() === new Date(now.getTime() - 86400000).toDateString();
+                                            const dateLabel = isToday ? 'Today' : isYesterday ? 'Yesterday' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+                                            const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                                            const type: string = n.type || '';
+                                            const iconColor =
+                                                type === 'TAKE_PROFIT' ? 'var(--pnl-up)' :
+                                                type === 'STOP_LOSS' || type === 'LIQUIDATION' ? 'var(--pnl-down)' :
+                                                type === 'DEPOSIT' || type === 'RECEIVE' ? 'var(--pnl-up)' :
+                                                type === 'WITHDRAW' || type === 'SEND' ? 'var(--amber)' :
+                                                type === 'POSITION_CLOSED' ? 'var(--velo-blue-ice)' :
+                                                type === 'LIKE' || type === 'FOLLOW' || type === 'REPOST' ? 'var(--velo-mauve)' :
+                                                'var(--fg-3)';
+                                            const dotChar =
+                                                type === 'TAKE_PROFIT' ? '↑' :
+                                                type === 'STOP_LOSS' ? '↓' :
+                                                type === 'LIQUIDATION' ? '⚡' :
+                                                type === 'DEPOSIT' ? '↙' :
+                                                type === 'WITHDRAW' ? '↗' :
+                                                type === 'POSITION_CLOSED' ? '✕' :
+                                                type === 'LIKE' ? '♥' :
+                                                type === 'FOLLOW' ? '+' :
+                                                '·';
+                                            return (
+                                                <div
+                                                    key={n.id}
+                                                    onClick={() => { onNotificationClick(n); setNotifOpen(false); }}
+                                                    style={{
+                                                        padding: '11px 18px',
+                                                        borderBottom: i < notifications.length - 1 ? '1px solid var(--hr)' : 'none',
+                                                        cursor: 'pointer',
+                                                        background: !n.read ? 'color-mix(in oklab, var(--velo-violet) 8%, transparent)' : 'transparent',
+                                                        transition: 'background 0.12s',
+                                                        display: 'flex',
+                                                        gap: 11,
+                                                        alignItems: 'flex-start',
+                                                    }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = !n.read ? 'color-mix(in oklab, var(--velo-violet) 8%, transparent)' : 'transparent')}
+                                                >
+                                                    {/* Type indicator dot */}
+                                                    <div style={{
+                                                        width: 28, height: 28, borderRadius: 9, flexShrink: 0,
+                                                        background: 'color-mix(in oklab, ' + iconColor + ' 14%, var(--chip))',
+                                                        border: '1px solid color-mix(in oklab, ' + iconColor + ' 28%, transparent)',
+                                                        display: 'grid', placeItems: 'center',
+                                                        fontFamily: 'var(--font-mono)', fontSize: 12, color: iconColor,
+                                                        marginTop: 1,
+                                                    }}>{dotChar}</div>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 400, color: 'var(--fg)', margin: '0 0 4px', lineHeight: 1.4, letterSpacing: '-0.01em' }}>{n.message}</p>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)', letterSpacing: '0.02em' }}>{dateLabel}</span>
+                                                            <span style={{ width: 2, height: 2, borderRadius: '50%', background: 'var(--fg-3)', opacity: 0.4, flexShrink: 0 }}/>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)', letterSpacing: '0.02em' }}>{timeStr}</span>
+                                                        </div>
+                                                    </div>
+                                                    {!n.read && (
+                                                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--velo-violet)', flexShrink: 0, marginTop: 6, boxShadow: '0 0 6px 1px color-mix(in oklab, var(--velo-violet) 60%, transparent)' }}/>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    )}
                                 </div>
                             </div>
                         </>
