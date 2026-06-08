@@ -227,6 +227,38 @@ function writeSessionCache(user: any): void {
 function clearSessionCache(): void {
   try { localStorage.removeItem(VELO_SESSION_CACHE_KEY); } catch {}
 }
+
+// ── Notifications cache — separate from the user snapshot so it can be updated
+// independently (e.g. when a real-time notification arrives while the user is
+// still on the page). Survives page refresh exactly like tradeHistory does.
+const VELO_NOTIF_CACHE_KEY = 'velo_notifications_v1';
+
+function readNotifCache(): any[] {
+  try {
+    const raw = localStorage.getItem(VELO_NOTIF_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    // Same 24-hour TTL as the session cache
+    if (Date.now() - (parsed._cachedAt || 0) > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(VELO_NOTIF_CACHE_KEY);
+      return [];
+    }
+    return parsed.notifications || [];
+  } catch { return []; }
+}
+
+function writeNotifCache(notifications: any[]): void {
+  try {
+    localStorage.setItem(VELO_NOTIF_CACHE_KEY, JSON.stringify({
+      notifications: notifications.slice(0, 100),
+      _cachedAt: Date.now(),
+    }));
+  } catch { /* storage full */ }
+}
+
+function clearNotifCache(): void {
+  try { localStorage.removeItem(VELO_NOTIF_CACHE_KEY); } catch {}
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1166,14 +1198,14 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                             <div style={{
                                 position: 'fixed', right: 12, top: 76,
                                 width: 'min(360px, calc(100vw - 24px))',
-                                background: 'color-mix(in oklab, var(--bg) 82%, transparent)',
+                                background: 'var(--bg)',
                                 border: '1px solid var(--hr-2)',
                                 borderRadius: 20,
                                 boxShadow: '0 0 0 1px color-mix(in oklab, var(--velo-violet) 14%, transparent), 0 32px 72px -16px rgba(0,0,0,0.55), 0 8px 24px -8px rgba(0,0,0,0.3)',
                                 zIndex: 9999,
                                 overflow: 'hidden',
-                                backdropFilter: 'blur(60px) saturate(2)',
-                                WebkitBackdropFilter: 'blur(60px) saturate(2)',
+                                backdropFilter: 'blur(0px)',
+                                WebkitBackdropFilter: 'blur(0px)',
                             }}>
                                 {/* Header */}
                                 <div style={{
@@ -1182,7 +1214,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'space-between',
-                                    background: 'color-mix(in oklab, var(--velo-violet) 5%, transparent)',
+                                    background: 'color-mix(in oklab, var(--velo-violet) 8%, var(--bg))',
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>Notifications</span>
@@ -4481,7 +4513,7 @@ const App = () => {
     const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
     const [marketChanges, setMarketChanges] = useState<Record<string, number>>({});
     const [candles, setCandles] = useState<Record<string, Candle[]>>({});
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<Notification[]>(() => readNotifCache());
     // Notification-driven focus for the Trade view. tradeFocus.tab forces the
     // PositionsPanel tab; tradeFocus.highlightId briefly outlines a matching row.
     const [tradeFocus, setTradeFocus] = useState<{ tab?: 'POSITIONS' | 'OPEN ORDERS' | 'HISTORY'; highlightId?: string; key: number } | null>(null);
@@ -5413,8 +5445,16 @@ const App = () => {
         writeSessionCache(user);
       } else {
         clearSessionCache();
+        clearNotifCache();
       }
     }, [user]);
+
+    // Keep notification cache in sync — persists across page refreshes.
+    useEffect(() => {
+      if (notifications.length > 0) {
+        writeNotifCache(notifications);
+      }
+    }, [notifications]);
 
     // Poll Orderly balance frequently while any deposits are in flight
     useEffect(() => {
@@ -7355,8 +7395,7 @@ const App = () => {
         setPositions([]);
         setOpenOrders([]);
         setNotifications([]);
-        setChartPrefs({
-            chartTf:    DEFAULT_PREFERENCES.chartTf,
+        clearNotifCache();
             chartStyle: DEFAULT_PREFERENCES.chartStyle,
             indicators: DEFAULT_PREFERENCES.indicators,
             overlays:   DEFAULT_PREFERENCES.overlays,
@@ -8631,6 +8670,7 @@ const App = () => {
         setPositions([]);
         setOpenOrders([]);
         setNotifications([]);
+        clearNotifCache();
         setPosts(prev => prev.filter(p => p.authorId !== uid));
         setTraders(prev => prev.filter((t) => t.id !== uid));
         setActiveTab(TabView.TRADE);
