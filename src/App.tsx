@@ -5435,7 +5435,7 @@ const App = () => {
           recordSessionWallet();
           setPositions(positions);
           setOpenOrders(orders);
-          if (notifs.length > 0) setNotifications(notifs);
+          setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
           if (loadedPosts.length > 0) setPosts(loadedPosts);
           try { const prefs = await fetchPreferences(authUser.id); applyPreferences(prefs); } catch (_) {}
           playSound('SUCCESS');
@@ -5782,7 +5782,7 @@ const App = () => {
                 recordSessionWallet();
                 setPositions(positions);
                 setOpenOrders(orders);
-                if (notifs.length > 0) setNotifications(notifs);
+                setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
                 if (loadedPosts.length > 0) setPosts(loadedPosts);
                 try {
                     const prefs = await fetchPreferences(session.user.id);
@@ -8815,7 +8815,7 @@ const App = () => {
                         recordSessionWallet();
                         setPositions(positions);
                         setOpenOrders(orders);
-                        if (notifs.length > 0) setNotifications(notifs);
+                        setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
                         if (loadedPosts.length > 0) setPosts(loadedPosts);
                         try {
                             const prefs = await fetchPreferences(authUser.id);
