@@ -909,6 +909,145 @@ const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccount }: an
         </div>
     );
 };
+// ── Delete Post Confirmation Modal ───────────────────────────────────────────
+const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm }: { isOpen: boolean; onClose: () => void; onConfirm: () => void }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in" onClick={onClose}>
+            <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
+                width: '100%', maxWidth: 360, background: 'var(--glass-bg-strong)',
+                border: '1px solid oklch(0.66 0.22 25 / 0.35)', borderRadius: 20,
+                overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
+            }}>
+                <div style={{ height: 3, background: 'oklch(0.66 0.22 25)', opacity: 0.7 }} />
+                <div style={{ padding: '24px 24px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'oklch(0.66 0.22 25 / 0.12)', border: '1px solid oklch(0.66 0.22 25 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Trash2 size={18} style={{ color: 'var(--pnl-down)' }} />
+                        </div>
+                        <div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Delete post?</div>
+                            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>This action cannot be undone.</div>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                        <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Cancel</button>
+                        <button onClick={() => { onConfirm(); onClose(); }} style={{ flex: 1, padding: '11px', borderRadius: 10, background: 'var(--pnl-down)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#fff', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ── Create Post Modal ─────────────────────────────────────────────────────────
+const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] }: { isOpen: boolean; onClose: () => void; user: any; onSubmit: (content: string) => Promise<void>; traders?: any[] }) => {
+    const [content, setContent] = React.useState('');
+    const [posting, setPosting] = React.useState(false);
+    const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
+    const [mentionTrigger, setMentionTrigger] = React.useState<'@' | '$' | null>(null);
+    const [mentionStart, setMentionStart] = React.useState(0);
+    const [mentionIdx, setMentionIdx] = React.useState(0);
+    const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+    React.useEffect(() => {
+        if (isOpen) { setContent(''); setPosting(false); setMentionQuery(null); setTimeout(() => textareaRef.current?.focus(), 80); }
+    }, [isOpen]);
+
+    const mentionResults: any[] = React.useMemo(() => {
+        if (mentionQuery === null) return [];
+        const q = mentionQuery.toLowerCase();
+        if (mentionTrigger === '$' && q) {
+            return SOCIAL_FEATURED_PAIRS.filter(p => p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
+        }
+        if (mentionTrigger === '@' && q.length > 0) {
+            return traders.filter((t: any) => t.id !== user?.id && ((t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q))).slice(0, 5);
+        }
+        return [];
+    }, [mentionQuery, mentionTrigger, traders, user]);
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        const cursor = e.target.selectionStart ?? val.length;
+        setContent(val);
+        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
+        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
+        if (atMatch) { setMentionTrigger('@'); setMentionQuery(atMatch[1]); setMentionStart(cursor - atMatch[0].length); setMentionIdx(0); }
+        else if (dollarMatch) { setMentionTrigger('$'); setMentionQuery(dollarMatch[1]); setMentionStart(cursor - dollarMatch[0].length); setMentionIdx(0); }
+        else { setMentionQuery(null); setMentionTrigger(null); }
+    };
+
+    const completeMention = (item: any) => {
+        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
+        const cursor = textareaRef.current?.selectionStart ?? mentionStart + (mentionQuery?.length ?? 0) + 1;
+        const before = content.slice(0, mentionStart);
+        const after = content.slice(cursor);
+        setContent(before + insertion + ' ' + after);
+        setMentionQuery(null); setMentionTrigger(null);
+        setTimeout(() => { if (textareaRef.current) { const p = before.length + insertion.length + 1; textareaRef.current.focus(); textareaRef.current.setSelectionRange(p, p); } }, 0);
+    };
+
+    const handleSubmit = async () => {
+        if (!content.trim() || posting) return;
+        setPosting(true);
+        await onSubmit(content.trim());
+        setPosting(false);
+        onClose();
+    };
+
+    if (!isOpen || !user) return null;
+
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in" onClick={onClose}>
+            <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
+                width: '100%', maxWidth: 540, background: 'var(--glass-bg-strong)',
+                border: '1px solid var(--hairline-strong)', borderRadius: 20,
+                overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
+            }}>
+                <div style={{ height: 3, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }} />
+                <div style={{ padding: '20px 20px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                        <img src={user.avatar} style={{ width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
+                        <div>
+                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 16, color: 'var(--fg)', letterSpacing: '-0.02em' }}>{user.username}</div>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.04em' }}>{user.handle}</div>
+                        </div>
+                        <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', padding: 4 }}><X size={18} /></button>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                        <textarea
+                            ref={textareaRef}
+                            value={content}
+                            onChange={handleTextChange}
+                            onKeyDown={e => {
+                                if (mentionQuery !== null && mentionResults.length > 0) {
+                                    if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i+1, mentionResults.length-1)); return; }
+                                    if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i-1, 0)); return; }
+                                    if (e.key === 'Tab') { e.preventDefault(); completeMention(mentionResults[mentionIdx]); return; }
+                                    if (e.key === 'Escape') { setMentionQuery(null); setMentionTrigger(null); return; }
+                                }
+                                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit();
+                            }}
+                            onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionTrigger(null); }, 150)}
+                            placeholder="What's happening in the markets? Use @handle or $BTC to tag"
+                            rows={5}
+                            style={{ width: '100%', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 12, padding: '12px 14px', fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg)', outline: 'none', resize: 'none', lineHeight: 1.6, boxSizing: 'border-box' as const }}
+                        />
+                        <MentionDropdown results={mentionResults} anchorRef={textareaRef} activeIndex={mentionIdx} onSelect={completeMention} onHover={setMentionIdx} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.06em' }}>@handle · $TICKER · Cmd+Enter to post</span>
+                        <button onClick={handleSubmit} disabled={!content.trim() || posting}
+                            style={{ padding: '9px 22px', borderRadius: 20, background: content.trim() ? 'var(--fg)' : 'var(--chip-bg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: content.trim() ? 'var(--bg-base)' : 'var(--fg-subtle)', cursor: content.trim() && !posting ? 'pointer' : 'default', letterSpacing: '0.05em', opacity: posting ? 0.7 : 1, transition: 'all 0.15s' }}>
+                            {posting ? 'Posting…' : 'Post'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const UsersListModal = ({ isOpen, onClose, title, userIds, traders, onViewProfile }: any) => {
     const [fetchedUsers, setFetchedUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -4526,6 +4665,8 @@ const App = () => {
     const [socialOpenCommentsPostId, setSocialOpenCommentsPostId] = useState<string | null>(null);
     // Single post view — like Twitter's /status/:id
     const [singlePostId, setSinglePostId] = useState<string | null>(null);
+    const [deletePostConfirm, setDeletePostConfirm] = useState<{ isOpen: boolean; postId: string | null; onConfirm: (() => void) | null }>({ isOpen: false, postId: null, onConfirm: null });
+    const [createPostModalOpen, setCreatePostModalOpen] = useState(false);
     const [activePair, setActivePair] = useState(PAIRS[0]);
     // Clear social focus state when leaving the Social tab
     useEffect(() => {
@@ -6084,7 +6225,7 @@ const App = () => {
             }
         }
 
-        // Social token routing: /social/ETH -> open token page
+        // Social token routing: /markets/ETH -> open social token page on the social tab
         // Single post routing: /social/post/:id -> open that post
         if (p === 'social') {
             // Going back to the global feed — clear any active ticker or post
@@ -6102,12 +6243,29 @@ const App = () => {
                 setActiveTab(TabView.SOCIAL);
                 return;
             }
+            // Legacy /social/TICKER redirect → /markets/TICKER
             const ticker = parts[1]?.toUpperCase();
             if (ticker) {
                 setSinglePostId(null);
                 setActiveSocialTicker(ticker);
             }
             setActiveTab(TabView.SOCIAL);
+            return;
+        }
+        if (p.startsWith('markets/')) {
+            const parts = p.split('/');
+            const ticker = parts[1]?.toUpperCase();
+            if (ticker) {
+                // If it's a known social pair, open social token page
+                const knownPair = SOCIAL_FEATURED_PAIRS.find(sp => sp.symbol === ticker);
+                if (knownPair) {
+                    setSinglePostId(null);
+                    setActiveSocialTicker(ticker);
+                    setActiveTab(TabView.SOCIAL);
+                    return;
+                }
+            }
+            setActiveTab(TabView.MARKETS);
             return;
         }
 
@@ -6163,7 +6321,7 @@ const App = () => {
             [TabView.DASHBOARD]: '/dashboard',
             [TabView.TRADE]: `/trade/${activePair?.id?.replace('/', '-') || 'ETH-USD'}`,
             [TabView.MARKETS]: '/markets',
-            [TabView.SOCIAL]: singlePostId ? `/social/post/${singlePostId}` : activeSocialTicker ? `/social/${activeSocialTicker}` : '/social',
+            [TabView.SOCIAL]: singlePostId ? `/social/post/${singlePostId}` : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
             [TabView.LEADERBOARD]: '/leaderboard',
             [TabView.PROFILE]: `/profile/${user?.handle?.replace('@', '') || ''}`,
             [TabView.PUBLIC_PROFILE]: `/profile/${viewingProfile?.handle?.replace('@', '') || ''}`,
@@ -8562,6 +8720,31 @@ const App = () => {
             }
         }
     };
+    // Wraps any delete-post action with a confirmation modal
+    const handleDeletePostWithConfirm = (id: string, onConfirmedDelete: (id: string) => Promise<void>) => {
+        setDeletePostConfirm({
+            isOpen: true,
+            postId: id,
+            onConfirm: () => onConfirmedDelete(id),
+        });
+    };
+
+    // Creates a post then redirects to the token page if a $TICKER was mentioned
+    const handleCreatePostFromModal = async (content: string) => {
+        await handleCreatePost(content);
+        // Redirect to markets/<TICKER> if a known $TICKER is mentioned
+        const tickerMatch = content.match(/\$([A-Z]{2,8})/);
+        if (tickerMatch) {
+            const sym = tickerMatch[1];
+            const known = SOCIAL_FEATURED_PAIRS.find(p => p.symbol === sym);
+            if (known) {
+                setActiveTab(TabView.MARKETS);
+                return;
+            }
+        }
+        setActiveTab(TabView.SOCIAL);
+    };
+
     const handleLike = async (id: string) => {
         if (!user) return openAppKitModal();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to like posts', type: 'INFO' }); return; }
@@ -9419,7 +9602,7 @@ const App = () => {
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
             <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => setActiveTab(TabView.SOCIAL)} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onNotificationClick={(n: any) => {
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
                     if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
@@ -9667,22 +9850,13 @@ const App = () => {
                 </> }
                 {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
-                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={async (id:string) => { setPosts(prev => prev.filter(p => p.id !== id)); if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e)); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
+                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={async (id:string) => {
-                    setPosts(prev => prev.filter(p => p.id !== id));
-                    if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
-                }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
                 ))}
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} walletAddress={walletAddress} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
-                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={async (id:string) => {
-                    setPosts(prev => prev.filter(p => p.id !== id));
-                    if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
-                }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
-                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={async (id:string) => {
-                    setPosts(prev => prev.filter(p => p.id !== id));
-                    if (isSupabaseConfigured()) await supabaseDeletePost(id).catch(e => console.error('[velo] deletePost error:', e));
-                }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
             <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
@@ -9697,6 +9871,20 @@ const App = () => {
                     handleCancelOrder={() => {}}
                 />
             )}
+            {/* Delete Post Confirmation Modal */}
+            <DeletePostConfirmModal
+                isOpen={deletePostConfirm.isOpen}
+                onClose={() => setDeletePostConfirm({ isOpen: false, postId: null, onConfirm: null })}
+                onConfirm={() => { if (deletePostConfirm.onConfirm) deletePostConfirm.onConfirm(); }}
+            />
+            {/* Create Post Modal (from navbar) */}
+            <CreatePostModal
+                isOpen={createPostModalOpen}
+                onClose={() => setCreatePostModalOpen(false)}
+                user={user}
+                onSubmit={handleCreatePostFromModal}
+                traders={traders}
+            />
         </div>
         <PWAInstallBanner />
         </>
