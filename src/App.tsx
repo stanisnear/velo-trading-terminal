@@ -1226,7 +1226,7 @@ const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogo
     );
 };
 
-const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen }: any) => {
+const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen, onSocialClick }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -1297,7 +1297,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                     return (
                         <button
                             key={item.id}
-                            onClick={() => setActiveTab(item.id)}
+                            onClick={() => item.id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(item.id)}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1488,7 +1488,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
                                 onClose={() => setAvatarPopupOpen(false)}
                                 onViewProfile={() => setActiveTab(TabView.PROFILE)}
                                 onNavigateDashboard={() => setActiveTab(TabView.DASHBOARD)}
-                                onCreatePost={() => { setActiveTab(TabView.SOCIAL); }}
+                                onCreatePost={() => { onCreatePost(); }}
                                 onOpenSettings={onOpenSettings}
                                 onLogout={handleLogout}
                             />
@@ -1501,7 +1501,7 @@ const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, use
         </nav>
     );
 }
-const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner }: any) => {
+const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE,     icon: TrendingUp,      label: 'Trade',     requiresAuth: false },
@@ -1550,7 +1550,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
                         const isActive = activeTab === item.id;
                         return (
                             <button key={item.id}
-                                onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
+                                onClick={() => { if (item.id === TabView.SOCIAL && onSocialClick) { onSocialClick(); setSidebarOpen(false); } else { setActiveTab(item.id); setSidebarOpen(false); } }}
                                 style={{
                                     width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                                     padding: '12px 14px', borderRadius: 14, border: '1px solid transparent', cursor: 'pointer',
@@ -1624,7 +1624,7 @@ const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, se
         </>
     );
 };
-const MobileBottomNav = ({ activeTab, setActiveTab, user }: any) => {
+const MobileBottomNav = ({ activeTab, setActiveTab, user, onSocialClick }: any) => {
     const items = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Home', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -1640,7 +1640,7 @@ const MobileBottomNav = ({ activeTab, setActiveTab, user }: any) => {
                     return (
                         <button
                             key={item.id}
-                            onClick={() => setActiveTab(item.id)}
+                            onClick={() => item.id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(item.id)}
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -8732,16 +8732,10 @@ const App = () => {
     // Creates a post then redirects to the token page if a $TICKER was mentioned
     const handleCreatePostFromModal = async (content: string) => {
         await handleCreatePost(content);
-        // Redirect to markets/<TICKER> if a known $TICKER is mentioned
-        const tickerMatch = content.match(/\$([A-Z]{2,8})/);
-        if (tickerMatch) {
-            const sym = tickerMatch[1];
-            const known = SOCIAL_FEATURED_PAIRS.find(p => p.symbol === sym);
-            if (known) {
-                setActiveTab(TabView.MARKETS);
-                return;
-            }
-        }
+        setToast({ message: '🎉 Post published!', type: 'SUCCESS' });
+        // Always navigate to the social feed so the new post is visible
+        setActiveSocialTicker(null);
+        setSinglePostId(null);
         setActiveTab(TabView.SOCIAL);
     };
 
@@ -9601,8 +9595,8 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onNotificationClick={(n: any) => {
+            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }}/>
+            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
                     if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
@@ -9859,7 +9853,7 @@ const App = () => {
                 {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
-            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
+            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} />
             {/* App-level order details modal — opened from notifications without tab switch */}
             {appOrderDetails && (
                 <OrderDetailsModal
