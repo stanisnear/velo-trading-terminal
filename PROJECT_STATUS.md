@@ -4,6 +4,46 @@
 
 ---
 
+## Session — orb icons (landing clay-badge), notification wipe fix
+
+**App (build-verified)**
+- **Notifications no longer wipe on transient session expiry.** The `SIGNED_OUT` handler fires on
+  both real logout AND Supabase session expiry; it was calling `setNotifications([])`, so on every
+  silent expiry/re-auth the bell blanked until a manual refetch — the "disappear, come back on
+  refresh" symptom. Removed the wipe from that path; explicit logout + account deletion still clear.
+- **Dashboard icons rebuilt as the landing's clay-badge orbs.** Dropped the flat rounded-square
+  tiles for circular orbs matching the landing's `.clay-badge` / `.orb-av`: single clean gradient,
+  strong colored glow, glossy top highlight, inset rim, white glyph, gentle float. Palette in the
+  landing's violet-centred oklch range (amber/green/violet/blue/cyan). Verified old-vs-new render.
+
+**IMPORTANT — stale build:** user screenshots show the OLD market cards (4 separate, purple
+selection border) and OLD square icons → the previous deltas (market strip, first icon pass) had
+not loaded. Service worker / deploy. Verify tell: new build = ONE connected market strip + round
+glowing orb icons.
+
+---
+
+## Session — 3D icon tiles + market strip redesign
+
+**App (fixed, build-verified)**
+- **Dashboard section icons upgraded to dimensional "3D" tiles (`Ico3D`).** Replaced the flat
+  gradient squares with glossy tiles: specular top-left highlight, bottom inner shade, inset rim
+  light/dark, white glyph with drop-shadow, and a soft *colored* drop-shadow glow per tile (the
+  floating feel). Added a gentle continuous float (`@keyframes veloFloat` in brand.css, with a
+  `prefers-reduced-motion` off-switch). Palette moved off the loud rainbow
+  (orange/lime/magenta/violet/cyan) to a brand-cohesive set: amber (Performance), green (On-chain),
+  violet (Margin), blue (Positions), cyan (Activity). Verified via headless render.
+- **Social market cards → connected terminal strip (`TopTokensBar`).** The heavy 2×2 floating
+  cards became one clean glass strip with hairline-divided cells (responsive `auto-fit`), tighter
+  type, and a slightly taller inline sparkline. Frees vertical space and reads far more
+  professional. Verified via headless render.
+
+**Still open (broader / needs direction)**
+- Full social *page* restructure beyond the market strip (sidebar panels, feed cards, composer)
+  is larger and subjective — recommend tackling one section at a time with a render preview each.
+
+---
+
 ## Session — fix console errors (service worker, wallet URL, link proxy)
 
 **App (fixed, build-verified)**

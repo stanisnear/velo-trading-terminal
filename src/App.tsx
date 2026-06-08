@@ -2109,7 +2109,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
 
     const drawSparkline = (data: number[], up: boolean) => {
         if (!data || data.length < 2) return null;
-        const w = 100, h = 18;
+        const w = 100, h = 24;
         const min = Math.min(...data), max = Math.max(...data);
         const range = max - min || 1;
         const pts = data.map((v, i) => {
@@ -2135,40 +2135,38 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
 
     return (
         <div style={{ marginBottom: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {TOP_SOCIAL_PAIRS.map(p => {
-                    const price = prices[p.pairId];
-                    const chg = changes[p.pairId] ?? 0;
-                    const up = chg >= 0;
-                    const spark = sparklines[p.symbol] || [];
-                    return (
-                        <div key={p.symbol}
-                            onClick={() => onTickerClick(p.symbol)}
-                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 12, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', padding: '9px 11px', cursor: 'pointer', transition: 'border-color 0.15s, transform 0.1s', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 6 }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                                    <img src={p.logo} style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
-                                    <div>
-                                        <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', display: 'block' }}>{p.symbol}</span>
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, color: 'var(--fg-subtle)' }}>{p.name}</span>
+            <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 1, background: 'var(--hairline)' }}>
+                    {TOP_SOCIAL_PAIRS.map(p => {
+                        const price = prices[p.pairId];
+                        const chg = changes[p.pairId] ?? 0;
+                        const up = chg >= 0;
+                        const spark = sparklines[p.symbol] || [];
+                        return (
+                            <div key={p.symbol}
+                                onClick={() => onTickerClick(p.symbol)}
+                                style={{ background: 'var(--glass-bg)', padding: '13px 15px', cursor: 'pointer', transition: 'background 0.15s', position: 'relative', overflow: 'hidden' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--glass-bg)'; }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
+                                    <img src={p.logo} style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
+                                    <div style={{ minWidth: 0 }}>
+                                        <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', display: 'block', letterSpacing: '0.02em' }}>{p.symbol}</span>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, color: 'var(--fg-subtle)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
                                     </div>
+                                    <span style={{ marginLeft: 'auto', ...S.mono, fontSize: 11, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                        {up ? '+' : ''}{chg.toFixed(2)}%
+                                    </span>
                                 </div>
-                                <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 6px' }}>
-                                    {up ? '+' : ''}{chg.toFixed(2)}%
-                                </span>
-                            </div>
-                            <div>
-                                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 3 }}>
+                                <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 8, letterSpacing: '-0.01em' }}>
                                     {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}
                                 </span>
                                 {drawSparkline(spark, up)}
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
             {onNavigateToMarkets && (
                 <div style={{ textAlign: 'center', marginTop: 8 }}>
@@ -5815,7 +5813,10 @@ const App = () => {
                 setUser(null);
                 setPositions([]);
                 setOpenOrders([]);
-                setNotifications([]);
+                // NOTE: do NOT wipe notifications here. SIGNED_OUT also fires on
+                // transient session expiry, after which the app silently re-auths —
+                // wiping made notifications vanish until a manual refresh. Explicit
+                // logout and account deletion clear them in their own handlers.
                 setChartPrefs({
                     chartTf:    DEFAULT_PREFERENCES.chartTf,
                     chartStyle: DEFAULT_PREFERENCES.chartStyle,

@@ -490,3 +490,12 @@ html.light .velo-modal-card {
 .velo-price-field::-webkit-outer-spin-button,
 .velo-price-field::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .velo-price-field { -moz-appearance: textfield; appearance: textfield; }
+
+/* Gentle 3D-icon float — used by dashboard section tiles (Ico3D) */
+@keyframes veloFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2.5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="veloFloat"] { animation: none !important; }
+}
