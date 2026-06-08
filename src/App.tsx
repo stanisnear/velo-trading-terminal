@@ -2135,9 +2135,9 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
 
     return (
         <div style={{ marginBottom: 12 }}>
-            <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 1, background: 'var(--hairline)' }}>
-                    {TOP_SOCIAL_PAIRS.map(p => {
+            <div style={{ background: 'var(--glass-bg)', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+                    {TOP_SOCIAL_PAIRS.map((p, i) => {
                         const price = prices[p.pairId];
                         const chg = changes[p.pairId] ?? 0;
                         const up = chg >= 0;
@@ -2145,9 +2145,9 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                         return (
                             <div key={p.symbol}
                                 onClick={() => onTickerClick(p.symbol)}
-                                style={{ background: 'var(--glass-bg)', padding: '13px 15px', cursor: 'pointer', transition: 'background 0.15s', position: 'relative', overflow: 'hidden' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--glass-bg)'; }}
+                                style={{ background: 'transparent', borderLeft: i > 0 ? '1px solid var(--hairline)' : 'none', padding: '13px 15px', cursor: 'pointer', transition: 'background 0.15s', position: 'relative', overflow: 'hidden' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--fg) 5%, transparent)'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
                                     <img src={p.logo} style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
@@ -5983,7 +5983,13 @@ const App = () => {
         }
 
         // Direct tab match
-        if (tabMap[basePath]) setActiveTab(tabMap[basePath] as any);
+        if (tabMap[basePath]) { setActiveTab(tabMap[basePath] as any); return; }
+
+        // Unknown / non-existent route → send to the main page and clean the URL,
+        // so a bad link never leaves the user on a broken/blank route.
+        const fallbackTab = user ? TabView.DASHBOARD : TabView.TRADE;
+        setActiveTab(fallbackTab as any);
+        try { window.history.replaceState({}, '', user ? '/dashboard' : '/trade'); } catch (_) {}
     }, [traders, user, authChecked]);
 
     // Initial pathname parse on mount
@@ -8847,10 +8853,10 @@ const App = () => {
                       }
                     });
                 }
-                if (user && isSupabaseConfigured() && txHash && amount > 0) {
-                  const faucetRef = `faucet:${txHash}`;
+                if (user && isSupabaseConfigured() && amount > 0) {
+                  const faucetRef = txHash ? `faucet:${txHash}` : `faucet:welcome:${user.id}`;
                   try {
-                    await recordTransaction(user.id, 'DEPOSIT', amount, { onChain: true, txHash: faucetRef });
+                    await recordTransaction(user.id, 'DEPOSIT', amount, { onChain: !!txHash, txHash: faucetRef });
                     await createNotification(user.id, 'DEPOSIT', `Welcome bonus: $${amount.toFixed(2)} mUSDC credited to your trading wallet`, txHash);
                     const txns = await fetchTransactions(user.id);
                     setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
