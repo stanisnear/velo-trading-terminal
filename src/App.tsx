@@ -353,13 +353,17 @@ declare global {
  * cleanup. Requires `public.transactions` to be in the supabase_realtime
  * publication (added by SUPABASE_MIGRATION_BUILD81.sql).
  */
-function subscribeUserTransactions(userId: string, onNew: (t: any) => void) {
-  return supabase.channel(`velo-tx-${userId}`)
+function subscribeUserTransactions(userId: string, onNew: (t: any) => void, onStatus?: (s: string, e?: Error) => void) {
+  // Unique suffix so a re-subscribe after a reconnect always gets a fresh
+  // channel (a static name makes Supabase hand back the existing, possibly
+  // dead, channel and never re-subscribe).
+  const uid = Math.random().toString(36).slice(2, 8);
+  return supabase.channel(`velo-tx-${userId}-${uid}`)
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'transactions',
       filter: `user_id=eq.${userId}`,
     }, (p: any) => onNew(p.new))
-    .subscribe();
+    .subscribe((status, err) => onStatus?.(status, err ?? undefined));
 }
 
 /**
@@ -4932,32 +4936,74 @@ const App = () => {
       setTimeout(async () => {
         if (freshSignupRef.current) return;
         if (intentionalLogoutRef.current) return;
-        try {
-          const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-          const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-          const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-          if (freshSignupRef.current) return;
-          if (data?.user && !signInErr) {
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+        const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
+        const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
+
+        // Distinguish a genuine "no wallet account yet" from a transient
+        // failure. Supabase returns "Invalid login credentials" (status 400)
+        // ONLY when the email/password pair doesn't exist — that's the real
+        // onboarding signal. Network blips, 5xx, rate-limits, and JWT-timing
+        // races surface as other messages/statuses. Previously every error
+        // (including transient ones) dropped a returning user onto the login
+        // modal — the root cause of the "flaky sign-on": a momentary network
+        // hiccup looked identical to "you have no account". We now retry the
+        // transient cases a couple of times before giving up.
+        const isNoAccountError = (err: any): boolean => {
+          if (!err) return false;
+          const msg = (err.message || '').toLowerCase();
+          const status = err.status ?? err.code;
+          return status === 400 && (msg.includes('invalid login credentials') || msg.includes('invalid credentials'));
+        };
+
+        const MAX_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+          if (freshSignupRef.current || intentionalLogoutRef.current) return;
+          try {
+            const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
             if (freshSignupRef.current) return;
-            if (profile?.username) {
-              intentionalLogoutRef.current = false;
-              freshSignupRef.current = false;
-              socialLoginHandledRef.current = true;
-              sessionRestoredRef.current = true;
-              silentLoginCallbackRef.current?.(data.user, profile);
-              return;
+
+            if (data?.user && !signInErr) {
+              const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+              if (freshSignupRef.current) return;
+              if (profile?.username) {
+                intentionalLogoutRef.current = false;
+                freshSignupRef.current = false;
+                socialLoginHandledRef.current = true;
+                sessionRestoredRef.current = true;
+                silentLoginCallbackRef.current?.(data.user, profile);
+                return;
+              }
+              // Authenticated but no profile row yet — treat as new account.
+              break;
+            }
+
+            if (isNoAccountError(signInErr)) {
+              // Genuine: this wallet has never signed up. Stop and onboard.
+              break;
+            }
+
+            // Transient error — back off and retry (unless this was the last try).
+            if (attempt < MAX_ATTEMPTS) {
+              console.warn(`[velo] silent wallet sign-in transient error (attempt ${attempt}/${MAX_ATTEMPTS}):`, signInErr?.message);
+              await new Promise(r => setTimeout(r, attempt * 600));
+              continue;
+            }
+          } catch (e: any) {
+            // Thrown (network) error — same transient handling.
+            if (attempt < MAX_ATTEMPTS) {
+              console.warn(`[velo] silent wallet sign-in threw (attempt ${attempt}/${MAX_ATTEMPTS}):`, e?.message);
+              await new Promise(r => setTimeout(r, attempt * 600));
+              continue;
             }
           }
-          // No existing account — open onboarding
-          socialLoginHandledRef.current = false;
-          setLoginReturningName('');
-          setLoginOpen(true);
-        } catch {
-          socialLoginHandledRef.current = false;
-          setLoginReturningName('');
-          setLoginOpen(true);
+          break;
         }
+
+        // No existing account (or retries exhausted) — open onboarding.
+        if (freshSignupRef.current || intentionalLogoutRef.current) return;
+        socialLoginHandledRef.current = false;
+        setLoginReturningName('');
+        setLoginOpen(true);
       }, 400);
     }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked, retryAuthTick]); // eslint-disable-line react-hooks/exhaustive-deps
 

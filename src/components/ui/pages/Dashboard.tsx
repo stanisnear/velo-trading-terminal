@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, ArrowDownCircle, ArrowUpCircle, Copy, Edit, History, TrendingUp, TrendingDown, User, Star, Loader2, ExternalLink, Clock, AlertCircle, CheckCircle2, X, Link2 } from 'lucide-react';
 import { PortfolioChart } from '@/components/PortfolioChart';
 import { formatMoney, formatPrice, calculateStats } from '@/components/ui/shared';
@@ -92,7 +92,12 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   const allPeriods: Array<'1D'|'1W'|'1M'|'1Y'|'ALL'> = ['1D','1W','1M','1Y','ALL'];
   const availablePeriods = allPeriods.filter(p => p === 'ALL' || ageMs >= periodMs[p]);
 
-  const getChartData = () => {
+  // Memoized so it only recomputes when the inputs that actually shape the
+  // chart change (the stored PnL history, the live equity figure, or the
+  // selected period) — not on every unrelated re-render (modal open, hover,
+  // etc.). Combined with PortfolioChart no longer tearing itself down on data
+  // changes, this keeps the Dashboard responsive even while prices tick.
+  const chartData = useMemo(() => {
     const history = [...user.pnlHistory];
     const now = new Date();
     const nowEntry = { time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: equity, timestamp: now.getTime() };
@@ -101,7 +106,8 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
     if (chartPeriod === 'ALL') return history;
     const cutoff = Date.now() - periodMs[chartPeriod];
     return history.filter((d: any) => (d.timestamp || 0) >= cutoff);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.pnlHistory, equity, chartPeriod]);
 
   // ── Pending Deposit Detail Modal ────────────────────────────────────────────
   const PendingDepositDetailModal = ({ deposit, onClose }: { deposit: any; onClose: () => void }) => {
@@ -219,7 +225,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
             )}
           </div>
           <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: isMobile ? 100 : 160, maxHeight: isMobile ? 150 : undefined }}>
-            <PortfolioChart data={getChartData()} theme={theme} />
+            <PortfolioChart data={chartData} theme={theme} />
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user
