@@ -20,7 +20,7 @@ import { OrderBook } from './components/OrderBook';
 import { fetchPricesResilient, pythPriceStream, fetchPythKlines } from './services/pythPriceService';
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
-import { useChainId, useAccount, usePublicClient, useSignMessage } from 'wagmi';
+import { useChainId, useAccount, usePublicClient, useSignMessage, useSwitchChain } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 // VeloWelcomeModal merged into VeloOnboardingModal
@@ -1637,7 +1637,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                 <h1 className="lb-hero-title" style={{ fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--fg)', lineHeight: 1, margin: '0 0 12px' }}>
                     Top <em style={{ fontStyle: 'italic' }}>Traders</em>
                 </h1>
-                <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Copy the most profitable traders on Velo.</p>
+                <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Ranked by verified on-chain performance.</p>
                 <div style={{ display: 'inline-flex', gap: 4, marginTop: 16, background: 'var(--chip-bg)', borderRadius: 10, padding: 4, border: '1px solid var(--hairline)' }}>
                     {(['24H','7D','30D','ALL'] as const).map((p) => (
                         <button key={p} onClick={() => setPeriod(p)} style={{ padding: '5px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', ...S_LB.mono, fontSize: 11, fontWeight: 700, background: period === p ? 'var(--bg-base-2)' : 'transparent', color: period === p ? 'var(--fg)' : 'var(--fg-subtle)', boxShadow: period === p ? '0 1px 4px rgba(0,0,0,0.3)' : 'none' }}>{p}</button>
@@ -4650,6 +4650,7 @@ const App = () => {
     );
     const chainId = useChainId();
     const { address: walletAddress, isConnected: isWalletConnected, status: wagmiStatus } = useAccount();
+    const { switchChain } = useSwitchChain();
     const { open: openAppKitModal } = useAppKit();
     const publicClient = usePublicClient();
     const { signMessageAsync } = useSignMessage();
@@ -5389,6 +5390,37 @@ const App = () => {
     useEffect(() => {
         setShowWrongNetworkBanner(!!user && chainId !== EXPECTED_CHAIN_ID);
     }, [chainId, user]);
+
+    // ── Programmatic switch to Base Sepolia ──────────────────────────────────
+    // The root cause of the sticky AppKit "Switch Network" sheet: when a wallet
+    // connects on an unsupported chain, AppKit shows a dead-end modal that
+    // reappears every time the app calls open() (e.g. on a re-login prompt),
+    // and its X only closes it until the next open(). Rather than leave the
+    // user stuck there, we actively steer the wallet back to Base Sepolia.
+    // `switchChain` triggers the wallet's own native switch prompt (MetaMask /
+    // mobile wallet), which is the reliable, industry-standard path.
+    const switchToBaseSepolia = useCallback(() => {
+        try {
+            switchChain({ chainId: EXPECTED_CHAIN_ID });
+        } catch (e) {
+            // Wallet rejected or doesn't support programmatic switch — the
+            // banner stays up so the user can switch manually.
+            console.warn('[velo] switchChain to Base Sepolia failed:', (e as any)?.message);
+        }
+    }, [switchChain]);
+
+    // One-shot auto-switch: when a connected wallet is on the wrong chain, ask
+    // it to switch ONCE per unique wrong-network state (keyed on address+chain),
+    // so we never spam the wallet with repeated prompts if the user declines.
+    const autoSwitchAttemptedRef = useRef<string>('');
+    useEffect(() => {
+        if (!isWalletConnected || !walletAddress) return;
+        if (chainId === EXPECTED_CHAIN_ID) { autoSwitchAttemptedRef.current = ''; return; }
+        const key = `${walletAddress.toLowerCase()}-${chainId}`;
+        if (autoSwitchAttemptedRef.current === key) return; // already asked for this exact state
+        autoSwitchAttemptedRef.current = key;
+        switchToBaseSepolia();
+    }, [isWalletConnected, walletAddress, chainId, switchToBaseSepolia]);
 
     // Listen directly to MetaMask provider events — fires immediately on switch
     useEffect(() => {
@@ -8985,10 +9017,16 @@ const App = () => {
                 letterSpacing: '0.04em',
             }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0 }}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Wrong network — switch to Base Sepolia in MetaMask to continue trading
+                Wrong network — Velo trades on Base Sepolia
+                <button
+                    onClick={switchToBaseSepolia}
+                    style={{ background: '#0B0B0E', border: 'none', cursor: 'pointer', color: 'oklch(0.74 0.18 30)', borderRadius: 8, padding: '5px 12px', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const, marginLeft: 4 }}
+                >
+                    Switch Network
+                </button>
                 <button
                     onClick={() => setShowWrongNetworkBanner(false)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0B0B0E', opacity: 0.6, padding: '0 0 0 8px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0B0B0E', opacity: 0.6, padding: '0 0 0 4px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
                 >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>

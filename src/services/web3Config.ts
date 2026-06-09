@@ -74,6 +74,12 @@ export const wagmiAdapter = new WagmiAdapter({
 createAppKit({
   adapters: [wagmiAdapter],
   networks: networks as any,
+  // Canonical chain for the app. Without this, AppKit has no default and a
+  // wallet connected on an unsupported chain lands in the dead-end "Switch
+  // Network" sheet with no clear target. Pinning Base Sepolia as the default
+  // lets AppKit (and our programmatic switch in App.tsx) steer wallets back to
+  // the only chain Velo trades on.
+  defaultNetwork: baseSepolia,
   projectId,
   metadata: {
     name: 'Velo Trading Terminal',
