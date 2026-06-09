@@ -71,6 +71,7 @@ grant execute on function public.is_velo_admin() to authenticated, anon;
 -- an admin. Pass new_reason = null to un-verify. SECURITY DEFINER so it can
 -- write any profile row after the admin check, bypassing the per-row RLS that
 -- would otherwise restrict writes to the caller's own profile.
+drop function if exists public.admin_set_verification(uuid, text);
 create or replace function public.admin_set_verification(
   target_user_id uuid,
   new_reason     text
@@ -95,6 +96,7 @@ grant execute on function public.admin_set_verification(uuid, text)
 -- SECURITY DEFINER functions perform the insert as owner after the implicit
 -- server-side context. (Already deployed on the live DB; re-asserted here so
 -- a fresh project is complete in one run.)
+drop function if exists public.create_notification_for_user(uuid, text, text, text);
 create or replace function public.create_notification_for_user(
   target_user_id uuid,
   p_type         text,
@@ -109,6 +111,7 @@ end; $$;
 grant execute on function public.create_notification_for_user(uuid, text, text, text)
   to authenticated, anon;
 
+drop function if exists public.record_transaction_for_user(uuid, text, numeric, text, text, boolean);
 create or replace function public.record_transaction_for_user(
   target_user_id uuid,
   p_type         text,
@@ -130,6 +133,7 @@ grant execute on function public.record_transaction_for_user(uuid, text, numeric
 -- ════════════════════════════════════════════════════════════════════════
 -- adjust_balance: credit/debit a profile balance atomically. Only the owner
 -- may adjust their own balance (the app calls it for the signed-in user only).
+drop function if exists public.adjust_balance(uuid, numeric);
 create or replace function public.adjust_balance(uid uuid, delta numeric)
 returns void
 language plpgsql security definer set search_path = public as $$
@@ -143,6 +147,7 @@ begin
 end; $$;
 grant execute on function public.adjust_balance(uuid, numeric) to authenticated;
 
+drop function if exists public.increment_follow_counts(uuid, uuid);
 create or replace function public.increment_follow_counts(follower uuid, following uuid)
 returns void
 language plpgsql security definer set search_path = public as $$
@@ -152,6 +157,7 @@ begin
 end; $$;
 grant execute on function public.increment_follow_counts(uuid, uuid) to authenticated;
 
+drop function if exists public.decrement_follow_counts(uuid, uuid);
 create or replace function public.decrement_follow_counts(follower uuid, following uuid)
 returns void
 language plpgsql security definer set search_path = public as $$

@@ -33,8 +33,13 @@ export const VELO_PERPS_V1_ADDRESS = (import.meta.env.VITE_VELO_PERPS_ADDRESS ||
 /** V2 deployment (legacy). */
 export const VELO_PERPS_V2_ADDRESS = (import.meta.env.VITE_VELO_PERPS_V2_ADDRESS || '') as Address;
 
-/** V3 deployment (active). Setting this routes all new positions/orders here. */
-export const VELO_PERPS_V3_ADDRESS = (import.meta.env.VITE_VELO_PERPS_V3_ADDRESS || '') as Address;
+/** V3 deployment (active). Setting this routes all new positions/orders here.
+ *  Falls back to the known-good VeloPerpsV3.1 address (from
+ *  contracts/deployments/base_sepolia.json) when the env var is unset, so a
+ *  missing/typo'd VITE_VELO_PERPS_V3_ADDRESS can never silently route live
+ *  trades to the legacy V1 contract. Override via env for a new deployment. */
+export const VELO_PERPS_V3_ADDRESS = (import.meta.env.VITE_VELO_PERPS_V3_ADDRESS ||
+  '0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907') as Address;
 
 /** The contract new positions/orders open against. V3 → V2 → V1. */
 export const VELO_PERPS_ADDRESS: Address =
