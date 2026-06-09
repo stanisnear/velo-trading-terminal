@@ -38,7 +38,6 @@ import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
-import { CommentThread } from './components/CommentThread';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
@@ -61,7 +60,6 @@ import {
   toggleRepost as supabaseRepost,
   addComment as supabaseComment,
   deleteComment as supabaseDeleteComment,
-  toggleCommentLike as supabaseToggleCommentLike,
   deleteAccount as supabaseDeleteAccount,
   toggleFollow as supabaseFollow,
   fetchPositions,
@@ -1980,13 +1978,71 @@ const renderContentWithMentions = (content: string, onViewProfile: (p: any) => v
     });
 };
 
-const PostCard = ({ post, user, onLike, onRepost, onComment, onLikeComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost }: any) => {
+const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost }: any) => {
     const hasLiked = post.likedBy.includes(user?.id);
     const hasReposted = post.repostedBy.includes(user?.id);
     // Author can delete their own post from any wall; wall owner can also delete posts on their wall
     const canDelete = user && onDelete && (user.id === post.authorId || user.id === post.targetProfileId);
     const [showComments, setShowComments] = useState(defaultOpenComments || false);
+    const [commentText, setCommentText] = useState('');
+    const [isSubmittingComment, setIsSubmittingComment] = useState(false);
     const [shareToast, setShareToast] = useState(false);
+    const [commentMentionQuery, setCommentMentionQuery] = useState<string | null>(null);
+    const [commentMentionTrigger, setCommentMentionTrigger] = useState<'@' | '$' | null>(null);
+    const [commentMentionStart, setCommentMentionStart] = useState(0);
+    const [commentMentionIdx, setCommentMentionIdx] = useState(0);
+    const commentInputRef = useRef<HTMLInputElement>(null);
+
+    const commentMentionResults: any[] = React.useMemo ? (() => {
+        if (commentMentionQuery === null) return [];
+        const q = commentMentionQuery.toLowerCase();
+        if (commentMentionTrigger === '$') {
+            if (!q) return []; // don't show anything until at least 1 char typed
+            return SOCIAL_FEATURED_PAIRS.filter(p =>
+                p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
+            ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
+        }
+        if (commentMentionTrigger === '@' && q.length > 0) {
+            return traders.filter((t: any) => {
+                if (t.id === user?.id) return false;
+                return (t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q);
+            }).slice(0, 5);
+        }
+        return [];
+    })() : [];
+
+    const handleCommentTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        const cursor = e.target.selectionStart ?? val.length;
+        setCommentText(val);
+        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
+        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
+        if (atMatch) {
+            setCommentMentionTrigger('@'); setCommentMentionQuery(atMatch[1]);
+            setCommentMentionStart(cursor - atMatch[0].length); setCommentMentionIdx(0);
+        } else if (dollarMatch) {
+            setCommentMentionTrigger('$'); setCommentMentionQuery(dollarMatch[1]);
+            setCommentMentionStart(cursor - dollarMatch[0].length); setCommentMentionIdx(0);
+        } else {
+            setCommentMentionQuery(null); setCommentMentionTrigger(null);
+        }
+    };
+
+    const completeCommentMention = (item: any) => {
+        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
+        const cursor = commentInputRef.current?.selectionStart ?? commentMentionStart + (commentMentionQuery?.length ?? 0) + 1;
+        const before = commentText.slice(0, commentMentionStart);
+        const after = commentText.slice(cursor);
+        setCommentText(before + insertion + ' ' + after);
+        setCommentMentionQuery(null); setCommentMentionTrigger(null);
+        setTimeout(() => {
+            if (commentInputRef.current) {
+                const pos = before.length + insertion.length + 1;
+                commentInputRef.current.focus();
+                commentInputRef.current.setSelectionRange(pos, pos);
+            }
+        }, 0);
+    };
 
     // If defaultOpenComments flips (notification routing), open comments
     useEffect(() => { if (defaultOpenComments) setShowComments(true); }, [defaultOpenComments]);
@@ -2030,6 +2086,14 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, onLikeComment, hand
             setShareToast(true);
             setTimeout(() => setShareToast(false), 2000);
         } catch (_) {}
+    };
+
+    const handleSubmitComment = async () => {
+        if (!commentText.trim() || isSubmittingComment) return;
+        setIsSubmittingComment(true);
+        await onComment(post.id, commentText.trim());
+        setCommentText('');
+        setIsSubmittingComment(false);
     };
 
     return (
@@ -2111,17 +2175,78 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, onLikeComment, hand
                     </div>
                     {/* Comments section */}
                     {showComments && (
-                        <CommentThread
-                            post={post}
-                            user={user}
-                            traders={traders}
-                            onComment={onComment}
-                            onDeleteComment={onDeleteComment}
-                            onLikeComment={onLikeComment || (() => {})}
-                            onViewProfile={onViewProfile}
-                            onTickerClick={onTickerClick}
-                            compact={true}
-                        />
+                        <div style={{ marginTop: 12, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
+                            {/* Existing comments */}
+                            {post.comments.length > 0 && (
+                                <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {post.comments.map((c: any) => (
+                                        <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                            <img
+                                                src={c.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.authorHandle}`}
+                                                style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0, cursor: 'pointer' }}
+                                                onClick={() => onViewProfile({ id: c.authorId })}
+                                                title={`View ${c.authorHandle}'s profile`}
+                                            />
+                                            <div style={{ background: 'var(--chip-bg)', borderRadius: 10, padding: '6px 10px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <span
+                                                        style={{ ...S.display, fontSize: 12, color: 'var(--fg)', marginRight: 4, cursor: 'pointer' }}
+                                                        onClick={() => onViewProfile({ id: c.authorId })}
+                                                    >{c.authorHandle}</span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', marginRight: 6, fontWeight: 700, letterSpacing: '0.06em' }}>{(() => { const d = new Date(c.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)' }}>{renderContentWithMentions(c.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}</span>
+                                                </div>
+                                                {user && (user.id === c.authorId || user.id === post.authorId) && onDeleteComment && (
+                                                    <button
+                                                        onClick={() => onDeleteComment(post.id, c.id)}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: '2px 4px', borderRadius: 4, flexShrink: 0, opacity: 0.6, transition: 'opacity 0.1s' }}
+                                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}
+                                                        title="Delete comment"
+                                                    ><Trash2 size={11}/></button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {/* Comment input */}
+                            {user ? (
+                                <div style={{ position: 'relative' }}>
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                                        <img src={user.avatar} style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
+                                        <div style={{ flex: 1, display: 'flex', gap: 6, alignItems: 'center', background: 'var(--chip-bg)', borderRadius: 20, padding: '4px 4px 4px 12px', border: '1px solid var(--hairline)' }}>
+                                            <input
+                                                ref={commentInputRef}
+                                                value={commentText}
+                                                onChange={handleCommentTextChange}
+                                                onKeyDown={e => {
+                                                    if (commentMentionQuery !== null && commentMentionResults.length > 0) {
+                                                        if (e.key === 'ArrowDown') { e.preventDefault(); setCommentMentionIdx(i => Math.min(i+1, commentMentionResults.length-1)); return; }
+                                                        if (e.key === 'ArrowUp') { e.preventDefault(); setCommentMentionIdx(i => Math.max(i-1, 0)); return; }
+                                                        if (e.key === 'Tab') { e.preventDefault(); completeCommentMention(commentMentionResults[commentMentionIdx]); return; }
+                                                        if (e.key === 'Escape') { setCommentMentionQuery(null); setCommentMentionTrigger(null); return; }
+                                                    }
+                                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitComment(); }
+                                                }}
+                                                onBlur={() => setTimeout(() => { setCommentMentionQuery(null); setCommentMentionTrigger(null); }, 150)}
+                                                placeholder="Write a comment... @mention or $TICKER"
+                                                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg)', minWidth: 0 }}
+                                            />
+                                            <button
+                                                onClick={handleSubmitComment}
+                                                disabled={!commentText.trim() || isSubmittingComment}
+                                                style={{ padding: '5px 12px', borderRadius: 16, background: commentText.trim() ? 'var(--iris-violet)' : 'var(--chip-bg)', border: 'none', ...S.mono, fontSize: 11, fontWeight: 700, color: commentText.trim() ? '#fff' : 'var(--fg-subtle)', cursor: commentText.trim() ? 'pointer' : 'default', transition: 'all 0.1s', flexShrink: 0 }}>
+                                                Post
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <MentionDropdown results={commentMentionResults} anchorRef={commentInputRef} activeIndex={commentMentionIdx} onSelect={completeCommentMention} onHover={setCommentMentionIdx} />
+                                </div>
+                            ) : (
+                                <p style={{ ...S.label, textAlign: 'center', padding: '8px 0' }}>Log in to comment</p>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -2571,7 +2696,7 @@ const TokenInteractiveChart = ({
     );
 };
 
-const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onLikeComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
+const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
     const [activeTab, setActiveTab] = useState<'posts' | 'news'>('posts');
     const [news, setNews] = useState<any[]>([]);
     const [newsLoading, setNewsLoading] = useState(true);
@@ -2885,7 +3010,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                     <p style={{ ...S.label, fontSize: 10 }}>Be the first to mention ${ticker} in the feed.</p>
                                 </div>
                             ) : tickerPosts.map((post: any) => (
-                                <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={(t: string) => { if (onNavigateToTicker) onNavigateToTicker(t); }} onSinglePost={onSinglePost} />
+                                <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={(t: string) => { if (onNavigateToTicker) onNavigateToTicker(t); }} onSinglePost={onSinglePost} />
                             ))}
                         </div>
                     )}
@@ -3003,7 +3128,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 };
 
 // ─── Single Post View (like Twitter /status/:id) ────────────────────────────
-const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComment, onLikeComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
+const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
     const post = posts.find((p: any) => p.id === postId);
 
     // Update page title and OG meta for this post
@@ -3133,24 +3258,89 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
             </div>
 
             {/* Comments section */}
-            <CommentThread
-                post={post}
-                user={user}
-                traders={traders}
-                onComment={onComment}
-                onDeleteComment={onDeleteComment}
-                onLikeComment={onLikeComment || (() => {})}
-                onViewProfile={onViewProfile}
-                onTickerClick={onTickerClick}
-                compact={false}
-            />
+            <div style={{ marginTop: 16 }}>
+                <div style={{ ...S.label, fontSize: 11, marginBottom: 12, paddingLeft: 4 }}>
+                    {post.comments.length} {post.comments.length === 1 ? 'Comment' : 'Comments'}
+                </div>
+
+                {/* Write comment */}
+                {user && <SinglePostCommentBox post={post} user={user} onComment={onComment} traders={traders} />}
+
+                {/* Existing comments */}
+                {post.comments.length === 0 ? (
+                    <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
+                        <MessageCircle size={28} style={{ color: 'var(--fg-subtle)', marginBottom: 8 }} />
+                        <p style={{ ...S.display, fontSize: 18, color: 'var(--fg-subtle)' }}>No comments yet.</p>
+                        <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', marginTop: 4 }}>Be the first to comment.</p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {post.comments.map((c: any) => {
+                            const canDeleteComment = user && onDeleteComment && (user.id === c.authorId || user.id === post.authorId);
+                            return (
+                                <div key={c.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '14px 18px', display: 'flex', gap: 12 }}>
+                                    <img src={c.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.authorHandle}`}
+                                        style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0, cursor: 'pointer' }}
+                                        onClick={() => onViewProfile({ id: c.authorId })} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)', cursor: 'pointer' }} onClick={() => onViewProfile({ id: c.authorId })}>{c.authorHandle}</span>
+                                                <span style={{ ...S.label, fontSize: 10 }}>{(() => { const d = new Date(c.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
+                                            </div>
+                                            {canDeleteComment && (
+                                                <button onClick={() => onDeleteComment(post.id, c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: 2, transition: 'color 0.1s' }}
+                                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--pnl-down)'}
+                                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg-subtle)'}>
+                                                    <Trash2 size={13}/>
+                                                </button>
+                                            )}
+                                        </div>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg)', lineHeight: 1.55 }}>
+                                            {renderContentWithMentions(c.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
 
 // Comment box for single post view
+const SinglePostCommentBox = ({ post, user, onComment, traders }: any) => {
+    const [text, setText] = useState('');
+    const [loading, setLoading] = useState(false);
+    const submit = async () => {
+        if (!text.trim() || loading) return;
+        setLoading(true);
+        await onComment(post.id, text.trim());
+        setText('');
+        setLoading(false);
+    };
+    return (
+        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '14px 18px', display: 'flex', gap: 12, marginBottom: 10 }}>
+            <img src={user.avatar} style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <textarea value={text} onChange={e => setText(e.target.value)}
+                    placeholder="Add a comment…"
+                    onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(); }}
+                    style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg)', resize: 'none', height: 56, lineHeight: 1.5 }} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={submit} disabled={!text.trim() || loading}
+                        style={{ padding: '7px 18px', borderRadius: 20, background: text.trim() ? 'var(--iris-violet)' : 'var(--chip-bg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: text.trim() ? '#fff' : 'var(--fg-subtle)', cursor: text.trim() ? 'pointer' : 'default', letterSpacing: '0.05em', transition: 'all 0.15s', boxShadow: text.trim() ? '0 4px 14px oklch(0.68 0.22 295 / 0.3)' : 'none' }}>
+                        {loading ? '…' : 'Reply'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
-const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, onLikeComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
+const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
     const [newPostContent, setNewPostContent] = useState('');
     const [filter, setFilter] = useState<'LATEST' | 'TRENDING' | 'FOLLOWING' | 'SIGNALS'>('LATEST');
     const [feedMentionQuery, setFeedMentionQuery] = useState<string | null>(null);
@@ -3308,7 +3498,6 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     onLike={onLike}
                     onRepost={onRepost}
                     onComment={onComment}
-                    onLikeComment={onLikeComment}
                     onViewProfile={onViewProfile}
                     showUsersModal={showUsersModal}
                     onDeletePost={onDeletePost}
@@ -3467,7 +3656,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     </div>
                 ) : filteredPosts.map((post: any) => (
                     <div key={post.id} id={`post-${post.id}`}>
-                        <PostCard post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={setActiveTickerWithURL} defaultOpenComments={forceOpenCommentsId === post.id} onSinglePost={onSinglePost} />
+                        <PostCard post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={setActiveTickerWithURL} defaultOpenComments={forceOpenCommentsId === post.id} onSinglePost={onSinglePost} />
                     </div>
                 ))}
             </div>
@@ -3830,7 +4019,7 @@ const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, 
         </div>
     );
 };
-const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCreate, positions, onLike, onRepost, onComment, onLikeComment, showUsersModal, onViewProfile, onDeletePost, onDeleteComment, onDeleteAccount, onTickerClick }: any) => {
+const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCreate, positions, onLike, onRepost, onComment, showUsersModal, onViewProfile, onDeletePost, onDeleteComment, onDeleteAccount, onTickerClick }: any) => {
     const [isEditOpen, setEditOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'POSTS' | 'REPOSTS' | 'TRADES'>('POSTS');
     const stats = calculateStats(user.tradeHistory);
@@ -3872,12 +4061,12 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                             <WallCompose user={user} targetId={user.id} targetName="your wall" onPostCreate={onPostCreate} placeholder="Post on your wall\u2026 Use @handle to tag someone" traders={traders} />
                         </div>
                         {userPosts.length === 0 ? emptyMsg('No posts yet.') : userPosts.map((post: Post) => (
-                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
+                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
                         ))}
                     </>
                 )}
                 {activeTab === 'REPOSTS' && (userReposts.length === 0 ? emptyMsg('No reposts yet.') : userReposts.map((post: Post) => (
-                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
+                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick}/>
                 )))}
                 {activeTab === 'TRADES' && (activePositions.length === 0 ? emptyMsg('No active manual trades.') : activePositions.map((p: Position) => (
                     <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
@@ -3895,9 +4084,9 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
         </div>
     );
 };
-const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFollow, handleCopyTrade, onRequireAuth, onViewProfile, showUsersModal, positions, onUpdateProfile, onLike, onRepost, onComment, onLikeComment, onDeletePost, onDeleteComment, onDeleteAccount, onPostCreate, marketPrices, onTickerClick }: any) => {
+const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFollow, handleCopyTrade, onRequireAuth, onViewProfile, showUsersModal, positions, onUpdateProfile, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onDeleteAccount, onPostCreate, marketPrices, onTickerClick }: any) => {
     if (user && user.id === trader.id) {
-        return <ProfileView user={user} handleUpdateProfile={onUpdateProfile} posts={posts} traders={traders} positions={positions} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} showUsersModal={showUsersModal} onViewProfile={onViewProfile} onDeletePost={onDeletePost} onDeleteComment={onDeleteComment} onDeleteAccount={onDeleteAccount} onPostCreate={onPostCreate} onTickerClick={onTickerClick}/>;
+        return <ProfileView user={user} handleUpdateProfile={onUpdateProfile} posts={posts} traders={traders} positions={positions} onLike={onLike} onRepost={onRepost} onComment={onComment} showUsersModal={showUsersModal} onViewProfile={onViewProfile} onDeletePost={onDeletePost} onDeleteComment={onDeleteComment} onDeleteAccount={onDeleteAccount} onPostCreate={onPostCreate} onTickerClick={onTickerClick}/>;
     }
     const [activeTab, setActiveTab] = useState<'POSTS' | 'REPOSTS' | 'TRADES'>('POSTS');
     const [newPostContent, setNewPostContent] = useState('');
@@ -3968,12 +4157,12 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                             </div>
                         )}
                         {traderPosts.length === 0 ? emptyMsg('No posts yet.') : traderPosts.map((post: Post) => (
-                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
+                            <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
                         ))}
                     </>
                 )}
                 {activeTab === 'REPOSTS' && (traderReposts.length === 0 ? emptyMsg('No reposts yet.') : traderReposts.map((post: Post) => (
-                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} onLikeComment={onLikeComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
+                    <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick}/>
                 )))}
                 {activeTab === 'TRADES' && (
                     loadingPositions ? emptyMsg('Loading trades…')
@@ -6058,216 +6247,228 @@ const App = () => {
     }, [activeTab, activePair, marketPrices, activeSocialTicker]);
 
 
-    // Supabase real-time: load posts from DB + subscribe to new ones + likes/comments sync
+    // ── Social feed realtime channel ─────────────────────────────────────────
+    // Architecture:
+    //   • A single Postgres-changes channel covers posts/likes/reposts/comments.
+    //   • On CHANNEL_ERROR or TIMED_OUT we tear it down and rebuild (backoff).
+    //   • On SUBSCRIBED we do a one-shot re-fetch so any events that fired
+    //     during the reconnect window are not missed.
+    //   • The channel ref is stored so the cleanup can always remove the right
+    //     instance even after reconnects.
     useEffect(() => {
         if (!isSupabaseConfigured()) return;
-        
-        // Load existing posts from Supabase with like/comment counts
+
+        let mounted = true;
+        let channelRef: any = null;
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+        let reconnectDelay = 3_000; // start at 3 s, cap at 30 s
+
+        // ── One-shot post loader ───────────────────────────────────────────
         const loadPosts = async () => {
-            console.log('[VELO] Loading posts from Supabase...');
             try {
                 const { data, error } = await supabase
                     .from('posts')
                     .select('*, profiles!author_id(username, handle, avatar_url)')
                     .order('created_at', { ascending: false })
                     .limit(50);
-                    
-                if (data && data.length > 0) {
-                    // Fetch likes for these posts
-                    const postIds = data.map((p: any) => p.id);
-                    const { data: likesData } = await supabase.from('likes').select('post_id, user_id').in('post_id', postIds);
-                    const { data: commentsData } = await supabase.from('comments').select('id, post_id, author_id, content, created_at').in('post_id', postIds).order('created_at', { ascending: true });
-                    
-                    // Build lookup maps
-                    const likesMap: Record<string, string[]> = {};
-                    (likesData || []).forEach((l: any) => {
-                        if (!likesMap[l.post_id]) likesMap[l.post_id] = [];
-                        likesMap[l.post_id].push(l.user_id);
-                    });
-                    const commentsMap: Record<string, any[]> = {};
-                    (commentsData || []).forEach((c: any) => {
-                        if (!commentsMap[c.post_id]) commentsMap[c.post_id] = [];
-                        commentsMap[c.post_id].push({
-                            id: c.id,
-                            authorId: c.author_id,
-                            authorHandle: '@unknown',
-                            authorAvatar: '',
-                            content: c.content,
-                            timestamp: c.created_at,
-                        });
-                    });
+                if (error || !data) return;
 
-                    const dbPosts = data.map((p: any) => ({
-                        id: p.id,
-                        authorId: p.author_id,
-                        authorHandle: p.profiles?.handle || '@unknown',
-                        authorAvatar: p.profiles?.avatar_url || '',
-                        content: p.content,
-                        image: p.image_url,
-                        timestamp: p.created_at,
-                        likes: (likesMap[p.id] || []).length,
-                        reposts: 0,
-                        likedBy: likesMap[p.id] || [],
-                        repostedBy: [],
-                        comments: commentsMap[p.id] || [],
-                        isTradeSignal: p.is_trade_signal,
-                        tradeDetails: p.is_trade_signal ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry } : undefined,
-                    }));
-                    setPosts(prev => {
-                        // Merge DB posts with local, deduplicate by id
-                        const existing = new Set(prev.map(p => p.id));
-                        const newPosts = dbPosts.filter((p: any) => !existing.has(p.id));
-                        // Also update existing posts with DB like/comment data
-                        const updated = prev.map(p => {
-                            const dbPost = dbPosts.find((dp: any) => dp.id === p.id);
-                            if (dbPost) {
-                                return { ...p, likes: Math.max(p.likes, dbPost.likes), likedBy: [...new Set([...p.likedBy, ...dbPost.likedBy])], comments: dbPost.comments.length > p.comments.length ? dbPost.comments : p.comments };
-                            }
-                            return p;
-                        });
-                        return [...newPosts, ...updated];
+                const postIds = data.map((p: any) => p.id);
+                const [{ data: likesData }, { data: commentsData }, { data: repostsData }] = await Promise.all([
+                    supabase.from('likes').select('post_id, user_id').in('post_id', postIds),
+                    supabase.from('comments').select('id, post_id, author_id, content, created_at, profiles!author_id(handle, avatar_url)').in('post_id', postIds).order('created_at', { ascending: true }),
+                    supabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
+                ]);
+
+                const likesMap:   Record<string, string[]>  = {};
+                const commentsMap: Record<string, any[]>    = {};
+                const repostsMap:  Record<string, string[]> = {};
+
+                (likesData   || []).forEach((l: any) => { (likesMap[l.post_id]   ||= []).push(l.user_id); });
+                (repostsData || []).forEach((r: any) => { (repostsMap[r.post_id] ||= []).push(r.user_id); });
+                (commentsData || []).forEach((c: any) => {
+                    (commentsMap[c.post_id] ||= []).push({
+                        id: c.id, authorId: c.author_id,
+                        authorHandle: c.profiles?.handle   || '@unknown',
+                        authorAvatar: c.profiles?.avatar_url || '',
+                        content: c.content, timestamp: c.created_at,
                     });
-                }
-            } catch(e) { console.warn('Failed to load posts:', e); }
-        };
-        loadPosts();
-        
-        // Subscribe to new posts in real-time
-        const channel = supabase
-            .channel(`velo-social-${Math.random().toString(36).slice(2, 8)}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
-                const p = payload.new;
-                // Fetch author profile
-                const { data: profile } = await supabase.from('profiles').select('username, handle, avatar_url').eq('id', p.author_id).single();
-                const newPost = {
+                });
+
+                const dbPosts = data.map((p: any) => ({
                     id: p.id,
                     authorId: p.author_id,
-                    authorHandle: profile?.handle || '@unknown',
-                    authorAvatar: profile?.avatar_url || '',
+                    authorHandle: p.profiles?.handle     || '@unknown',
+                    authorAvatar: p.profiles?.avatar_url || '',
                     content: p.content,
                     image: p.image_url,
                     timestamp: p.created_at,
-                    likes: 0, reposts: 0, likedBy: [], repostedBy: [], comments: [],
+                    likes:      (likesMap[p.id]   || []).length,
+                    reposts:    (repostsMap[p.id] || []).length,
+                    likedBy:     likesMap[p.id]   || [],
+                    repostedBy:  repostsMap[p.id] || [],
+                    comments:    commentsMap[p.id] || [],
                     isTradeSignal: p.is_trade_signal,
                     targetProfileId: p.target_profile_id || undefined,
                     tradeDetails: p.is_trade_signal
                         ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry }
                         : undefined,
-                };
+                }));
+
+                if (!mounted) return;
                 setPosts(prev => {
-                    if (prev.some(existing => existing.id === p.id)) return prev;
-                    return [newPost, ...prev];
+                    // Merge: DB is authoritative for like/comment counts; keep
+                    // optimistic local posts (temp-id) that haven't been confirmed yet.
+                    const dbById = Object.fromEntries(dbPosts.map((p: any) => [p.id, p]));
+                    const merged = prev.map(p => dbById[p.id] ? { ...dbById[p.id] } : p);
+                    const mergedIds = new Set(merged.map(p => p.id));
+                    dbPosts.forEach((p: any) => { if (!mergedIds.has(p.id)) merged.unshift(p); });
+                    // Sort newest-first (DB timestamp wins over local optimistic order)
+                    merged.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                    return merged;
                 });
-            })
-            // Subscribe to likes in real-time
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, (payload: any) => {
-                const like = payload.new;
-                setPosts(prev => prev.map(p => {
-                    if (p.id === like.post_id && !p.likedBy.includes(like.user_id)) {
+            } catch (e) { console.warn('[social] loadPosts failed:', e); }
+        };
+
+        // ── Channel builder with auto-reconnect ───────────────────────────
+        const buildChannel = () => {
+            if (!mounted) return;
+
+            channelRef = supabase
+                .channel(`velo-social-${Math.random().toString(36).slice(2, 8)}`)
+
+                // ── posts ─────────────────────────────────────────────────
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
+                    const p = payload.new;
+                    const { data: profile } = await supabase.from('profiles').select('username, handle, avatar_url').eq('id', p.author_id).single();
+                    const newPost = {
+                        id: p.id, authorId: p.author_id,
+                        authorHandle: profile?.handle     || '@unknown',
+                        authorAvatar: profile?.avatar_url || '',
+                        content: p.content, image: p.image_url, timestamp: p.created_at,
+                        likes: 0, reposts: 0, likedBy: [], repostedBy: [], comments: [],
+                        isTradeSignal: p.is_trade_signal,
+                        targetProfileId: p.target_profile_id || undefined,
+                        tradeDetails: p.is_trade_signal
+                            ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry }
+                            : undefined,
+                    };
+                    if (!mounted) return;
+                    setPosts(prev => {
+                        if (prev.some(ex => ex.id === p.id)) return prev;
+                        return [newPost, ...prev];
+                    });
+                })
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload: any) => {
+                    if (!mounted) return;
+                    const del = payload.old;
+                    setPosts(prev => prev.filter(p => p.id !== del.id));
+                })
+
+                // ── likes ─────────────────────────────────────────────────
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' }, (payload: any) => {
+                    if (!mounted) return;
+                    const like = payload.new;
+                    setPosts(prev => prev.map(p => {
+                        if (p.id !== like.post_id || p.likedBy.includes(like.user_id)) return p;
                         const newLikedBy = [...p.likedBy, like.user_id];
                         return { ...p, likedBy: newLikedBy, likes: newLikedBy.length };
-                    }
-                    return p;
-                }));
-            })
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload: any) => {
-                const like = payload.old;
-                setPosts(prev => prev.map(p => {
-                    if (p.id === like.post_id) {
-                        const newLikedBy = p.likedBy.filter(uid => uid !== like.user_id);
+                    }));
+                })
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload: any) => {
+                    if (!mounted) return;
+                    const like = payload.old;
+                    setPosts(prev => prev.map(p => {
+                        if (p.id !== like.post_id) return p;
+                        const newLikedBy = p.likedBy.filter((uid: string) => uid !== like.user_id);
                         return { ...p, likedBy: newLikedBy, likes: newLikedBy.length };
-                    }
-                    return p;
-                }));
-            })
-            // Subscribe to reposts in real-time
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reposts' }, (payload: any) => {
-                const rp = payload.new;
-                setPosts(prev => prev.map(p => {
-                    if (p.id === rp.post_id && !p.repostedBy.includes(rp.user_id)) {
+                    }));
+                })
+
+                // ── reposts ───────────────────────────────────────────────
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reposts' }, (payload: any) => {
+                    if (!mounted) return;
+                    const rp = payload.new;
+                    setPosts(prev => prev.map(p => {
+                        if (p.id !== rp.post_id || p.repostedBy.includes(rp.user_id)) return p;
                         const newRepostedBy = [...p.repostedBy, rp.user_id];
                         return { ...p, repostedBy: newRepostedBy, reposts: newRepostedBy.length };
-                    }
-                    return p;
-                }));
-            })
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'reposts' }, (payload: any) => {
-                const rp = payload.old;
-                setPosts(prev => prev.map(p => {
-                    if (p.id === rp.post_id) {
-                        const newRepostedBy = p.repostedBy.filter(uid => uid !== rp.user_id);
+                    }));
+                })
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'reposts' }, (payload: any) => {
+                    if (!mounted) return;
+                    const rp = payload.old;
+                    setPosts(prev => prev.map(p => {
+                        if (p.id !== rp.post_id) return p;
+                        const newRepostedBy = p.repostedBy.filter((uid: string) => uid !== rp.user_id);
                         return { ...p, repostedBy: newRepostedBy, reposts: newRepostedBy.length };
+                    }));
+                })
+
+                // ── comments ──────────────────────────────────────────────
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, async (payload: any) => {
+                    const c = payload.new;
+                    let authorHandle = '@unknown';
+                    let authorAvatar = '';
+                    try {
+                        const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', c.author_id).single();
+                        if (profile) { authorHandle = profile.handle || '@unknown'; authorAvatar = profile.avatar_url || ''; }
+                    } catch {}
+                    const newComment: Comment = { id: c.id, authorId: c.author_id, authorHandle, authorAvatar, content: c.content, timestamp: c.created_at };
+                    if (!mounted) return;
+                    setPosts(prev => prev.map(p => {
+                        if (p.id !== c.post_id) return p;
+                        if (p.comments.some((ex: any) => ex.id === c.id)) return p;
+                        // Replace temp comment (c_xxx) from the same author with same content
+                        const tempIdx = p.comments.findIndex((ex: any) =>
+                            ex.id.startsWith('c_') && ex.authorId === c.author_id && ex.content === c.content
+                        );
+                        if (tempIdx !== -1) {
+                            const updated = [...p.comments];
+                            updated[tempIdx] = newComment;
+                            return { ...p, comments: updated };
+                        }
+                        return { ...p, comments: [...p.comments, newComment] };
+                    }));
+                })
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, (payload: any) => {
+                    if (!mounted) return;
+                    const del = payload.old;
+                    setPosts(prev => prev.map(p =>
+                        p.id === del.post_id
+                            ? { ...p, comments: p.comments.filter((c: any) => c.id !== del.id) }
+                            : p
+                    ));
+                })
+
+                // ── channel health ────────────────────────────────────────
+                .subscribe((status: string, err?: Error) => {
+                    if (!mounted) return;
+                    if (status === 'SUBSCRIBED') {
+                        // Reset backoff and re-fetch to fill any gap during reconnect
+                        reconnectDelay = 3_000;
+                        loadPosts();
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                        console.warn(`[social] channel ${status}${err ? ': ' + err.message : ''} — reconnecting in ${reconnectDelay / 1000}s`);
+                        try { supabase.removeChannel(channelRef); } catch {}
+                        channelRef = null;
+                        if (reconnectTimer) clearTimeout(reconnectTimer);
+                        reconnectTimer = setTimeout(() => {
+                            reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+                            buildChannel();
+                        }, reconnectDelay);
                     }
-                    return p;
-                }));
-            })
-            // Subscribe to post deletions
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload: any) => {
-                const del = payload.old;
-                setPosts(prev => prev.filter(p => p.id !== del.id));
-            })
-            // Subscribe to comment insertions in real-time
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, async (payload: any) => {
-                const c = payload.new;
-                let authorHandle = '@unknown';
-                let authorAvatar = '';
-                try {
-                    const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', c.author_id).single();
-                    if (profile) { authorHandle = profile.handle || '@unknown'; authorAvatar = profile.avatar_url || ''; }
-                } catch {}
-                const newComment: Comment = {
-                    id: c.id, authorId: c.author_id, authorHandle, authorAvatar,
-                    content: c.content, timestamp: c.created_at,
-                    parentId: c.parent_id || null, likes: 0, likedBy: [],
-                };
-                setPosts(prev => prev.map(p => {
-                    if (p.id !== c.post_id) return p;
-                    if (p.comments.some((ex: any) => ex.id === c.id)) return p; // exact dup
-                    const tempIdx = p.comments.findIndex((ex: any) =>
-                        ex.id.startsWith('c_') && ex.authorId === c.author_id && ex.content === c.content
-                    );
-                    if (tempIdx !== -1) {
-                        const updated = [...p.comments];
-                        updated[tempIdx] = newComment;
-                        return { ...p, comments: updated };
-                    }
-                    return { ...p, comments: [...p.comments, newComment] };
-                }));
-            })
-            // Subscribe to comment deletions
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, (payload: any) => {
-                const del = payload.old;
-                setPosts(prev => prev.map(p =>
-                    p.id === del.post_id
-                        ? { ...p, comments: p.comments.filter((c: any) => c.id !== del.id && c.parentId !== del.id) }
-                        : p
-                ));
-            })
-            // Subscribe to comment likes in real-time
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_likes' }, (payload: any) => {
-                const cl = payload.new;
-                setPosts(prev => prev.map(post => ({
-                    ...post,
-                    comments: post.comments.map((cm: Comment) => {
-                        if (cm.id !== cl.comment_id || cm.likedBy.includes(cl.user_id)) return cm;
-                        return { ...cm, likes: cm.likes + 1, likedBy: [...cm.likedBy, cl.user_id] };
-                    }),
-                })));
-            })
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_likes' }, (payload: any) => {
-                const cl = payload.old;
-                setPosts(prev => prev.map(post => ({
-                    ...post,
-                    comments: post.comments.map((cm: Comment) => {
-                        if (cm.id !== cl.comment_id) return cm;
-                        const newLikedBy = cm.likedBy.filter((id: string) => id !== cl.user_id);
-                        return { ...cm, likes: newLikedBy.length, likedBy: newLikedBy };
-                    }),
-                })));
-            })
-            .subscribe();
-            
-        return () => { supabase.removeChannel(channel); };
+                });
+        };
+
+        loadPosts();
+        buildChannel();
+
+        return () => {
+            mounted = false;
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (channelRef) { try { supabase.removeChannel(channelRef); } catch {} }
+        };
     }, []);
 
     // Helper: retry wrapper for transient empty/failed Supabase reads
@@ -6339,8 +6540,13 @@ const App = () => {
             }
         }).catch((e: any) => console.warn('Failed to load profiles:', e));
 
-        withRetry(() => fetchPosts(50), (p: any) => !p || p.length === 0).then((posts: any) => {
-            if (posts && posts.length > 0) { setPosts(posts); cacheSet('posts', posts); }
+        withRetry(() => fetchPosts(50), (p: any) => !p || p.length === 0).then((freshPosts: any) => {
+            if (freshPosts && freshPosts.length > 0) {
+                // Always overwrite — loadSocialData is called on heal/refocus so
+                // it must replace stale state, not just append to it.
+                setPosts(freshPosts);
+                cacheSet('posts', freshPosts);
+            }
         }).catch((e: any) => console.warn('Failed to load posts:', e));
     }, [withRetry]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -6787,83 +6993,102 @@ const App = () => {
 
     // Real-time social feed is handled by the unified social-sync channel above
 
-    // Real-time notifications for the logged-in user
+    // Real-time per-user channels (notifications, transactions, follows)
+    // Each channel uses a unique name + auto-reconnects on CHANNEL_ERROR / TIMED_OUT.
     useEffect(() => {
         if (!user || !isSupabaseConfigured()) return;
-        const ch = subscribeUserNotifications(user.id, (rawNotif: any) => {
-            const notif: Notification = {
-                id: rawNotif.id, type: rawNotif.type, message: rawNotif.message,
-                timestamp: new Date(rawNotif.created_at).getTime(),
-                read: false, relatedId: rawNotif.related_id,
-            };
-            // Deduplicate — realtime can double-fire
-            setNotifications(prev => prev.some(n => n.id === notif.id) ? prev : [notif, ...prev]);
-            // Also show a toast for incoming real-time notifications
-            setToast({ message: rawNotif.message, type: 'INFO' });
-            playSound('CLICK');
-        });
+        let mounted = true;
 
-        // Real-time transactions for the logged-in user. Fires the moment
-        // someone sends mUSDC to this user (or any cross-tab write to their
-        // activity row lands). Without this, the receiver only sees the
-        // SEND row appear on next focus-refetch, which made transfers feel
-        // broken even though the notification arrived instantly.
-        const txCh = subscribeUserTransactions(user.id, (rawTx: any) => {
-            const incoming: any = {
-                id: rawTx.id,
-                type: rawTx.type,
-                amount: Number(rawTx.amount) || 0,
-                timestamp: new Date(rawTx.created_at).getTime(),
-                status: rawTx.status,
-                onChain: rawTx.on_chain || false,
-                txHash: rawTx.tx_hash || undefined,
-                withdrawNonce: rawTx.withdraw_nonce != null ? Number(rawTx.withdraw_nonce) : undefined,
-                counterparty: rawTx.counterparty || undefined,
+        // ── helpers ───────────────────────────────────────────────────────
+        const makeReconnector = (build: () => any) => {
+            let chRef: any = null;
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            let delay = 3_000;
+            const launch = () => {
+                if (!mounted) return;
+                chRef = build();
             };
-            setUser(prev => {
-                if (!prev) return prev;
-                const history = prev.transactionHistory ?? [];
-                // Skip if we've already inserted this id (sender's optimistic
-                // row, or a duplicate realtime delivery).
-                if (history.some((t: any) => t.id === incoming.id)) return prev;
-                return { ...prev, transactionHistory: [incoming, ...history] };
-            });
-        });
+            const onStatus = (status: string, err?: Error) => {
+                if (!mounted) return;
+                if (status === 'SUBSCRIBED') { delay = 3_000; return; }
+                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    console.warn(`[velo:rt] ${status}${err ? ': ' + err.message : ''} — retry in ${delay / 1000}s`);
+                    try { supabase.removeChannel(chRef); } catch {}
+                    chRef = null;
+                    if (timer) clearTimeout(timer);
+                    timer = setTimeout(() => { delay = Math.min(delay * 2, 30_000); launch(); }, delay);
+                }
+            };
+            return { launch, onStatus, remove: () => { if (chRef) { try { supabase.removeChannel(chRef); } catch {} } if (timer) clearTimeout(timer); } };
+        };
 
-        // Real-time: update current user's followers when someone follows/unfollows them
-        const followCh = supabase.channel(`velo-follows-${user.id}`)
-            .on('postgres_changes', {
-                event: 'INSERT', schema: 'public', table: 'follows',
-                filter: `following_id=eq.${user.id}`,
-            }, (payload: any) => {
+        // ── notifications ─────────────────────────────────────────────────
+        const notifR = makeReconnector(() =>
+            subscribeUserNotifications(user.id, (rawNotif: any) => {
+                if (!mounted) return;
+                const notif: Notification = {
+                    id: rawNotif.id, type: rawNotif.type, message: rawNotif.message,
+                    timestamp: new Date(rawNotif.created_at).getTime(),
+                    read: false, relatedId: rawNotif.related_id,
+                };
+                setNotifications(prev => prev.some(n => n.id === notif.id) ? prev : [notif, ...prev]);
+                setToast({ message: rawNotif.message, type: 'INFO' });
+                playSound('CLICK');
+            }, notifR.onStatus)
+        );
+        notifR.launch();
+
+        // ── transactions ──────────────────────────────────────────────────
+        const txR = makeReconnector(() =>
+            subscribeUserTransactions(user.id, (rawTx: any) => {
+                if (!mounted) return;
+                const incoming: any = {
+                    id: rawTx.id, type: rawTx.type,
+                    amount: Number(rawTx.amount) || 0,
+                    timestamp: new Date(rawTx.created_at).getTime(),
+                    status: rawTx.status,
+                    onChain: rawTx.on_chain || false,
+                    txHash: rawTx.tx_hash || undefined,
+                    withdrawNonce: rawTx.withdraw_nonce != null ? Number(rawTx.withdraw_nonce) : undefined,
+                    counterparty: rawTx.counterparty || undefined,
+                };
+                setUser(prev => {
+                    if (!prev) return prev;
+                    const history = prev.transactionHistory ?? [];
+                    if (history.some((t: any) => t.id === incoming.id)) return prev;
+                    return { ...prev, transactionHistory: [incoming, ...history] };
+                });
+            }, txR.onStatus)
+        );
+        txR.launch();
+
+        // ── follows ───────────────────────────────────────────────────────
+        const uid2 = Math.random().toString(36).slice(2, 8);
+        const followCh = supabase.channel(`velo-follows-${user.id}-${uid2}`)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'follows', filter: `following_id=eq.${user.id}` }, (payload: any) => {
+                if (!mounted) return;
                 const followerId = payload.new?.follower_id;
                 if (followerId) {
                     setUser(prev => prev ? {
                         ...prev,
-                        followers: prev.followers.includes(followerId)
-                            ? prev.followers
-                            : [...prev.followers, followerId],
+                        followers: prev.followers.includes(followerId) ? prev.followers : [...prev.followers, followerId],
                     } : null);
                 }
             })
-            .on('postgres_changes', {
-                event: 'DELETE', schema: 'public', table: 'follows',
-                filter: `following_id=eq.${user.id}`,
-            }, (payload: any) => {
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'follows', filter: `following_id=eq.${user.id}` }, (payload: any) => {
+                if (!mounted) return;
                 const followerId = payload.old?.follower_id;
                 if (followerId) {
-                    setUser(prev => prev ? {
-                        ...prev,
-                        followers: prev.followers.filter(id => id !== followerId),
-                    } : null);
+                    setUser(prev => prev ? { ...prev, followers: prev.followers.filter(id => id !== followerId) } : null);
                 }
             })
             .subscribe();
 
         return () => {
-            supabase.removeChannel(ch);
-            supabase.removeChannel(txCh);
-            supabase.removeChannel(followCh);
+            mounted = false;
+            notifR.remove();
+            txR.remove();
+            try { supabase.removeChannel(followCh); } catch {}
         };
     }, [user?.id]);
 
@@ -7070,36 +7295,79 @@ const App = () => {
     // The onDelete handler captures marketPrices via closure at call time, which
     // is fine because prices update every second and the close price is always current.
 
-    // Real-time leaderboard: update traders state whenever any profile changes PnL/win_rate
-
-    // Real-time leaderboard: update traders state whenever any profile changes PnL/win_rate
+    // Real-time leaderboard: update traders whenever any profile changes.
+    // Uses auto-reconnect so the leaderboard stays live after a WS drop.
     useEffect(() => {
         if (!isSupabaseConfigured()) return;
-        const lb = subscribeLeaderboard((updated: any) => {
-            setTraders(prev => prev.map((t: any) =>
-                t.id === updated.id
-                    ? {
+        let mounted = true;
+        let lbRef: any = null;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let delay = 3_000;
+
+        const onProfileUpdate = (updated: any) => {
+            if (!mounted) return;
+            setTraders(prev => {
+                const exists = prev.some((t: any) => t.id === updated.id);
+                if (!exists) {
+                    // New profile inserted — add to traders list
+                    const newTrader: any = {
+                        id: updated.id,
+                        handle:   updated.handle   || `@${updated.username}`,
+                        username: updated.username || 'Trader',
+                        bio:      updated.bio      || '',
+                        avatar:   updated.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${updated.username}`,
+                        banner:   updated.banner_url || '',
+                        pnl:      updated.pnl_total || 0,
+                        winRate:  updated.win_rate  || 0,
+                        followers: [], following: [],
+                        veloRewards: updated.velo_rewards || 0,
+                        activePositions: [], isPrivate: false,
+                        joinedDate: updated.created_at || new Date().toISOString(),
+                        walletAddress: updated.wallet_address || null,
+                        authMethod:    updated.auth_method    || null,
+                        verifiedReason: updated.verified_reason || null,
+                    };
+                    return [...prev, newTrader];
+                }
+                return prev.map((t: any) =>
+                    t.id === updated.id ? {
                         ...t,
                         pnl:      updated.pnl_total  ?? t.pnl,
                         winRate:  updated.win_rate   ?? t.winRate,
                         username: updated.username   ?? t.username,
+                        handle:   updated.handle     ?? t.handle,
                         avatar:   updated.avatar_url ?? t.avatar,
                         banner:   updated.banner_url ?? t.banner,
                         bio:      updated.bio        ?? t.bio,
-                    }
-                    : t
-            ));
-            // Also refresh viewingProfile if open
+                        verifiedReason: updated.verified_reason ?? t.verifiedReason,
+                    } : t
+                );
+            });
             setViewingProfile((prev: any) => {
                 if (!prev || prev.id !== updated.id) return prev;
-                return {
-                    ...prev,
-                    pnl:     updated.pnl_total  ?? prev.pnl,
-                    winRate: updated.win_rate   ?? prev.winRate,
-                };
+                return { ...prev, pnl: updated.pnl_total ?? prev.pnl, winRate: updated.win_rate ?? prev.winRate };
             });
-        });
-        return () => { supabase.removeChannel(lb); };
+        };
+
+        const buildLb = () => {
+            if (!mounted) return;
+            lbRef = subscribeLeaderboard(onProfileUpdate, (status, err) => {
+                if (!mounted) return;
+                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    try { supabase.removeChannel(lbRef); } catch {}
+                    lbRef = null;
+                    if (timer) clearTimeout(timer);
+                    timer = setTimeout(() => { delay = Math.min(delay * 2, 30_000); buildLb(); }, delay);
+                } else if (status === 'SUBSCRIBED') { delay = 3_000; }
+            });
+        };
+        buildLb();
+
+        return () => {
+            mounted = false;
+            if (timer) clearTimeout(timer);
+            if (lbRef) { try { supabase.removeChannel(lbRef); } catch {} }
+        };
     }, []);
 
     // Smart auth entry point — used by all "Log In" buttons in the UI.
@@ -8470,26 +8738,22 @@ const App = () => {
             }
         }
     };
-    const handleComment = async (pid: string, c: string, parentId?: string | null) => {
+    const handleComment = async (pid: string, c: string) => {
         if (!user) return openAppKitModal();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to comment', type: 'INFO' }); return; }
         if (!c.trim()) return;
         const tempId = `c_${Date.now()}`;
-        const tempComment: Comment = {
-            id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar,
-            content: c, timestamp: new Date().toISOString(),
-            parentId: parentId || null, likes: 0, likedBy: [],
-        };
+        const tempComment: Comment = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString() };
         const targetPost = posts.find(p => p.id === pid);
         const postAuthorId = targetPost?.authorId;
         // Optimistic add
         setPosts(prev => prev.map(p => p.id === pid ? {...p, comments: [...p.comments, tempComment]} : p));
         if (isSupabaseConfigured()) {
-            const { data: newComment } = await supabaseComment(pid, user.id, c, parentId).catch(() => ({ data: null })) as any;
+            const { data: newComment } = await supabaseComment(pid, user.id, c).catch(() => ({ data: null })) as any;
             if (newComment?.id) {
-                // Replace temp comment with real DB comment
+                // Replace temp comment with real DB comment (fixes disappear-on-refresh)
                 setPosts(prev => prev.map(p => p.id === pid
-                    ? { ...p, comments: p.comments.map(cm => cm.id === tempId ? { ...cm, id: newComment.id, timestamp: newComment.created_at || cm.timestamp, parentId: newComment.parent_id || null } : cm) }
+                    ? { ...p, comments: p.comments.map(cm => cm.id === tempId ? { ...cm, id: newComment.id, timestamp: newComment.created_at || cm.timestamp } : cm) }
                     : p
                 ));
             }
@@ -8512,31 +8776,11 @@ const App = () => {
             }
         }
     };
-    const handleLikeComment = (commentId: string) => {
-        if (!user) return openAppKitModal();
-        // Optimistic toggle
-        setPosts(prev => prev.map(post => ({
-            ...post,
-            comments: post.comments.map((cm: Comment) => {
-                if (cm.id !== commentId) return cm;
-                const liked = cm.likedBy.includes(user.id);
-                return {
-                    ...cm,
-                    likes: liked ? cm.likes - 1 : cm.likes + 1,
-                    likedBy: liked ? cm.likedBy.filter((id: string) => id !== user.id) : [...cm.likedBy, user.id],
-                };
-            }),
-        })));
-        if (isSupabaseConfigured()) {
-            supabaseToggleCommentLike(commentId, user.id).catch(e => console.warn('[velo] toggleCommentLike failed:', e));
-        }
-    };
     const doDeleteComment = async (postId: string, commentId: string) => {
         if (!user) return;
-        // Also remove any replies to this comment
         setPosts(prev => prev.map(p =>
             p.id === postId
-                ? { ...p, comments: p.comments.filter((c: any) => c.id !== commentId && c.parentId !== commentId) }
+                ? { ...p, comments: p.comments.filter((c: any) => c.id !== commentId) }
                 : p
         ));
         if (isSupabaseConfigured()) {
@@ -9559,13 +9803,13 @@ const App = () => {
                 </> }
                 {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
-                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
+                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
                 ))}
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} walletAddress={walletAddress} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
-                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
-                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onLikeComment={handleLikeComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
             <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} />

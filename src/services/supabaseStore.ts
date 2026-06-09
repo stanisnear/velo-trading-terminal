@@ -299,27 +299,21 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
   if (!posts || posts.length === 0) return [];
   const postIds = posts.map((p: any) => p.id);
 
-  const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }, { data: commentLikesRaw }] = await Promise.all([
+  const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }] = await Promise.all([
     supabase.from('likes').select('post_id, user_id').in('post_id', postIds),
     supabase.from('comments')
-      .select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(username, handle, avatar_url)')
+      .select('id, post_id, author_id, content, created_at, profiles!author_id(username, handle, avatar_url)')
       .in('post_id', postIds).order('created_at', { ascending: true }),
     supabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
-    supabase.from('comment_likes').select('comment_id, user_id'),
   ]);
 
-  const likesMap:       Record<string, string[]>  = {};
-  const commentsMap:    Record<string, Comment[]> = {};
-  const repostsMap:     Record<string, string[]>  = {};
-  const commentLikeMap: Record<string, string[]>  = {};
+  const likesMap:    Record<string, string[]>  = {};
+  const commentsMap: Record<string, Comment[]> = {};
+  const repostsMap:  Record<string, string[]>  = {};
 
   (likesRaw || []).forEach((l: any) => {
     if (!likesMap[l.post_id]) likesMap[l.post_id] = [];
     likesMap[l.post_id].push(l.user_id);
-  });
-  (commentLikesRaw || []).forEach((cl: any) => {
-    if (!commentLikeMap[cl.comment_id]) commentLikeMap[cl.comment_id] = [];
-    commentLikeMap[cl.comment_id].push(cl.user_id);
   });
   (commentsRaw || []).forEach((c: any) => {
     if (!commentsMap[c.post_id]) commentsMap[c.post_id] = [];
@@ -328,9 +322,6 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
       authorHandle: c.profiles?.handle || '@unknown',
       authorAvatar: c.profiles?.avatar_url || '',
       content: c.content, timestamp: c.created_at,
-      parentId: c.parent_id || null,
-      likes: (commentLikeMap[c.id] || []).length,
-      likedBy: commentLikeMap[c.id] || [],
     });
   });
   (repostsRaw || []).forEach((r: any) => {
@@ -416,37 +407,22 @@ export async function toggleRepost(userId: string, postId: string) {
   return { reposted: true };
 }
 
-export async function addComment(postId: string, authorId: string, content: string, parentId?: string | null) {
-  const row: any = { post_id: postId, author_id: authorId, content };
-  if (parentId) row.parent_id = parentId;
+export async function addComment(postId: string, authorId: string, content: string) {
   const { data, error } = await supabase
     .from('comments')
-    .insert(row)
-    .select('id, post_id, author_id, content, created_at, parent_id')
+    .insert({ post_id: postId, author_id: authorId, content })
+    .select('id, post_id, author_id, content, created_at')
     .single();
   return { data, error: error?.message || null };
 }
 
-export async function deleteComment(commentId: string, userId: string) {
-  // Try via RPC (handles both comment-author and post-owner delete)
-  const { error: rpcErr } = await supabase.rpc('delete_comment_as_post_owner', {
-    p_comment_id: commentId,
-    p_user_id: userId,
-  });
-  if (!rpcErr) return { error: null };
-  // Fallback: direct delete (works if RLS policy allows it)
+export async function deleteComment(commentId: string, authorId: string) {
+  // RLS: only the comment author can delete their own comment
   const { error } = await supabase
     .from('comments')
     .delete()
-    .eq('id', commentId);
-  return { error: error?.message || null };
-}
-
-export async function toggleCommentLike(commentId: string, userId: string) {
-  const { error } = await supabase.rpc('toggle_comment_like', {
-    p_comment_id: commentId,
-    p_user_id: userId,
-  });
+    .eq('id', commentId)
+    .eq('author_id', authorId);
   return { error: error?.message || null };
 }
 
@@ -1032,34 +1008,41 @@ export async function syncUserFinancials(userId: string, balance: number, realiz
 
 export function subscribeSocialFeed(callbacks: {
   onNewPost?:       (post: any)    => void;
+  onDeletePost?:    (post: any)    => void;
   onLike?:          (like: any)    => void;
   onUnlike?:        (like: any)    => void;
   onComment?:       (comment: any) => void;
   onDeleteComment?: (comment: any) => void;
   onNewRepost?:     (repost: any)  => void;
-  onCommentLike?:   (cl: any)      => void;
-  onCommentUnlike?: (cl: any)      => void;
+  onDeleteRepost?:  (repost: any)  => void;
+  onStatusChange?:  (status: string, err?: Error) => void;
 }): RealtimeChannel {
+  // Use a unique suffix so each call gets a fresh channel. A static name means
+  // Supabase returns the existing (possibly dead) channel object on the second
+  // call and never re-subscribes — this is the #1 cause of the "feed stops
+  // updating after a while" bug.
   const uid = Math.random().toString(36).slice(2, 8);
-  return supabase.channel(`velo-social-feed-${uid}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' },          p => callbacks.onNewPost?.(p.new))
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' },          p => callbacks.onLike?.(p.new))
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' },          p => callbacks.onUnlike?.(p.old))
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' },       p => callbacks.onComment?.(p.new))
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' },       p => callbacks.onDeleteComment?.(p.old))
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reposts' },        p => callbacks.onNewRepost?.(p.new))
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_likes' },  p => callbacks.onCommentLike?.(p.new))
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_likes' },  p => callbacks.onCommentUnlike?.(p.old))
-    .subscribe();
+  return supabase
+    .channel(`velo-social-${uid}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' },    p => callbacks.onNewPost?.(p.new))
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' },    p => callbacks.onDeletePost?.(p.old))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'likes' },    p => callbacks.onLike?.(p.new))
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' },    p => callbacks.onUnlike?.(p.old))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, p => callbacks.onComment?.(p.new))
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, p => callbacks.onDeleteComment?.(p.old))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reposts' },  p => callbacks.onNewRepost?.(p.new))
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'reposts' },  p => callbacks.onDeleteRepost?.(p.old))
+    .subscribe((status, err) => callbacks.onStatusChange?.(status, err ?? undefined));
 }
 
-export function subscribeUserNotifications(userId: string, onNew: (n: any) => void): RealtimeChannel {
-  return supabase.channel(`velo-notif-${userId}`)
+export function subscribeUserNotifications(userId: string, onNew: (n: any) => void, onStatus?: (s: string, e?: Error) => void): RealtimeChannel {
+  const uid = Math.random().toString(36).slice(2, 8);
+  return supabase.channel(`velo-notif-${userId}-${uid}`)
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'notifications',
       filter: `user_id=eq.${userId}`,
     }, p => onNew(p.new))
-    .subscribe();
+    .subscribe((status, err) => onStatus?.(status, err ?? undefined));
 }
 
 /**
@@ -1068,13 +1051,14 @@ export function subscribeUserNotifications(userId: string, onNew: (n: any) => vo
  * updates instantly without a manual refresh. The sender's optimistic insert
  * is already handled locally in handleSend.
  */
-export function subscribeUserTransactions(userId: string, onNew: (t: any) => void): RealtimeChannel {
-  return supabase.channel(`velo-tx-${userId}`)
+export function subscribeUserTransactions(userId: string, onNew: (t: any) => void, onStatus?: (s: string, e?: Error) => void): RealtimeChannel {
+  const uid = Math.random().toString(36).slice(2, 8);
+  return supabase.channel(`velo-tx-${userId}-${uid}`)
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'transactions',
       filter: `user_id=eq.${userId}`,
     }, p => onNew(p.new))
-    .subscribe();
+    .subscribe((status, err) => onStatus?.(status, err ?? undefined));
 }
 
 export function subscribeUserPositions(userId: string, callbacks: {
@@ -1155,10 +1139,12 @@ export async function savePreferences(userId: string, prefs: Partial<UserPrefere
 // ══════════════════════════════════════════════════════════════════
 
 /** Subscribe to profile updates so leaderboard PnL/win_rate stay live */
-export function subscribeLeaderboard(onUpdate: (profile: any) => void): RealtimeChannel {
-  return supabase.channel('velo-leaderboard')
+export function subscribeLeaderboard(onUpdate: (profile: any) => void, onStatus?: (s: string, e?: Error) => void): RealtimeChannel {
+  const uid = Math.random().toString(36).slice(2, 8);
+  return supabase.channel(`velo-leaderboard-${uid}`)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, p => onUpdate(p.new))
-    .subscribe();
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, p => onUpdate(p.new))
+    .subscribe((status, err) => onStatus?.(status, err ?? undefined));
 }
 
 // ══════════════════════════════════════════════════════════════════
