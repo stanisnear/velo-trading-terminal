@@ -74,9 +74,13 @@ const POSITION_V2_ABI: Abi = [
   },
 ];
 
-const V3 = (process.env.VITE_VELO_PERPS_V3_ADDRESS as `0x${string}`) || '';
+// Env-first with a hardcoded V3.1 fallback (contracts/deployments/base_sepolia.json).
+// Without the fallback, a missing env var made this keeper return {skipped:true}
+// with a green 200 — i.e. TP/SL silently stopped executing. Same hardening as
+// the frontend's VELO_PERPS_ADDRESS.
+const V3 = (process.env.VITE_VELO_PERPS_V3_ADDRESS as `0x${string}`) || '0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907';
 const V2 = (process.env.VITE_VELO_PERPS_V2_ADDRESS as `0x${string}`) || '';
-const PERPS = (V3 && V3.length === 42) ? V3 : ((V2 && V2.length === 42) ? V2 : '');
+const PERPS = (V3 && V3.length === 42) ? V3 : ((V2 && V2.length === 42) ? V2 : '0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907');
 const HERMES_URL = process.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 
 // Pyth contract on Base Sepolia. closeIfTriggered routes through _extractPrice,

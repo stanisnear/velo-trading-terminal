@@ -76,7 +76,10 @@ const POSITION_V2_ABI: Abi = [
 
 const V3 = (process.env.VITE_VELO_PERPS_V3_ADDRESS as `0x${string}`) || '';
 const V2 = (process.env.VITE_VELO_PERPS_V2_ADDRESS as `0x${string}`) || '';
-const FALLBACK = (process.env.VITE_VELO_PERPS_ADDRESS as `0x${string}`) || '0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163';
+// FALLBACK must be the ACTIVE V3.1 contract, not legacy V1 — otherwise a
+// missing env var makes the liquidator scan the old (empty) V1 deployment
+// while live positions sit unliquidated on V3.1, returning green 200s.
+const FALLBACK = (process.env.VITE_VELO_PERPS_ADDRESS as `0x${string}`) || '0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907';
 const PERPS = (V3 && V3.length === 42) ? V3 : ((V2 && V2.length === 42) ? V2 : FALLBACK);
 const HERMES_URL = process.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 

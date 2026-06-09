@@ -42,7 +42,9 @@ const V3_ABI: Abi = [
   },
 ];
 
-const V3 = (process.env.VITE_VELO_PERPS_V3_ADDRESS as `0x${string}`) || '';
+// Hardcoded V3.1 fallback — see cron-tp-sl.ts for why a missing env var must
+// never silently disable a keeper.
+const V3 = (process.env.VITE_VELO_PERPS_V3_ADDRESS as `0x${string}`) || '0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907';
 const HERMES_URL = process.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
 
 // Pyth contract on Base Sepolia. The Velo contract enforces
