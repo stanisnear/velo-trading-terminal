@@ -56,9 +56,10 @@ Velo's social product is a native part of the terminal, not a bolt-on:
 - **Token pages** — per-asset pages combining price, an interactive chart, and the social conversation around that ticker.
 - **Notifications** — a real-time bell for likes, follows, comments, mentions, transfers received, and trade events (position closed, take-profit/stop-loss hit, liquidation).
 - **Peer transfers** — send mUSDC to another user by `@handle` or address; the recipient gets a notification and an activity-feed entry.
+- **Threaded comments** — full Twitter-style threads: reply to any comment, like individual comments, `@mention` and `$TICKER` inside comments, link previews, and thread collapse — all live in real time.
 - **Leaderboard** — traders ranked by verified on-chain performance.
 
-> Note on scope: copy-trading was deliberately removed in favor of a cleaner social/leaderboard focus. Threaded comment replies and comment-likes are designed in the data model but not yet wired into the UI; comments are currently a flat thread. These are the clearest near-term social additions.
+**Copy-trading — the flagship.** Velo is built to be the eToro of crypto: see a trader's *provable* on-chain track record, then copy them. The copy engine is built — position mirroring, copy/manual attribution on every position and history row, copier counts and earned-fee accounting on profiles. The initiation UI is intentionally disabled for the testnet phase and returns with the mainnet launch, where copying real verified performance is the product's core promise. This is the structural moat: every social-trading platform on a centralized venue asks you to trust self-reported numbers; Velo's leaderboard is reconstructed from the chain.
 
 ---
 
@@ -78,7 +79,8 @@ Velo's social product is a native part of the terminal, not a bolt-on:
 1. **Security audit** of the VeloPerps contracts.
 2. **Mainnet deployment** on Base.
 3. **Liquidity & keeper hardening** for production load.
-4. **Social expansion** — threaded replies, comment-likes, and richer profile analytics.
+4. **Copy-trading launch** — re-enable the built copy engine's initiation UI on mainnet, where provable track records make copying meaningful.
+5. **Social expansion** — richer profile analytics and discovery.
 
 The realistic first funding ask is **$10–25K**, tied directly to the audit and mainnet deployment milestone.
 
@@ -86,4 +88,4 @@ The realistic first funding ask is **$10–25K**, tied directly to the audit and
 
 ## One-Line Summary
 
-Velo is a self-custodial, on-chain perpetual futures exchange with a provable-performance social layer — live on Base Sepolia, built by a trader, and designed to make the interface as serious as the protocol.
+Velo is the eToro of crypto built the only way that claim can be honest — a self-custodial, on-chain perpetual futures exchange where the social layer copies provable performance, not self-reported numbers. Live on Base Sepolia, built by a trader.

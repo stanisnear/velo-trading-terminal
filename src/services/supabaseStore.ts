@@ -302,10 +302,26 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
   const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }] = await Promise.all([
     supabase.from('likes').select('post_id, user_id').in('post_id', postIds),
     supabase.from('comments')
-      .select('id, post_id, author_id, content, created_at, profiles!author_id(username, handle, avatar_url)')
+      .select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(username, handle, avatar_url)')
       .in('post_id', postIds).order('created_at', { ascending: true }),
     supabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
   ]);
+
+  // Comment likes — fetched after comments since we need their ids. Soft-fails
+  // to an empty set on DBs where the comment_likes table isn't migrated yet,
+  // so the feed still loads (likes just render as zero).
+  const commentIds = (commentsRaw || []).map((c: any) => c.id);
+  let commentLikesRaw: any[] = [];
+  if (commentIds.length > 0) {
+    const { data: clData, error: clErr } = await supabase
+      .from('comment_likes').select('comment_id, user_id').in('comment_id', commentIds);
+    if (!clErr && clData) commentLikesRaw = clData;
+  }
+  const commentLikesMap: Record<string, string[]> = {};
+  commentLikesRaw.forEach((cl: any) => {
+    if (!commentLikesMap[cl.comment_id]) commentLikesMap[cl.comment_id] = [];
+    commentLikesMap[cl.comment_id].push(cl.user_id);
+  });
 
   const likesMap:    Record<string, string[]>  = {};
   const commentsMap: Record<string, Comment[]> = {};
@@ -322,6 +338,9 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
       authorHandle: c.profiles?.handle || '@unknown',
       authorAvatar: c.profiles?.avatar_url || '',
       content: c.content, timestamp: c.created_at,
+      parentId: c.parent_id || null,
+      likes:   (commentLikesMap[c.id] || []).length,
+      likedBy:  commentLikesMap[c.id] || [],
     });
   });
   (repostsRaw || []).forEach((r: any) => {
@@ -407,13 +426,26 @@ export async function toggleRepost(userId: string, postId: string) {
   return { reposted: true };
 }
 
-export async function addComment(postId: string, authorId: string, content: string) {
+export async function addComment(postId: string, authorId: string, content: string, parentId?: string | null) {
   const { data, error } = await supabase
     .from('comments')
-    .insert({ post_id: postId, author_id: authorId, content })
-    .select('id, post_id, author_id, content, created_at')
+    .insert({ post_id: postId, author_id: authorId, content, parent_id: parentId || null })
+    .select('id, post_id, author_id, content, created_at, parent_id')
     .single();
   return { data, error: error?.message || null };
+}
+
+/** Toggle a like on a COMMENT (Twitter-style). Mirrors toggleLike for posts. */
+export async function toggleCommentLike(userId: string, commentId: string) {
+  const { data: existing } = await supabase
+    .from('comment_likes').select('id').eq('user_id', userId).eq('comment_id', commentId).maybeSingle();
+  if (existing) {
+    await supabase.from('comment_likes').delete().eq('user_id', userId).eq('comment_id', commentId);
+    return { liked: false };
+  }
+  const { error } = await supabase.from('comment_likes').insert({ user_id: userId, comment_id: commentId });
+  if (error) console.warn('[supabase] comment like failed:', error.message);
+  return { liked: !error };
 }
 
 export async function deleteComment(commentId: string, authorId: string) {

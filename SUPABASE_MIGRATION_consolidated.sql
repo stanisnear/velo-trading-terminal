@@ -319,6 +319,55 @@ begin
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════
+-- SECTION 9 · Threaded comments + comment likes (Twitter-style)
+-- ════════════════════════════════════════════════════════════════════════
+-- comments.parent_id — reply threading. Add if missing; ensure the FK
+-- cascades so deleting a parent removes its replies.
+alter table public.comments add column if not exists parent_id uuid;
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'comments_parent_id_fkey' and conrelid = 'public.comments'::regclass
+  ) then
+    alter table public.comments
+      add constraint comments_parent_id_fkey
+      foreign key (parent_id) references public.comments(id) on delete cascade;
+  end if;
+end $$;
+
+-- comment_likes — likes on individual comments.
+create table if not exists public.comment_likes (
+  id         uuid primary key default gen_random_uuid(),
+  comment_id uuid not null references public.comments(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (comment_id, user_id)
+);
+
+alter table public.comment_likes enable row level security;
+drop policy if exists velo_clikes_select on public.comment_likes;
+create policy velo_clikes_select on public.comment_likes for select using (true);
+drop policy if exists velo_clikes_insert on public.comment_likes;
+create policy velo_clikes_insert on public.comment_likes for insert with check (user_id = auth.uid());
+drop policy if exists velo_clikes_delete on public.comment_likes;
+create policy velo_clikes_delete on public.comment_likes for delete using (user_id = auth.uid());
+
+grant select, insert, delete on public.comment_likes to authenticated;
+grant select on public.comment_likes to anon;
+
+-- Realtime: publish + FULL replica identity (DELETE payload must carry
+-- comment_id/user_id for the un-like handler).
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'comment_likes'
+  ) then
+    alter publication supabase_realtime add table public.comment_likes;
+  end if;
+end $$;
+alter table public.comment_likes replica identity full;
+
+-- ════════════════════════════════════════════════════════════════════════
 -- SECTION 8 · Reload PostgREST schema cache
 -- ════════════════════════════════════════════════════════════════════════
 notify pgrst, 'reload schema';

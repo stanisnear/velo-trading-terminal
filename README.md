@@ -134,6 +134,7 @@ This replaces the older behavior where a wallet on an unsupported chain could la
 The social product is native to the terminal:
 
 - **Feed** — text, image, and trade-signal posts; like, repost, comment. All updates are live via Supabase Realtime (with auto-reconnect and a one-shot re-fetch on reconnect so nothing is missed).
+- **Threaded comments (Twitter-style)** — reply to any comment with visual thread lines and collapse/expand; like individual comments; `@mention` and `$TICKER` work inside comments exactly as in posts; link previews render in comments; deleting a parent cascades its replies. Comment likes and replies propagate live across sessions, and the recipient is notified ("replied to your comment", "liked your comment").
 - **Mentions** — `@handle` notifies the mentioned user (in posts and comments).
 - **Cashtags** — `$TICKER` links to that market's token page.
 - **Follows** — follower/following counts maintained server-side via RPC.
@@ -142,15 +143,13 @@ The social product is native to the terminal:
 - **Single-post view** — permalinked posts (`/social/post/:id`), shareable like a tweet.
 - **Peer transfers** — send mUSDC by `@handle` or address; the recipient gets a notification and an activity row.
 
-**Designed but not yet wired:** threaded comment replies and comment-likes exist in the data model (`parentId`, `likes`, `likedBy` on the `Comment` type, a `CommentThread` component, and a `parent_id` column) but are not connected to the live UI — comments are currently flat. See [Known Gaps & Roadmap](#known-gaps--roadmap).
-
-**Removed:** copy-trading was intentionally removed in favor of a cleaner social/leaderboard focus.
+**Copy-trading — the flagship, built and staged.** Velo's core promise is copying *provable* on-chain performance — the eToro of crypto, made honest by settlement on-chain. The engine is built: position mirroring, copy/manual source attribution on every position and history row (visible today in the Dashboard and Trade views), copier counts and earned-fee accounting on profiles. The initiation UI is intentionally disabled during the testnet phase and returns with mainnet, where real verified track records make copying meaningful.
 
 ---
 
 ## Leaderboard
 
-Traders are ranked by **verified on-chain performance**. Because PnL and win rate derive from blockchain history rather than self-reported numbers, the ranking is structurally resistant to fabrication. The leaderboard surfaces top traders with a podium for the leaders and links through to public profiles.
+Traders are ranked by **verified on-chain performance**. Because PnL and win rate derive from blockchain history rather than self-reported numbers, the ranking is structurally resistant to fabrication. The leaderboard surfaces top traders with a podium for the leaders and links through to public profiles — and on mainnet becomes the discovery surface for copy-trading: find the most profitable traders, verify them on-chain, copy them.
 
 ---
 
@@ -287,6 +286,7 @@ Run **`SUPABASE_MIGRATION_consolidated.sql`** once in the Supabase SQL editor. I
 - Defines the cross-user RPCs (`create_notification_for_user`, `record_transaction_for_user`) and the balance/follow helpers — each dropped-then-recreated so a return-type change never trips `42P13`.
 - Ensures enriched `trade_history` / `transactions` columns exist.
 - Sets RLS (public reads where needed, own-row writes) and the realtime publication + `REPLICA IDENTITY FULL` (so DELETE events carry the old row).
+- Ensures threaded comments (`parent_id` + cascade) and the `comment_likes` table with RLS + realtime (SECTION 9).
 - Reloads the PostgREST schema cache.
 
 To grant yourself admin:
@@ -300,14 +300,15 @@ insert into public.velo_admins (user_id) values ('<your-auth-uid>') on conflict 
 ## Known Gaps & Roadmap
 
 **Known gaps (audited):**
-- **Threaded replies & comment-likes** are designed in the data model but not wired into the UI; comments are flat. This is the largest remaining social feature.
-- The `tsc` baseline carries ~87 viem/wagmi type mismatches that don't block the build.
+- **Copy-trading initiation UI** is intentionally disabled for the testnet phase (the engine is built; see The Social Layer above). Re-enabling it is a mainnet-launch task, not a bug.
+- The `tsc` baseline carries ~84 viem/wagmi type mismatches that don't block the build.
 
 **Roadmap to mainnet:**
 1. Security audit of the VeloPerps contracts.
 2. Mainnet deployment on Base.
 3. Liquidity & keeper hardening for production load.
-4. Social expansion: threaded replies, comment-likes, richer profile analytics.
+4. Copy-trading launch: re-enable the built engine's initiation UI where provable records make copying meaningful.
+5. Social expansion: richer profile analytics and discovery.
 
 The realistic first funding ask is **$10–25K**, tied to the audit + mainnet milestone.
 

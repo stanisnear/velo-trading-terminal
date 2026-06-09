@@ -38,6 +38,7 @@ import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
+import { CommentThread } from './components/CommentThread';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
@@ -84,6 +85,7 @@ import {
   fetchPreferences,
   savePreferences,
   createNotification,
+  toggleCommentLike as supabaseToggleCommentLike,
   markAllNotificationsRead,
   UserPreferences,
   DEFAULT_PREFERENCES,
@@ -430,6 +432,12 @@ async function recordTransactionForUser(
   throw new Error(error.message);
 }
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Wired by App during render so PostCard / SinglePostView (which render deep in
+// the tree) can trigger comment likes without threading a new prop through
+// every intermediate component. Same module-level pattern as
+// VERIFIED_REASON_BY_ID below.
+let COMMENT_LIKE_HANDLER: ((postId: string, commentId: string) => void) | null = null;
 
 const formatMoney = (amount: number | undefined | null) => {
     if (amount === undefined || amount === null) return '0.00';
@@ -1637,7 +1645,7 @@ const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCop
                 <h1 className="lb-hero-title" style={{ fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--fg)', lineHeight: 1, margin: '0 0 12px' }}>
                     Top <em style={{ fontStyle: 'italic' }}>Traders</em>
                 </h1>
-                <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Ranked by verified on-chain performance.</p>
+                <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Copy the most profitable traders on Velo.</p>
                 <div style={{ display: 'inline-flex', gap: 4, marginTop: 16, background: 'var(--chip-bg)', borderRadius: 10, padding: 4, border: '1px solid var(--hairline)' }}>
                     {(['24H','7D','30D','ALL'] as const).map((p) => (
                         <button key={p} onClick={() => setPeriod(p)} style={{ padding: '5px 14px', borderRadius: 7, border: 'none', cursor: 'pointer', ...S_LB.mono, fontSize: 11, fontWeight: 700, background: period === p ? 'var(--bg-base-2)' : 'transparent', color: period === p ? 'var(--fg)' : 'var(--fg-subtle)', boxShadow: period === p ? '0 1px 4px rgba(0,0,0,0.3)' : 'none' }}>{p}</button>
@@ -2179,78 +2187,17 @@ const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, on
                     </div>
                     {/* Comments section */}
                     {showComments && (
-                        <div style={{ marginTop: 12, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-                            {/* Existing comments */}
-                            {post.comments.length > 0 && (
-                                <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                    {post.comments.map((c: any) => (
-                                        <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                                            <img
-                                                src={c.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.authorHandle}`}
-                                                style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0, cursor: 'pointer' }}
-                                                onClick={() => onViewProfile({ id: c.authorId })}
-                                                title={`View ${c.authorHandle}'s profile`}
-                                            />
-                                            <div style={{ background: 'var(--chip-bg)', borderRadius: 10, padding: '6px 10px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <span
-                                                        style={{ ...S.display, fontSize: 12, color: 'var(--fg)', marginRight: 4, cursor: 'pointer' }}
-                                                        onClick={() => onViewProfile({ id: c.authorId })}
-                                                    >{c.authorHandle}</span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', marginRight: 6, fontWeight: 700, letterSpacing: '0.06em' }}>{(() => { const d = new Date(c.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)' }}>{renderContentWithMentions(c.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}</span>
-                                                </div>
-                                                {user && (user.id === c.authorId || user.id === post.authorId) && onDeleteComment && (
-                                                    <button
-                                                        onClick={() => onDeleteComment(post.id, c.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: '2px 4px', borderRadius: 4, flexShrink: 0, opacity: 0.6, transition: 'opacity 0.1s' }}
-                                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.6'}
-                                                        title="Delete comment"
-                                                    ><Trash2 size={11}/></button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {/* Comment input */}
-                            {user ? (
-                                <div style={{ position: 'relative' }}>
-                                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                                        <img src={user.avatar} style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
-                                        <div style={{ flex: 1, display: 'flex', gap: 6, alignItems: 'center', background: 'var(--chip-bg)', borderRadius: 20, padding: '4px 4px 4px 12px', border: '1px solid var(--hairline)' }}>
-                                            <input
-                                                ref={commentInputRef}
-                                                value={commentText}
-                                                onChange={handleCommentTextChange}
-                                                onKeyDown={e => {
-                                                    if (commentMentionQuery !== null && commentMentionResults.length > 0) {
-                                                        if (e.key === 'ArrowDown') { e.preventDefault(); setCommentMentionIdx(i => Math.min(i+1, commentMentionResults.length-1)); return; }
-                                                        if (e.key === 'ArrowUp') { e.preventDefault(); setCommentMentionIdx(i => Math.max(i-1, 0)); return; }
-                                                        if (e.key === 'Tab') { e.preventDefault(); completeCommentMention(commentMentionResults[commentMentionIdx]); return; }
-                                                        if (e.key === 'Escape') { setCommentMentionQuery(null); setCommentMentionTrigger(null); return; }
-                                                    }
-                                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitComment(); }
-                                                }}
-                                                onBlur={() => setTimeout(() => { setCommentMentionQuery(null); setCommentMentionTrigger(null); }, 150)}
-                                                placeholder="Write a comment... @mention or $TICKER"
-                                                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg)', minWidth: 0 }}
-                                            />
-                                            <button
-                                                onClick={handleSubmitComment}
-                                                disabled={!commentText.trim() || isSubmittingComment}
-                                                style={{ padding: '5px 12px', borderRadius: 16, background: commentText.trim() ? 'var(--iris-violet)' : 'var(--chip-bg)', border: 'none', ...S.mono, fontSize: 11, fontWeight: 700, color: commentText.trim() ? '#fff' : 'var(--fg-subtle)', cursor: commentText.trim() ? 'pointer' : 'default', transition: 'all 0.1s', flexShrink: 0 }}>
-                                                Post
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <MentionDropdown results={commentMentionResults} anchorRef={commentInputRef} activeIndex={commentMentionIdx} onSelect={completeCommentMention} onHover={setCommentMentionIdx} />
-                                </div>
-                            ) : (
-                                <p style={{ ...S.label, textAlign: 'center', padding: '8px 0' }}>Log in to comment</p>
-                            )}
-                        </div>
+                        <CommentThread
+                            post={post}
+                            user={user}
+                            traders={traders}
+                            onComment={onComment}
+                            onDeleteComment={(pid: string, cid: string) => onDeleteComment?.(pid, cid)}
+                            onLikeComment={(cid: string) => COMMENT_LIKE_HANDLER?.(post.id, cid)}
+                            onViewProfile={onViewProfile}
+                            onTickerClick={onTickerClick}
+                            compact
+                        />
                     )}
                 </div>
             </div>
@@ -3261,55 +3208,18 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
                 </div>
             </div>
 
-            {/* Comments section */}
-            <div style={{ marginTop: 16 }}>
-                <div style={{ ...S.label, fontSize: 11, marginBottom: 12, paddingLeft: 4 }}>
-                    {post.comments.length} {post.comments.length === 1 ? 'Comment' : 'Comments'}
-                </div>
-
-                {/* Write comment */}
-                {user && <SinglePostCommentBox post={post} user={user} onComment={onComment} traders={traders} />}
-
-                {/* Existing comments */}
-                {post.comments.length === 0 ? (
-                    <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
-                        <MessageCircle size={28} style={{ color: 'var(--fg-subtle)', marginBottom: 8 }} />
-                        <p style={{ ...S.display, fontSize: 18, color: 'var(--fg-subtle)' }}>No comments yet.</p>
-                        <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', marginTop: 4 }}>Be the first to comment.</p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {post.comments.map((c: any) => {
-                            const canDeleteComment = user && onDeleteComment && (user.id === c.authorId || user.id === post.authorId);
-                            return (
-                                <div key={c.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '14px 18px', display: 'flex', gap: 12 }}>
-                                    <img src={c.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.authorHandle}`}
-                                        style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0, cursor: 'pointer' }}
-                                        onClick={() => onViewProfile({ id: c.authorId })} />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)', cursor: 'pointer' }} onClick={() => onViewProfile({ id: c.authorId })}>{c.authorHandle}</span>
-                                                <span style={{ ...S.label, fontSize: 10 }}>{(() => { const d = new Date(c.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
-                                            </div>
-                                            {canDeleteComment && (
-                                                <button onClick={() => onDeleteComment(post.id, c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: 2, transition: 'color 0.1s' }}
-                                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--pnl-down)'}
-                                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg-subtle)'}>
-                                                    <Trash2 size={13}/>
-                                                </button>
-                                            )}
-                                        </div>
-                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg)', lineHeight: 1.55 }}>
-                                            {renderContentWithMentions(c.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}
-                                        </p>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
+            {/* Comments section — full Twitter-style thread: likes, replies, @/$ tags */}
+            <CommentThread
+                post={post}
+                user={user}
+                traders={traders}
+                onComment={onComment}
+                onDeleteComment={(pid: string, cid: string) => onDeleteComment?.(pid, cid)}
+                onLikeComment={(cid: string) => COMMENT_LIKE_HANDLER?.(post.id, cid)}
+                onViewProfile={onViewProfile}
+                onTickerClick={onTickerClick}
+                compact={false}
+            />
         </div>
     );
 };
@@ -6354,9 +6264,18 @@ const App = () => {
                 const postIds = data.map((p: any) => p.id);
                 const [{ data: likesData }, { data: commentsData }, { data: repostsData }] = await Promise.all([
                     supabase.from('likes').select('post_id, user_id').in('post_id', postIds),
-                    supabase.from('comments').select('id, post_id, author_id, content, created_at, profiles!author_id(handle, avatar_url)').in('post_id', postIds).order('created_at', { ascending: true }),
+                    supabase.from('comments').select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(handle, avatar_url)').in('post_id', postIds).order('created_at', { ascending: true }),
                     supabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
                 ]);
+                // Comment likes (soft-fails to empty if table not migrated yet)
+                const cIds = (commentsData || []).map((c: any) => c.id);
+                let clData: any[] = [];
+                if (cIds.length > 0) {
+                    const { data: cl, error: clErr } = await supabase.from('comment_likes').select('comment_id, user_id').in('comment_id', cIds);
+                    if (!clErr && cl) clData = cl;
+                }
+                const cLikesMap: Record<string, string[]> = {};
+                clData.forEach((cl: any) => { (cLikesMap[cl.comment_id] ||= []).push(cl.user_id); });
 
                 const likesMap:   Record<string, string[]>  = {};
                 const commentsMap: Record<string, any[]>    = {};
@@ -6370,6 +6289,9 @@ const App = () => {
                         authorHandle: c.profiles?.handle   || '@unknown',
                         authorAvatar: c.profiles?.avatar_url || '',
                         content: c.content, timestamp: c.created_at,
+                        parentId: c.parent_id || null,
+                        likes:   (cLikesMap[c.id] || []).length,
+                        likedBy:  cLikesMap[c.id] || [],
                     });
                 });
 
@@ -6483,6 +6405,33 @@ const App = () => {
                     }));
                 })
 
+                // ── comment likes ─────────────────────────────────────────
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comment_likes' }, (payload: any) => {
+                    if (!mounted) return;
+                    const cl = payload.new;
+                    setPosts(prev => prev.map(p => ({
+                        ...p,
+                        comments: (p.comments || []).map((cm: any) => {
+                            if (cm.id !== cl.comment_id || (cm.likedBy || []).includes(cl.user_id)) return cm;
+                            const next = [...(cm.likedBy || []), cl.user_id];
+                            return { ...cm, likedBy: next, likes: next.length };
+                        }),
+                    })));
+                })
+                .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_likes' }, (payload: any) => {
+                    if (!mounted) return;
+                    const cl = payload.old;
+                    if (!cl?.comment_id) return; // requires REPLICA IDENTITY FULL (set in migration)
+                    setPosts(prev => prev.map(p => ({
+                        ...p,
+                        comments: (p.comments || []).map((cm: any) => {
+                            if (cm.id !== cl.comment_id) return cm;
+                            const next = (cm.likedBy || []).filter((uid: string) => uid !== cl.user_id);
+                            return { ...cm, likedBy: next, likes: next.length };
+                        }),
+                    })));
+                })
+
                 // ── comments ──────────────────────────────────────────────
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, async (payload: any) => {
                     const c = payload.new;
@@ -6492,7 +6441,7 @@ const App = () => {
                         const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', c.author_id).single();
                         if (profile) { authorHandle = profile.handle || '@unknown'; authorAvatar = profile.avatar_url || ''; }
                     } catch {}
-                    const newComment: Comment = { id: c.id, authorId: c.author_id, authorHandle, authorAvatar, content: c.content, timestamp: c.created_at };
+                    const newComment: Comment = { id: c.id, authorId: c.author_id, authorHandle, authorAvatar, content: c.content, timestamp: c.created_at, parentId: c.parent_id || null, likes: 0, likedBy: [] };
                     if (!mounted) return;
                     setPosts(prev => prev.map(p => {
                         if (p.id !== c.post_id) return p;
@@ -8593,7 +8542,7 @@ const App = () => {
                 await supabaseFollow(user.id, id);
                 // Notify the followed user (only on follow, not unfollow)
                 if (!isFollowing) {
-                    createNotification(id, 'FOLLOW', `${user.handle} started following you`, user.id)
+                    createNotificationForUser(id, 'FOLLOW', `${user.handle} started following you`, user.id)
                         .catch(e => console.warn('Follow notification failed:', e));
                 }
                 // Sync follower_count on the followed profile and following_count on current user
@@ -8726,7 +8675,7 @@ const App = () => {
                 setPosts(prev => prev.map(p => p.id === tempId ? { ...p, id: data.id } : p));
                 // Notify profile owner if posting on their wall (not your own)
                 if (targetProfileId && targetProfileId !== user.id) {
-                    createNotification(targetProfileId, 'WALL_POST', `${user.handle} posted on your profile`, data.id)
+                    createNotificationForUser(targetProfileId, 'WALL_POST', `${user.handle} posted on your profile`, data.id)
                         .catch(() => {});
                 }
                 // Detect and notify @mentions
@@ -8737,7 +8686,7 @@ const App = () => {
                         t.handle?.toLowerCase() === handle || `@${t.username?.toLowerCase()}` === handle
                     );
                     if (mentionedTrader && mentionedTrader.id !== user.id && mentionedTrader.id !== targetProfileId) {
-                        createNotification(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you: "${c.slice(0, 80)}${c.length > 80 ? '…' : ''}"`, data.id)
+                        createNotificationForUser(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you: "${c.slice(0, 80)}${c.length > 80 ? '…' : ''}"`, data.id)
                             .catch(() => {});
                     }
                     return data.id as string;
@@ -8787,11 +8736,40 @@ const App = () => {
             supabaseLike(user.id, id).catch(e => console.warn('Like sync failed:', e));
             // Notify post author (only on like, not unlike, and not your own post)
             if (!wasLiked && postAuthorId && postAuthorId !== user.id) {
-                createNotification(postAuthorId, 'LIKE', `${user.handle} liked your post`, id)
+                createNotificationForUser(postAuthorId, 'LIKE', `${user.handle} liked your post`, id)
                     .catch(e => console.warn('Like notification failed:', e));
             }
         }
     };
+    // ── Comment likes (Twitter-style) ────────────────────────────────────
+    const handleLikeComment = async (postId: string, commentId: string) => {
+        if (!user) return openAppKitModal();
+        const targetPost = posts.find(p => p.id === postId);
+        const targetComment = targetPost?.comments?.find((cm: any) => cm.id === commentId);
+        const wasLiked = !!targetComment?.likedBy?.includes(user.id);
+        // Optimistic nested toggle
+        setPosts(prev => prev.map(p => {
+            if (p.id !== postId) return p;
+            return { ...p, comments: p.comments.map((cm: any) => {
+                if (cm.id !== commentId) return cm;
+                const likedBy: string[] = cm.likedBy || [];
+                const next = wasLiked ? likedBy.filter((uid: string) => uid !== user.id) : [...likedBy, user.id];
+                return { ...cm, likedBy: next, likes: next.length };
+            }) };
+        }));
+        playSound('CLICK');
+        if (isSupabaseConfigured()) {
+            supabaseToggleCommentLike(user.id, commentId).catch(e => console.warn('Comment like sync failed:', e));
+            if (!wasLiked && targetComment && targetComment.authorId && targetComment.authorId !== user.id) {
+                createNotificationForUser(targetComment.authorId, 'LIKE', `${user.handle} liked your comment`, postId)
+                    .catch(() => {});
+            }
+        }
+    };
+    // Expose to PostCard / SinglePostView (rendered deep in the tree) without
+    // threading a new prop through every intermediate component.
+    COMMENT_LIKE_HANDLER = handleLikeComment;
+
     const handleRepost = async (id: string) => {
         if (!user) return openAppKitModal();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to repost', type: 'INFO' }); return; }
@@ -8811,23 +8789,25 @@ const App = () => {
             supabaseRepost(user.id, id).catch(e => console.warn('Repost sync failed:', e));
             // Notify post author on repost (not un-repost, not your own post)
             if (!wasReposted && postAuthorId && postAuthorId !== user.id) {
-                createNotification(postAuthorId, 'REPOST', `${user.handle} reposted your post`, id)
+                createNotificationForUser(postAuthorId, 'REPOST', `${user.handle} reposted your post`, id)
                     .catch(e => console.warn('Repost notification failed:', e));
             }
         }
     };
-    const handleComment = async (pid: string, c: string) => {
+    const handleComment = async (pid: string, c: string, parentId?: string | null) => {
         if (!user) return openAppKitModal();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to comment', type: 'INFO' }); return; }
         if (!c.trim()) return;
         const tempId = `c_${Date.now()}`;
-        const tempComment: Comment = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString() };
+        const tempComment: Comment = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), parentId: parentId || null, likes: 0, likedBy: [] };
         const targetPost = posts.find(p => p.id === pid);
         const postAuthorId = targetPost?.authorId;
+        // Thread reply → the person being replied to is the parent comment's author
+        const parentComment = parentId ? targetPost?.comments?.find((cm: any) => cm.id === parentId) : null;
         // Optimistic add
         setPosts(prev => prev.map(p => p.id === pid ? {...p, comments: [...p.comments, tempComment]} : p));
         if (isSupabaseConfigured()) {
-            const { data: newComment } = await supabaseComment(pid, user.id, c).catch(() => ({ data: null })) as any;
+            const { data: newComment } = await supabaseComment(pid, user.id, c, parentId || undefined).catch(() => ({ data: null })) as any;
             if (newComment?.id) {
                 // Replace temp comment with real DB comment (fixes disappear-on-refresh)
                 setPosts(prev => prev.map(p => p.id === pid
@@ -8835,9 +8815,16 @@ const App = () => {
                     : p
                 ));
             }
-            // Notify post author (not your own post)
-            if (postAuthorId && postAuthorId !== user.id) {
-                createNotification(postAuthorId, 'COMMENT', `${user.handle} commented: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
+            // Notify the right person: a threaded reply notifies the PARENT
+            // comment's author; a top-level comment notifies the post author.
+            // Cross-user notification rows are RLS-blocked on direct insert
+            // (user_id ≠ auth.uid()), so these go through the SECURITY DEFINER
+            // RPC wrapper.
+            if (parentComment && parentComment.authorId && parentComment.authorId !== user.id) {
+                createNotificationForUser(parentComment.authorId, 'COMMENT', `${user.handle} replied to your comment: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
+                    .catch(e => console.warn('Reply notification failed:', e));
+            } else if (!parentId && postAuthorId && postAuthorId !== user.id) {
+                createNotificationForUser(postAuthorId, 'COMMENT', `${user.handle} commented: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
                     .catch(e => console.warn('Comment notification failed:', e));
             }
             // Detect @mentions and notify each mentioned user
@@ -8848,7 +8835,7 @@ const App = () => {
                     t.handle?.toLowerCase() === handle || `@${t.username?.toLowerCase()}` === handle
                 );
                 if (mentionedTrader && mentionedTrader.id !== user.id && mentionedTrader.id !== postAuthorId) {
-                    createNotification(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you in a comment: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
+                    createNotificationForUser(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you in a comment: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
                         .catch(() => {});
                 }
             }
@@ -8858,7 +8845,9 @@ const App = () => {
         if (!user) return;
         setPosts(prev => prev.map(p =>
             p.id === postId
-                ? { ...p, comments: p.comments.filter((c: any) => c.id !== commentId) }
+                // Drop the comment AND its threaded replies (DB cascades via
+                // the parent_id FK; this keeps local state consistent).
+                ? { ...p, comments: p.comments.filter((c: any) => c.id !== commentId && c.parentId !== commentId) }
                 : p
         ));
         if (isSupabaseConfigured()) {

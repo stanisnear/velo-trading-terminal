@@ -3,7 +3,7 @@
 A complete, audited inventory of what the Velo terminal does today on Base Sepolia. Status legend:
 
 - **Live** — working and deployed.
-- **Designed, not wired** — present in the data model/components but not connected to the live UI.
+- **Built — testnet-disabled** — fully implemented; initiation UI intentionally off during the testnet phase.
 - **Removed** — intentionally taken out.
 
 ---
@@ -95,7 +95,9 @@ A complete, audited inventory of what the Velo terminal does today on Base Sepol
 | Post (trade signal) | Live | pair/side/leverage/entry metadata |
 | Like / unlike | Live | realtime, optimistic |
 | Repost / un-repost | Live | realtime |
-| Comment (flat) | Live | realtime, optimistic, temp→DB id reconciliation |
+| Comments — Twitter-style threads | Live | reply to any comment, thread lines, collapse/expand, link previews; realtime, optimistic, temp→DB id reconciliation |
+| Comment likes | Live | per-comment hearts; realtime across sessions; notifies the comment author |
+| Threaded reply notifications | Live | "replied to your comment" via SECURITY DEFINER RPC |
 | `@mention` notifications | Live | posts and comments |
 | `$TICKER` cashtags | Live | link to token page |
 | Follow / unfollow | Live | server-side count maintenance via RPC |
@@ -105,9 +107,7 @@ A complete, audited inventory of what the Velo terminal does today on Base Sepol
 | Profile editing | Live | avatar, banner, bio |
 | Post / comment deletion | Live | author-gated |
 | Peer-to-peer transfer (Send) | Live | by `@handle` or address; recipient notified + activity row |
-| Threaded comment replies | Designed, not wired | `parentId` + `CommentThread` + `parent_id` column exist; UI renders flat |
-| Comment-likes | Designed, not wired | `likes`/`likedBy` on the type; no insert path or UI |
-| Copy-trading | Removed | replaced by social/leaderboard focus |
+| Copy-trading engine | Built — testnet-disabled | the flagship: position mirroring, copy/manual attribution, copier counts, earned-fee fields; initiation UI returns with mainnet |
 
 ---
 
@@ -207,11 +207,13 @@ A complete, audited inventory of what the Velo terminal does today on Base Sepol
 6. **Stale leaderboard copy** — "Copy the most profitable traders" → "Ranked by verified on-chain performance."
 7. **`modal-open` CSS** — the body class is now backed by a real rule.
 8. **Database** — consolidated, idempotent migration adds `admin_set_verification`, fixes the `velo_admins` RLS recursion, and re-asserts RPCs, columns, RLS, and realtime.
+9. **Twitter-style comments shipped** — the previously-unwired `CommentThread` system is now fully connected: threaded replies (`parent_id`), comment likes (`comment_likes` table + realtime), reply/like notifications, and cascade delete.
+10. **Cross-user notifications hardened** — all 7 social notification sites (follow, like, repost, comment, wall post, 2× mention) now route through the SECURITY DEFINER RPC instead of RLS-blocked direct inserts.
 
 ---
 
 ## Near-Term Backlog
 
-- Wire threaded replies + comment-likes (the largest remaining social feature; needs a `comment_likes` table, RLS, realtime, handlers, and a UI swap).
 - Security audit → Base mainnet deployment.
+- Re-enable copy-trading initiation UI at mainnet (engine already built).
 - Profile analytics expansion.
