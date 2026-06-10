@@ -311,3 +311,17 @@ export const isWalletUser = (userId: string | undefined): boolean => {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) &&
     !userId.startsWith('local_');
 };
+
+// ── Social token pairs (which $TICKERS are valid links in posts/comments) ──
+export const SOCIAL_FEATURED_PAIRS = PAIRS.map(p => ({
+    symbol: p.id.split('/')[0],
+    pairId: p.id,
+    name: p.name,
+    logo: p.logo,
+    binance: `${p.id.split('/')[0]}USDT`,
+    geckoId: p.geckoId,
+}));
+
+// Top 4 shown in the tokens bar and related-tokens sidebar
+export const TOP_SOCIAL_PAIRS = SOCIAL_FEATURED_PAIRS.slice(0, 4); // SOL, BTC, ETH, WIF
+export const VALID_TICKER_SYMBOLS = SOCIAL_FEATURED_PAIRS.map(p => p.symbol);

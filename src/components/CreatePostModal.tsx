@@ -199,9 +199,19 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
     const handleSubmit = async () => {
         if (!content.trim() || posting) return;
         setPosting(true);
-        await onSubmit(content.trim());
-        setPosting(false);
-        onClose();
+        try {
+            await onSubmit(content.trim());
+            // Success: the App-side wrapper has already closed/navigated to the
+            // new post's URL; clearing here covers the local-only path.
+            setContent('');
+            onClose();
+        } catch (e) {
+            // Keep the draft and name the real cause in the console — a failed
+            // post must never strand the button on 'Posting…' or eat the text.
+            console.error('[velo] post submit failed:', e);
+        } finally {
+            setPosting(false);
+        }
     };
 
     if (!isOpen || !user) return null;
