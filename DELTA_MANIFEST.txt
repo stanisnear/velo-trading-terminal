@@ -1,8 +1,8 @@
-VELO DELTA — build audit-v7
+VELO DELTA — build audit-v8
 ========================================
 23 files. Apply: unzip -o into the repo ROOT (paths are repo-relative).
-Verify after apply:  ls src/components/Navigation.tsx  &&  grep audit-v7 src/index.tsx
-Verify after deploy: open the site console and type  __VELO_BUILD__  → 'audit-v7'
+Verify after apply:  grep audit-v8 src/index.tsx
+Verify after deploy: site console → type  __VELO_BUILD__  → must print 'audit-v8'
 
 FILES:
   FEATURES.md

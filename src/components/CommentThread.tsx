@@ -241,9 +241,19 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
     const submit = async () => {
         if (!text.trim() || loading) return;
         setLoading(true);
-        await onSubmit(text.trim());
-        setText('');
-        setLoading(false);
+        try {
+            await onSubmit(text.trim());
+            // Clear ONLY on success — on failure the person keeps their draft
+            // instead of losing it to the void.
+            setText('');
+        } catch (e) {
+            // Surface the real cause in the console so a failure is diagnosable
+            // from a screenshot instead of a guessing game.
+            console.error('[velo] comment submit failed:', e);
+        } finally {
+            // The button can never strand on '…' again, whatever onSubmit does.
+            setLoading(false);
+        }
     };
 
     return (

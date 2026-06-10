@@ -7136,6 +7136,7 @@ const App = () => {
         // Thread reply → the person being replied to is the parent comment's author
         const parentComment = parentId ? targetPost?.comments?.find((cm: any) => cm.id === parentId) : null;
         // Optimistic add
+        try {
         setPosts(prev => prev.map(p => p.id === pid ? {...p, comments: [...p.comments, tempComment]} : p));
         if (isSupabaseConfigured()) {
             const { data: newComment } = await supabaseComment(pid, user.id, c, parentId || undefined).catch(() => ({ data: null })) as any;
@@ -7170,6 +7171,14 @@ const App = () => {
                         .catch(() => {});
                 }
             }
+        }
+        } catch (e: any) {
+            // Roll back the optimistic comment, tell the person, and log the
+            // REAL error so the console names the cause precisely.
+            console.error('[velo] handleComment failed:', e);
+            setPosts(prev => prev.map(p => p.id === pid ? { ...p, comments: p.comments.filter((cm: any) => cm.id !== tempId) } : p));
+            setToast({ message: 'Comment failed — please try again', type: 'ERROR' });
+            throw e; // lets the input keep the draft + reset its button
         }
     };
     const doDeleteComment = async (postId: string, commentId: string) => {
