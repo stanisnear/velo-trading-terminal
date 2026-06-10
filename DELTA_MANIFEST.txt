@@ -1,7 +1,7 @@
-VELO DELTA — build audit-v10
+VELO DELTA — build audit-v11
 ========================================
-27 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: site console → __VELO_BUILD__ → 'audit-v10'
+28 files. Apply: unzip -o into the repo ROOT.
+Verify after deploy: site console → __VELO_BUILD__ → 'audit-v11'
 
 FILES:
   FEATURES.md
@@ -21,6 +21,7 @@ FILES:
   src/components/PortfolioChart.tsx
   src/components/TokenInteractiveChart.tsx
   src/components/social/Compose.tsx
+  src/components/social/PostCard.tsx
   src/components/social/ProfileHeader.tsx
   src/components/ui/pages/Dashboard.tsx
   src/components/ui/pages/LeaderboardView.tsx
