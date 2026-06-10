@@ -208,8 +208,17 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
     const handleSubmit = async () => {
         if (!content.trim() || posting) return;
         setPosting(true);
+        console.info('[velo] post submit: started');
+        // Watchdog: if the submit promise somehow never settles, free the
+        // button after 12s instead of stranding 'Posting…' forever. The draft
+        // is kept; duplicate-suppression upstream refuses an identical retry.
+        const watchdog = setTimeout(() => {
+            console.warn('[velo] post submit watchdog fired — promise did not settle in 12s');
+            setPosting(false);
+        }, 12_000);
         try {
             await onSubmit(content.trim());
+            console.info('[velo] post submit: resolved');
             // Success: the wrapper has navigated to the new post's URL — clear
             // the draft and play the exit animation over the destination page.
             setContent('');
@@ -219,6 +228,7 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
             // post must never strand the button on 'Posting…' or eat the text.
             console.error('[velo] post submit failed:', e);
         } finally {
+            clearTimeout(watchdog);
             setPosting(false);
         }
     };

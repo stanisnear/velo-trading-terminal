@@ -6277,7 +6277,7 @@ const App = () => {
         if(!walletAddress) { setToast({ message: 'Connect a crypto wallet to post', type: 'INFO' }); return null; }
         if (!c.trim()) return null;
         if (postInFlightRef.current) return null; // a post is already mid-flight
-        if (lastPostRef.current && lastPostRef.current.c === c.trim() && Date.now() - lastPostRef.current.ts < 10_000) {
+        if (lastPostRef.current && lastPostRef.current.c === c.trim() && Date.now() - lastPostRef.current.ts < 30_000) {
             setToast({ message: 'Looks like a duplicate — that was just posted', type: 'INFO' });
             return null;
         }
@@ -6295,7 +6295,20 @@ const App = () => {
         // Persist to Supabase and replace temp post with real DB post (with real UUID)
         if (!isSupabaseConfigured()) return tempId; // local-only mode: temp post IS the post
         try {
-            const { data, error } = await supabaseCreatePost(user.id, c, undefined, tradeSignal, targetProfileId);
+            // Settle-guarantee: a stalled network response (insert landed, reply
+            // never arrived) must not hang the whole submit chain — that is the
+            // only physical way the modal can strand on 'Posting…'. After 10s we
+            // keep the optimistic post (the insert very likely succeeded; dedupe
+            // is already registered so a re-click can't duplicate) and move on.
+            const raced: any = await Promise.race([
+                supabaseCreatePost(user.id, c, undefined, tradeSignal, targetProfileId),
+                new Promise(resolve => setTimeout(() => resolve({ __timeout: true }), 10_000)),
+            ]);
+            if (raced?.__timeout) {
+                console.warn('[velo] createPost did not respond within 10s — keeping optimistic post');
+                return tempId;
+            }
+            const { data, error } = raced;
             if (error) {
                 throw new Error(typeof error === 'string' ? error : (error as any)?.message || 'create post failed');
             } else if (data) {

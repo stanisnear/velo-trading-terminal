@@ -1,7 +1,8 @@
-VELO DELTA — build audit-v11
+VELO DELTA — build audit-v12
 ========================================
 28 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: site console → __VELO_BUILD__ → 'audit-v11'
+Verify after deploy (no console needed): DevTools → Elements → <html data-velo-build="audit-v12">
+Or console: __VELO_BUILD__ → 'audit-v12'
 
 FILES:
   FEATURES.md
