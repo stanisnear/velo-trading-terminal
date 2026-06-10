@@ -358,7 +358,7 @@ function CommentRow({
                         style={{ ...S.display, fontSize: depth === 0 ? 14 : 13, color: 'var(--fg)', cursor: 'pointer', fontWeight: 600 }}>
                         {comment.authorHandle}
                     </span>
-                    <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)' }}>{timeStr}</span>
+                    <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)' }} title={new Date(comment.timestamp).toLocaleString()}>{timeStr}</span>
                     {canDelete && (
                         <button
                             onClick={() => onDeleteComment(postId, comment.id)}

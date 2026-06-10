@@ -39,9 +39,10 @@ import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentThread } from './components/CommentThread';
+import { TokenInteractiveChart } from './components/TokenInteractiveChart';
 import { LeaderboardView } from './components/ui/pages/LeaderboardView';
 import { Navbar, MobileSidebar, MobileBottomNav } from './components/Navigation';
-import { EditProfileModal, DeletePostConfirmModal, UsersListModal } from './components/Modals';
+import { EditProfileModal, DeletePostConfirmModal, UsersListModal, LoginModal, EditPositionModal, ResetPasswordModal } from './components/Modals';
 import { formatTime, ToastNotification, GlassCard, Button, Input } from './components/ui/shared';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
@@ -532,153 +533,6 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {} }: any) => 
 }
 
 // DepositWithdrawModal imported from ./components/DepositWithdrawModal
-
-const LoginModal = ({ isOpen, onClose, onLogin }: any) => {
-    const [username, setUsername] = useState('');
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in" onClick={onClose}>
-            <GlassCard className="w-full max-w-sm" onClick={(e: any) => e.stopPropagation()}>
-                <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">Welcome to VELO</h3>
-                <p className="text-sm text-gray-500 mb-6">Enter a username to start trading.</p>
-                <input 
-                    autoFocus
-                    className="w-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 mb-4 outline-none text-gray-900 dark:text-white font-bold"
-                    placeholder="Username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && onLogin(username)}
-                />
-                <Button onClick={() => onLogin(username)} disabled={!username.trim()} className="w-full">Start Trading</Button>
-            </GlassCard>
-        </div>
-    );
-};
-
-const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) => {
-    const [tp, setTp] = useState('');
-    const [sl, setSl] = useState('');
-    const [error, setError] = useState<string | null>(null);
-    const [projections, setProjections] = useState<{ tpPnl: number, slPnl: number } | null>(null);
-    
-    useEffect(() => {
-        if(position) {
-            setTp(position.takeProfit || '');
-            setSl(position.stopLoss || '');
-            setError(null);
-            setProjections(null);
-        }
-    }, [position]);
-
-    // Validation & Projection Effect
-    useEffect(() => {
-        if (!position) return;
-        
-        let err = null;
-        let proj = null;
-        const tpVal = parseFloat(tp);
-        const slVal = parseFloat(sl);
-
-        if (position.side === 'LONG') {
-            if (tp && tpVal <= position.entryPrice) err = "Take Profit must be above Entry Price for Longs";
-            if (sl && slVal >= position.entryPrice) err = "Stop Loss must be below Entry Price for Longs";
-        } else {
-            if (tp && tpVal >= position.entryPrice) err = "Take Profit must be below Entry Price for Shorts";
-            if (sl && slVal <= position.entryPrice) err = "Stop Loss must be above Entry Price for Shorts";
-        }
-
-        if (!err) {
-            const tpPnl = tp ? (Math.abs(tpVal - position.entryPrice) / position.entryPrice) * position.size : 0;
-            const slPnl = sl ? (Math.abs(slVal - position.entryPrice) / position.entryPrice) * position.size * -1 : 0;
-            proj = { tpPnl, slPnl };
-        }
-
-        setError(err);
-        setProjections(proj);
-
-    }, [tp, sl, position]);
-
-    if (!isOpen || !position) return null;
-
-    const handleSave = () => {
-        if (error) {
-            playSound('ERROR');
-            return;
-        }
-        onSave(position.id, tp, sl);
-        onClose();
-    };
-
-    const inputStyle = (hasError: boolean): React.CSSProperties => ({
-        width: '100%', padding: '11px 14px', borderRadius: 10,
-        background: 'var(--chip-bg)', border: `1px solid ${hasError ? 'var(--pnl-down)' : 'var(--hairline-strong)'}`,
-        fontFamily: 'var(--font-mono)', fontSize: 14, color: 'var(--fg)', outline: 'none',
-        transition: 'border-color 0.15s', boxSizing: 'border-box' as const,
-    });
-
-    return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.8)', backdropFilter: 'blur(16px)' }} className="animate-fade-in">
-            <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
-                width: '100%', maxWidth: 360, position: 'relative', overflow: 'hidden',
-                background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)',
-                borderRadius: 'var(--r-lg)', padding: 24, boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
-            }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }} />
-                <div style={{ marginBottom: 20 }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 4 }}>
-                        Edit Position: {position.pair}
-                    </h3>
-                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>
-                        Entry: ${formatPrice(position.entryPrice)} · Size: ${formatMoney(position.size)}
-                    </p>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
-                    <div>
-                        <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)', display: 'block', marginBottom: 6 }}>Take Profit</label>
-                        <input type="number" placeholder="Price" value={tp} onChange={(e: any) => setTp(e.target.value)}
-                            style={inputStyle(position.side === 'LONG' && !!tp && parseFloat(tp) <= position.entryPrice || position.side === 'SHORT' && !!tp && parseFloat(tp) >= position.entryPrice)}
-                            onFocus={e => (e.target.style.borderColor = 'var(--pnl-up)')}
-                            onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
-                        {projections?.tpPnl ? (
-                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--pnl-up)', textAlign: 'right' as const, marginTop: 4 }}>
-                                Est. Profit: +${formatMoney(projections.tpPnl)}
-                            </p>
-                        ) : null}
-                    </div>
-
-                    <div>
-                        <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)', display: 'block', marginBottom: 6 }}>Stop Loss</label>
-                        <input type="number" placeholder="Price" value={sl} onChange={(e: any) => setSl(e.target.value)}
-                            style={inputStyle(position.side === 'LONG' && !!sl && parseFloat(sl) >= position.entryPrice || position.side === 'SHORT' && !!sl && parseFloat(sl) <= position.entryPrice)}
-                            onFocus={e => (e.target.style.borderColor = 'var(--pnl-down)')}
-                            onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
-                        {projections?.slPnl ? (
-                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--pnl-down)', textAlign: 'right' as const, marginTop: 4 }}>
-                                Est. Loss: -${formatMoney(Math.abs(projections.slPnl))}
-                            </p>
-                        ) : null}
-                    </div>
-                </div>
-
-                {error && (
-                    <div style={{ padding: '10px 14px', background: 'oklch(0.66 0.22 25 / 0.10)', border: '1px solid oklch(0.66 0.22 25 / 0.25)', borderRadius: 10, marginBottom: 16 }}>
-                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--pnl-down)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <AlertCircle size={13}/> {error}
-                        </p>
-                    </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: '11px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-bg-hover)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip-bg)')}>Cancel</button>
-                    <button onClick={handleSave} disabled={!!error} style={{ flex: 1, padding: '11px', borderRadius: 10, background: !!error ? 'var(--chip-bg)' : 'var(--fg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: !!error ? 'var(--fg-subtle)' : 'var(--bg-base)', cursor: !!error ? 'not-allowed' : 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'opacity 0.15s', opacity: !!error ? 0.5 : 1 }}>Save Orders</button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const SOCIAL_FEATURED_PAIRS = PAIRS.map(p => ({
     symbol: p.id.split('/')[0],
@@ -1179,287 +1033,6 @@ const TOKEN_META: Record<string, { geckoId: string; website?: string; twitter?: 
 };
 
 // ── Interactive token chart with price/mcap toggle ─────────────────────────
-const TokenInteractiveChart = ({
-    priceData, up, ticker, currentPrice, geckoId
-}: {
-    priceData: number[], up: boolean, ticker: string,
-    currentPrice: number, geckoId?: string
-}) => {
-    const [mode, setMode] = React.useState<'PRICE' | 'MCAP'>('PRICE');
-    const [hoveredIdx, setHoveredIdx] = React.useState<number | null>(null);
-    const [timeframe, setTimeframe] = React.useState<'24H' | '7D' | '30D'>('24H');
-    const [extPriceData, setExtPriceData] = React.useState<Record<string, number[]>>({});
-    const [mcapDataMap, setMcapDataMap] = React.useState<Record<string, number[]>>({});
-    const [mcapLoading, setMcapLoading] = React.useState(false);
-
-    const binanceSym = ticker === 'BTC' ? 'BTCUSDT' : ticker === 'ETH' ? 'ETHUSDT' : ticker === 'SOL' ? 'SOLUSDT' : ticker === 'DOGE' ? 'DOGEUSDT' : `${ticker}USDT`;
-
-    // Fetch 7D / 30D price data lazily from Binance
-    React.useEffect(() => {
-        const intervals: Record<string, string> = { '7D': '4h', '30D': '1d' };
-        const limits: Record<string, number> = { '7D': 42, '30D': 30 };
-        Object.entries(intervals).forEach(([tf, interval]) => {
-            if (extPriceData[tf]) return;
-            fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${interval}&limit=${limits[tf]}`)
-                .then(r => r.json())
-                .then((d: any[]) => {
-                    if (Array.isArray(d)) {
-                        setExtPriceData(prev => ({ ...prev, [tf]: d.map((c: any) => parseFloat(c[4])) }));
-                    }
-                }).catch(() => {});
-        });
-    }, [ticker]);
-
-    // Fetch market cap data from CoinGecko when MCAP mode is selected
-    React.useEffect(() => {
-        if (mode !== 'MCAP' || !geckoId) return;
-        const tfDays: Record<string, string> = { '24H': '1', '7D': '7', '30D': '30' };
-        const days = tfDays[timeframe];
-        const cacheKey = timeframe;
-        if (mcapDataMap[cacheKey]) return;
-        setMcapLoading(true);
-        fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${days}`)
-            .then(r => r.json())
-            .then(d => {
-                if (d?.market_caps) {
-                    setMcapDataMap(prev => ({ ...prev, [cacheKey]: d.market_caps.map((c: any) => c[1]) }));
-                }
-            })
-            .catch(() => {})
-            .finally(() => setMcapLoading(false));
-    }, [mode, timeframe, geckoId]);
-
-    const priceDataForTf = timeframe === '24H' ? priceData : (extPriceData[timeframe] || []);
-    const activeData = mode === 'PRICE' ? priceDataForTf : (mcapDataMap[timeframe] || []);
-    const loading = activeData.length < 2 || (mode === 'MCAP' && mcapLoading && (mcapDataMap[timeframe] || []).length < 2);
-
-    const w = 800, h = 280;
-    const pad = { top: 20, right: 16, bottom: 36, left: 78 };
-
-    const min = loading ? 0 : Math.min(...activeData);
-    const max = loading ? 1 : Math.max(...activeData);
-    const range = max - min || 1;
-    const toX = (i: number) => pad.left + (i / Math.max(activeData.length - 1, 1)) * (w - pad.left - pad.right);
-    const toY = (v: number) => pad.top + ((max - v) / range) * (h - pad.top - pad.bottom);
-
-    // Purple for MCAP (matches dashboard equity chart), green/red for PRICE
-    const color = mode === 'MCAP' ? 'var(--iris-violet)' : (up ? 'var(--pnl-up)' : 'var(--pnl-down)');
-    const colorOklch = mode === 'MCAP' ? 'oklch(0.68 0.22 295)' : (up ? 'oklch(0.78 0.18 150)' : 'oklch(0.66 0.22 25)');
-
-    const formatTick = (v: number) => {
-        if (mode === 'MCAP') {
-            if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
-            if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-            if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
-        }
-        return v >= 1000 ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : v >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(5)}`;
-    };
-
-    const ticks = !loading ? [0, 1, 2, 3].map(i => min + (range * (3 - i)) / 3) : [];
-    const now = new Date();
-    const xTickCount = 5;
-    const xTickIdxs = Array.from({ length: xTickCount }, (_, i) => Math.round((i / (xTickCount - 1)) * Math.max(activeData.length - 1, 0)));
-    const getXLabel = (i: number) => {
-        if (timeframe === '24H') {
-            const hoursAgo = activeData.length - 1 - i;
-            const d = new Date(now.getTime() - hoursAgo * 3600 * 1000);
-            return d.getHours().toString().padStart(2, '0') + ':00';
-        }
-        const daysAgo = Math.round((activeData.length - 1 - i) * (timeframe === '7D' ? 7 : 30) / activeData.length);
-        const d = new Date(now.getTime() - daysAgo * 86400 * 1000);
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    };
-
-    const hoveredVal = hoveredIdx !== null && activeData[hoveredIdx] != null ? activeData[hoveredIdx] : null;
-    const hoveredX = hoveredIdx !== null ? toX(hoveredIdx) : null;
-    const hoveredY = hoveredVal != null ? toY(hoveredVal) : null;
-
-    const firstVal = activeData[0];
-    const lastVal = activeData[activeData.length - 1];
-    const pctChange = firstVal && lastVal ? ((lastVal - firstVal) / firstVal) * 100 : null;
-
-    const S = {
-        mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em' } as React.CSSProperties,
-    };
-
-    return (
-        <div style={{ width: '100%' }}>
-            {/* Header: value + controls */}
-            <div className="token-chart-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 0', gap: 8, flexWrap: 'wrap' }}>
-                {/* Left: value + change */}
-                <div style={{ minWidth: 0, flex: '1 1 160px' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ ...S.mono, fontSize: 20, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>
-                            {hoveredVal != null ? formatTick(hoveredVal) : (!loading && lastVal ? formatTick(lastVal) : (mcapLoading ? 'Loading…' : '—'))}
-                        </span>
-                        {pctChange != null && hoveredIdx === null && (
-                            <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: pctChange >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', background: pctChange >= 0 ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>
-                                {pctChange >= 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(2)}%
-                            </span>
-                        )}
-                        {hoveredIdx !== null && hoveredVal != null && (
-                            <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>{getXLabel(hoveredIdx)}</span>
-                        )}
-                    </div>
-                    <div style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', marginTop: 3 }}>
-                        {mode === 'PRICE' ? 'Price' : 'Market Cap'} · {timeframe} · {mode === 'MCAP' ? 'CoinGecko' : 'Binance'}
-                    </div>
-                </div>
-                {/* Right: mode + timeframe — inline on mobile */}
-                <div className="token-chart-controls" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 8, padding: 3, border: '1px solid var(--hairline)', gap: 2 }}>
-                        {(['PRICE', 'MCAP'] as const).map(m => (
-                            <button key={m} onClick={() => setMode(m)} style={{
-                                padding: '4px 10px', borderRadius: 6,
-                                border: mode === m ? '1px solid var(--iris-violet)' : '1px solid transparent',
-                                cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                                background: mode === m ? 'var(--bg-base-2)' : 'transparent',
-                                color: mode === m ? 'var(--fg)' : 'var(--fg-subtle)',
-                                boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
-                                transition: 'all 0.15s', whiteSpace: 'nowrap',
-                            }}>
-                                {m === 'PRICE' ? 'Price' : 'Mkt Cap'}
-                            </button>
-                        ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                        {(['24H', '7D', '30D'] as const).map(tf => (
-                            <button key={tf} onClick={() => setTimeframe(tf)} style={{
-                                padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                                ...S.label, fontSize: 9,
-                                background: timeframe === tf ? 'var(--bg-base-2)' : 'transparent',
-                                color: timeframe === tf ? 'var(--fg)' : 'var(--fg-subtle)',
-                                boxShadow: timeframe === tf ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
-                                transition: 'all 0.15s',
-                            }}>
-                                {tf}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* SVG Chart — responsive, no fixed height */}
-            <div style={{ position: 'relative', userSelect: 'none', marginTop: 8 }}>
-                {loading && (
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
-                        <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>
-                            {mcapLoading ? 'Fetching market cap data…' : 'Loading chart…'}
-                        </span>
-                    </div>
-                )}
-                <svg
-                    viewBox={`0 0 ${w} ${h}`}
-                    className="token-chart-svg"
-                    style={{ width: '100%', height: 'auto', minHeight: 200, maxHeight: 320, display: 'block', overflow: 'visible', opacity: loading ? 0.2 : 1, transition: 'opacity 0.3s' }}
-                    preserveAspectRatio="xMidYMid meet"
-                    onMouseLeave={() => setHoveredIdx(null)}
-                    onMouseMove={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const svgX = ((e.clientX - rect.left) / rect.width) * w;
-                        const frac = Math.max(0, Math.min(1, (svgX - pad.left) / (w - pad.left - pad.right)));
-                        setHoveredIdx(Math.round(frac * (activeData.length - 1)));
-                    }}
-                    onTouchMove={(e) => {
-                        e.preventDefault();
-                        const touch = e.touches[0];
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const svgX = ((touch.clientX - rect.left) / rect.width) * w;
-                        const frac = Math.max(0, Math.min(1, (svgX - pad.left) / (w - pad.left - pad.right)));
-                        setHoveredIdx(Math.round(frac * (activeData.length - 1)));
-                    }}
-                    onTouchEnd={() => setHoveredIdx(null)}
-                >
-                    <defs>
-                        <linearGradient id={`fill-${ticker}-${mode}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={colorOklch} stopOpacity="0.28"/>
-                            <stop offset="65%" stopColor={colorOklch} stopOpacity="0.06"/>
-                            <stop offset="100%" stopColor={colorOklch} stopOpacity="0"/>
-                        </linearGradient>
-                        <clipPath id={`clip-${ticker}-${mode}`}>
-                            <rect x={pad.left} y={pad.top} width={w - pad.left - pad.right} height={h - pad.top - pad.bottom}/>
-                        </clipPath>
-                    </defs>
-
-                    {/* Grid lines */}
-                    {ticks.map((t, i) => (
-                        <line key={i} x1={pad.left} x2={w - pad.right} y1={toY(t)} y2={toY(t)}
-                            stroke="var(--hairline)" strokeWidth="0.5" strokeDasharray="4,6"/>
-                    ))}
-
-                    {/* Hover vertical line */}
-                    {hoveredIdx !== null && hoveredX !== null && (
-                        <line x1={hoveredX} x2={hoveredX} y1={pad.top} y2={h - pad.bottom}
-                            stroke={color} strokeWidth="1" strokeDasharray="3,4" strokeOpacity="0.45"/>
-                    )}
-
-                    {/* Fill */}
-                    {!loading && (
-                        <path
-                            d={`${activeData.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ')} L${toX(activeData.length-1).toFixed(1)},${(h-pad.bottom).toFixed(1)} L${pad.left},${(h-pad.bottom).toFixed(1)} Z`}
-                            fill={`url(#fill-${ticker}-${mode})`}
-                            clipPath={`url(#clip-${ticker}-${mode})`}
-                        />
-                    )}
-
-                    {/* Line */}
-                    {!loading && (
-                        <polyline
-                            points={activeData.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ')}
-                            fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
-                            clipPath={`url(#clip-${ticker}-${mode})`}
-                        />
-                    )}
-
-                    {/* Hover dot */}
-                    {hoveredIdx !== null && hoveredX !== null && hoveredY !== null && (
-                        <>
-                            <circle cx={hoveredX} cy={hoveredY} r={6} fill={color} fillOpacity={0.15}/>
-                            <circle cx={hoveredX} cy={hoveredY} r={4} fill={color} stroke="var(--bg-base)" strokeWidth={2}/>
-                        </>
-                    )}
-
-                    {/* Endpoint dot */}
-                    {!loading && hoveredIdx === null && (
-                        <circle cx={toX(activeData.length-1)} cy={toY(activeData[activeData.length-1])} r={4}
-                            fill={color} stroke="var(--bg-base)" strokeWidth={2}/>
-                    )}
-
-                    {/* Y labels */}
-                    {ticks.map((t, i) => (
-                        <text key={i} x={pad.left - 8} y={toY(t) + 4} textAnchor="end"
-                            style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: 'var(--fg-subtle)' }}>
-                            {formatTick(t)}
-                        </text>
-                    ))}
-
-                    {/* X labels */}
-                    {xTickIdxs.map(i => (
-                        <text key={i} x={toX(i)} y={h - 8} textAnchor="middle"
-                            style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: 'var(--fg-subtle)' }}>
-                            {getXLabel(i)}
-                        </text>
-                    ))}
-
-                    {/* VELO watermark */}
-                    <text x={w/2} y={h/2+10} textAnchor="middle"
-                        style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 32,
-                            fill: 'var(--fg)', opacity: 0.03, letterSpacing: '-0.02em', userSelect: 'none' }}>
-                        VELO
-                    </text>
-                </svg>
-            </div>
-
-            {/* Footer */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, padding: '4px 14px 12px' }}>
-                <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>{timeframe} · {mode === 'MCAP' ? 'CoinGecko' : 'Binance'}</span>
-                {!loading && <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>Low: {formatTick(min)} · High: {formatTick(max)}</span>}
-            </div>
-        </div>
-    );
-};
-
 const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
     const [activeTab, setActiveTab] = useState<'posts' | 'news'>('posts');
     const [news, setNews] = useState<any[]>([]);
@@ -3144,85 +2717,6 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
             </div>
         </div>
     );
-};
-
-const ResetPasswordModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSave = async () => {
-    setError('');
-    if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
-    if (password !== confirm) { setError('Passwords do not match'); return; }
-    setLoading(true);
-    const { error: updateErr } = await supabase.auth.updateUser({ password });
-    setLoading(false);
-    if (updateErr) { setError(updateErr.message); return; }
-    onSuccess();
-  };
-
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="glass-panel w-full max-w-sm rounded-3xl p-6 animate-bounce-in">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-black text-gray-900 dark:text-white">Set new password</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Choose a strong password for your account</p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" className="shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <p className="text-xs text-red-500 font-medium">{error}</p>
-          </div>
-        )}
-
-        <div className="space-y-3 mb-5">
-          <div className="relative">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input
-              type={showPw ? 'text' : 'password'}
-              placeholder="New password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white text-sm font-medium outline-none focus:border-blue-500 transition-colors"
-            />
-            <button onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-              {showPw
-                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
-            </button>
-          </div>
-          <div className="relative">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input
-              type={showPw ? 'text' : 'password'}
-              placeholder="Confirm new password"
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSave()}
-              className="w-full pl-10 pr-4 py-3 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white text-sm font-medium outline-none focus:border-blue-500 transition-colors"
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Update Password'}
-        </button>
-      </div>
-    </div>
-  );
 };
 
 const App = () => {
@@ -5143,6 +4637,20 @@ const App = () => {
             } catch (e) { console.warn('[social] loadPosts failed:', e); }
         };
 
+        // ── Self-healing resync ────────────────────────────────────────────
+        // DELETE payloads are only guaranteed to carry the row's PRIMARY KEY.
+        // Whether secondary columns (post_id/user_id) arrive depends on the
+        // table's replica identity AND the Realtime version's RLS handling of
+        // old rows. When a DELETE event arrives without the fields a handler
+        // needs, we can't apply it surgically — so we schedule ONE debounced
+        // full refetch instead of silently dropping the event. This is what
+        // made remote un-likes / deletions require a manual refresh.
+        let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleResync = () => {
+            if (resyncTimer) return;
+            resyncTimer = setTimeout(() => { resyncTimer = null; loadPosts(); }, 800);
+        };
+
         // ── Channel builder with auto-reconnect ───────────────────────────
         const buildChannel = () => {
             if (!mounted) return;
@@ -5191,6 +4699,7 @@ const App = () => {
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'likes' }, (payload: any) => {
                     if (!mounted) return;
                     const like = payload.old;
+                    if (!like?.post_id || !like?.user_id) { scheduleResync(); return; }
                     setPosts(prev => prev.map(p => {
                         if (p.id !== like.post_id) return p;
                         const newLikedBy = p.likedBy.filter((uid: string) => uid !== like.user_id);
@@ -5211,6 +4720,7 @@ const App = () => {
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'reposts' }, (payload: any) => {
                     if (!mounted) return;
                     const rp = payload.old;
+                    if (!rp?.post_id || !rp?.user_id) { scheduleResync(); return; }
                     setPosts(prev => prev.map(p => {
                         if (p.id !== rp.post_id) return p;
                         const newRepostedBy = p.repostedBy.filter((uid: string) => uid !== rp.user_id);
@@ -5234,7 +4744,7 @@ const App = () => {
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comment_likes' }, (payload: any) => {
                     if (!mounted) return;
                     const cl = payload.old;
-                    if (!cl?.comment_id) return; // requires REPLICA IDENTITY FULL (set in migration)
+                    if (!cl?.comment_id || !cl?.user_id) { scheduleResync(); return; }
                     setPosts(prev => prev.map(p => ({
                         ...p,
                         comments: (p.comments || []).map((cm: any) => {
@@ -5274,11 +4784,18 @@ const App = () => {
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, (payload: any) => {
                     if (!mounted) return;
                     const del = payload.old;
-                    setPosts(prev => prev.map(p =>
-                        p.id === del.post_id
-                            ? { ...p, comments: p.comments.filter((c: any) => c.id !== del.id) }
-                            : p
-                    ));
+                    // Match by COMMENT ID across all posts — the PK is the only
+                    // field a DELETE payload is guaranteed to carry (post_id may
+                    // be absent depending on replica identity / RLS old-row
+                    // filtering, which is why remote deletes previously needed a
+                    // refresh). Also drop threaded children of the deleted
+                    // parent so the UI matches the DB's FK cascade immediately.
+                    if (!del?.id) { scheduleResync(); return; }
+                    setPosts(prev => prev.map(p => {
+                        const hit = p.comments.some((c: any) => c.id === del.id || c.parentId === del.id);
+                        if (!hit) return p;
+                        return { ...p, comments: p.comments.filter((c: any) => c.id !== del.id && c.parentId !== del.id) };
+                    }));
                 })
 
                 // ── channel health ────────────────────────────────────────
@@ -5307,6 +4824,7 @@ const App = () => {
         return () => {
             mounted = false;
             if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (resyncTimer) clearTimeout(resyncTimer);
             if (channelRef) { try { supabase.removeChannel(channelRef); } catch {} }
         };
     }, []);

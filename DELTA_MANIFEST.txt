@@ -1,0 +1,30 @@
+VELO DELTA — build audit-v7
+========================================
+23 files. Apply: unzip -o into the repo ROOT (paths are repo-relative).
+Verify after apply:  ls src/components/Navigation.tsx  &&  grep audit-v7 src/index.tsx
+Verify after deploy: open the site console and type  __VELO_BUILD__  → 'audit-v7'
+
+FILES:
+  FEATURES.md
+  README.md
+  SUPABASE_MIGRATION_consolidated.sql
+  VELO_Audit_Summary.md
+  VELO_Overview.md
+  api/cron-conditional-orders.ts
+  api/cron-liquidate.ts
+  api/cron-tp-sl.ts
+  api/protocol-stats.ts
+  src/App.tsx
+  src/components/CommentThread.tsx
+  src/components/Modals.tsx
+  src/components/Navigation.tsx
+  src/components/PortfolioChart.tsx
+  src/components/TokenInteractiveChart.tsx
+  src/components/ui/pages/Dashboard.tsx
+  src/components/ui/pages/LeaderboardView.tsx
+  src/components/ui/shared.tsx
+  src/index.tsx
+  src/services/supabaseStore.ts
+  src/services/veloPerpsService.ts
+  src/services/web3Config.ts
+  src/styles/brand.css

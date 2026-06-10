@@ -11,6 +11,15 @@ import { initAnalytics } from './services/analytics';
 import { initSessionManager } from './services/supabaseStore';
 import App from './App';
 
+// ── Build stamp ──────────────────────────────────────────────────────────
+// Lets anyone verify WHICH build is actually live: open the browser console
+// on the deployed site and type  __VELO_BUILD__  (or just read the banner).
+// Bump the tag whenever a delta batch ships, so "did my deploy go out?" is a
+// two-second check instead of a guessing game.
+export const VELO_BUILD = 'audit-v7';
+(window as any).__VELO_BUILD__ = VELO_BUILD;
+console.info(`%c VELO %c build ${VELO_BUILD} `, 'background:#7c5aff;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px;font-weight:700', 'background:#16161d;color:#9ca3af;border-radius:0 3px 3px 0;padding:2px 6px');
+
 // Initialize Google Analytics (no-op unless VITE_GA_MEASUREMENT_ID is set).
 initAnalytics();
 

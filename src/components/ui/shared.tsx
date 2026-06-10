@@ -36,8 +36,6 @@ export const formatPrice = (price: number | undefined | null) => {
     if (price < 10) return price.toFixed(4);
     return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
-export const formatTime = (timestamp: number) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
 // --- Verified ---
 // Admin-controlled. Pass either a `reason` directly, OR `userId` + `traders`
 // and the badge looks it up. If no reason is set, the badge renders nothing.
@@ -69,99 +67,9 @@ export const calculateStats = (tradeHistory: any[]) => {
 };
 
 // --- Glass Card (liquid glass panel) ---
-export const GlassCard = ({ children, className = '', onClick }: { children: React.ReactNode, className?: string, onClick?: (e: any) => void }) => (
-    <div onClick={onClick}
-        className={`glass-panel rounded-[22px] p-5 transition-all duration-200
-        ${onClick ? 'cursor-pointer hover:-translate-y-[1px]' : ''}
-        ${className}`}
-        style={{ color: 'var(--fg)' }}>
-        {children}
-    </div>
-);
-
 // --- Button (brand-aligned) ---
-export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false, style }: any) => {
-    const base = "px-5 py-2.5 rounded-[14px] font-medium text-sm transition-all duration-150 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed border";
-    const variantStyles: Record<string, React.CSSProperties> = {
-        primary: {
-            background: 'linear-gradient(180deg, #2b2f3a, #14161c)',
-            color: '#fff',
-            borderColor: 'var(--hr-2)',
-        },
-        secondary: {
-            background: 'var(--chip)',
-            color: 'var(--fg)',
-            borderColor: 'var(--hr-2)',
-        },
-        danger: {
-            background: 'color-mix(in oklab, var(--pnl-down) 14%, transparent)',
-            color: 'var(--pnl-down)',
-            borderColor: 'color-mix(in oklab, var(--pnl-down) 32%, transparent)',
-        },
-        success: {
-            background: 'var(--pnl-up)',
-            color: '#0a1b06',
-            borderColor: 'transparent',
-        },
-        long: {
-            background: 'var(--pnl-up)',
-            color: '#0a1b06',
-            borderColor: 'transparent',
-        },
-        short: {
-            background: 'var(--pnl-down)',
-            color: '#ffffff',
-            borderColor: 'transparent',
-        },
-        ghost: {
-            background: 'transparent',
-            color: 'var(--fg-2)',
-            borderColor: 'transparent',
-        },
-    };
-    return (
-        <button onClick={(e) => { playSound('CLICK'); onClick && onClick(e); }} disabled={disabled || isLoading}
-            className={`${base} ${className}`}
-            style={{ ...(variantStyles[variant] || variantStyles.primary), ...style }}>
-            {isLoading ? <RefreshCw className="animate-spin" size={16} /> : children}
-        </button>
-    );
-};
-
 // --- Input (glass) ---
-export const Input = ({ label, rightLabel, error, className = '', ...props }: any) => (
-    <div className="w-full group">
-        <div className="flex justify-between mb-1 ml-1">
-            {label && <label className="block text-[10px] font-semibold uppercase font-mono transition-colors" style={{ letterSpacing: '0.18em', color: error ? 'var(--pnl-down)' : 'var(--fg-2)' }}>{label}</label>}
-            {rightLabel && <span className="text-[10px]" style={{ color: 'var(--fg-3)' }}>{rightLabel}</span>}
-        </div>
-        <input className={`w-full px-4 py-2 rounded-[12px] glass-input font-mono font-medium text-sm ${className}`} style={{ borderColor: error ? 'var(--pnl-down)' : undefined, color: 'var(--fg)' }} {...props} />
-        {error && <p className="text-[10px] mt-1 ml-1 font-semibold" style={{ color: 'var(--pnl-down)' }}>{error}</p>}
-    </div>
-);
-
 // --- Toast ---
-export const ToastNotification = ({ message, type, onClose }: { message: string, type: 'SUCCESS' | 'ERROR' | 'INFO', onClose: () => void }) => {
-    useEffect(() => {
-        playSound(type === 'SUCCESS' ? 'SUCCESS' : type === 'ERROR' ? 'ERROR' : 'CLICK');
-        const timer = setTimeout(onClose, 4000);
-        return () => clearTimeout(timer);
-    }, []);
-    const icons: Record<string, React.ReactNode> = {
-        SUCCESS: <CheckCircle size={20} style={{ color: 'var(--pnl-up)' }} />,
-        ERROR: <AlertCircle size={20} style={{ color: 'var(--pnl-down)' }} />,
-        INFO: <Info size={20} style={{ color: 'var(--velo-blue-ice)' }} />,
-    };
-    return (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-auto pointer-events-none">
-            <div className="glass-panel px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce-in pointer-events-auto">
-                <div className="shrink-0">{icons[type]}</div>
-                <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--fg)' }}>{message}</span>
-            </div>
-        </div>
-    );
-};
-
 // --- Verified Badge (holographic) ---
 interface VerifiedBadgeProps {
     userId?: string;
@@ -229,3 +137,86 @@ export const Ico3D = ({ size = 40, tone = 'violet', children }: { size?: number,
 
 // Backwards-compatible export used elsewhere in the app.
 export const VeloLogoBug = Bug;
+
+// ── Atoms migrated from App.tsx (stage 3 of the monolith decomposition) ──────
+export const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+export const ToastNotification = ({ message, type, onClose }: { message: string, type: 'SUCCESS' | 'ERROR' | 'INFO', onClose: () => void }) => {
+    useEffect(() => {
+        playSound(type === 'SUCCESS' ? 'SUCCESS' : type === 'ERROR' ? 'ERROR' : 'CLICK');
+        const timer = setTimeout(onClose, 4000);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const accentColor = type === 'SUCCESS' ? 'var(--pnl-up)' : type === 'ERROR' ? 'var(--pnl-down)' : 'var(--iris-violet)';
+    const icons = {
+        SUCCESS: <CheckCircle size={18} style={{ color: 'var(--pnl-up)' }} fill="currentColor" />,
+        ERROR: <AlertCircle size={18} style={{ color: 'var(--pnl-down)' }} fill="currentColor" />,
+        INFO: <Info size={18} style={{ color: 'var(--iris-violet)' }} fill="currentColor" />
+    };
+
+    return (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-auto pointer-events-none">
+            <div className="animate-bounce-in pointer-events-auto" style={{
+                background: 'var(--glass-bg-strong)',
+                border: `1px solid ${accentColor}40`,
+                borderRadius: 999,
+                boxShadow: `var(--glass-shadow), 0 0 20px ${accentColor}20`,
+                backdropFilter: 'blur(16px) saturate(1.3)',
+                padding: '10px 20px',
+                display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+                <div style={{ flexShrink: 0 }}>{icons[type]}</div>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--fg)', whiteSpace: 'nowrap' }}>{message}</span>
+            </div>
+        </div>
+    )
+}
+
+// --- Shared Components ---
+
+export const GlassCard = ({ children, className = '', onClick }: { children: React.ReactNode, className?: string, onClick?: (e: any) => void }) => (
+  <div 
+    onClick={onClick}
+    className={`glass-panel rounded-3xl p-5 transition-all duration-300 backdrop-blur-3xl border 
+    bg-white/60 dark:bg-[#0a0a0a]/60 border-white/40 dark:border-white/10 shadow-2xl shadow-black/5 dark:shadow-black/40
+    text-gray-900 dark:text-white backdrop-saturate-150
+    ${onClick ? 'cursor-pointer hover:border-purple-500/30 hover:bg-white/70 dark:hover:bg-[#121212]/70' : ''}
+    ${className}`}
+    style={{
+        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05), 0 20px 40px -10px rgba(0,0,0,0.1)'
+    }}
+  >
+    {children}
+  </div>
+);
+
+export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false }: any) => {
+  const base = "px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed";
+  const variants = {
+    primary: "bg-iris-violet hover:brightness-110 text-white shadow-lg shadow-purple-500/20",
+    secondary: "bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/5",
+    danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/10",
+    success: "bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/20",
+  };
+  return (
+    <button onClick={(e) => { playSound('CLICK'); onClick && onClick(e); }} disabled={disabled || isLoading} className={`${base} ${variants[variant as keyof typeof variants]} ${className}`}>
+      {isLoading ? <RefreshCw className="animate-spin" size={16}/> : children}
+    </button>
+  );
+};
+
+export const Input = ({ label, rightLabel, error, className = '', ...props }: any) => (
+  <div className="w-full group">
+    <div className="flex justify-between mb-1 ml-1">
+        {label && <label className={`block text-[10px] font-bold uppercase tracking-wider transition-colors ${error ? 'text-red-500' : 'text-gray-500 group-focus-within:text-purple-400'}`}>{label}</label>}
+        {rightLabel && <span className="text-[10px] text-gray-400">{rightLabel}</span>}
+    </div>
+    <div className="relative">
+        <input className={`w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-[#1A1A1A] border focus:border-purple-500 outline-none text-gray-900 dark:text-white placeholder-gray-500 transition-all font-mono font-medium text-sm ${error ? 'border-red-500' : 'border-gray-200 dark:border-white/5'} ${className}`} {...props} />
+    </div>
+    {error && <p className="text-[10px] text-red-500 mt-1 ml-1 font-bold">{error}</p>}
+  </div>
+);

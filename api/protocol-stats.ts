@@ -47,7 +47,9 @@ async function countRows(table: string, filter = ''): Promise<number> {
 
 // ── Active contract (version resolution mirrors veloPerpsService) ────────────
 function activeAddress(): `0x${string}` | null {
-  const v3 = process.env.VITE_VELO_PERPS_V3_ADDRESS || '';
+  // Default to the deployed V3.1 address so stats track the ACTIVE contract
+  // even when the env var is missing (same hardening as the keepers).
+  const v3 = process.env.VITE_VELO_PERPS_V3_ADDRESS || '0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907';
   const v2 = process.env.VITE_VELO_PERPS_V2_ADDRESS || '';
   const v1 = process.env.VITE_VELO_PERPS_ADDRESS || '0x28fE36d4ae72ab0E05fa6edafE1D6e11E9DD6163';
   const pick = [v3, v2, v1].find((a) => a && a.startsWith('0x') && a.length === 42);
