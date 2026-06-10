@@ -511,3 +511,11 @@ body.modal-open .navbar-container {
   z-index: 5 !important;
   pointer-events: none !important;
 }
+
+/* ── Modal exit animation (CreatePostModal success/dismiss) ──────────────── */
+@keyframes veloModalOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.velo-modal-closing { animation: veloModalOut 0.18s ease forwards; }
+.velo-modal-closing > div { transform: scale(0.965) translateY(4px); transition: transform 0.18s ease; }

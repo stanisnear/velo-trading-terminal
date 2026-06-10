@@ -236,11 +236,17 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
     const handlePost = async () => {
         if (!text.trim() || posting) return;
         setPosting(true);
-        await onPostCreate(text.trim(), undefined, targetId);
-        setText('');
-        setMentionQuery(null);
-        setMentionTrigger(null);
-        setPosting(false);
+        try {
+            await onPostCreate(text.trim(), undefined, targetId);
+            // Clear only on success — a failed post keeps the draft.
+            setText('');
+            setMentionQuery(null);
+            setMentionTrigger(null);
+        } catch (e) {
+            console.error('[velo] feed post failed:', e);
+        } finally {
+            setPosting(false); // never strands on '…'
+        }
     };
 
     return (

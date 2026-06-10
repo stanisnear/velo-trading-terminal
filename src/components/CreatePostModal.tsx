@@ -134,10 +134,19 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
     const [mentionIdx, setMentionIdx] = React.useState(0);
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
+    const [closing, setClosing] = React.useState(false);
+    // Animated close: play the exit transition, then actually unmount.
+    const animatedClose = () => {
+        if (closing) return;
+        setClosing(true);
+        setTimeout(() => { setClosing(false); onClose(); }, 180);
+    };
+
     React.useEffect(() => {
         if (isOpen) {
             setContent('');
             setPosting(false);
+            setClosing(false);
             setMentionQuery(null);
             setTimeout(() => textareaRef.current?.focus(), 80);
         }
@@ -201,10 +210,10 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
         setPosting(true);
         try {
             await onSubmit(content.trim());
-            // Success: the App-side wrapper has already closed/navigated to the
-            // new post's URL; clearing here covers the local-only path.
+            // Success: the wrapper has navigated to the new post's URL — clear
+            // the draft and play the exit animation over the destination page.
             setContent('');
-            onClose();
+            animatedClose();
         } catch (e) {
             // Keep the draft and name the real cause in the console — a failed
             // post must never strand the button on 'Posting…' or eat the text.
@@ -218,8 +227,8 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
 
     return (
         <div
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in"
-            onClick={onClose}
+            className={`fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md ${closing ? 'velo-modal-closing' : 'animate-fade-in'}`}
+            onClick={animatedClose}
         >
             <div
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
@@ -245,7 +254,7 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
                             <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 16, color: 'var(--fg)', letterSpacing: '-0.02em' }}>{user.username}</div>
                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.04em' }}>{user.handle}</div>
                         </div>
-                        <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', padding: 4 }}>
+                        <button onClick={animatedClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', padding: 4 }}>
                             <X size={18} />
                         </button>
                     </div>
