@@ -1,6 +1,7 @@
 // src/components/AuthModal.tsx
 // Apple-quality onboarding + MetaMask-style wallet UX
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { VeloWordmark } from '@/components/ui/shared';
 import { createPortal } from 'react-dom';
 import { useAppKit, useAppKitState, useAppKitAccount } from '@reown/appkit/react';
 import { useAccount, useDisconnect, useChainId } from 'wagmi';
@@ -80,25 +81,10 @@ const TypeReveal = ({ text, delay = 0, size = 28, color = 'var(--fg)', italic = 
 };
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
+// Brand mark: the Fraunces-italic wordmark (matches navbar + landing). The
+// old glow ring is replaced by the landing's shimmer sweep on large sizes.
 const VLogo = ({ size = 40, glow = false }: { size?: number; glow?: boolean }) => (
-  <div style={{
-    width: size, height: size,
-    borderRadius: Math.round(size * 0.24),
-    background: 'linear-gradient(135deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340), oklch(0.74 0.18 30))',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-    boxShadow: glow
-      ? '0 0 0 8px oklch(0.68 0.22 295 / 0.12), 0 0 0 18px oklch(0.68 0.22 295 / 0.06), 0 4px 24px oklch(0.68 0.22 295 / 0.5)'
-      : '0 2px 14px oklch(0.68 0.22 295 / 0.4)',
-    transition: 'box-shadow 0.6s ease',
-  }}>
-    <span style={{
-      fontFamily: 'var(--font-display, Georgia, serif)',
-      fontSize: size * 0.46, color: '#fff',
-      fontStyle: 'italic', fontWeight: 700,
-      lineHeight: 1, userSelect: 'none',
-    }}>V</span>
-  </div>
+  <VeloWordmark size={Math.round(size * 0.58)} shimmer={glow || size >= 64} />
 );
 
 // ─── Progress segments ────────────────────────────────────────────────────────

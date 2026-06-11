@@ -13,6 +13,7 @@
 //   SUCCESS_RETURNING → welcome back (auto-closes)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { VeloWordmark } from '@/components/ui/shared';
 import { createPortal } from 'react-dom';
 import { useAppKitAccount } from '@reown/appkit/react';
 import { useAccount, useDisconnect, useChainId, usePublicClient, useWalletClient, useSwitchChain } from 'wagmi';
@@ -76,18 +77,11 @@ const PROGRESS_IDX: Partial<Record<Step, number>> = {
 
 // ─── Micro components — all use CSS vars for light/dark theme ────────────────
 
+// Brand mark: the Fraunces-italic wordmark, never a boxed "V". Size maps the
+// old square footprint to a wordmark of comparable visual weight; big sizes
+// get the landing's shimmer sweep.
 const VLogo = ({ size = 48 }: { size?: number }) => (
-  <div style={{
-    width: size, height: size,
-    borderRadius: Math.round(size * 0.24),
-    background: 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    position: 'relative', overflow: 'hidden', flexShrink: 0,
-    boxShadow: `0 4px 20px oklch(0.55 0.24 295 / 0.4)`,
-  }}>
-    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 80% at 28% 8%, rgba(255,255,255,0.38), transparent 55%)' }} />
-    <span style={{ fontFamily: 'var(--font-display)', fontSize: size * 0.46, color: '#fff', fontStyle: 'italic', fontWeight: 700, lineHeight: 1, position: 'relative', zIndex: 1 }}>V</span>
-  </div>
+  <VeloWordmark size={Math.round(size * 0.58)} shimmer={size >= 64} />
 );
 
 const HoloBar = ({ step, total = 3 }: { step: number; total?: number }) => (
@@ -106,20 +100,15 @@ const HoloBar = ({ step, total = 3 }: { step: number; total?: number }) => (
 const PrimaryBtn = ({ onClick, children, disabled = false }: {
   onClick: () => void; children: React.ReactNode; disabled?: boolean;
 }) => (
-  <button onClick={onClick} disabled={disabled} style={{
-    width: '100%', padding: 14,
-    background: disabled ? 'var(--chip-bg, rgba(0,0,0,0.05))' : 'linear-gradient(135deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 40%, oklch(0.65 0.22 268) 80%, oklch(0.72 0.18 250) 100%)',
-    border: 'none', borderRadius: 13,
+  <button onClick={onClick} disabled={disabled} className={disabled ? undefined : 'velo-btn-primary'} style={{
+    width: '100%', padding: 14, borderRadius: 13,
     fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 700,
-    color: disabled ? 'var(--fg-subtle, rgba(0,0,0,0.3))' : '#fff',
-    cursor: disabled ? 'not-allowed' : 'pointer',
     letterSpacing: '0.08em', textTransform: 'uppercase' as const,
-    boxShadow: disabled ? 'none' : '0 6px 24px -6px oklch(0.55 0.24 295 / 0.45)',
-    transition: 'transform 0.14s, box-shadow 0.14s',
-    opacity: disabled ? 0.5 : 1,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    // Landing's restrained graphite glass lives in .velo-btn-primary; only the
+    // disabled look is inline.
+    ...(disabled ? { background: 'var(--chip-bg, rgba(0,0,0,0.05))', border: '1px solid var(--hairline, rgba(0,0,0,0.08))', color: 'var(--fg-subtle, rgba(0,0,0,0.3))', opacity: 0.5 } : {}),
   }}
-  onMouseEnter={e => { if (!disabled) (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; }}
-  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; }}
   >{children}</button>
 );
 
@@ -453,17 +442,15 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           {/* ══ HELLO — Apple-style splash ══ */}
           {step === 'HELLO' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '32px 0 28px', minHeight: 340 }}>
-              {/* Animated logo with orbit rings */}
+              {/* Velo wordmark over a landing-style drifting aura — no box */}
               <div style={{
-                position: 'relative', width: 96, height: 96, marginBottom: 32,
+                position: 'relative', padding: '22px 14px', marginBottom: 24,
                 opacity: helloPhase >= 0 ? 1 : 0,
-                transform: helloPhase >= 0 ? 'scale(1) translateY(0)' : 'scale(0.6) translateY(12px)',
+                transform: helloPhase >= 0 ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(12px)',
                 transition: 'opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1)',
               }}>
-                <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', border: '1px solid oklch(0.55 0.24 295 / 0.2)', animation: 'vOnbOrbit 4s linear infinite' }} />
-                <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: '1px dashed oklch(0.55 0.24 295 / 0.1)', animation: 'vOnbOrbitRev 7s linear infinite' }} />
-                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'oklch(0.55 0.24 295 / 0.12)', filter: 'blur(16px)', transform: 'scale(1.3)' }} />
-                <VLogo size={96} />
+                <div className="velo-card-aura" />
+                <div style={{ position: 'relative' }}><VLogo size={96} /></div>
               </div>
 
               <div style={{

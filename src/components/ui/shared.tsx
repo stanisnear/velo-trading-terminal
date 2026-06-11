@@ -24,6 +24,12 @@ export const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK'
 };
 
 // --- Formatting ---
+// ── Velo wordmark — THE brand mark (Fraunces italic, navbar treatment). ────
+// shimmer=true adds the landing's wsheen sweep; never use a boxed "V".
+export const VeloWordmark = ({ size = 28, shimmer = false, style = {} }: { size?: number; shimmer?: boolean; style?: React.CSSProperties }) => (
+    <span className={shimmer ? 'velo-wshimmer' : undefined} style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: size, letterSpacing: '-0.04em', lineHeight: 1, color: 'var(--fg)', display: 'inline-block', userSelect: 'none', ...style }}>Velo</span>
+);
+
 export const formatMoney = (amount: number | undefined | null) => {
     if (amount === undefined || amount === null) return '0.00';
     return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
