@@ -386,12 +386,17 @@ async function createNotificationForUser(
   type: string,
   message: string,
   relatedId?: string,
+  postId?: string,
+  commentId?: string,
 ): Promise<void> {
   const { error } = await supabase.rpc('create_notification_for_user', {
     target_user_id: targetUserId,
     p_type: type,
     p_message: message,
     p_related_id: relatedId || null,
+    // Lifecycle references — cascade-deleted with their post/comment.
+    p_post_id: postId || null,
+    p_comment_id: commentId || null,
   });
   if (!error) return;
   // Best-effort fallback if the RPC isn't deployed: try a direct insert
@@ -6316,7 +6321,7 @@ const App = () => {
                 setPosts(prev => prev.map(p => p.id === tempId ? { ...p, id: data.id } : p));
                 // Notify profile owner if posting on their wall (not your own)
                 if (targetProfileId && targetProfileId !== user.id) {
-                    createNotificationForUser(targetProfileId, 'WALL_POST', `${user.handle} posted on your profile`, data.id)
+                    createNotificationForUser(targetProfileId, 'WALL_POST', `${user.handle} posted on your profile`, data.id, data.id)
                         .catch(() => {});
                 }
                 // Detect and notify @mentions
@@ -6327,7 +6332,7 @@ const App = () => {
                         t.handle?.toLowerCase() === handle || `@${t.username?.toLowerCase()}` === handle
                     );
                     if (mentionedTrader && mentionedTrader.id !== user.id && mentionedTrader.id !== targetProfileId) {
-                        createNotificationForUser(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you: "${c.slice(0, 80)}${c.length > 80 ? '…' : ''}"`, data.id)
+                        createNotificationForUser(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you: "${c.slice(0, 80)}${c.length > 80 ? '…' : ''}"`, data.id, data.id)
                             .catch(() => {});
                     }
                 }
@@ -6401,7 +6406,7 @@ const App = () => {
             supabaseLike(user.id, id).catch(e => console.warn('Like sync failed:', e));
             // Notify post author (only on like, not unlike, and not your own post)
             if (!wasLiked && postAuthorId && postAuthorId !== user.id) {
-                createNotificationForUser(postAuthorId, 'LIKE', `${user.handle} liked your post`, id)
+                createNotificationForUser(postAuthorId, 'LIKE', `${user.handle} liked your post`, id, id)
                     .catch(e => console.warn('Like notification failed:', e));
             }
         }
@@ -6426,7 +6431,7 @@ const App = () => {
         if (isSupabaseConfigured()) {
             supabaseToggleCommentLike(user.id, commentId).catch(e => console.warn('Comment like sync failed:', e));
             if (!wasLiked && targetComment && targetComment.authorId && targetComment.authorId !== user.id) {
-                createNotificationForUser(targetComment.authorId, 'LIKE', `${user.handle} liked your comment`, postId)
+                createNotificationForUser(targetComment.authorId, 'LIKE', `${user.handle} liked your comment`, postId, postId, commentId)
                     .catch(() => {});
             }
         }
@@ -6454,7 +6459,7 @@ const App = () => {
             supabaseRepost(user.id, id).catch(e => console.warn('Repost sync failed:', e));
             // Notify post author on repost (not un-repost, not your own post)
             if (!wasReposted && postAuthorId && postAuthorId !== user.id) {
-                createNotificationForUser(postAuthorId, 'REPOST', `${user.handle} reposted your post`, id)
+                createNotificationForUser(postAuthorId, 'REPOST', `${user.handle} reposted your post`, id, id)
                     .catch(e => console.warn('Repost notification failed:', e));
             }
         }
@@ -6487,10 +6492,10 @@ const App = () => {
             // (user_id ≠ auth.uid()), so these go through the SECURITY DEFINER
             // RPC wrapper.
             if (parentComment && parentComment.authorId && parentComment.authorId !== user.id) {
-                createNotificationForUser(parentComment.authorId, 'COMMENT', `${user.handle} replied to your comment: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
+                createNotificationForUser(parentComment.authorId, 'COMMENT', `${user.handle} replied to your comment: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid, pid, newComment?.id)
                     .catch(e => console.warn('Reply notification failed:', e));
             } else if (!parentId && postAuthorId && postAuthorId !== user.id) {
-                createNotificationForUser(postAuthorId, 'COMMENT', `${user.handle} commented: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
+                createNotificationForUser(postAuthorId, 'COMMENT', `${user.handle} commented: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid, pid, newComment?.id)
                     .catch(e => console.warn('Comment notification failed:', e));
             }
             // Detect @mentions and notify each mentioned user
@@ -6501,7 +6506,7 @@ const App = () => {
                     t.handle?.toLowerCase() === handle || `@${t.username?.toLowerCase()}` === handle
                 );
                 if (mentionedTrader && mentionedTrader.id !== user.id && mentionedTrader.id !== postAuthorId) {
-                    createNotificationForUser(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you in a comment: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid)
+                    createNotificationForUser(mentionedTrader.id, 'MENTION', `${user.handle} mentioned you in a comment: "${c.slice(0, 60)}${c.length > 60 ? '…' : ''}"`, pid, pid, newComment?.id)
                         .catch(() => {});
                 }
             }

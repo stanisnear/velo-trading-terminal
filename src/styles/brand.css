@@ -557,3 +557,18 @@ body.modal-open .navbar-container {
 .velo-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 30px -14px oklch(0.6 0.18 275 / 0.72), 0 1px 0 rgba(255,255,255,0.1) inset; }
 .velo-btn-primary::after { content: ""; position: absolute; inset: -40% -60%; background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.12) 50%, transparent 58%); transform: translateX(-70%); transition: transform 0.6s ease; pointer-events: none; }
 .velo-btn-primary:hover::after { transform: translateX(70%); }
+
+/* ── Claymorphic Velo coin (ported from landing .art-coin) ───────────────── */
+.velo-clay-coin { position: absolute; top: -6px; right: 2px; width: 72px; height: 72px; pointer-events: none; z-index: 1;
+  animation: veloCoinSpin 7s ease-in-out 0.8s infinite; }
+.velo-clay-coin .coin { position: absolute; left: 8px; top: 6px; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(120% 120% at 32% 26%, #2a2d37 0%, #131520 52%, #0a0b11 100%);
+  box-shadow: 0 16px 26px -12px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.14) inset, 0 -7px 14px -8px rgba(0,0,0,0.6) inset;
+  transform: rotateY(-18deg) rotateZ(-8deg); }
+.velo-clay-coin .coin::before { content: ""; position: absolute; inset: 7px; border-radius: 50%; padding: 2px;
+  background: linear-gradient(140deg, oklch(0.7 0.2 290), oklch(0.64 0.16 244));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; opacity: 0.9; }
+.velo-clay-coin .coin span { font-family: var(--font-display); font-style: italic; font-weight: 400; font-size: 26px; line-height: 1; transform: translateY(-2px);
+  background: linear-gradient(140deg, oklch(0.74 0.19 290), oklch(0.68 0.16 244)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@keyframes veloCoinSpin { 0%,100% { transform: rotateY(-18deg); } 50% { transform: rotateY(14deg) translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .velo-clay-coin { animation: none; } }

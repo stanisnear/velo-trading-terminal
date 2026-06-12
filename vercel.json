@@ -6,6 +6,11 @@
   ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
+    {
+      "source": "/social/post/:id",
+      "has": [{ "type": "header", "key": "user-agent", "value": ".*([Tt]witterbot|facebookexternalhit|[Ss]lackbot|[Ll]inked[Ii]n[Bb]ot|[Ww]hats[Aa]pp|[Dd]iscord[Bb]ot|[Tt]elegram[Bb]ot|[Ee]mbedly|[Pp]interest|[Gg]ooglebot|[Bb]ingbot).*" }],
+      "destination": "/api/post-og?id=:id"
+    },
     { "source": "/:path*", "destination": "/index.html" }
   ],
   "headers": [

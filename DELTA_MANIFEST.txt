@@ -1,7 +1,8 @@
-VELO DELTA — build audit-v13 (brand: wordmark, no boxed V)
+VELO DELTA — build audit-v15
 ========================================
-30 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v13">
+32 files. Apply: unzip -o into the repo ROOT.
+Run SUPABASE_MIGRATION_consolidated.sql once (SECTION 11: notification lifecycle).
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v15">
 
 FILES:
   FEATURES.md
@@ -12,6 +13,7 @@ FILES:
   api/cron-conditional-orders.ts
   api/cron-liquidate.ts
   api/cron-tp-sl.ts
+  api/post-og.ts
   api/protocol-stats.ts
   src/App.tsx
   src/components/AuthModal.tsx
@@ -34,3 +36,4 @@ FILES:
   src/services/web3Config.ts
   src/styles/brand.css
   src/utils/types.ts
+  vercel.json

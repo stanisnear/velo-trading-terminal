@@ -319,6 +319,58 @@ begin
 end $$;
 
 -- ════════════════════════════════════════════════════════════════════════
+-- SECTION 11 · Notification lifecycle — die with what they reference
+-- ════════════════════════════════════════════════════════════════════════
+-- A deleted comment (or post) must take its notifications with it. The clean
+-- mechanism is a cascading FK, not app-side cleanup that can be forgotten.
+alter table public.notifications add column if not exists post_id    uuid;
+alter table public.notifications add column if not exists comment_id uuid;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname='notifications_post_id_fkey') then
+    alter table public.notifications
+      add constraint notifications_post_id_fkey
+      foreign key (post_id) references public.posts(id) on delete cascade;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='notifications_comment_id_fkey') then
+    alter table public.notifications
+      add constraint notifications_comment_id_fkey
+      foreign key (comment_id) references public.comments(id) on delete cascade;
+  end if;
+end $$;
+
+-- RPC gains optional references (defaults keep all existing call sites valid).
+drop function if exists public.create_notification_for_user(uuid, text, text, text);
+create or replace function public.create_notification_for_user(
+  target_user_id uuid,
+  p_type         text,
+  p_message      text,
+  p_related_id   text default null,
+  p_post_id      uuid default null,
+  p_comment_id   uuid default null
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.notifications (user_id, type, message, related_id, post_id, comment_id)
+  values (target_user_id, p_type, p_message, p_related_id, p_post_id, p_comment_id);
+end; $$;
+grant execute on function public.create_notification_for_user(uuid, text, text, text, uuid, uuid) to authenticated;
+
+-- One-time hygiene: legacy comment notifications predate comment_id and can
+-- never retro-link, so orphans (like notifications for already-deleted
+-- comments) are indistinguishable from live ones. Clear the legacy set once;
+-- every notification from here on carries its reference and cascades.
+delete from public.notifications where type = 'COMMENT' and comment_id is null;
+
+-- ════════════════════════════════════════════════════════════════════════
+-- SECTION 10 · Wall moderation — owner may delete posts on their own wall
+-- ════════════════════════════════════════════════════════════════════════
+-- The UI intentionally lets the wall owner remove posts left on their
+-- profile (target_profile_id). Align RLS so that affordance is truthful.
+drop policy if exists velo_posts_delete on public.posts;
+create policy velo_posts_delete on public.posts for delete
+  using (author_id = auth.uid() or target_profile_id = auth.uid());
+
+-- ════════════════════════════════════════════════════════════════════════
 -- SECTION 9 · Threaded comments + comment likes (Twitter-style)
 -- ════════════════════════════════════════════════════════════════════════
 -- comments.parent_id — reply threading. Add if missing; ensure the FK

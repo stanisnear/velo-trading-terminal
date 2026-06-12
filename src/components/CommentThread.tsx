@@ -317,9 +317,15 @@ function CommentRow({
 }: CommentRowProps) {
     const [showReplies, setShowReplies] = useState(true);
     const hasLiked = user ? comment.likedBy.includes(user.id) : false;
-    // Only comment author can delete their own comment; post author can delete any
-    const canDelete = user && (user.id === comment.authorId || user.id === postAuthorId);
+    // Author-only delete — mirrors the backend RLS exactly (comments delete
+    // policy is author_id = auth.uid()). Showing the trash to the post author
+    // was both wrong product logic and a lie: the optimistic delete would
+    // succeed locally and be rejected server-side.
+    const canDelete = user && user.id === comment.authorId;
     const replies = allComments.filter(c => c.parentId === comment.id);
+    // For deep replies (depth ≥ 2) we render flat under the root but keep the
+    // addressing visible with a small "replying to @x" context line.
+    const parentC = comment.parentId ? allComments.find(c => c.id === comment.parentId) : null;
 
     const timeStr = (() => {
         const d = new Date(comment.timestamp);
@@ -381,6 +387,11 @@ function CommentRow({
                     )}
                 </div>
 
+                {/* Reply-context chip (flat-rendered deep replies keep addressing) */}
+                {depth >= 2 && parentC && (
+                    <p style={{ ...S.mono, fontSize: 10, color: 'var(--iris-violet)', margin: '0 0 3px', letterSpacing: '0.03em' }}>↳ replying to {parentC.authorHandle}</p>
+                )}
+
                 {/* Content */}
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: depth === 0 ? 14 : 13, color: 'var(--fg-muted)', lineHeight: 1.55, margin: 0, whiteSpace: 'pre-wrap' as const }}>
                     {renderContent(comment.content, onViewProfile, traders, onTickerClick)}
@@ -402,8 +413,10 @@ function CommentRow({
                         {comment.likes > 0 && <span>{comment.likes}</span>}
                     </button>
 
-                    {/* Reply — only on top-level comments (depth 0) */}
-                    {depth === 0 && user && (
+                    {/* Reply — on every row: replying to a reply is normal logic.
+                        The true parent edge (this comment's id) is stored, and
+                        descendants render flat under the root, Twitter-style. */}
+                    {user && (
                         <button
                             onClick={() => onReply(comment.id, comment.authorHandle)}
                             style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', ...S.mono, fontSize: 11, padding: 0, transition: 'color 0.1s' }}
@@ -424,9 +437,11 @@ function CommentRow({
                     )}
                 </div>
 
-                {/* Nested replies */}
-                {depth === 0 && showReplies && replies.length > 0 && (
-                    <div style={{ marginTop: 10, paddingLeft: 16, borderLeft: '2px solid var(--hairline)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Nested replies — indent + thread line only at the first level;
+                    deeper descendants render flat (Twitter-style) with the
+                    context chip above preserving who replied to whom. */}
+                {(depth === 0 ? showReplies : true) && replies.length > 0 && (
+                    <div style={{ marginTop: 10, paddingLeft: depth === 0 ? 16 : 0, borderLeft: depth === 0 ? '2px solid var(--hairline)' : 'none', display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {replies.map(reply => (
                             <CommentRow
                                 key={reply.id}
@@ -435,7 +450,7 @@ function CommentRow({
                                 postAuthorId={postAuthorId}
                                 user={user}
                                 traders={traders}
-                                depth={1}
+                                depth={depth + 1}
                                 onViewProfile={onViewProfile}
                                 onTickerClick={onTickerClick}
                                 onReply={onReply}

@@ -954,12 +954,18 @@ export async function createNotificationForUser(
   type: string,
   message: string,
   relatedId?: string,
+  postId?: string,
+  commentId?: string,
 ): Promise<void> {
   const { error } = await supabase.rpc('create_notification_for_user', {
     target_user_id: targetUserId,
     p_type: type,
     p_message: message,
     p_related_id: relatedId || null,
+    // Lifecycle references — FK ON DELETE CASCADE removes the notification
+    // automatically when the post/comment it points at is deleted.
+    p_post_id: postId || null,
+    p_comment_id: commentId || null,
   });
   if (!error) return;
   // Best-effort fallback for environments where the RPC isn't deployed yet.

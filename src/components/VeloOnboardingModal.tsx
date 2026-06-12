@@ -89,7 +89,7 @@ const HoloBar = ({ step, total = 3 }: { step: number; total?: number }) => (
     {Array.from({ length: total }).map((_, i) => (
       <div key={i} style={{
         height: 2.5, flex: 1, borderRadius: 2,
-        background: i <= step ? 'oklch(0.55 0.24 295)' : 'var(--hairline, rgba(0,0,0,0.08))',
+        background: i <= step ? 'oklch(0.62 0.18 280)' : 'var(--hairline, rgba(0,0,0,0.08))',
         opacity: i < step ? 0.4 : 1,
         transition: 'background 0.4s, opacity 0.4s',
       }} />
@@ -120,7 +120,7 @@ const GhostBtn = ({ onClick, children }: { onClick: () => void; children: React.
     color: 'var(--fg-subtle)', cursor: 'pointer', letterSpacing: '0.06em',
     textTransform: 'uppercase' as const, transition: 'border-color 0.15s, color 0.15s',
   }}
-  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'oklch(0.55 0.24 295)'; (e.currentTarget as HTMLElement).style.color = 'var(--fg)'; }}
+  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'oklch(0.62 0.18 280)'; (e.currentTarget as HTMLElement).style.color = 'var(--fg)'; }}
   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline-strong, rgba(0,0,0,0.1))'; (e.currentTarget as HTMLElement).style.color = 'var(--fg-subtle)'; }}
   >{children}</button>
 );
@@ -143,7 +143,7 @@ const Field = ({ label, value, onChange, placeholder, type = 'text', autoFocus, 
         style={{
           width: '100%', padding: '12px 14px', boxSizing: 'border-box' as const,
           background: 'var(--chip-bg, rgba(0,0,0,0.04))',
-          border: `1.5px solid ${error ? 'oklch(0.62 0.22 25)' : focused ? 'oklch(0.55 0.24 295)' : 'var(--hairline-strong)'}`,
+          border: `1.5px solid ${error ? 'oklch(0.62 0.22 25)' : focused ? 'oklch(0.62 0.18 280)' : 'var(--hairline-strong)'}`,
           borderRadius: 12,
           fontFamily: "var(--font-mono)", fontSize: 14,
           color: 'var(--fg)', outline: 'none', transition: 'border-color 0.18s',
@@ -165,8 +165,8 @@ const WalletPill = ({ address }: { address: string }) => (
 
 const SpinRing = () => (
   <div style={{ position: 'relative', width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid oklch(0.55 0.24 295)', opacity: 0.25, animation: 'vOnbPulseRing 1.5s ease-in-out infinite' }} />
-    <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--hairline-strong)', borderTopColor: 'oklch(0.55 0.24 295)', animation: 'vOnbSpin 0.85s linear infinite' }} />
+    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid oklch(0.62 0.18 280)', opacity: 0.25, animation: 'vOnbPulseRing 1.5s ease-in-out infinite' }} />
+    <div style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--hairline-strong)', borderTopColor: 'oklch(0.62 0.18 280)', animation: 'vOnbSpin 0.85s linear infinite' }} />
   </div>
 );
 
@@ -479,7 +479,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 18 }}>
                   {[['25×', 'Leverage'], ['0.1%', 'Fee / side'], ['Pyth', 'Oracle']].map(([v, l]) => (
                     <div key={l} style={{ textAlign: 'center' }}>
-                      <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 15, fontWeight: 700, color: 'oklch(0.55 0.24 295)', lineHeight: 1 }}>{v}</div>
+                      <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 15, fontWeight: 700, color: 'oklch(0.62 0.18 280)', lineHeight: 1 }}>{v}</div>
                       <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginTop: 3 }}>{l}</div>
                     </div>
                   ))}
@@ -522,9 +522,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               </p>
               {address && <WalletPill address={address} />}
               <Field label="Username" value={username} onChange={v => { setUsername(v); setFieldError(''); }} placeholder="e.g. alpha_trader" autoFocus error={fieldError} hint="3–20 chars · letters, numbers, underscores" onKeyDown={e => e.key === 'Enter' && advance()} />
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 12, background: 'oklch(0.55 0.24 295 / 0.06)', border: '1px solid oklch(0.55 0.24 295 / 0.15)' }}>
-                <span style={{ color: 'oklch(0.55 0.24 295)', fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>@</span>
-                <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>Your handle is registered <span style={{ color: 'oklch(0.55 0.24 295)', fontWeight: 700 }}>on-chain</span> in the Velo Name Registry and tied permanently to your wallet.</p>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 12, background: 'oklch(0.62 0.18 280 / 0.06)', border: '1px solid oklch(0.62 0.18 280 / 0.15)' }}>
+                <span style={{ color: 'oklch(0.62 0.18 280)', fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>@</span>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>Your handle is registered <span style={{ color: 'oklch(0.62 0.18 280)', fontWeight: 700 }}>on-chain</span> in the Velo Name Registry and tied permanently to your wallet.</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <PrimaryBtn onClick={advance} disabled={!username.trim()}>Continue →</PrimaryBtn>
@@ -556,7 +556,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
 
           {/* ══ REVIEW ══ */}
           {step === 'REVIEW' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, animation: 'vOnbSlideUp 0.32s ease' }}>
+            <div style={{ position: 'relative' as const, display: 'flex', flexDirection: 'column', gap: 18, animation: 'vOnbSlideUp 0.32s ease' }}>
+              {/* Landing's floating clay Velo coin — the 1,000 mUSDC moment */}
+              <div className="velo-clay-coin" aria-hidden><div className="coin"><span>V</span></div></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                 <VLogo size={36} />
                 <div>
@@ -608,8 +610,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>One signature needed</p>
                 <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Derives your trading wallet — no gas, no ETH spent.</p>
               </div>
-              <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'oklch(0.55 0.24 295 / 0.06)', border: '1px solid oklch(0.55 0.24 295 / 0.18)' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'oklch(0.62 0.18 280 / 0.06)', border: '1px solid oklch(0.62 0.18 280 / 0.18)' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="oklch(0.62 0.18 280)" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-muted)', letterSpacing: '0.04em' }}>Check MetaMask for the signature request</span>
               </div>
             </div>
@@ -631,7 +633,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Minting your testnet USDC on Base Sepolia…</p>
               </div>
               {claimTxHash && (
-                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
+                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'oklch(0.62 0.18 280)', display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none' }}>
                   View on BaseScan <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>
               )}
@@ -665,7 +667,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 )}
               </div>
               {claimTxHash && (
-                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'oklch(0.55 0.24 295)', display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, textDecoration: 'none', animation: 'vOnbSlideUp 0.35s ease 1.3s both' }}>
+                <a href={baseScanTxUrl(claimTxHash)} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'oklch(0.62 0.18 280)', display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 20, textDecoration: 'none', animation: 'vOnbSlideUp 0.35s ease 1.3s both' }}>
                   Claim tx on BaseScan <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 </a>
               )}
@@ -682,11 +684,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '16px 0 8px', animation: 'vOnbSlideUp 0.4s ease' }}>
               <div style={{ position: 'relative', width: 72, height: 72, marginBottom: 24 }}>
                 <svg viewBox="0 0 72 72" width="72" height="72" style={{ position: 'absolute', inset: 0 }}>
-                  <circle cx="36" cy="36" r="28" fill="none" stroke="oklch(0.55 0.24 295 / 0.15)" strokeWidth="1.5" />
-                  <circle cx="36" cy="36" r="28" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="176" strokeDashoffset="176" transform="rotate(-90 36 36)" style={{ animation: 'vOnbDrawArc 0.55s cubic-bezier(0.4,0,0.2,1) 0.1s both' }} />
+                  <circle cx="36" cy="36" r="28" fill="none" stroke="oklch(0.62 0.18 280 / 0.15)" strokeWidth="1.5" />
+                  <circle cx="36" cy="36" r="28" fill="none" stroke="oklch(0.62 0.18 280)" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="176" strokeDashoffset="176" transform="rotate(-90 36 36)" style={{ animation: 'vOnbDrawArc 0.55s cubic-bezier(0.4,0,0.2,1) 0.1s both' }} />
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'vOnbCheckIn 0.35s cubic-bezier(0.34,1.4,0.64,1) 0.6s both' }}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="oklch(0.55 0.24 295)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="oklch(0.62 0.18 280)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
                 </div>
               </div>
               <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.82s both' }}>
@@ -695,9 +697,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 20px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.38s ease 1.0s both' }}>
                 Restoring your session…
               </p>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px 6px 9px', borderRadius: 6, background: 'oklch(0.55 0.24 295 / 0.07)', border: '1px solid oklch(0.55 0.24 295 / 0.18)', animation: 'vOnbSlideUp 0.36s ease 1.2s both' }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'oklch(0.55 0.24 295)', animation: 'vOnbLiveDot 1.8s ease-in-out infinite' }} />
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'oklch(0.55 0.24 295)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontWeight: 600 }}>Velo · Authenticated</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px 6px 9px', borderRadius: 6, background: 'oklch(0.62 0.18 280 / 0.07)', border: '1px solid oklch(0.62 0.18 280 / 0.18)', animation: 'vOnbSlideUp 0.36s ease 1.2s both' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'oklch(0.62 0.18 280)', animation: 'vOnbLiveDot 1.8s ease-in-out infinite' }} />
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'oklch(0.62 0.18 280)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, fontWeight: 600 }}>Velo · Authenticated</span>
               </div>
             </div>
           )}
