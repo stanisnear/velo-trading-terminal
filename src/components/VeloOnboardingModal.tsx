@@ -510,8 +510,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           {/* ══ USERNAME ══ */}
           {step === 'USERNAME' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'vOnbSlideUp 0.32s ease' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-                <VLogo size={36} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <VeloWordmark size={22} />
+                <span style={{ width: 1, height: 22, background: 'var(--hairline-strong)' }} />
                 <div>
                   <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Pick your handle</p>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>New account · Step 1 of 3</p>
@@ -537,7 +538,8 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           {step === 'EMAIL' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, animation: 'vOnbSlideUp 0.32s ease' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-                <VLogo size={36} />
+                <VeloWordmark size={22} />
+                <span style={{ width: 1, height: 22, background: 'var(--hairline-strong)' }} />
                 <div>
                   <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Stay in the loop</p>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 2 of 3</p>
@@ -557,10 +559,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
           {/* ══ REVIEW ══ */}
           {step === 'REVIEW' && (
             <div style={{ position: 'relative' as const, display: 'flex', flexDirection: 'column', gap: 18, animation: 'vOnbSlideUp 0.32s ease' }}>
-              {/* Landing's floating clay Velo coin — the 1,000 mUSDC moment */}
-              <div className="velo-clay-coin" aria-hidden><div className="coin"><span>V</span></div></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-                <VLogo size={36} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <VeloWordmark size={22} />
+                <span style={{ width: 1, height: 22, background: 'var(--hairline-strong)' }} />
                 <div>
                   <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Ready to launch</p>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 3 of 3</p>

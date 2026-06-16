@@ -241,8 +241,16 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
     const submit = async () => {
         if (!text.trim() || loading) return;
         setLoading(true);
+        console.info('[velo] comment submit: started');
+        // Watchdog (parity with the post modal): if the promise somehow never
+        // settles, free the button after 12s instead of stranding '…'.
+        const watchdog = setTimeout(() => {
+            console.warn('[velo] comment submit watchdog fired — promise did not settle in 12s');
+            setLoading(false);
+        }, 12_000);
         try {
             await onSubmit(text.trim());
+            console.info('[velo] comment submit: resolved');
             // Clear ONLY on success — on failure the person keeps their draft
             // instead of losing it to the void.
             setText('');
@@ -251,6 +259,7 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
             // from a screenshot instead of a guessing game.
             console.error('[velo] comment submit failed:', e);
         } finally {
+            clearTimeout(watchdog);
             // The button can never strand on '…' again, whatever onSubmit does.
             setLoading(false);
         }

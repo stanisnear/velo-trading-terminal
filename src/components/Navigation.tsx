@@ -393,7 +393,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                         )}
                     </div>
                 ) : (
-                    <WalletConnectButton compact={true} onOpenAuthModal={onRequireAuth} onOpenSettings={onOpenSettings} />
+                    <WalletConnectButton compact={true} isAuthed={!!user} onOpenAuthModal={onRequireAuth} onOpenSettings={onOpenSettings} />
                 )}
             </div>
         </nav>

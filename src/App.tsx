@@ -5026,26 +5026,37 @@ const App = () => {
             intentionalLogoutRef.current = false;
             socialLoginHandledRef.current = false;
             socialLoginHandledRef.current = true; // lock against concurrent calls
-            try {
-                const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-                const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-                const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-                if (data?.user && !signInErr) {
-                    const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-                    if (profile?.username) {
-                        intentionalLogoutRef.current = false;
-                        sessionRestoredRef.current = true;
-                        silentLoginCallbackRef.current?.(data.user, profile);
-                        return;
+            const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
+            const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
+            // Bounded retry so a transient blip on an expired-session re-auth
+            // doesn't bounce a returning user to onboarding (same rationale as
+            // the silent-login effect). Genuine "no account" (400) onboards.
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
+                    if (data?.user && !signInErr) {
+                        const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+                        if (profile?.username) {
+                            intentionalLogoutRef.current = false;
+                            sessionRestoredRef.current = true;
+                            silentLoginCallbackRef.current?.(data.user, profile);
+                            return;
+                        }
+                        break; // authed but no profile → onboarding
                     }
+                    const msg = (signInErr?.message || '').toLowerCase();
+                    const status = (signInErr as any)?.status ?? (signInErr as any)?.code;
+                    const isNoAccount = status === 400 && msg.includes('invalid login credentials');
+                    if (isNoAccount) break; // genuine: never signed up
+                    if (attempt < 3) { await new Promise(r => setTimeout(r, attempt * 600)); continue; }
+                } catch (e: any) {
+                    if (attempt < 3) { await new Promise(r => setTimeout(r, attempt * 600)); continue; }
                 }
-                socialLoginHandledRef.current = false;
-                setLoginReturningName('');
-                setLoginOpen(true);
-            } catch {
-                socialLoginHandledRef.current = false;
-                setLoginOpen(true);
+                break;
             }
+            socialLoginHandledRef.current = false;
+            setLoginReturningName('');
+            setLoginOpen(true);
         } else {
             openAppKitModal();
         }
@@ -6478,7 +6489,20 @@ const App = () => {
         try {
         setPosts(prev => prev.map(p => p.id === pid ? {...p, comments: [...p.comments, tempComment]} : p));
         if (isSupabaseConfigured()) {
-            const { data: newComment } = await supabaseComment(pid, user.id, c, parentId || undefined).catch(() => ({ data: null })) as any;
+            // Settle-guarantee (parity with posts, v12): a stalled response —
+            // insert landed, reply never arrived — must not hang the submit
+            // chain; that is the only physical way the Reply button can strand
+            // on '…'. After 10s we keep the optimistic comment and move on.
+            const racedC: any = await Promise.race([
+                supabaseComment(pid, user.id, c, parentId || undefined).catch((e: any) => ({ __err: e })),
+                new Promise(resolve => setTimeout(() => resolve({ __timeout: true }), 10_000)),
+            ]);
+            if (racedC?.__timeout) {
+                console.warn('[velo] addComment did not respond within 10s — keeping optimistic comment');
+                return;
+            }
+            if (racedC?.__err) throw racedC.__err; // → catch below: rollback + toast + draft preserved
+            const { data: newComment } = racedC as any;
             if (newComment?.id) {
                 // Replace temp comment with real DB comment (fixes disappear-on-refresh)
                 setPosts(prev => prev.map(p => p.id === pid

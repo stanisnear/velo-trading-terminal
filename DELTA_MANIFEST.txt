@@ -1,0 +1,39 @@
+VELO DELTA — build audit-v17
+========================================
+33 files. Apply: unzip -o into the repo ROOT.
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v17">
+
+FILES:
+  FEATURES.md
+  README.md
+  SUPABASE_MIGRATION_consolidated.sql
+  VELO_Audit_Summary.md
+  VELO_Overview.md
+  api/cron-conditional-orders.ts
+  api/cron-liquidate.ts
+  api/cron-tp-sl.ts
+  api/post-og.ts
+  api/protocol-stats.ts
+  src/App.tsx
+  src/components/AuthModal.tsx
+  src/components/CommentThread.tsx
+  src/components/CreatePostModal.tsx
+  src/components/Modals.tsx
+  src/components/Navigation.tsx
+  src/components/PortfolioChart.tsx
+  src/components/TokenInteractiveChart.tsx
+  src/components/VeloOnboardingModal.tsx
+  src/components/WalletConnectButton.tsx
+  src/components/social/Compose.tsx
+  src/components/social/PostCard.tsx
+  src/components/social/ProfileHeader.tsx
+  src/components/ui/pages/Dashboard.tsx
+  src/components/ui/pages/LeaderboardView.tsx
+  src/components/ui/shared.tsx
+  src/index.tsx
+  src/services/supabaseStore.ts
+  src/services/veloPerpsService.ts
+  src/services/web3Config.ts
+  src/styles/brand.css
+  src/utils/types.ts
+  vercel.json
