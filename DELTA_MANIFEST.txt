@@ -1,7 +1,8 @@
-VELO DELTA — build audit-v17
+VELO DELTA — build audit-v18
 ========================================
 33 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v17">
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v18">
+Auth clicks now log [velo:auth] lines to the console.
 
 FILES:
   FEATURES.md

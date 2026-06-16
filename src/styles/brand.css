@@ -508,8 +508,20 @@ html.light .velo-modal-card {
    While a modal is open we drop the navbar fully behind the backdrop and make
    it inert so nothing leaks through. */
 body.modal-open .navbar-container {
+  /* Drop the navbar's own backdrop-filter so it can't paint in front of a
+     modal backdrop, but KEEP the bar interactive. A blanket
+     pointer-events:none here is what made the "Sign in" / "Log In" buttons
+     completely dead while a (sometimes invisible) modal flag was set. The
+     buttons must always respond. */
   z-index: 5 !important;
-  pointer-events: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Interactive controls inside the bar always receive clicks, even at z-index:5,
+   because the modal backdrop sits above the page but these are re-raised. */
+body.modal-open .navbar-container button,
+body.modal-open .navbar-container a {
+  pointer-events: auto !important;
 }
 
 /* ── Modal exit animation (CreatePostModal success/dismiss) ──────────────── */

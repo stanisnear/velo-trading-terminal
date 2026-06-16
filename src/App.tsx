@@ -5020,8 +5020,13 @@ const App = () => {
     // instead of reopening AppKit (which just shows the already-connected wallet info).
     // Only open AppKit if there is no wallet connected at all.
     const handleRequireAuth = async () => {
-        if (user) return;
+        console.info('[velo:auth] requireAuth click → user:', !!user, '| walletConnected:', isWalletConnected, '| addr:', walletAddress?.slice(0,8));
+        if (user) { console.info('[velo:auth] already have user — no-op'); return; }
+        // Clear any stale modal flags that may have left the app in a locked
+        // `modal-open` state (the cause of "clicking does absolutely nothing").
+        setVeloWelcomeOpen(false);
         if (isWalletConnected && walletAddress) {
+            console.info('[velo:auth] wallet connected, attempting silent re-auth…');
             // Manual click — clear all guards so this always succeeds.
             intentionalLogoutRef.current = false;
             socialLoginHandledRef.current = false;
@@ -5037,11 +5042,19 @@ const App = () => {
                     if (data?.user && !signInErr) {
                         const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
                         if (profile?.username) {
+                            console.info('[velo:auth] silent re-auth SUCCESS → restoring session for', profile.username);
                             intentionalLogoutRef.current = false;
                             sessionRestoredRef.current = true;
-                            silentLoginCallbackRef.current?.(data.user, profile);
+                            if (!silentLoginCallbackRef.current) {
+                                // Hard fallback: callback not wired (shouldn't happen)
+                                console.error('[velo:auth] silentLoginCallbackRef is NULL — forcing reload to restore');
+                                window.location.reload();
+                                return;
+                            }
+                            silentLoginCallbackRef.current(data.user, profile);
                             return;
                         }
+                        console.info('[velo:auth] authed but no profile row → onboarding');
                         break; // authed but no profile → onboarding
                     }
                     const msg = (signInErr?.message || '').toLowerCase();
@@ -5054,10 +5067,12 @@ const App = () => {
                 }
                 break;
             }
+            console.info('[velo:auth] silent re-auth did not resolve → opening onboarding modal');
             socialLoginHandledRef.current = false;
             setLoginReturningName('');
             setLoginOpen(true);
         } else {
+            console.info('[velo:auth] no wallet connected → opening AppKit');
             openAppKitModal();
         }
     };
