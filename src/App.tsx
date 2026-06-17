@@ -2913,6 +2913,24 @@ const App = () => {
         }
     }, [switchChain]);
 
+    // When the wallet transitions ONTO Base Sepolia, dismiss any lingering
+    // network alert/modal and nudge the auth flow to re-evaluate — otherwise
+    // the freshly-switched account only appeared after a manual refresh.
+    const lastChainRef = useRef<number | undefined>(undefined);
+    useEffect(() => {
+      const prev = lastChainRef.current;
+      lastChainRef.current = chainId;
+      if (prev !== undefined && prev !== EXPECTED_CHAIN_ID && chainId === EXPECTED_CHAIN_ID) {
+        // Correct chain reached. Clear the network alert and re-arm auth.
+        setWalletSessionAlert(prev2 => prev2?.type === 'network' ? null : prev2);
+        if (!user && isWalletConnected) {
+          console.info('[velo:auth] switched onto Base Sepolia → re-evaluating auth');
+          socialLoginHandledRef.current = false;
+          setRetryAuthTick(t => t + 1);
+        }
+      }
+    }, [chainId, user, isWalletConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // One-shot auto-switch: when a connected wallet is on the wrong chain, ask
     // it to switch ONCE per unique wrong-network state (keyed on address+chain),
     // so we never spam the wallet with repeated prompts if the user declines.
@@ -3654,16 +3672,25 @@ const App = () => {
             bc = new BroadcastChannel('velo-auth');
             bc.onmessage = (ev: MessageEvent) => {
                 const msg = ev.data || {};
+                if (msg.type === 'LOGOUT') {
+                    // Another tab logged out. If we still think we're logged in,
+                    // converge by reloading into the now-cleared shared session.
+                    if (userIdRef.current) {
+                        console.warn('[velo:auth] cross-tab LOGOUT received → reloading to converge');
+                        window.location.replace('/?logout=1');
+                    }
+                    return;
+                }
                 if (msg.type === 'AUTH_CHANGED') {
                     const live = (walletConnectRef.current || '').toLowerCase();
                     const announced = (msg.wallet || '').toLowerCase();
-                    // Another tab is now on a different wallet than ours, OR it
-                    // logged out (announced empty) while we think we're logged in.
-                    if (announced !== live) {
+                    const announcedUser = msg.userId || null;
+                    // Converge if another tab is on a different wallet than ours,
+                    // OR is authenticated as a different user. Only act when we
+                    // actually have a session to reconcile (avoid reload loops on
+                    // logged-out tabs).
+                    if (userIdRef.current && (announced !== live || (announcedUser && announcedUser !== userIdRef.current))) {
                         console.warn('[velo:auth] cross-tab account change detected → reloading to converge');
-                        // Hard reload re-runs restoreSession with the shared (new)
-                        // Supabase session + this tab's live wallet, and the guard
-                        // above resolves any mismatch cleanly.
                         window.location.reload();
                     }
                 }
@@ -5158,6 +5185,10 @@ const App = () => {
     };
     const handleLogout = async () => {
         const name = user?.username;
+        // Tell every other tab to log out NOW — before the navigation/teardown
+        // below, which would otherwise prevent the identity-change broadcast
+        // from ever firing. Other tabs receive this and converge immediately.
+        try { authBroadcastRef.current?.postMessage({ type: 'LOGOUT' }); } catch {}
         triggerAnim('LOGOUT', name ? `See you, ${name}` : undefined);
 
         // Schedule the hard navigation FIRST, before any awaits below. Some
