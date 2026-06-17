@@ -1,7 +1,7 @@
-VELO DELTA — build audit-v20 (cross-tab logout + network re-arm)
+VELO DELTA — build audit-v21 (cross-tab login reconnect-race fix)
 ========================================
 33 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v20">
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v21">
 
 FILES:
   FEATURES.md

@@ -3574,12 +3574,24 @@ const App = () => {
 
                 // ── Cross-tab account-switch guard ───────────────────────────
                 // Supabase persists its session in shared storage, so if another
-                // tab logged in with a DIFFERENT wallet, this tab's INITIAL_SESSION
-                // would otherwise restore the WRONG (old) account. If MetaMask is
-                // currently connected to a wallet that doesn't match this profile's
-                // wallet, the session is stale — sign out instead of hydrating it.
+                // tab logged in with a DIFFERENT wallet, this tab would otherwise
+                // restore the WRONG account. BUT on a cross-tab reload wagmi
+                // reconnects asynchronously — walletAddress is often empty or
+                // briefly stale right here. Acting on that race bounced a valid,
+                // already-registered account to onboarding (while a slower manual
+                // refresh worked). So: only sign out on a STABLE, confirmed
+                // mismatch. Poll briefly for the wallet to settle; if it never
+                // appears, trust the session (the manual-refresh behavior).
                 const profileWallet = (profile?.wallet_address || '').toLowerCase();
-                const liveWallet = (walletAddress || '').toLowerCase();
+                let liveWallet = (walletConnectRef.current || walletAddress || '').toLowerCase();
+                if (!liveWallet) {
+                    // Wait up to ~1.5s for wagmi to reconnect before judging.
+                    for (let i = 0; i < 6; i++) {
+                        await new Promise(r => setTimeout(r, 250));
+                        liveWallet = (walletConnectRef.current || '').toLowerCase();
+                        if (liveWallet) break;
+                    }
+                }
                 if (liveWallet && profileWallet && liveWallet !== profileWallet) {
                     console.warn('[velo:auth] session/wallet mismatch — connected', liveWallet.slice(0,8), 'but session is', profileWallet.slice(0,8), '→ signing out stale session');
                     sessionRestoredRef.current = false;
@@ -3589,6 +3601,8 @@ const App = () => {
                     setAuthChecked(true);
                     return;
                 }
+                // Wallet matches (or hasn't reconnected — trust the shared session).
+                console.info('[velo:auth] session restored for', profile?.username, liveWallet ? `(wallet ${liveWallet.slice(0,8)})` : '(wallet pending)');
 
                 setUser(restoredUser);
                 recordSessionWallet();
