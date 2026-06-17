@@ -3120,6 +3120,11 @@ const App = () => {
     const intentionalLogoutRef = useRef(false);
     // Callback to hydrate app state on silent login (wallet reconnect → existing account)
     const silentLoginCallbackRef = useRef<((authUser: any, profile: any) => void) | null>(null);
+    // Cross-tab auth sync refs (kept current by the effects below so the
+    // BroadcastChannel/storage handlers always read live values).
+    const authBroadcastRef = useRef<BroadcastChannel | null>(null);
+    const walletConnectRef = useRef<string | undefined>(undefined);
+    const userIdRef = useRef<string | null>(null);
 
     // ── Silent re-auth provider for the session manager ─────────────────────
     // When the Supabase session dies (refresh token revoked / no session) the
@@ -3144,6 +3149,17 @@ const App = () => {
         });
         return () => registerReauthProvider(null);
     }, [walletAddress]);
+
+    // Keep cross-tab refs live + announce our auth identity to other tabs.
+    useEffect(() => {
+      walletConnectRef.current = walletAddress;
+      userIdRef.current = user?.id || null;
+      // Announce this tab's current wallet so sibling tabs can converge. An
+      // empty wallet means logged-out. Guarded so it only fires on real change.
+      try {
+        authBroadcastRef.current?.postMessage({ type: 'AUTH_CHANGED', wallet: walletAddress || '', userId: user?.id || null });
+      } catch { /* channel may not be open yet */ }
+    }, [walletAddress, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Keep silentLoginCallbackRef current — restores session from silent wallet reconnect
     useEffect(() => {
@@ -3537,6 +3553,25 @@ const App = () => {
                 // fallback so the UI shows the correct address immediately.
                 if (walletAddress) restoredUser.walletAddress = walletAddress;
                 else if (profile?.wallet_address) restoredUser.walletAddress = profile.wallet_address;
+
+                // ── Cross-tab account-switch guard ───────────────────────────
+                // Supabase persists its session in shared storage, so if another
+                // tab logged in with a DIFFERENT wallet, this tab's INITIAL_SESSION
+                // would otherwise restore the WRONG (old) account. If MetaMask is
+                // currently connected to a wallet that doesn't match this profile's
+                // wallet, the session is stale — sign out instead of hydrating it.
+                const profileWallet = (profile?.wallet_address || '').toLowerCase();
+                const liveWallet = (walletAddress || '').toLowerCase();
+                if (liveWallet && profileWallet && liveWallet !== profileWallet) {
+                    console.warn('[velo:auth] session/wallet mismatch — connected', liveWallet.slice(0,8), 'but session is', profileWallet.slice(0,8), '→ signing out stale session');
+                    sessionRestoredRef.current = false;
+                    clearSessionCache();
+                    try { await supabase.auth.signOut(); } catch {}
+                    setUser(null);
+                    setAuthChecked(true);
+                    return;
+                }
+
                 setUser(restoredUser);
                 recordSessionWallet();
                 setPositions(positions);
@@ -3610,7 +3645,52 @@ const App = () => {
             await restoreSession(session, true);
         });
         
-        return () => { subscription.unsubscribe(); clearTimeout(authTimeout); };
+        // ── Cross-tab auth broadcast ─────────────────────────────────────
+        // Converge sessions across tabs proactively. When THIS tab's auth
+        // identity changes, it posts the current wallet; other tabs whose live
+        // wallet no longer matches reload to pick up the correct session.
+        let bc: BroadcastChannel | null = null;
+        try {
+            bc = new BroadcastChannel('velo-auth');
+            bc.onmessage = (ev: MessageEvent) => {
+                const msg = ev.data || {};
+                if (msg.type === 'AUTH_CHANGED') {
+                    const live = (walletConnectRef.current || '').toLowerCase();
+                    const announced = (msg.wallet || '').toLowerCase();
+                    // Another tab is now on a different wallet than ours, OR it
+                    // logged out (announced empty) while we think we're logged in.
+                    if (announced !== live) {
+                        console.warn('[velo:auth] cross-tab account change detected → reloading to converge');
+                        // Hard reload re-runs restoreSession with the shared (new)
+                        // Supabase session + this tab's live wallet, and the guard
+                        // above resolves any mismatch cleanly.
+                        window.location.reload();
+                    }
+                }
+            };
+            authBroadcastRef.current = bc;
+        } catch { /* BroadcastChannel unsupported — storage-event fallback below */ }
+
+        // Fallback for browsers without BroadcastChannel: the storage event
+        // fires in OTHER tabs when Supabase rewrites its token key.
+        const onStorage = (e: StorageEvent) => {
+            if (e.key && e.key.includes('velo-auth-token')) {
+                console.warn('[velo:auth] auth storage changed in another tab → revalidating');
+                supabase.auth.getSession().then(({ data }) => {
+                    const sessUser = data.session?.user?.id;
+                    // If the shared session user differs from ours, converge.
+                    if ((sessUser || null) !== (userIdRef.current || null)) window.location.reload();
+                });
+            }
+        };
+        window.addEventListener('storage', onStorage);
+
+        return () => {
+            subscription.unsubscribe();
+            clearTimeout(authTimeout);
+            window.removeEventListener('storage', onStorage);
+            try { bc?.close(); } catch {}
+        };
     }, []);
 
     useEffect(() => {
