@@ -497,7 +497,8 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                 return paginated.map((t: any) => {
                   // Determine if this OPEN trade still has an active position (so modal can show live data)
                   const isOpen = t.kind === 'TRADE' && t.action === 'OPEN';
-                  const isClose = t.kind === 'TRADE' && t.action === 'CLOSE';
+                  const isClose = t.kind === 'TRADE' && (t.action === 'CLOSE' || t.action === 'LIQUIDATION');
+                  const isLiquidation = t.kind === 'TRADE' && t.action === 'LIQUIDATION';
                   const isTx = t.kind === 'TX';
                   const isPending = t.kind === 'PENDING_DEPOSIT';
                   const isDeposit = isTx && t.type === 'DEPOSIT';

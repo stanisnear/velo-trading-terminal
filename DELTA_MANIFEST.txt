@@ -1,7 +1,7 @@
-VELO DELTA — build audit-v23 (auth: guaranteed-outcome + splash watchdog)
+VELO DELTA — build audit-v24 (trade correctness: liquidation recording + liq-price from collateral)
 ========================================
 33 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v23">
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v24">
 
 FILES:
   FEATURES.md

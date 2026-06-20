@@ -462,7 +462,7 @@ const formatPrice = (price: number | undefined | null) => {
 
 const calculateStats = (tradeHistory: TradeHistoryItem[]) => {
     if (!tradeHistory || tradeHistory.length === 0) return { winRate: 0, realizedPnl: 0, totalTrades: 0, fees: 0 };
-    const closedTrades = tradeHistory.filter(t => t.action === 'CLOSE');
+    const closedTrades = tradeHistory.filter(t => (t.action === 'CLOSE' || t.action === 'LIQUIDATION'));
     const wins = closedTrades.filter(t => t.pnl > 0).length;
     const realizedPnl = closedTrades.reduce((acc, t) => acc + t.pnl, 0);
     const fees = closedTrades.length * 2.5; 
@@ -2575,9 +2575,19 @@ const App = () => {
           size: notional,
           leverage: p.leverage,
           marginMode: mm,
-          liquidationPrice: p.isLong
-            ? p.entryPrice * (1 - 0.9 / p.leverage)
-            : p.entryPrice * (1 + 0.9 / p.leverage),
+          // Liquidation MUST derive from live collateral, not just entry+leverage
+          // — otherwise adding margin (increaseCollateral on-chain) never moves
+          // the displayed liq price, making the add-margin feature look fake.
+          // Maintenance buffer = 90% of collateral can be lost before liquidation.
+          // liqMove (in price terms) = (collateral × 0.9) / positionSize.
+          // Adding collateral increases liqMove → pushes liq further from entry.
+          liquidationPrice: (() => {
+            const maintainable = (p.collateralUSDC * 0.9);
+            const liqMove = notional > 0 ? (maintainable / notional) * p.entryPrice : 0;
+            return p.isLong
+              ? Math.max(0, p.entryPrice - liqMove)
+              : p.entryPrice + liqMove;
+          })(),
           timestamp: p.openedAt * 1000,
           onChain: true,
           // ── V2 fields required for manage modal routing ──────────────────────
@@ -2624,12 +2634,15 @@ const App = () => {
           // recorded this tradeId — prevents the duplicate history row.
           if (closedVeloTradeIdsRef.current.has(id)) return;
 
-          // Only fire for TP/SL closes — manual closes are handled elsewhere.
-          // We can't be 100% sure which it was without the tx, so if TP/SL were
-          // set, assume the keeper triggered it.
-          if (!pos.takeProfit && !pos.stopLoss) return;
-
           const exitPrice = marketPrices[pos.pair] || pos.entryPrice;
+
+          // A position can leave the on-chain list three ways: manual close
+          // (handled elsewhere and already claimed via closedVeloTradeIdsRef),
+          // a TP/SL keeper close, or a LIQUIDATION. The old code only recorded
+          // TP/SL closes and silently dropped everything else — so a liquidated
+          // position vanished with NO activity row, leaving the user unable to
+          // tell whether they were liquidated or the app bugged. We now ALWAYS
+          // record a closing row; we infer liquidation when no TP/SL was set.
           const isTpHit = pos.takeProfit && (
             (pos.side === 'LONG' && exitPrice >= pos.takeProfit) ||
             (pos.side === 'SHORT' && exitPrice <= pos.takeProfit)
@@ -2638,6 +2651,8 @@ const App = () => {
             (pos.side === 'LONG' && exitPrice <= pos.stopLoss) ||
             (pos.side === 'SHORT' && exitPrice >= pos.stopLoss)
           );
+          // No TP/SL set, or price didn't reach them → treat as liquidation.
+          const isLiquidation = !isTpHit && !isSlHit;
 
           // Claim this tradeId now so a manual-close handler firing in the same
           // window doesn't also write a row.
@@ -2645,7 +2660,7 @@ const App = () => {
 
           const priceDiff = exitPrice - pos.entryPrice;
           const pnl = (pos.side === 'LONG' ? priceDiff : -priceDiff) * (pos.size / pos.entryPrice);
-          const triggerType = isTpHit ? 'Take Profit' : isSlHit ? 'Stop Loss' : 'TP/SL';
+          const triggerType = isLiquidation ? 'Liquidation' : isTpHit ? 'Take Profit' : 'Stop Loss';
 
           // We don't have the keeper's close tx on the client, but we do have the
           // position's OPEN tx — link to it so the row is verifiably on-chain.
@@ -2657,17 +2672,21 @@ const App = () => {
             ? pos.entryPrice * (1 - 0.9 / pos.leverage)
             : pos.entryPrice * (1 + 0.9 / pos.leverage);
 
+          // On liquidation the collateral is forfeited: realized loss ≈ the
+          // margin that was locked, and nothing is returned to balance.
+          const lockedMargin = pos.size / pos.leverage;
+          const effectivePnl = isLiquidation ? -lockedMargin : pnl;
           const historyItem: TradeHistoryItem = {
-            id: `close_tp_velo_${id}_${Date.now()}`,
+            id: `${isLiquidation ? 'liq' : 'close_tp'}_velo_${id}_${Date.now()}`,
             pair: pos.pair,
             side: pos.side as any,
             entryPrice: pos.entryPrice,
             exitPrice,
             size: pos.size,
-            pnl,
+            pnl: effectivePnl,
             timestamp: Date.now(),
             openedAt: pos.openedAt,
-            action: 'CLOSE',
+            action: isLiquidation ? 'LIQUIDATION' : 'CLOSE',
             leverage: pos.leverage,
             marginMode: pos.marginMode,
             liquidationPrice: liq,
@@ -2677,11 +2696,13 @@ const App = () => {
 
           setUser((prevUser: any) => {
             if (!prevUser) return null;
-            const margin = pos.size / pos.leverage;
+            // Liquidation: margin is gone, add nothing back. Normal close:
+            // return margin + realized pnl.
+            const balanceDelta = isLiquidation ? 0 : (pnl + lockedMargin);
             return {
               ...prevUser,
-              balance: prevUser.balance + pnl + margin,
-              realizedPnL: prevUser.realizedPnL + pnl,
+              balance: prevUser.balance + balanceDelta,
+              realizedPnL: prevUser.realizedPnL + effectivePnl,
               tradeHistory: [historyItem, ...prevUser.tradeHistory],
             };
           });
@@ -2690,13 +2711,15 @@ const App = () => {
             insertTradeHistory(user.id, historyItem).catch(e => console.warn('[velo] TP/SL keeper history failed:', e));
           }
 
-          const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
-          const msg = `${triggerType} hit: ${pos.side} ${pos.pair} closed @ $${exitPrice.toFixed(2)} (${pnlStr})`;
-          setToast({ message: msg, type: pnl >= 0 ? 'SUCCESS' : 'ERROR' });
+          const pnlStr = effectivePnl >= 0 ? `+$${effectivePnl.toFixed(2)}` : `-$${Math.abs(effectivePnl).toFixed(2)}`;
+          const msg = isLiquidation
+            ? `Liquidated: ${pos.side} ${pos.pair} @ $${exitPrice.toFixed(2)} (${pnlStr})`
+            : `${triggerType} hit: ${pos.side} ${pos.pair} closed @ $${exitPrice.toFixed(2)} (${pnlStr})`;
+          setToast({ message: msg, type: isLiquidation || effectivePnl < 0 ? 'ERROR' : 'SUCCESS' });
 
           if (isSupabaseConfigured()) {
-            createNotification(user.id, isTpHit ? 'TAKE_PROFIT' : 'STOP_LOSS', msg, historyItem.id)
-              .catch(e => console.warn('[velo] TP/SL notification failed:', e));
+            createNotification(user.id, isLiquidation ? 'LIQUIDATION' : isTpHit ? 'TAKE_PROFIT' : 'STOP_LOSS', msg, historyItem.id)
+              .catch(e => console.warn('[velo] close notification failed:', e));
           }
         });
       }
@@ -3209,7 +3232,7 @@ const App = () => {
           restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
           restoredUser.tradeHistory = history;
           restoredUser.transactionHistory = txns;
-          const closedTrades = history.filter((t: any) => t.action === 'CLOSE').sort((a: any, b: any) => a.timestamp - b.timestamp);
+          const closedTrades = history.filter((t: any) => (t.action === 'CLOSE' || t.action === 'LIQUIDATION')).sort((a: any, b: any) => a.timestamp - b.timestamp);
           const totalRealized = closedTrades.reduce((acc: number, t: any) => acc + t.pnl, 0);
           const startingBalance = (restoredUser.balance || 0) - totalRealized;
           let runningPnl = 0;
@@ -3560,7 +3583,7 @@ const App = () => {
                 // Correct formula: startingBalance + runningPnl — where startingBalance
                 // is what the account had BEFORE any trades (= currentBalance - totalRealizedPnl).
                 // Using currentBalance directly would double-count all past PnL.
-                const closedTrades = history.filter((t: any) => t.action === 'CLOSE').sort((a: any, b: any) => a.timestamp - b.timestamp);
+                const closedTrades = history.filter((t: any) => (t.action === 'CLOSE' || t.action === 'LIQUIDATION')).sort((a: any, b: any) => a.timestamp - b.timestamp);
                 const totalRealizedForHistory = closedTrades.reduce((acc: number, t: any) => acc + t.pnl, 0);
                 const startingBalanceForHistory = (restoredUser.balance || 0) - totalRealizedForHistory;
                 let runningPnl = 0;
@@ -4292,7 +4315,7 @@ const App = () => {
                     const followerIds = followsData.filter((f: any) => f.following_id === p.id).map((f: any) => f.follower_id);
                     const followingIds = followsData.filter((f: any) => f.follower_id === p.id).map((f: any) => f.following_id);
                     const trades = tradeHistoryMap[p.id] || [];
-                    const closedTrades = trades.filter((t: any) => t.action === 'CLOSE');
+                    const closedTrades = trades.filter((t: any) => (t.action === 'CLOSE' || t.action === 'LIQUIDATION'));
                     const wins = closedTrades.filter((t: any) => t.pnl > 0).length;
                     const computedWinRate = closedTrades.length > 0
                         ? (wins / closedTrades.length) * 100
@@ -7047,7 +7070,7 @@ const App = () => {
                         restoredUser.followers = (myFollowers || []).map((f: any) => f.follower_id);
                         restoredUser.tradeHistory = history;
                         restoredUser.transactionHistory = txns;
-                        const closedTrades = history.filter((t: any) => t.action === 'CLOSE').sort((a: any, b: any) => a.timestamp - b.timestamp);
+                        const closedTrades = history.filter((t: any) => (t.action === 'CLOSE' || t.action === 'LIQUIDATION')).sort((a: any, b: any) => a.timestamp - b.timestamp);
                         const totalRealized = closedTrades.reduce((acc: number, t: any) => acc + t.pnl, 0);
                         const startingBalance = (restoredUser.balance || 0) - totalRealized;
                         let runningPnl = 0;

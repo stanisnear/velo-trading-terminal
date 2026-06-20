@@ -22,7 +22,7 @@ export interface TradeHistoryItem {
   marginMode?: 'ISOLATED' | 'CROSS';
   liquidationPrice?: number;
   copyTraderId?: string;
-  action?: 'OPEN' | 'CLOSE';
+  action?: 'OPEN' | 'CLOSE' | 'LIQUIDATION';
   positionId?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;            // true if routed through Orderly on Base Sepolia
