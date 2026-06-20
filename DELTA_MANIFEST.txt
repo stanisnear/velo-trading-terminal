@@ -1,7 +1,7 @@
-VELO DELTA — build audit-v25 (honest oracle panel replaces simulated order book)
+VELO DELTA — build audit-v26 (live Velo fills tape + depth, replaces oracle panel)
 ========================================
 35 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v25">
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v26">
 
 FILES:
   FEATURES.md
