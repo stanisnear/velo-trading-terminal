@@ -3460,6 +3460,22 @@ const App = () => {
         }
     }, [traders]);
 
+    // ── Hard splash watchdog (independent of all other auth paths) ───────────
+    // The `!authChecked` splash is a full-screen z-9999 layer. If ANY auth path
+    // hangs (restoreSession await never resolves, wagmi reconnect race, network
+    // stall, cross-tab reload), authChecked could stay false and the splash
+    // would cover the app and eat every click — the "after a while, buttons do
+    // nothing" bug. This unconditional timer guarantees the app is reachable.
+    useEffect(() => {
+      const t = setTimeout(() => {
+        setAuthChecked(prev => {
+          if (!prev) console.warn('[velo:auth] splash watchdog fired — forcing authChecked=true so the app is never blocked');
+          return true;
+        });
+      }, 5000);
+      return () => clearTimeout(t);
+    }, []);
+
     // Supabase auth state listener
     useEffect(() => {
         if (!isSupabaseConfigured()) {
@@ -5143,6 +5159,12 @@ const App = () => {
     const handleRequireAuth = async () => {
         console.info('[velo:auth] requireAuth click → user:', !!user, '| walletConnected:', isWalletConnected, '| addr:', walletAddress?.slice(0,8));
         if (user) { console.info('[velo:auth] already have user — no-op'); return; }
+        // ── GUARANTEED-OUTCOME CONTRACT ──────────────────────────────────────
+        // Clicking Sign in / Log In must ALWAYS produce a visible surface — never
+        // a silent no-op. The whole body is wrapped so a throw anywhere still
+        // lands on the always-rendering onboarding modal, and the no-wallet path
+        // has an AppKit-failure fallback to that same modal.
+        try {
         // Clear any stale modal flags that may have left the app in a locked
         // `modal-open` state (the cause of "clicking does absolutely nothing").
         setVeloWelcomeOpen(false);
@@ -5193,8 +5215,39 @@ const App = () => {
             setLoginReturningName('');
             setLoginOpen(true);
         } else {
-            console.info('[velo:auth] no wallet connected → opening AppKit');
-            openAppKitModal();
+            console.info('[velo:auth] no wallet connected → opening AppKit (with fallback)');
+            // AppKit's open() can silently fail (provider mid-init, version
+            // quirks). Guarantee an outcome: if the wallet isn't connected
+            // shortly after, open our own onboarding modal so the button is
+            // NEVER dead.
+            let appkitOpened = false;
+            try {
+                const r: any = openAppKitModal();
+                if (r && typeof r.then === 'function') { await r; }
+                appkitOpened = true;
+            } catch (e: any) {
+                console.warn('[velo:auth] openAppKitModal threw → falling back to onboarding modal:', e?.message || e);
+            }
+            // Give AppKit a beat to actually paint / connect. If nothing
+            // happened (no modal, no connection), show our modal.
+            setTimeout(() => {
+                const connectedNow = !!walletConnectRef.current;
+                const appkitVisible = !!document.querySelector('w3m-modal, wcm-modal, appkit-modal, [data-appkit], w3m-router');
+                if (!connectedNow && !appkitVisible) {
+                    console.warn('[velo:auth] AppKit did not surface → opening onboarding modal fallback');
+                    setLoginReturningName('');
+                    setLoginOpen(true);
+                }
+            }, 600);
+            void appkitOpened;
+        }
+        } catch (err: any) {
+            // Last-resort guarantee: any unexpected throw still yields a visible
+            // auth surface instead of a dead click.
+            console.error('[velo:auth] requireAuth failed → opening onboarding modal:', err?.message || err);
+            socialLoginHandledRef.current = false;
+            setLoginReturningName('');
+            setLoginOpen(true);
         }
     };
     const handleLogout = async () => {
@@ -6872,7 +6925,7 @@ const App = () => {
                 background: 'var(--bg-base)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column',
                 gap: 14,
-            }}>
+            }} data-velo-splash="1">
                 <style>{`
                     @keyframes veloLoadSpin  { to { transform: rotate(360deg); } }
                     @keyframes veloLoadFade  { from { opacity: 0; } to { opacity: 0.7; } }
