@@ -125,7 +125,7 @@ export const VeloCrossAccountModal: React.FC<Props> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <div style={S.label}>{tab === 'DEPOSIT' ? 'Amount (mUSDC from wallet)' : 'Amount (mUSDC to wallet)'}</div>
             <button onClick={() => setAmount(cap.toFixed(2))} style={{
-              background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer',
+              background: 'transparent', border: 'none', cursor: 'pointer',
               ...S.label, color: 'var(--accent)',
             }}>MAX ${fmt(cap)}</button>
           </div>

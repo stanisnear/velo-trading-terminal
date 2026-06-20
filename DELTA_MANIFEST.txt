@@ -1,7 +1,9 @@
-VELO DELTA — build audit-v26 (live Velo fills tape + depth, replaces oracle panel)
+VELO DELTA — build audit-v27 (FIX: duplicate-key build failure that blanked the app)
 ========================================
-35 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v26">
+36 files. Apply: unzip -o into the repo ROOT.
+This fixes the white/blank screen — the prod build was failing on a duplicate
+'color' key in VeloCrossAccountModal.tsx, so Vercel served a broken bundle.
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v27">
 
 FILES:
   FEATURES.md
@@ -23,6 +25,7 @@ FILES:
   src/components/OrderBook.tsx
   src/components/PortfolioChart.tsx
   src/components/TokenInteractiveChart.tsx
+  src/components/VeloCrossAccountModal.tsx
   src/components/VeloOnboardingModal.tsx
   src/components/WalletConnectButton.tsx
   src/components/social/Compose.tsx
