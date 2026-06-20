@@ -150,6 +150,8 @@ type PriceCallback = (prices: Record<string, number>) => void;
 class PythPriceStream {
   private es: EventSource | null = null;
   private callbacks: Set<PriceCallback> = new Set();
+  // Real Pyth oracle metadata per pair (confidence band + publish time).
+  private latestMeta: Record<string, { conf: number; publishTime: number }> = {};
   private latestPrices: Record<string, number> = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private alive = false;
@@ -231,9 +233,15 @@ class PythPriceStream {
             const priceObj = entry?.price;
             if (!pair || !priceObj) continue;
             const px = parsedToPrice(priceObj);
-            if (px > 0 && this.latestPrices[pair] !== px) {
-              this.latestPrices[pair] = px;
-              changed = true;
+            // Capture the REAL oracle metadata Pyth publishes alongside price:
+            // the confidence interval (oracle's own ± uncertainty band) and the
+            // publish timestamp. These drive the honest oracle-depth panel.
+            const expo = Number(priceObj.expo) || 0;
+            const conf = priceObj.conf != null ? Number(priceObj.conf) * Math.pow(10, expo) : 0;
+            const pub  = Number(priceObj.publish_time) || 0;
+            if (px > 0) {
+              this.latestMeta[pair] = { conf, publishTime: pub };
+              if (this.latestPrices[pair] !== px) { this.latestPrices[pair] = px; changed = true; }
             }
           }
           if (changed) this.emit();
@@ -269,6 +277,12 @@ class PythPriceStream {
     if (this.watchdog) { clearInterval(this.watchdog); this.watchdog = null; }
     this.stopFallback();
     if (this.es) { try { this.es.close(); } catch (_) {} this.es = null; }
+  }
+
+  /** Real oracle metadata for a pair: confidence interval (± band, in quote
+   *  units) and publish_time (epoch seconds). Empty until the first tick. */
+  getMeta(pair: string): { conf: number; publishTime: number } | null {
+    return this.latestMeta[pair] || null;
   }
 
   subscribe(cb: PriceCallback): () => void {

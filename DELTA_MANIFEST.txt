@@ -1,7 +1,7 @@
-VELO DELTA — build audit-v24 (trade correctness: liquidation recording + liq-price from collateral)
+VELO DELTA — build audit-v25 (honest oracle panel replaces simulated order book)
 ========================================
-33 files. Apply: unzip -o into the repo ROOT.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v24">
+35 files. Apply: unzip -o into the repo ROOT.
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v25">
 
 FILES:
   FEATURES.md
@@ -20,6 +20,7 @@ FILES:
   src/components/CreatePostModal.tsx
   src/components/Modals.tsx
   src/components/Navigation.tsx
+  src/components/OrderBook.tsx
   src/components/PortfolioChart.tsx
   src/components/TokenInteractiveChart.tsx
   src/components/VeloOnboardingModal.tsx
@@ -31,6 +32,7 @@ FILES:
   src/components/ui/pages/LeaderboardView.tsx
   src/components/ui/shared.tsx
   src/index.tsx
+  src/services/pythPriceService.ts
   src/services/supabaseStore.ts
   src/services/veloPerpsService.ts
   src/services/web3Config.ts

@@ -1,192 +1,169 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { pythPriceStream } from '@/services/pythPriceService';
 
 /**
- * OrderBook — a depth ladder anchored to the live Pyth mark price.
+ * OraclePanel (exported as OrderBook for drop-in compatibility).
  *
- * Velo Perps is an oracle-priced engine: trades settle against the Pyth price,
- * not a central-limit order book, so there is no native book to stream. Pulling
- * depth from a third-party venue (the previous Orderly Network feed) showed
- * levels from a *different market* than the one users actually trade against —
- * the same inconsistency we removed everywhere else.
+ * Velo Perps is oracle-settled: a position fills at the Pyth mark price, NOT
+ * against resting limit orders. There are no makers posting bids/asks, so there
+ * is no central-limit order book to display — the oracle *is* the price. The
+ * previous component faked a depth ladder with random sizes and a decorative
+ * "Pyth" dot; this replaces it with the honest truth of how Velo prices trades:
  *
- * This book is therefore a reference ladder built around the same Pyth mark
- * (`price`) that drives fills, the ticker, and the chart. It re-centers as the
- * oracle moves so every number on screen agrees with the price you fill at.
+ *   • Live Pyth mark price (the exact number the contract settles on)
+ *   • The real Pyth confidence interval — the oracle's own ± uncertainty band,
+ *     published on-chain alongside every price update (NOT invented)
+ *   • Oracle freshness (seconds since publish_time) with a staleness signal
+ *   • A fill estimator: enter a size, see the notional and the exact entry the
+ *     mark implies — the real pre-trade math, not a fabricated book
+ *
+ * Every number here is sourced from the same Pyth feed that drives fills, the
+ * ticker, and the chart, so nothing on screen can disagree with your fill.
  */
 
 interface OrderBookProps {
   price: number;   // live Pyth mark price for the active pair
   pair: string;
-  rows?: number;
+  rows?: number;   // accepted for API compatibility; unused
 }
 
-function getGroupingOptions(price: number) {
-  if (price >= 10000) return [1, 5, 10, 50, 100];
-  if (price >= 1000)  return [0.1, 0.5, 1, 5, 10];
-  if (price >= 100)   return [0.01, 0.1, 0.5, 1, 5];
-  if (price >= 10)    return [0.01, 0.05, 0.1, 0.5, 1];
-  if (price >= 1)     return [0.001, 0.01, 0.05, 0.1];
-  if (price >= 0.01)  return [0.0001, 0.001, 0.01];
-  if (price >= 0.0001)return [0.000001, 0.00001, 0.0001];
-  return [0.00000001, 0.0000001, 0.000001];
+function fmtPrice(val: number): string {
+  if (!isFinite(val)) return '—';
+  if (val >= 1000) return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (val >= 1)    return val.toFixed(2);
+  if (val >= 0.01) return val.toFixed(4);
+  return val.toFixed(8);
 }
 
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
+function fmtNotional(val: number): string {
+  if (!isFinite(val) || val <= 0) return '$0';
+  if (val >= 1e6) return '$' + (val / 1e6).toFixed(2) + 'M';
+  if (val >= 1e3) return '$' + (val / 1e3).toFixed(2) + 'K';
+  return '$' + val.toFixed(2);
 }
 
-// Reference depth ladder centered on the Pyth mark. Sizes are deterministic per
-// price+tick so the book animates smoothly without flicker as the oracle ticks.
-function buildBook(price: number, grouping: number, rows: number, tick: number) {
-  const step       = grouping;
-  const midRounded = Math.ceil(price / step) * step;
-  const seed       = Math.floor(price * 100) + tick * 17;
-  const asks: { price: number; size: number; total: number }[] = [];
-  const bids: { price: number; size: number; total: number }[] = [];
-  let cumAsk = 0, cumBid = 0;
-  for (let i = 0; i < rows; i++) {
-    const distFactor = 1 + i * 0.3;
-    const askSize = (200 + seededRandom(seed + i * 7 + 1) * 2000) * distFactor;
-    const bidSize = (200 + seededRandom(seed + i * 7 + 3) * 2000) * distFactor;
-    cumAsk += askSize;
-    cumBid += bidSize;
-    asks.push({ price: midRounded + (i + 1) * step, size: askSize, total: cumAsk });
-    bids.push({ price: midRounded - (i + 1) * step, size: bidSize, total: cumBid });
-  }
-  return { asks: asks.reverse(), bids, spread: (asks[0]?.price ?? 0) - (bids[0]?.price ?? 0) || step };
-}
-
-export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8 }) => {
-  const [grouping, setGrouping] = useState(0.01);
-  const [tick, setTick]         = useState(0);
+export const OrderBook: React.FC<OrderBookProps> = ({ price, pair }) => {
+  // Pull the real oracle metadata (confidence band + publish time) for this pair.
+  const [meta, setMeta] = useState<{ conf: number; publishTime: number } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [sizeInput, setSizeInput] = useState('');
+  const [side, setSide] = useState<'LONG' | 'SHORT'>('LONG');
 
   useEffect(() => {
-    const options = getGroupingOptions(price);
-    setGrouping(options[0]);
-  }, [pair]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Refresh meta on every oracle tick + tick a 1s clock for the freshness read.
+    const unsub = pythPriceStream.subscribe(() => setMeta(pythPriceStream.getMeta(pair)));
+    setMeta(pythPriceStream.getMeta(pair));
+    const clock = setInterval(() => setNow(Date.now()), 1000);
+    return () => { unsub(); clearInterval(clock); };
+  }, [pair]);
 
-  useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    const schedule = () => {
-      t = setTimeout(() => { setTick(n => n + 1); schedule(); }, 800 + Math.random() * 600);
-    };
-    schedule();
-    return () => clearTimeout(t);
-  }, []);
+  const isLive = price > 0;
+  const conf = meta?.conf && meta.conf > 0 ? meta.conf : 0;
+  const confPct = conf > 0 && price > 0 ? (conf / price) * 100 : 0;
+  const bandLow = price - conf;
+  const bandHigh = price + conf;
 
-  const groupingOptions = useMemo(() => getGroupingOptions(price), [price]);
+  const ageSec = meta?.publishTime ? Math.max(0, Math.floor(now / 1000 - meta.publishTime)) : null;
+  const fresh = ageSec == null ? isLive : ageSec <= 5;
 
-  const { asks, bids, spread } = useMemo(() => {
-    if (!price || price <= 0) return { asks: [] as any[], bids: [] as any[], spread: 0 };
-    return buildBook(price, grouping, rows, tick);
-  }, [price, pair, grouping, rows, tick]);
+  // Fill estimator — the real pre-trade math. On an oracle engine the entry IS
+  // the mark; we show notional and the (currently zero) oracle slippage so the
+  // user sees exactly what they'll get, honestly.
+  const sizeUnits = parseFloat(sizeInput);
+  const hasSize = isFinite(sizeUnits) && sizeUnits > 0;
+  const notional = hasSize ? sizeUnits * price : 0;
+  // Worst-case entry within the oracle confidence band (conservative read).
+  const worstEntry = side === 'LONG' ? bandHigh : bandLow;
 
-  const maxTotal = useMemo(() => {
-    if (asks.length === 0 && bids.length === 0) return 1;
-    return Math.max(asks[0]?.total || 0, bids[bids.length - 1]?.total || 0);
-  }, [asks, bids]);
+  const Row = ({ label, value, valueColor, title }: { label: string; value: React.ReactNode; valueColor?: string; title?: string }) => (
+    <div title={title} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '9px 12px', borderBottom: '1px solid var(--hairline)' }}>
+      <span style={{ color: 'var(--fg-subtle)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>{label}</span>
+      <span style={{ color: valueColor || 'var(--fg)', fontSize: 12, fontWeight: 600 }}>{value}</span>
+    </div>
+  );
 
-  const isLive = price > 0; // we have a fresh Pyth mark
-
-  const formatPrice = (val: number) => {
-    if (grouping >= 1)        return val.toFixed(0);
-    if (grouping >= 0.1)      return val.toFixed(1);
-    if (grouping >= 0.01)     return val.toFixed(2);
-    if (grouping >= 0.001)    return val.toFixed(3);
-    if (grouping >= 0.0001)   return val.toFixed(4);
-    if (grouping >= 0.00001)  return val.toFixed(5);
-    if (grouping >= 0.000001) return val.toFixed(6);
-    return val.toFixed(8);
-  };
-
-  const formatSize = (val: number) => {
-    if (val >= 1e6)  return (val / 1e6).toFixed(1) + 'M';
-    if (val >= 1000) return (val / 1000).toFixed(1) + 'K';
-    return val.toFixed(2);
-  };
-
-  const spreadPct = price > 0 ? ((spread / price) * 100).toFixed(3) : '0';
-
-  const rowStyle = (_side: 'ask' | 'bid', _pct: number): React.CSSProperties => ({
-    display: 'flex', justifyContent: 'space-between', position: 'relative',
-    cursor: 'pointer', padding: '0 12px', alignItems: 'center', height: 26, flexShrink: 0,
-  });
-
-  const barStyle = (side: 'ask' | 'bid', pct: number): React.CSSProperties => ({
-    position: 'absolute', right: 0, top: 0, bottom: 0,
-    background: side === 'ask' ? 'rgba(255,80,80,0.08)' : 'rgba(62,207,142,0.08)',
-    transition: 'width 0.6s cubic-bezier(0.4,0,0.2,1)',
-    width: `${pct}%`,
-  });
-
-  if (!price || price <= 0) return (
+  if (!isLive) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'var(--bg-base-2)' }}>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>Loading…</span>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>Waiting for Pyth oracle…</span>
     </div>
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', fontSize: 11, fontFamily: 'var(--font-mono)', userSelect: 'none', overflow: 'hidden', background: 'var(--bg-base-2)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', fontFamily: 'var(--font-mono)', userSelect: 'none', overflow: 'hidden', background: 'var(--bg-base-2)' }}>
+      {/* Header — honest source label */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: 'var(--fg-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', fontSize: 9 }}>Order Book</span>
+          <span style={{ color: 'var(--fg-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', fontSize: 9 }}>Oracle Price</span>
           <span
-            title={isLive ? 'Reference depth anchored to the live Pyth oracle price' : 'Waiting for Pyth price…'}
-            style={{
-              width: 6, height: 6, borderRadius: '50%', display: 'inline-block', flexShrink: 0,
-              background: isLive ? 'var(--pnl-up)' : 'var(--fg-subtle)',
-              boxShadow: isLive ? '0 0 4px var(--pnl-up)' : 'none',
-            }}
+            title={fresh ? 'Live Pyth oracle — fresh' : 'Oracle update delayed'}
+            style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: fresh ? 'var(--pnl-up)' : 'var(--clay-amber, #d9a441)', boxShadow: fresh ? '0 0 4px var(--pnl-up)' : 'none' }}
           />
           <span style={{ color: 'var(--fg-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: 8, opacity: 0.8 }}>Pyth</span>
         </div>
-        <select
-          value={grouping}
-          onChange={e => setGrouping(parseFloat(e.target.value))}
-          style={{ background: 'var(--chip-bg)', color: 'var(--fg)', outline: 'none', fontSize: 10, cursor: 'pointer', fontWeight: 700, borderRadius: 6, padding: '3px 7px', border: '1px solid var(--hairline-strong)', fontFamily: 'var(--font-mono)' }}
-        >
-          {groupingOptions.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
+        <span style={{ fontSize: 9, color: 'var(--fg-subtle)' }}>{ageSec == null ? 'live' : `${ageSec}s ago`}</span>
       </div>
 
-      <div style={{ display: 'flex', color: 'var(--fg-subtle)', padding: '4px 12px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.12em', flexShrink: 0, fontWeight: 700 }}>
-        <span style={{ flex: 1 }}>Price</span>
-        <span style={{ flex: 1, textAlign: 'right' }}>Size</span>
-        <span style={{ flex: 1, textAlign: 'right' }}>Total</span>
+      {/* Mark price — the number the contract settles on */}
+      <div style={{ padding: '14px 12px 12px', borderBottom: '1px solid var(--hairline)', textAlign: 'center', flexShrink: 0 }}>
+        <div style={{ fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, marginBottom: 4 }}>Mark · Settlement Price</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-display)', fontStyle: 'italic', lineHeight: 1 }}>${fmtPrice(price)}</div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflowY: 'hidden', minHeight: 0 }}>
-          {asks.map((ask, i) => (
-            <div key={`ask-${i}`} style={rowStyle('ask', (ask.total / maxTotal) * 100)}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,80,80,0.05)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-              <div style={barStyle('ask', (ask.total / maxTotal) * 100)} />
-              <span style={{ color: 'var(--pnl-down)', fontWeight: 500, zIndex: 1, flex: 1 }}>{formatPrice(ask.price)}</span>
-              <span style={{ color: 'var(--fg-muted)', zIndex: 1, flex: 1, textAlign: 'right' }}>{formatSize(ask.size)}</span>
-              <span style={{ color: 'var(--fg-subtle)', zIndex: 1, flex: 1, textAlign: 'right', fontSize: 10 }}>{formatSize(ask.total)}</span>
-            </div>
+      {/* Real oracle confidence band */}
+      <Row
+        label="Confidence ±"
+        title="Pyth's published confidence interval — the oracle's own uncertainty band for this price. A real on-chain value, not an estimate."
+        value={conf > 0 ? `$${fmtPrice(conf)} (${confPct.toFixed(3)}%)` : '—'}
+        valueColor="var(--fg-muted)"
+      />
+      <Row
+        label="Oracle Band"
+        title="Mark ± confidence: the range within which the true price is statistically expected to sit."
+        value={conf > 0 ? `${fmtPrice(bandLow)} — ${fmtPrice(bandHigh)}` : '—'}
+        valueColor="var(--fg-muted)"
+      />
+
+      {/* Honest explanation — no fake book */}
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--hairline)', background: 'var(--chip-bg)' }}>
+        <p style={{ margin: 0, fontSize: 9.5, lineHeight: 1.5, color: 'var(--fg-subtle)' }}>
+          Velo settles trades against the Pyth oracle, not an order book — fills occur at the mark above, with no maker depth to cross.
+        </p>
+      </div>
+
+      {/* Fill estimator — real pre-trade math */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px' }}>
+        <div style={{ fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, marginBottom: 8 }}>Fill Estimate</div>
+
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          {(['LONG', 'SHORT'] as const).map(s => (
+            <button key={s} onClick={() => setSide(s)} style={{
+              flex: 1, padding: '6px 0', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 10, letterSpacing: '0.06em',
+              border: '1px solid ' + (side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--hairline-strong)'),
+              background: side === s ? (s === 'LONG' ? 'rgba(62,207,142,0.12)' : 'rgba(255,80,80,0.12)') : 'transparent',
+              color: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--fg-subtle)',
+            }}>{s}</button>
           ))}
         </div>
 
-        <div style={{ padding: '5px 12px', borderTop: '1px solid var(--hairline)', borderBottom: '1px solid var(--hairline)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--chip-bg)' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>${formatPrice(price)}</span>
-          <span style={{ fontSize: 9, color: 'var(--fg-subtle)' }}>Spread: {formatPrice(spread)} ({spreadPct}%)</span>
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <input
+            value={sizeInput}
+            onChange={e => setSizeInput(e.target.value.replace(/[^0-9.]/g, ''))}
+            placeholder="0.00"
+            inputMode="decimal"
+            style={{ width: '100%', boxSizing: 'border-box', background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', borderRadius: 7, padding: '8px 44px 8px 10px', color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, outline: 'none' }}
+          />
+          <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{pair.split('/')[0] || 'SIZE'}</span>
         </div>
 
-        <div style={{ overflowY: 'hidden', minHeight: 0, flex: 1 }}>
-          {bids.map((bid, i) => (
-            <div key={`bid-${i}`} style={rowStyle('bid', (bid.total / maxTotal) * 100)}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(62,207,142,0.05)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-              <div style={barStyle('bid', (bid.total / maxTotal) * 100)} />
-              <span style={{ color: 'var(--pnl-up)', fontWeight: 500, zIndex: 1, flex: 1 }}>{formatPrice(bid.price)}</span>
-              <span style={{ color: 'var(--fg-muted)', zIndex: 1, flex: 1, textAlign: 'right' }}>{formatSize(bid.size)}</span>
-              <span style={{ color: 'var(--fg-subtle)', zIndex: 1, flex: 1, textAlign: 'right', fontSize: 10 }}>{formatSize(bid.total)}</span>
-            </div>
-          ))}
-        </div>
+        <Row label="Entry (mark)" value={hasSize ? `$${fmtPrice(price)}` : '—'} />
+        <Row label="Notional" value={hasSize ? fmtNotional(notional) : '—'} valueColor="var(--fg)" />
+        <Row
+          label="Worst-case entry"
+          title="Conservative entry assuming the true price sits at the far edge of the oracle confidence band."
+          value={hasSize && conf > 0 ? `$${fmtPrice(worstEntry)}` : (hasSize ? `$${fmtPrice(price)}` : '—')}
+          valueColor="var(--fg-muted)"
+        />
       </div>
     </div>
   );
