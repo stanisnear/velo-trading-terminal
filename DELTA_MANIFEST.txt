@@ -1,9 +1,7 @@
-VELO DELTA — build audit-v27 (FIX: duplicate-key build failure that blanked the app)
+VELO DELTA — build audit-v28 (fix Loading-fills hang + add selectable Book view)
 ========================================
 36 files. Apply: unzip -o into the repo ROOT.
-This fixes the white/blank screen — the prod build was failing on a duplicate
-'color' key in VeloCrossAccountModal.tsx, so Vercel served a broken bundle.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v27">
+Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v28">
 
 FILES:
   FEATURES.md
