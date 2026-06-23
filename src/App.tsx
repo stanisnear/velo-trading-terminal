@@ -2173,7 +2173,11 @@ const App = () => {
       }).then((o) => setContractOwner(o as string))
         .catch(() => setContractOwner(null));
     }, [publicClient]);
-    const isContractOwner = !!walletAddress && !!contractOwner
+    // Admin visibility requires BOTH an authenticated Velo session AND the
+    // connected wallet matching the contract owner. Previously it keyed on the
+    // wallet alone, so a logged-OUT owner wallet (the half-auth state) still saw
+    // the Admin tab — exactly the "logged out but Admin showing" bug.
+    const isContractOwner = !!user && !!walletAddress && !!contractOwner
       && walletAddress.toLowerCase() === contractOwner.toLowerCase();
 
     // ── Persistence-error surfacing (batch 7) ──────────────────────────────
@@ -3522,6 +3526,29 @@ const App = () => {
 
         // Track whether we've already done the first restore so we don't double-load
         const restoreSession = async (session: any, isGetSessionFallback = false) => {
+            // ── Hard session TTL (auto-logout after N days) ──────────────────
+            // A fixed maximum session age, independent of token auto-refresh —
+            // the standard behavior users expect from an exchange. If the stored
+            // login timestamp is older than the TTL, force a clean logout.
+            try {
+                const VELO_SESSION_TTL_DAYS = 7;
+                const ttlMs = VELO_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
+                const stamp = Number(localStorage.getItem('velo_session_started_at') || '0');
+                if (session?.user && stamp > 0 && (Date.now() - stamp) > ttlMs) {
+                    console.warn('[velo:auth] session exceeded', VELO_SESSION_TTL_DAYS, 'day TTL → auto-logout');
+                    localStorage.removeItem('velo_session_started_at');
+                    clearSessionCache();
+                    try { await supabase.auth.signOut(); } catch {}
+                    setUser(null);
+                    setAuthChecked(true);
+                    return;
+                }
+                // First valid restore with no stamp yet → start the clock now.
+                if (session?.user && stamp === 0) {
+                    localStorage.setItem('velo_session_started_at', String(Date.now()));
+                }
+            } catch { /* localStorage unavailable — skip TTL */ }
+
             // Logout sentinel — see the IIFE at the top of this file. If the
             // user just navigated in from a logout, never restore a session,
             // even if Supabase somehow still has one in storage or memory.
@@ -5279,6 +5306,7 @@ const App = () => {
         // below, which would otherwise prevent the identity-change broadcast
         // from ever firing. Other tabs receive this and converge immediately.
         try { authBroadcastRef.current?.postMessage({ type: 'LOGOUT' }); } catch {}
+        try { localStorage.removeItem('velo_session_started_at'); } catch {}
         triggerAnim('LOGOUT', name ? `See you, ${name}` : undefined);
 
         // Schedule the hard navigation FIRST, before any awaits below. Some

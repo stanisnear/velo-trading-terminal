@@ -87,14 +87,31 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair }) => {
           .order('created_at', { ascending: false })
           .limit(40);
         if (!active) return;
-        if (error) console.warn('[velo] fills load error:', error.message);
-        const mapped = (data || []).map((r: any) => rowToFill(r)).filter(Boolean) as Fill[];
+        let rows = data;
+        // If the SDK call returned nothing or errored — which happens when the
+        // session JWT is stale/expired in a half-auth state — fall back to a
+        // direct REST read with the public anon key. trade_history is public,
+        // so the tape must render regardless of login state.
+        if (error || !rows || rows.length === 0) {
+          if (error) console.warn('[velo] fills SDK error, trying REST fallback:', error.message);
+          try {
+            const base = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://btgfoekgvyvdflzjfehz.supabase.co';
+            const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (supabase as any)?.supabaseKey;
+            if (key) {
+              const url = `${base}/rest/v1/trade_history?select=id,pair,side,entry_price,exit_price,size,action,created_at&pair=eq.${encodeURIComponent(pair)}&order=created_at.desc&limit=40`;
+              const resp = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+              if (resp.ok) rows = await resp.json();
+            }
+          } catch (fe: any) { console.warn('[velo] fills REST fallback failed:', fe?.message || fe); }
+        }
+        if (!active) return;
+        const mapped = (rows || []).map((r: any) => rowToFill(r)).filter(Boolean) as Fill[];
         mapped.forEach(f => seen.current.add(f.id));
         setFills(mapped);
       } catch (e: any) {
         console.warn('[velo] fills load threw:', e?.message || e);
       } finally {
-        if (active) setLoading(false);   // ← the fix: always clears
+        if (active) setLoading(false);   // ← always clears
         clearTimeout(watchdog);
       }
     })();

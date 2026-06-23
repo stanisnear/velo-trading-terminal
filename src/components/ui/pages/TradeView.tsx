@@ -689,7 +689,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             </div>
 
             {/* Body */}
-            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', opacity: !user ? 0.08 : 1, filter: !user ? 'blur(1px)' : 'none', pointerEvents: !user ? 'none' : 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
+            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', opacity: !user ? 0.4 : 1, pointerEvents: !user ? 'none' : 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
 
                 {/* POSITIONS */}
                 {tab === 'POSITIONS' && <>
@@ -1588,49 +1588,33 @@ export const TradeView = ({
                         {!user && (
                             <div style={{
                                 position: isMobile ? 'relative' : 'absolute', inset: 0, zIndex: 30,
-                                background: 'var(--glass-bg)',
-                                backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                                background: isMobile ? 'transparent' : 'linear-gradient(180deg, color-mix(in oklab, var(--bg-base) 30%, transparent) 0%, var(--bg-base) 62%)',
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                justifyContent: 'center', gap: 12,
-                                padding: isMobile ? '32px 0' : 0,
+                                justifyContent: isMobile ? 'flex-start' : 'flex-end', gap: 14,
+                                padding: isMobile ? '28px 16px' : '0 0 28px',
                             }}>
                                 <div style={{
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-                                    padding: '24px 28px', borderRadius: 16,
-                                    background: 'var(--bg-base-2)',
-                                    border: '1px solid var(--hairline-strong)',
-                                    boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.06) inset',
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' as const,
+                                    maxWidth: 240,
                                 }}>
-                                    <div style={{
-                                        width: isMobile ? 48 : 38, height: isMobile ? 48 : 38, borderRadius: isMobile ? 14 : 11,
-                                        background: 'var(--chip-bg)',
-                                        border: '1px solid var(--hairline-strong)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}>
-                                        <Lock size={isMobile ? 20 : 15} style={{ color: 'var(--fg-subtle)' }} />
-                                    </div>
-                                    <span style={{ ...S.label, color: 'var(--fg-muted)', fontSize: isMobile ? 12 : 10, textAlign: 'center' as const }}>Connect to trade</span>
-                                    <Button
-                                        onClick={onRequireAuth}
-                                        className={isMobile ? 'w-full text-sm font-semibold' : 'px-5 text-xs h-8'}
-                                        style={isMobile ? {
-                                            minHeight: 48,
-                                            borderRadius: 14,
-                                            fontSize: 14,
-                                            fontWeight: 700,
-                                            width: '100%',
-                                            background: 'linear-gradient(135deg, #7B3CE8 0%, #3B5BFF 100%)',
-                                            color: '#fff',
-                                            border: 'none',
-                                            touchAction: 'manipulation',
-                                            WebkitTapHighlightColor: 'transparent',
-                                        } : {}}
-                                    >Log In</Button>
+                                    <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 700, fontSize: isMobile ? 20 : 17, color: 'var(--fg)', letterSpacing: '-0.02em' }}>Start trading</span>
+                                    <span style={{ fontSize: isMobile ? 12 : 11, color: 'var(--fg-subtle)', lineHeight: 1.45 }}>Sign in to open positions with up to 25× leverage on Base.</span>
                                 </div>
+                                <button
+                                    onClick={onRequireAuth}
+                                    className="velo-btn-primary"
+                                    style={{
+                                        minHeight: isMobile ? 48 : 40, borderRadius: 12,
+                                        fontFamily: 'var(--font-mono)', fontSize: isMobile ? 13 : 12, fontWeight: 700,
+                                        letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+                                        padding: '0 28px', width: isMobile ? '100%' : 'auto', cursor: 'pointer',
+                                        touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                                    }}
+                                >Sign in →</button>
                             </div>
                         )}
 
-                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, opacity: !user ? 0.07 : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
+                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, opacity: !user ? (isMobile ? 0.5 : 0.45) : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
