@@ -98,7 +98,7 @@ export type NotificationType =
   | 'SUCCESS' | 'ERROR' | 'INFO' | 'TRADE' | 'ALERT'
   | 'LIKE' | 'REPOST' | 'FOLLOW' | 'COMMENT' | 'MENTION' | 'WALL_POST'
   | 'DEPOSIT' | 'WITHDRAW' | 'EARN'
-  | 'LIQUIDATION' | 'POSITION_CLOSED' | 'TAKE_PROFIT' | 'STOP_LOSS';
+  | 'LIQUIDATION' | 'POSITION_CLOSED' | 'POSITION_OPENED' | 'TAKE_PROFIT' | 'STOP_LOSS';
 
 export interface Notification {
   id: string;

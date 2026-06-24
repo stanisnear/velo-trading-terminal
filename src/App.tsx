@@ -2890,7 +2890,9 @@ const App = () => {
         setToast({ message: msg, type: 'SUCCESS' });
 
         if (isSupabaseConfigured()) {
-          createNotification(user.id, 'POSITION_CLOSED', msg, historyItem.id)
+          // A filled limit/stop OPENS a position — notify accordingly (was
+          // mislabeled POSITION_CLOSED).
+          createNotification(user.id, 'POSITION_OPENED', msg, historyItem.id)
             .catch(e => console.warn('[velo] filled order notification failed:', e));
         }
       });

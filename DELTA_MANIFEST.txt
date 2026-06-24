@@ -1,20 +1,20 @@
-VELO DELTA — build audit-v29
+VELO DELTA — build audit-v30
 ========================================
-10 files. Apply: unzip -o into the repo ROOT.
-Fixes: (1) Admin tab requires auth not just connected wallet; (2) hard 7-day
-session TTL (auto-logout like a real exchange); (3) order book anon-REST
-fallback so the fills tape always renders even in a stale-session state;
-(4) redesigned logged-out trade overlay — clean, no ugly blur smear.
-Verify after deploy: DevTools → Elements → <html data-velo-build="audit-v29">
+8 files. Apply: unzip -o into the repo ROOT.
+Fixes: (1) service worker network-FIRST for code — kills 'buttons dead until
+cache clear'; auto-reloads once on SW update. (2) Left positions-bar sign-in
+overlay restyled to match. (3) Trade-detail modal: limit-fill OPEN entries
+show OPENED not CLOSED, no bogus Closed/0s rows. (4) Filled-limit notif =
+POSITION_OPENED. (5) Book view reads live in-app open orders.
+Verify: DevTools → Elements → <html data-velo-build="audit-v30">
+Redeploy WITHOUT build cache; the new SW auto-reloads once.
 
 FILES:
-  PROJECT_STATUS.md
-  SUPABASE_FIX_notifications_read.sql
-  SUPABASE_MIGRATION_comments_v2.sql
-  SUPABASE_MIGRATION_consolidated.sql
-  SUPABASE_MIGRATION_notifications_activity.sql
-  SUPABASE_MIGRATION_realtime_fix.sql
+  index.html
+  public/sw.js
   src/App.tsx
   src/components/OrderBook.tsx
+  src/components/ui/OrderDetailsModal.tsx
   src/components/ui/pages/TradeView.tsx
   src/index.tsx
+  src/utils/types.ts

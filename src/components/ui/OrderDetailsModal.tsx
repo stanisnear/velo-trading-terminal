@@ -280,9 +280,9 @@ export const OrderDetailsModal = ({
         {leverage > 0 && <R label="Margin Used" value={`$${formatMoney(marginUsed)}`}    tip="The collateral committed to this trade (size ÷ leverage)." />}
         {t.marginMode && <R label="Margin Mode" value={t.marginMode} tip={t.marginMode === 'CROSS' ? 'CROSS: your entire account balance backs this position. Losses can draw from other funds.' : 'ISOLATED: only the margin you set is at risk. Max loss = margin used.'} />}
         {t.liquidationPrice ? <R label="Liquidation Price" value={`$${formatPrice(t.liquidationPrice)}`} valueColor="var(--pnl-down)" tip="The price at which the position would have been force-closed." /> : null}
-        <R label="Opened"   value={fmtDateTime(t.openedAt)} tip="When this position was first opened." />
-        <R label="Closed"   value={fmtDateTime(t.timestamp)} tip="When this position was closed." />
-        <R label="Duration" value={fmtDuration(durationMs)} tip="How long the position was open." />
+        <R label={isOpenEntry ? "Opened" : "Opened"}   value={fmtDateTime(t.openedAt)} tip="When this position was first opened." />
+        {!isOpenEntry && <R label="Closed"   value={fmtDateTime(t.timestamp)} tip="When this position was closed." />}
+        {!isOpenEntry && <R label="Duration" value={fmtDuration(durationMs)} tip="How long the position was open." />}
         <R label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{t.id}</span>} tip="Unique identifier for this trade." />
         {t.onChain && (t.orderlyOrderUrl || t.txHash) && (
           <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -576,7 +576,7 @@ export const OrderDetailsModal = ({
               {headerPair}
             </span>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: sideUp ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)', border: `1px solid ${sideUp ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}` }}>{headerSide}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'var(--chip-bg)', color: 'var(--fg-muted)', border: '1px solid var(--hairline-strong)' }}>{payload.kind === 'HISTORY' ? 'CLOSED' : payload.kind === 'POSITION' ? 'OPEN' : payload.kind === 'TRANSACTION' ? payload.item.type : 'PENDING'}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'var(--chip-bg)', color: 'var(--fg-muted)', border: '1px solid var(--hairline-strong)' }}>{payload.kind === 'HISTORY' ? ((payload.item as any)?.action === 'OPEN' ? 'OPENED' : (payload.item as any)?.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED') : payload.kind === 'POSITION' ? 'OPEN' : payload.kind === 'TRANSACTION' ? payload.item.type : 'PENDING'}</span>
             {copyId && (
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'rgba(107,70,193,0.12)', color: 'var(--iris-violet)', border: '1px solid rgba(107,70,193,0.3)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Copy size={9}/> COPY

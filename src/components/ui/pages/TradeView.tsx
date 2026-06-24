@@ -654,21 +654,22 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             {!user && (
                 <div style={{
                     position: 'absolute', inset: 0, zIndex: 30,
-                    background: 'var(--glass-bg)',
-                    backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                    background: 'linear-gradient(180deg, color-mix(in oklab, var(--bg-base) 30%, transparent) 0%, var(--bg-base) 70%)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
+                    flexWrap: 'wrap' as const, padding: '0 16px',
                 }}>
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '8px 14px', borderRadius: 10,
-                        background: 'var(--glass-bg-strong)',
-                        border: '1px solid var(--hairline-strong)',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    }}>
-                        <Lock size={11} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
-                        <span style={{ ...S.label, color: 'var(--fg-muted)', fontSize: 10 }}>Sign in to view positions</span>
-                        <Button onClick={onRequireAuth} className="px-4 h-8 text-xs font-semibold" style={{ minWidth: 72, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>Log In</Button>
-                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Sign in to view your positions and history.</span>
+                    <button
+                        onClick={onRequireAuth}
+                        className="velo-btn-primary"
+                        style={{
+                            minHeight: 36, borderRadius: 11,
+                            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+                            letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+                            padding: '0 22px', cursor: 'pointer',
+                            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                        }}
+                    >Sign in →</button>
                 </div>
             )}
 
@@ -1576,7 +1577,7 @@ export const TradeView = ({
 
                     {/* Order book */}
                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <OrderBook price={currentPrice} pair={activePair.id} rows={3} />
+                        <OrderBook price={currentPrice} pair={activePair.id} rows={3} openOrders={openOrders} />
                     </div>
                 </div>
 

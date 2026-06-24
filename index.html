@@ -243,8 +243,23 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then(reg => console.log('[VELO PWA] SW registered:', reg.scope))
+            .then(reg => {
+              console.log('[VELO PWA] SW registered:', reg.scope);
+              // Force an immediate update check so a new SW (e.g. the v3
+              // network-first fix) replaces a stale one without waiting.
+              reg.update();
+            })
             .catch(err => console.warn('[VELO PWA] SW registration failed:', err));
+
+          // When a new service worker takes control, reload ONCE so the page
+          // runs against the freshest code instead of stale cached handlers.
+          // This is what prevents the "buttons dead until I clear cache" state.
+          let reloadedForSW = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloadedForSW) return;
+            reloadedForSW = true;
+            window.location.reload();
+          });
         });
       }
 

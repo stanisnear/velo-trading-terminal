@@ -14,7 +14,7 @@ import { pythPriceStream } from '@/services/pythPriceService';
  * is genuine platform activity, with honest empty states until trades arrive.
  */
 
-interface OrderBookProps { price: number; pair: string; rows?: number; }
+interface OrderBookProps { price: number; pair: string; rows?: number; openOrders?: any[]; }
 
 interface Fill {
   id: string; pair: string; side: 'LONG' | 'SHORT';
@@ -59,7 +59,7 @@ function rowToFill(r: any, flash = false): Fill | null {
   };
 }
 
-export const OrderBook: React.FC<OrderBookProps> = ({ price, pair }) => {
+export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, openOrders: liveOpenOrders }) => {
   const [view, setView] = useState<'trades' | 'depth' | 'book'>('trades');
   const [fills, setFills] = useState<Fill[]>([]);
   const [orders, setOrders] = useState<{ side: 'LONG' | 'SHORT'; price: number; size: number }[]>([]);
@@ -133,8 +133,24 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair }) => {
     return () => { active = false; clearTimeout(watchdog); if (ch) supabase.removeChannel(ch); };
   }, [pair]);
 
-  // Load real resting orders (pending limit/stop orders) for the Book view.
+  // Load real resting orders for the Book view. Prefer the live in-app
+  // openOrders (exactly what the OPEN ORDERS panel shows — guaranteed to match,
+  // no RLS/persistence gap); fall back to a DB query only if none were passed.
   useEffect(() => {
+    // Live prop path — filter to this pair and map to the ladder shape.
+    if (Array.isArray(liveOpenOrders)) {
+      const mapped = liveOpenOrders
+        .filter((o: any) => o && o.pair === pair && (o.type === 'LIMIT' || o.type === 'STOP' || o.order_type === 'LIMIT' || o.order_type === 'STOP'))
+        .map((o: any) => {
+          const p = Number(o.price); const s = Number(o.size);
+          if (!p || p <= 0 || !s || s <= 0) return null;
+          // size is notional USD → base units for consistent depth display
+          return { side: (o.side === 'SHORT' ? 'SHORT' : 'LONG') as 'LONG' | 'SHORT', price: p, size: s / p };
+        }).filter(Boolean) as any[];
+      setOrders(mapped);
+      return;
+    }
+    // Fallback: DB query (used when the component is rendered without the prop).
     let active = true;
     (async () => {
       try {
@@ -150,10 +166,10 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair }) => {
           return { side: (o.side === 'SHORT' ? 'SHORT' : 'LONG') as 'LONG' | 'SHORT', price: p, size: s / p };
         }).filter(Boolean) as any[];
         setOrders(mapped);
-      } catch { /* Book view shows empty state if unavailable */ }
+      } catch { /* Book shows empty state if unavailable */ }
     })();
     return () => { active = false; };
-  }, [pair, price]);
+  }, [pair, price, liveOpenOrders]);
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
