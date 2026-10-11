@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:cloudflare": "node scripts/check-cloudflare-env.mjs && vite build && node scripts/package-cloudflare.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
