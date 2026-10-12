@@ -1,0 +1,15 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "velo-keeper-scheduler",
+  "main": "keeper-scheduler.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": false,
+  "vars": {
+    "VELO_KEEPERS_ENABLED": "false"
+  },
+  "triggers": {
+    // After backend validation, secret transfer and disabling Vercel's jobs,
+    // replace [] with ["* * * * *"] and explicitly enable the scheduler.
+    "crons": []
+  }
+}

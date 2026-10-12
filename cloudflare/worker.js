@@ -79,6 +79,9 @@ export default {
         const value = upstream.headers.get(name);
         if (value) responseHeaders.set(name, value);
       }
+      if (route === '/api/post-og' && upstream.status === 200 && upstream.headers.get('X-Velo-Response-Type') === 'post-og-html') {
+        responseHeaders.set('Content-Type', 'text/html; charset=utf-8');
+      }
       for (const [name, value] of Object.entries(security)) responseHeaders.set(name, value);
       if (sharedPost) {
         responseHeaders.set('Vary', 'User-Agent');

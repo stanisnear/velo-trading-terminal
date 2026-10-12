@@ -8,4 +8,7 @@ dist/
 .dev.vars.*
 !.env.example
 *.local
+supabase/functions/velo-api/generated/
+supabase/functions/velo-api/bundle.js
+supabase/.temp/
 
