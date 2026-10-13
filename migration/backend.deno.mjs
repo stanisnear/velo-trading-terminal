@@ -19,3 +19,16 @@ const sponsor = await serve(new Request(base + 'sponsor-eth', {
 }));
 if (sponsor.status !== 400) throw new Error('Sponsor validation failed');
 console.log('Deno bundle: authentication, Node crypto import, HTML renderer and viem import passed. No network requests or transactions.');
+
+Deno.env.set('CRON_SECRET', 'fixture-cron-secret-no-real-credentials');
+await import('../supabase/functions/velo-keepers/bundle.js');
+const keeperBase = 'https://project.supabase.co/functions/v1/velo-keepers/api/cron-tp-sl';
+const unauthorized = await serve(new Request(keeperBase, { method: 'POST', body: '{}' }));
+if (unauthorized.status !== 401) throw new Error('Keeper authentication failed');
+const scheduledTime = Date.now();
+const disabled = await serve(new Request(keeperBase, {
+  method: 'POST', headers: { Authorization: 'Bearer fixture-cron-secret-no-real-credentials', 'Content-Type': 'application/json' },
+  body: JSON.stringify({ scheduledTime, runId: `${scheduledTime}:cron-tp-sl` }),
+}));
+if (disabled.status !== 503 || (await disabled.json()).error !== 'KEEPERS_DISABLED') throw new Error('Keeper disable guard failed');
+console.log('Deno keeper bundle: unauthorized and disabled requests rejected before RPC or signing.');

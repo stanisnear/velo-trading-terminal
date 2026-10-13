@@ -1,61 +1,79 @@
-# Cloudflare migration
+# Migration status — 13 October 2026
 
-Status on 2026-10-12: **landing deployed; terminal migration incomplete**.
+**Staged, not cut over. The terminal and live cron execution are not yet verified.**
 
-## Deployed
+## Deployed and verified
 
-- The separate Velo-Landing repository deploys to Cloudflare Pages project
-  `velo-landing` from `codex/cloudflare-migration`.
-- Both `velotrading.live` and `www.velotrading.live` have active domain validation.
-  The supplied redesign deployed at commit
-  `2e7c480703b60055b81410bfb09f63091911862a`; its deployment URL was viewed.
-- Supabase Free project VELO Main hosts `velo-api` version 1. Its six handlers
-  require a private gateway token. No token has been configured: live probes
-  returned 503 for an API route and 404 for a cron route, as intended.
-- Existing database objects, user rows and authentication were not changed.
+- Landing remains on Cloudflare Pages. The newer landing upload was cancelled
+  at the user's request; this work changes the terminal only.
+- Terminal Pages project `velo-trading-terminal` is created and linked to
+  `stanisnear/velo-trading-terminal`, branch `codex/cloudflare-migration`.
+  Automatic builds are paused; no frontend deployment or variables exist yet.
+- Supabase `velo-api` version 2 and `velo-keepers` version 1 are ACTIVE.
+  Live unauthenticated checks return 503 because required secrets are absent.
+- Cloudflare `velo-keeper-scheduler` is deployed with execution disabled,
+  dry-run mode selected, no schedules and no public workers.dev URL.
+- Two database migrations are applied: `20261013065815_keeper_runtime_state`
+  and `20261013070652_restrict_anonymous_mutations`. Existing user rows were
+  not copied, deleted or edited.
+- Five private runtime tables support active-item indexing, job deduplication,
+  signer leases, pending transaction recovery and sponsor cooldowns.
+- The old balance function's NULL authorization bypass is fixed. Anonymous
+  access to ten mutating RPCs and two trigger helpers is revoked. Signed-in
+  app calls and public profile reads retain their intended access.
 
-## Outstanding
+## Verification evidence
 
-- No Vercel variable values have been exported or transferred. On 2026-10-12 the
-  connector still returned 403 for `stanisnears-projects`. No authenticated
-  Vercel CLI is available. Restore team access before exporting variables.
-- The terminal frontend is prepared but not deployed to Cloudflare. Its DNS
-  still points to Vercel.
-- The three keeper handlers have not been ported or activated. A replacement
-  Cloudflare scheduler is prepared and tested but has no active cron trigger.
-- Actual API behavior, wallet onboarding, auth redirects and keeper runtime
-  limits still need validation with the imported settings.
+- 32 Node tests passed for API/gateway behavior, scheduler routing, trigger
+  math, bounded scans, exact Pyth fees, receipt statuses, duplicate delivery,
+  signer locking, pending recovery and sponsorship cooldowns.
+- Three Python tests passed for variable mapping, secret separation,
+  multiline preservation and destination validation.
+- Both deployment bundles load in Deno 2.2.6. Authentication/disabled paths,
+  Node crypto, viem import and the HTML renderer were exercised without
+  network calls or wallet transactions.
+- Live SQL checks passed for job overlap, duplicate results, signer overlap,
+  persisted pending transactions, cooldowns and private RPC permissions.
+  Test data was rolled back; runtime tables remain empty.
+- Live HTTP probes confirmed the API and all three keeper endpoints reject
+  unconfigured calls. No transaction was submitted or cron activated.
 
-## Configuration and cutover
+## Current blocker
 
-The 28-name inventory records scopes, not values: 24 Production + Preview and
-four Production-only. Reconcile additional names referenced in the source.
+A fresh Vercel check recognizes user `stanisnear` and default team
+`team_RDRP3vadkiN3qE9QSGkyvoFD`, but lists zero accessible teams and returns
+HTTP 403 for environment variables in `stanisnears-projects`. No authenticated
+CLI fallback exists in the assistant session. **No Vercel values have been
+exported or transferred.**
 
-Export production and preview to separate fresh files outside the repo. Vercel
-can preserve stale values when exporting to an existing file. Recover unreadable
-write-only credentials from their original source. Preserve exact values,
-newlines and scopes, including unused settings; do not substitute defaults.
+The owner can restore team-scoped authorization or run
+`migration/configure_services.py` locally. See CONNECT-SERVICES.md.
+The helper prompts for unreadable original values and writes production
+settings directly to Cloudflare/Supabase without sharing them in chat.
+Preview settings remain separate on Vercel and Preview deploys remain off.
 
-Only public VITE_ settings belong in the browser build. Server keys, cron
-credentials and CDP settings belong in backend secrets. Supabase reserves
-SUPABASE_* names; imported values use VELO_IMPORTED_SUPABASE_* aliases.
+## Still required before cutover
 
-The terminal's build command is `npm run build:cloudflare`, output `dist`.
-The variable guard must pass before publishing. Runtime bindings are
-`VELO_BACKEND_URL` and `VELO_PROXY_TOKEN`. The gateway preserves SPA routes,
-six API routes and bot-specific post metadata. Ordinary assets bypass the
-gateway. Legacy references to /api/faucet and /api/gas-sponsor have no matching
-handlers in the current repository and need review during live-flow testing.
+1. Import and reconcile every production setting, including original signing
+   keys, RPCs, contract addresses and unused CDP settings. Preserve Preview
+   configuration separately; do not delete Vercel projects yet.
+2. Build on Pages, exercise login/onboarding, sponsorship and API flows,
+   validate Supabase redirects and external integrations.
+3. Run keepers in dry-run mode; complete historical indexing, inspect active
+   backlog and measure actual runtime against free-tier limits.
+4. Disable old Vercel cron/sponsor writers, enable the new backend, activate
+   the one-minute Cloudflare schedule, and verify all three actual transaction
+   paths and successful receipts on Base Sepolia.
+5. Switch app.velotrading.live only after those checks. Its DNS currently
+   remains the Vercel CNAME, unproxied.
 
-See SUPABASE.md for the API build, exact variable mapping and keeper activation
-gates. Never activate duplicate schedulers using the same transaction signer.
+## Limits and open review
 
-## Verification
+Bounded work can take several ticks under backlog; no sub-minute fill guarantee
+is made. A complete security review of existing signed-in cross-user RPCs is
+still outstanding. Supabase advisors also flag existing public read functions
+and disabled leaked-password protection. Private runtime tables intentionally
+have RLS with no client policies. None of these checks establishes that the
+whole application works flawlessly without live configuration and testing.
 
-- 15 API/gateway tests passed, including auth, payload/status preservation,
-  oversized requests, social metadata and private cron exclusion.
-- The deployed bundle passed Deno 2.2.6 checks without network or wallet
-  credentials, loading viem, Node crypto and the HTML renderer.
-- Five scheduler tests passed: disabled mode, destination/credential guards,
-  ordered calls, isolated failures, redirects and skipped results.
-- No wallet transaction was submitted; no keeper schedule was activated.
+See ../CLOUDFLARE.md for the hosting map, updates, monitoring and rollback.

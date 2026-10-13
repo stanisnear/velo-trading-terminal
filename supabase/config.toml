@@ -6,3 +6,9 @@ entrypoint = "./functions/velo-api/bundle.js"
 # The bridge validates X-Velo-Proxy-Token before loading/executing a handler.
 # Missing or short secrets fail closed. Never deploy an unguarded entrypoint.
 verify_jwt = false
+
+[functions.velo-keepers]
+enabled = true
+entrypoint = "./functions/velo-keepers/bundle.js"
+# Mandatory Bearer CRON_SECRET auth is implemented before executing any job.
+verify_jwt = false

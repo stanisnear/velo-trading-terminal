@@ -11,4 +11,7 @@ dist/
 supabase/functions/velo-api/generated/
 supabase/functions/velo-api/bundle.js
 supabase/.temp/
+supabase/functions/velo-keepers/generated/
+supabase/functions/velo-keepers/bundle.js
+__pycache__/
 

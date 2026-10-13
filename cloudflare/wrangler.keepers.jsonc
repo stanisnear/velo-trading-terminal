@@ -2,10 +2,14 @@
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "velo-keeper-scheduler",
   "main": "keeper-scheduler.js",
-  "compatibility_date": "2026-10-12",
+  "compatibility_date": "2026-10-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
   "workers_dev": false,
   "vars": {
-    "VELO_KEEPERS_ENABLED": "false"
+    "VELO_KEEPERS_ENABLED": "false",
+    "VELO_KEEPERS_DRY_RUN": "true",
+    "VELO_KEEPER_BASE_URL": "https://btgfoekgvyvdflzjfehz.supabase.co/functions/v1/velo-keepers"
   },
   "triggers": {
     // After backend validation, secret transfer and disabling Vercel's jobs,
