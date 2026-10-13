@@ -1,8 +1,9 @@
 # VELO hosting and update guide
 
 **Status, 13 October 2026: migration staged, not cut over.** The landing page is
-on Cloudflare. The terminal still points to Vercel because the production
-configuration is missing. See [migration/CONNECT-SERVICES.md](migration/CONNECT-SERVICES.md)
+on Cloudflare. The backend is deployed and twenty Cloudflare settings are
+staged. The terminal still points to Vercel: Reown, Pyth access, gas sponsorship
+and final end-to-end checks remain outstanding. See [migration/CONNECT-SERVICES.md](migration/CONNECT-SERVICES.md)
 for the one-time setup and [migration/STATUS.md](migration/STATUS.md) for evidence.
 
 ## Where everything lives
@@ -21,11 +22,17 @@ for the one-time setup and [migration/STATUS.md](migration/STATUS.md) for eviden
 Keeping the same app domain avoids changing your public URLs. Supabase remains
 the same project; user records are not copied to a new database. Cloudflare
 hosts the web interface; its gateway calls the private Supabase API with a
-shared secret. Browser bundles contain public VITE_ settings only.
+secret token. The backend stores only its SHA-256 verifier. Browser bundles
+contain public VITE_ settings only.
 
 These services are configured for free plans, with usage quotas. Free hosting
 is not unlimited capacity or a guarantee of uninterrupted trading. Domain
 renewal at Namecheap is separate from hosting.
+
+Pyth now requires an API key for the price updates used by this app. Its
+documented free trial is not ongoing free access. No Pyth subscription was
+started. This dependency must be resolved separately from free Cloudflare
+hosting before trading can be enabled.
 
 ## Updating the frontend after cutover
 
@@ -63,7 +70,7 @@ and deploy the backend when changing its source:
 ```sh
 npm ci
 npm run build:supabase
-node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs
+node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs migration/auth-pyth.test.mjs
 npx --yes supabase@2.120.0 functions deploy velo-api velo-keepers --project-ref btgfoekgvyvdflzjfehz --use-api --no-verify-jwt
 ```
 
@@ -105,7 +112,10 @@ does not prove a particular order filled; verify its confirmed transaction hash.
 - Backend secrets: Supabase → Edge Functions → Secrets. Preserve exact values
   and imported SUPABASE_ aliases; redeploy to refresh any module-level settings.
 - Timer secret: Worker → Settings → Variables and Secrets → CRON_SECRET.
-  Keep it consistent with Supabase. Do not put it in GitHub source or a URL.
+  It matches the backend's SHA-256 verifier (or an explicit Supabase override).
+  See migration/SUPABASE.md for coordinated rotation. Do not put the token in
+  GitHub source or a URL. Gateway authentication uses the same arrangement
+  with a separate token.
 - Frontend rollback: Pages → Deployments → a previous successful production
   deployment → rollback. Then revert the bad Git commit so it is not redeployed.
 - Backend rollback: rebuild a known-good Git commit and redeploy the affected
@@ -116,9 +126,9 @@ does not prove a particular order filled; verify its confirmed transaction hash.
 
 ## Still to validate
 
-Production variables and Preview reconciliation; actual login/onboarding and
-wallet flow; signer funding and permissions; fresh Pyth updates; all three
-live keeper paths; API quotas and execution budgets; optional analytics/CDP
+Remaining variables and Preview reconciliation; actual login/onboarding and
+wallet flow; sponsor identity; authenticated Pyth browser/keeper updates; all
+three live keeper paths; API quotas and execution budgets; optional analytics/CDP
 configuration; and the final domain/HTTPS check. Existing signed-in cross-user
 RPC behavior needs a broader authorization review. This migration is not a
 claim of a complete security audit or flawless operation.

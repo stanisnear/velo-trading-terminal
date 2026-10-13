@@ -1,79 +1,101 @@
-# Migration status — 13 October 2026
+# Migration status — 13 October 2026, evening
 
-**Staged, not cut over. The terminal and live cron execution are not yet verified.**
+**Backend connected and tested; terminal not yet cut over. Trading cron and
+sponsorship remain disabled. No migration transaction has been sent.**
 
-## Deployed and verified
+## Deployed
 
-- Landing remains on Cloudflare Pages. The newer landing upload was cancelled
-  at the user's request; this work changes the terminal only.
-- Terminal Pages project `velo-trading-terminal` is created and linked to
-  `stanisnear/velo-trading-terminal`, branch `codex/cloudflare-migration`.
-  Automatic builds are paused; no frontend deployment or variables exist yet.
-- Supabase `velo-api` version 2 and `velo-keepers` version 1 are ACTIVE.
-  Live unauthenticated checks return 503 because required secrets are absent.
-- Cloudflare `velo-keeper-scheduler` is deployed with execution disabled,
-  dry-run mode selected, no schedules and no public workers.dev URL.
-- Two database migrations are applied: `20261013065815_keeper_runtime_state`
-  and `20261013070652_restrict_anonymous_mutations`. Existing user rows were
-  not copied, deleted or edited.
-- Five private runtime tables support active-item indexing, job deduplication,
-  signer leases, pending transaction recovery and sponsor cooldowns.
-- The old balance function's NULL authorization bypass is fixed. Anonymous
-  access to ten mutating RPCs and two trigger helpers is revoked. Signed-in
-  app calls and public profile reads retain their intended access.
+- Landing remains on Cloudflare. The newer landing upload was cancelled at the
+  owner's request; this checkpoint changes the terminal only.
+- Terminal Pages project `velo-trading-terminal` tracks GitHub branch
+  `codex/cloudflare-migration`. Twenty production settings are staged:
+  18 public build settings, the backend address and an encrypted gateway token.
+  Automatic builds remain paused; there is no terminal frontend deployment.
+- Supabase `velo-api` and `velo-keepers` version 4 are ACTIVE. Authenticated
+  user/protocol stats return HTTP 200; unauthenticated API calls return 401.
+  Protocol stats resolve the active V3.1 contract and its two open positions.
+  Google Analytics is unconfigured, and gas sponsorship returns disabled.
+- The Cloudflare scheduler now holds a new `CRON_SECRET`. Its enabled switch
+  remains false, dry-run switch true, cron list empty and workers.dev disabled.
+- The six recovered contract settings are present in Supabase. Four RPCs were
+  checked against their expected testnet chain IDs. Private values stayed in
+  Supabase; none were returned by the diagnostic or put into Git.
+- Temporary `velo-migration-check` is retired: version 3 returns only HTTP 404,
+  with no environment access. Its earlier authentication was also time-limited.
+- DNS for `app.velotrading.live` still targets Vercel. No DNS cutover occurred.
+
+## Recovered configuration and authentication
+
+See [RECOVERED-SETTINGS.md](RECOVERED-SETTINGS.md). The recovered private key
+derives public address `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`, which owns
+the deployed contracts and previously executed conditional orders, TP/SL and
+liquidations. Its observed Base Sepolia balance was about 2.18 testnet ETH;
+latest and pending nonce both equalled 197 during recovery. This does not prove
+it was also the original gas-sponsorship wallet.
+
+Gateway and scheduler credentials are separate newly generated 256-bit tokens,
+stored as Cloudflare secrets. Supabase deployments contain only SHA-256
+verifiers. Explicit Supabase `VELO_PROXY_TOKEN` / `CRON_SECRET` values, if set
+later, override the corresponding verifier. This avoids another manual secret
+copy without embedding raw credentials in source. See SUPABASE.md for rotation.
 
 ## Verification evidence
 
-- 32 Node tests passed for API/gateway behavior, scheduler routing, trigger
-  math, bounded scans, exact Pyth fees, receipt statuses, duplicate delivery,
-  signer locking, pending recovery and sponsorship cooldowns.
-- Three Python tests passed for variable mapping, secret separation,
-  multiline preservation and destination validation.
-- Both deployment bundles load in Deno 2.2.6. Authentication/disabled paths,
-  Node crypto, viem import and the HTML renderer were exercised without
-  network calls or wallet transactions.
-- Live SQL checks passed for job overlap, duplicate results, signer overlap,
-  persisted pending transactions, cooldowns and private RPC permissions.
-  Test data was rolled back; runtime tables remain empty.
-- Live HTTP probes confirmed the API and all three keeper endpoints reject
-  unconfigured calls. No transaction was submitted or cron activated.
+- 38 Node regression tests pass, covering authentication/rotation, Pyth key
+  confinement, gateway behavior, schedules, contract versions, trigger math,
+  scan bounds, signer coordination and successful-receipt requirements.
+- Both exact bundles pass Deno 2.2.6 import/authentication/disabled checks with
+  no outbound network or wallet credentials.
+- The live V3.1 contract returns VERSION=31. The engine now accepts 31 with
+  the V3 struct layouts; regression tests exercise all three jobs.
+- Historical indexing is complete: conditional-order cursor 21 and position
+  cursors 104. Latest dry runs scan eight recent orders or ten indexed/recent
+  positions, with no queued active backlog. No dry run signs a transaction.
+- Conditional orders: no active orders, HTTP 200, about 1.1 seconds.
+- TP/SL: two active positions with no set triggers, HTTP 200, about 1.7 seconds.
+  Neither result proves a fresh price update or a real fill.
+- Liquidation: two active positions, HTTP 502, about 1.5 seconds, explicit
+  `PYTH_API_KEY_MISSING` for IDs 65 and 90. **This is a failed trading check.**
+- Database signer table remains empty. Existing user rows were not moved or
+  edited. The previously verified coordination and anonymous-access migrations
+  remain applied; runtime tables now contain real dry-run state/results.
 
-## Current blocker
+## Blocking items
 
-A fresh Vercel check recognizes user `stanisnear` and default team
-`team_RDRP3vadkiN3qE9QSGkyvoFD`, but lists zero accessible teams and returns
-HTTP 403 for environment variables in `stanisnears-projects`. No authenticated
-CLI fallback exists in the assistant session. **No Vercel values have been
-exported or transferred.**
+1. **Reown/WalletConnect project ID**: the only missing required frontend
+   build variable. Recover the existing public project ID and check its allowed
+   app origin. Do not substitute a random ID to make a build pass.
+2. **Pyth access**: official documentation says all Hermes users need an API
+   key following the 26 August 2026 upgrade. Public requests from this runner
+   returned HTTP 403 / Cloudflare 1010; that response alone does not establish
+   an authentication failure. The keeper now supports server-only
+   `PYTH_API_KEY` and distinguishes missing keys, authentication failures, rate
+   limits and upstream outages. Never put this key in a `VITE_` variable.
+   The browser's existing REST/SSE/history calls still require a protected
+   server integration and end-to-end verification. The documented free trial
+   is not perpetual free access; paid plans cover ongoing use. No subscription
+   or trial has been activated by this migration.
+3. **Gas sponsor**: `VELO_SPONSOR_PRIVATE_KEY` is still missing. Recover the
+   original key or explicitly choose a funded testnet sponsor. The recovered
+   contract-owner key has not been silently repurposed for sponsorship.
 
-The owner can restore team-scoped authorization or run
-`migration/configure_services.py` locally. See CONNECT-SERVICES.md.
-The helper prompts for unreadable original values and writes production
-settings directly to Cloudflare/Supabase without sharing them in chat.
-Preview settings remain separate on Vercel and Preview deploys remain off.
+The Vercel connector still lacks team-scoped environment access (403). Its
+export supplied placeholders for every app value; it was not a usable backup.
+Three CDP variables from the inventory remain unrecovered but have no consumers
+in the current source. GA configuration is also absent. Preserve Vercel projects
+and settings until the remaining inventory and Preview settings are reconciled.
 
-## Still required before cutover
+## Before cutover
 
-1. Import and reconcile every production setting, including original signing
-   keys, RPCs, contract addresses and unused CDP settings. Preserve Preview
-   configuration separately; do not delete Vercel projects yet.
-2. Build on Pages, exercise login/onboarding, sponsorship and API flows,
-   validate Supabase redirects and external integrations.
-3. Run keepers in dry-run mode; complete historical indexing, inspect active
-   backlog and measure actual runtime against free-tier limits.
-4. Disable old Vercel cron/sponsor writers, enable the new backend, activate
-   the one-minute Cloudflare schedule, and verify all three actual transaction
-   paths and successful receipts on Base Sepolia.
-5. Switch app.velotrading.live only after those checks. Its DNS currently
-   remains the Vercel CNAME, unproxied.
+Resolve those dependencies; build/test the frontend on Pages; check login,
+wallets, API routing, price updates, storage and Supabase redirects. Rerun all
+keepers against fresh prices, then coordinate stopping old Vercel writers
+before enabling any new signer. Activate the minute schedule only after all
+three real execution paths are tested on Base Sepolia. Attach the app domain
+and change DNS after the application is ready. Do not claim flawless operation.
 
-## Limits and open review
+Existing signed-in cross-user database RPC authorization still needs a separate
+review. Bounded scan/execution work may span multiple ticks under load. Free
+hosting quotas and Pyth access are separate constraints.
 
-Bounded work can take several ticks under backlog; no sub-minute fill guarantee
-is made. A complete security review of existing signed-in cross-user RPCs is
-still outstanding. Supabase advisors also flag existing public read functions
-and disabled leaked-password protection. Private runtime tables intentionally
-have RLS with no client policies. None of these checks establishes that the
-whole application works flawlessly without live configuration and testing.
-
-See ../CLOUDFLARE.md for the hosting map, updates, monitoring and rollback.
+Pyth reference: https://docs.pyth.network/price-feeds/core/upgrade/preparing

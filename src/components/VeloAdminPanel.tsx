@@ -177,7 +177,7 @@ export const VeloAdminPanel: React.FC = () => {
   const [feeBalance, setFeeBalance] = useState(0);
   const [poolBalance, setPoolBalance] = useState(0);
   const [adminUsdcBalance, setAdminUsdcBalance] = useState(0);
-  // Keeper wallet (VELO_SPONSOR_PRIVATE_KEY-derived address exposed via VITE_KEEPER_ADDRESS)
+  // Public address of the configured keeper wallet; never a private key.
   const keeperAddress = (import.meta.env.VITE_KEEPER_ADDRESS || '') as string;
   const [keeperEthBalance, setKeeperEthBalance] = useState<number | null>(null);
   const [faucetCooldownEnd, setFaucetCooldownEnd] = useState(0);
@@ -1071,12 +1071,12 @@ export const VeloAdminPanel: React.FC = () => {
         <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
           This wallet runs TP/SL, liquidation, and conditional-order cron jobs every minute.
           It must hold Base Sepolia ETH to pay gas — if it runs dry, all automated execution stops.
-          Add <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VITE_KEEPER_ADDRESS</code> in Vercel env vars (the public address derived from your <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VELO_SPONSOR_PRIVATE_KEY</code>) to enable monitoring here.
+          Add <code style={{ fontFamily: 'var(--font-mono)', background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 4 }}>VITE_KEEPER_ADDRESS</code> in Cloudflare Pages build variables (the public address of your configured keeper wallet), then redeploy to enable monitoring here.
         </p>
 
         {!keeperAddress ? (
           <div style={{ padding: 14, borderRadius: 10, background: 'rgba(255,180,60,0.08)', border: '1px solid rgba(255,180,60,0.25)', ...S.mono, fontSize: 11, color: 'rgba(255,180,60,0.9)' }}>
-            VITE_KEEPER_ADDRESS not set — add it in Vercel environment variables to monitor keeper ETH balance here.
+            VITE_KEEPER_ADDRESS not set — add it in Cloudflare Pages build variables and redeploy to monitor keeper ETH balance here.
             <br /><br />
             To find it: <code style={{ opacity: 0.8 }}>cast wallet address --private-key $VELO_SPONSOR_PRIVATE_KEY</code>
           </div>

@@ -30,15 +30,31 @@ keepers. Authentication happens before handler execution. Keep those guards.
 | VITE_* public settings | Cloudflare production build and backend secrets |
 | SUPABASE_* | Backend secret with VELO_IMPORTED_ prepended |
 | Other server settings, including CDP | Backend secrets, exact original names |
-| Generated private gateway token | VELO_PROXY_TOKEN in Pages and Supabase |
+| Generated private gateway token | VELO_PROXY_TOKEN secret in Pages; SHA-256 verifier in backend |
 | API base | Pages VELO_BACKEND_URL ending /functions/v1/velo-api |
-| Existing CRON_SECRET | Backend and scheduler secret, identical values |
+| New CRON_SECRET | Scheduler secret; separate SHA-256 verifier in backend |
 
 Imported SUPABASE aliases take precedence over Supabase's built-in defaults.
 The helper explicitly aliases public Supabase URL/anon values into VITE_
 settings if absent; it never uses a service-role key in the frontend.
 Production and Preview must not be mixed. The helper keeps execution switches
 false; backend enablement is a separate final cutover step.
+
+The owner has now imported six recovered server settings. Supabase's built-in
+URL/keys serve the same existing project. Reviewed public contract defaults
+live in `_shared/public-config.js`; environment values override them, including
+empty values (which fail validation). Both transaction switches default false.
+See RECOVERED-SETTINGS.md for provenance and missing settings.
+
+The initial service connection uses separate 256-bit random tokens in
+Cloudflare, with only public SHA-256 verifiers in `_shared/token-verifiers.js`.
+Verifiers cannot be used as bearer credentials. To rotate, set a new matching
+raw token in the caller's secret and the corresponding Supabase secret, or
+generate a new token and redeploy its SHA-256 verifier. Explicit Supabase
+secrets override the committed verifier; invalid explicit values fail closed.
+Rotation must update both sides together. Never copy a verifier into a secret
+field or commit a raw token. Restore deployment verifiers with matching caller
+secrets when rolling back authentication changes.
 
 ## Keeper behavior
 
@@ -47,11 +63,18 @@ sequentially. The separate velo-keepers endpoint accepts POST only, authenticate
 before reading work, rejects query-string credentials, bounds input, and checks
 stable run IDs and timestamp freshness. Dry runs do not sign transactions.
 
-The engine verifies Base Sepolia chain ID 84532, contract version 2/3, and the
+The engine verifies Base Sepolia chain ID 84532, contract version 2/3/31, and the
 contract's own PYTH address against configuration. Conditional orders require
-V3. It checks fresh Hermes prices by feed ID and publish time, reads the exact
+V3 or V3.1. It checks fresh Hermes prices by feed ID and publish time, reads the exact
 on-chain Pyth update fee and simulates execution before sending. Missing
-configuration fails closed; there are no hardcoded RPC/contract fallbacks.
+configuration fails closed. Public contract defaults match the reviewed V3.1
+deployment; server RPC credentials still come from environment settings.
+
+Pyth's current official Hermes endpoints require server-only `PYTH_API_KEY`.
+The key goes only to approved HTTPS Pyth origins as a Bearer header, with
+redirects disabled. It never goes into a URL, log, error response or VITE_
+setting. Missing keys, rejected auth, throttling and upstream failures have
+distinct fixed error codes. This does not yet migrate the browser price feeds.
 
 Private tables maintain a historical cursor and an active-item index. Each
 run covers up to 32 historical IDs, 32 oldest indexed active IDs and eight
@@ -80,7 +103,7 @@ separate review; do not treat a warning-free transport test as a security audit.
 ## Validation commands
 
 ```sh
-node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs
+node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs migration/auth-pyth.test.mjs
 python3 -m unittest discover -s migration -p 'configure_services_test.py'
 npx --yes deno@2.2.6 run --no-config --no-npm --no-remote --no-lock --allow-env=VELO_PROXY_TOKEN,GA_PROPERTY_ID,GA_CLIENT_EMAIL,GA_PRIVATE_KEY,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,CRON_SECRET,VELO_KEEPERS_ENABLED migration/backend.deno.mjs
 ```

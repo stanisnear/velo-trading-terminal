@@ -12,7 +12,7 @@ const NOW = 1791876000000, TOKEN = 'fixture-only-not-a-real-secret-123456';
 const job = 'cron-conditional-orders';
 const input = { scheduledTime: NOW, runId: `${NOW}:${job}`, dryRun: true };
 const settings = { CRON_SECRET: TOKEN, VITE_VELO_PERPS_V3_ADDRESS: P, PYTH_CONTRACT_ADDRESS: Y,
-  VITE_PYTH_HERMES_URL: 'https://hermes.pyth.network', VELO_KEEPERS_ENABLED: 'true' };
+  VITE_PYTH_HERMES_URL: 'https://hermes.pyth.network', PYTH_API_KEY: 'fixture-pyth-key', VELO_KEEPERS_ENABLED: 'true' };
 const getEnv = key => settings[key];
 const order = { owner: P, active: true, pairIndex: 0, triggerPrice_E18: 100n * 10n**18n, triggerKind: 0, isLong: true };
 
@@ -84,6 +84,30 @@ test('dry run scans and persists progress but never signs or simulates a transac
  const f=engineFixture();const r=await runKeeper(job,input,getEnv,f.deps);
  assert.equal(r.ok,true);assert.equal(r.triggered,1);assert.equal(r.executed.length,0);assert.equal(f.writes.length,0);
  assert.equal(f.calls.find(c=>c.action==='save_scan').p.cursor,2);
+});
+test('live V3.1 version 31 supports every keeper with V3 position decoding',async()=>{
+ for (const name of ['cron-conditional-orders','cron-tp-sl','cron-liquidate']) {
+  const f=engineFixture();const original=f.deps.clients.publicClient.readContract;
+  f.deps.clients.publicClient.readContract=async p=>{
+   if(p.functionName==='VERSION')return 31;
+   if(p.functionName==='nextTradeId')return 2n;
+   if(p.functionName==='LIQUIDATION_THRESHOLD_BPS')return 9000n;
+   if(p.functionName==='getPosition'){
+    const fields=p.abi[0].outputs[0].components.map(x=>x.name);
+    assert(fields.includes('marginMode'));assert(fields.includes('originalNotional_6'));
+    return {owner:P,pairIndex:0,isLong:true,leverage:10n,marginMode:0,
+     collateralUSDC_6:1000000n,entryPrice_E18:110n*10n**18n,
+     takeProfit_E18:98n*10n**18n,stopLoss_E18:0n,originalNotional_6:10000000n};
+   }
+   return original(p);
+  };
+  const r=await runKeeper(name,{...input,runId:`${NOW}:${name}`},getEnv,f.deps);
+  assert.equal(r.ok,true);assert.equal(r.version,31);assert.equal(r.triggered,1);
+  assert.equal(f.writes.length,0);
+ }
+ const f=engineFixture();const original=f.deps.clients.publicClient.readContract;
+ f.deps.clients.publicClient.readContract=p=>p.functionName==='VERSION'?32:original(p);
+ assert.equal((await runKeeper(job,input,getEnv,f.deps)).errors[0].code,'UNSUPPORTED_CONTRACT_VERSION');
 });
 test('execution reads exact Pyth fee, simulates and counts only confirmed success',async()=>{
  const f=engineFixture();const r=await runKeeper(job,{...input,dryRun:false},getEnv,f.deps);

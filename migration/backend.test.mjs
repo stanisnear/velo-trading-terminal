@@ -72,7 +72,7 @@ test('generated handlers load and retain safe unconfigured/validation behavior',
   const serve = createApi({ getEnv, loaders: {
     'ga-stats': () => import('../supabase/functions/velo-api/generated/ga-stats.js'),
     'user-stats': () => import('../supabase/functions/velo-api/generated/user-stats.js'),
-    'sponsor-eth': () => import('../supabase/functions/velo-api/generated/sponsor-eth.js'),
+    'sponsor-eth': () => import('../supabase/functions/velo-api/sponsor.js'),
     'og': () => import('../supabase/functions/velo-api/generated/og.js'),
     'protocol-stats': () => import('../supabase/functions/velo-api/generated/protocol-stats.js'),
   } });

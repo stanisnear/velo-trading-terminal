@@ -1,4 +1,5 @@
 // Fetch <-> Vercel req/res adapter. All handlers require the private gateway token.
+import { tokenStatus } from '../_shared/auth.js';
 const methods = new Map([
   ['sponsor-eth', ['POST', 'OPTIONS']],
   ['user-stats', ['GET', 'HEAD']],
@@ -15,17 +16,6 @@ const secureHeaders = {
 
 function problem(status, error, extra = {}) {
   return Response.json({ error }, { status, headers: { ...secureHeaders, ...extra } });
-}
-
-async function matchesToken(actual, expected) {
-  if (!actual || actual.length > 512 || actual.length !== expected.length) return false;
-  const encoder = new TextEncoder();
-  const [left, right] = await Promise.all([actual, expected].map(value =>
-    crypto.subtle.digest('SHA-256', encoder.encode(value)).then(buffer => new Uint8Array(buffer))
-  ));
-  let difference = 0;
-  for (let i = 0; i < left.length; i++) difference |= left[i] ^ right[i];
-  return difference === 0;
 }
 
 async function readBody(request) {
@@ -53,7 +43,7 @@ async function readBody(request) {
   return text ? JSON.parse(text) : undefined;
 }
 
-export function createApi({ getEnv, loaders }) {
+export function createApi({ getEnv, loaders, tokenHash }) {
   return async function serve(request) {
     // Supabase can pass either /velo-api/... or /functions/v1/velo-api/....
     const url = new URL(request.url);
@@ -63,9 +53,8 @@ export function createApi({ getEnv, loaders }) {
     if (!allowed || !Object.hasOwn(loaders, name)) return problem(404, 'Route not found');
     if (!allowed.includes(request.method)) return problem(405, 'Method not allowed', { Allow: allowed.join(', ') });
 
-    const expected = getEnv('VELO_PROXY_TOKEN');
-    if (!expected || expected.length < 32 || expected.length > 512) return problem(503, 'Backend not configured');
-    if (!(await matchesToken(request.headers.get('x-velo-proxy-token'), expected))) return problem(401, 'Unauthorized');
+    const auth = await tokenStatus(request.headers.get('x-velo-proxy-token'), getEnv('VELO_PROXY_TOKEN'), tokenHash);
+    if (auth) return problem(auth, auth === 503 ? 'Backend not configured' : 'Unauthorized');
 
     let body;
     if (request.method === 'POST') {

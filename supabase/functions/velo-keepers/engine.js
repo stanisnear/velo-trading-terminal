@@ -1,5 +1,6 @@
 import { encodeFunctionData, isAddress } from 'viem';
-import { runtimeStore, RuntimeError, boundedJson, httpsSetting } from '../_shared/runtime.js';
+import { runtimeStore, RuntimeError } from '../_shared/runtime.js';
+import { latestPythUpdate } from '../_shared/pyth.js';
 import { chainClients, withSigner } from '../_shared/signer.js';
 import { normalisePrice, triggerFor, scanIds } from './math.js';
 import { ORDER_ABI, CORE_ABI, POSITION_V3_ABI, POSITION_V2_ABI, PYTH_FEE_ABI } from './generated/abi.js';
@@ -13,7 +14,6 @@ export async function runKeeper(job, input, getEnv, deps = {}) {
   const perps = getEnv('VITE_VELO_PERPS_V3_ADDRESS') || (job !== 'cron-conditional-orders' && getEnv('VITE_VELO_PERPS_V2_ADDRESS'));
   const pyth = getEnv('VITE_PYTH_CONTRACT_ADDRESS') || getEnv('PYTH_CONTRACT_ADDRESS');
   if (!perps || !isAddress(perps) || !pyth || !isAddress(pyth)) throw new RuntimeError('CONTRACTS_NOT_CONFIGURED');
-  const hermes = httpsSetting(getEnv('VITE_PYTH_HERMES_URL'), 'HERMES');
   const db = deps.db || runtimeStore(getEnv);
   const clients = deps.clients || chainClients(getEnv, !dryRun);
   const { publicClient } = clients;
@@ -31,13 +31,16 @@ export async function runKeeper(job, input, getEnv, deps = {}) {
     let version;
     try { version = Number(await publicClient.readContract({ address: perps, abi: CORE_ABI, functionName: 'VERSION' })); }
     catch { version = Number(await publicClient.readContract({ address: perps, abi: CORE_ABI, functionName: 'version' })); }
-    if (![2, 3].includes(version) || (job === 'cron-conditional-orders' && version !== 3)) throw new RuntimeError('UNSUPPORTED_CONTRACT_VERSION');
+    // VeloPerpsV3_1 exposes VERSION=31 and retains the V3 struct layouts.
+    const v3Layout = version === 3 || version === 31;
+    if (![2, 3, 31].includes(version) || (job === 'cron-conditional-orders' && !v3Layout)) throw new RuntimeError('UNSUPPORTED_CONTRACT_VERSION');
+    result.version = version;
     const actualPyth = await publicClient.readContract({ address: perps, abi: PYTH_VIEW, functionName: 'PYTH' });
     if (actualPyth.toLowerCase() !== pyth.toLowerCase()) throw new RuntimeError('PYTH_CONTRACT_MISMATCH');
     const orderJob = job === 'cron-conditional-orders';
     const countName = orderJob ? 'nextOrderId' : 'nextTradeId';
     const abi = orderJob ? ORDER_ABI : CORE_ABI;
-    const itemAbi = orderJob ? ORDER_ABI : version === 3 ? POSITION_V3_ABI : POSITION_V2_ABI;
+    const itemAbi = orderJob ? ORDER_ABI : v3Layout ? POSITION_V3_ABI : POSITION_V2_ABI;
     const itemName = orderJob ? 'conditionalOrders' : 'getPosition';
     const functionName = orderJob ? 'executeConditionalOrder' : job === 'cron-tp-sl' ? 'closeIfTriggered' : 'liquidate';
     const nextId = Number(await publicClient.readContract({ address: perps, abi, functionName: countName }));
@@ -65,9 +68,7 @@ export async function runKeeper(job, input, getEnv, deps = {}) {
       const cached = cache.get(pairIndex);
       if (cached && now() - cached.fetchedAt < 15000) return cached;
       const feed = await publicClient.readContract({ address: perps, abi, functionName: 'pairFeedId', args: [pairIndex] });
-      const url = new URL(hermes); url.pathname = url.pathname.replace(/\/$/, '') + '/v2/updates/price/latest';
-      url.search = ''; url.searchParams.set('ids[]', feed.slice(2)); url.searchParams.set('encoding', 'hex');
-      const data = await boundedJson(await (deps.fetch || fetch)(url, { redirect: 'error', signal: AbortSignal.timeout(7000) }));
+      const data = await latestPythUpdate(feed, getEnv, deps.fetch || fetch);
       const price = data?.parsed?.find(p => p.id.toLowerCase().replace(/^0x/, '') === feed.slice(2).toLowerCase())?.price;
       if (!price || !Number.isSafeInteger(Number(price.publish_time)) || now() / 1000 - Number(price.publish_time) > 45 || Number(price.publish_time) > now() / 1000 + 5) throw new RuntimeError('STALE_PRICE');
       const blobs = data?.binary?.data;

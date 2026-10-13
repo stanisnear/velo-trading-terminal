@@ -1,21 +1,17 @@
 import { boundedJson, RuntimeError } from '../_shared/runtime.js';
+import { tokenStatus } from '../_shared/auth.js';
 const JOBS = new Set(['cron-conditional-orders', 'cron-tp-sl', 'cron-liquidate']);
 const json = (value, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
 
-export function createKeepers({ getEnv, run, now = Date.now }) {
+export function createKeepers({ getEnv, run, now = Date.now, tokenHash }) {
   return async request => {
     const url = new URL(request.url);
     const job = url.pathname.match(/^\/(?:functions\/v1\/)?velo-keepers\/api\/([a-z-]+)$/)?.[1];
     if (!JOBS.has(job)) return json({ error: 'NOT_FOUND' }, 404);
     if (request.method !== 'POST') return json({ error: 'METHOD_NOT_ALLOWED' }, 405);
-    const expected = getEnv('CRON_SECRET');
-    if (!expected || expected.length < 16 || expected.length > 512) return json({ error: 'KEEPERS_NOT_CONFIGURED' }, 503);
-    const actual = request.headers.get('authorization');
-    if (!actual || actual.length > 520) return json({ error: 'UNAUTHORIZED' }, 401);
-    const enc = new TextEncoder();
-    const [a,b] = await Promise.all([actual, `Bearer ${expected}`].map(s => crypto.subtle.digest('SHA-256', enc.encode(s)).then(v => new Uint8Array(v))));
-    let diff = 0; for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
-    if (diff !== 0) return json({ error: 'UNAUTHORIZED' }, 401);
+    const actual = request.headers.get('authorization')?.match(/^Bearer (\S{16,512})$/)?.[1];
+    const auth = await tokenStatus(actual, getEnv('CRON_SECRET'), tokenHash, 16);
+    if (auth) return json({ error: auth === 503 ? 'KEEPERS_NOT_CONFIGURED' : 'UNAUTHORIZED' }, auth);
     if (url.search || !/^application\/json(?:;|$)/i.test(request.headers.get('content-type') || '')) return json({ error: 'INVALID_REQUEST' }, 400);
     let input;
     try { input = await boundedJson(new Response(request.body), 2048); }
