@@ -8,12 +8,12 @@
   "workers_dev": false,
   "vars": {
     "VELO_KEEPERS_ENABLED": "true",
-    "VELO_KEEPERS_DRY_RUN": "true",
+    "VELO_KEEPERS_DRY_RUN": "false",
     "VELO_KEEPER_BASE_URL": "https://btgfoekgvyvdflzjfehz.supabase.co/functions/v1/velo-keepers"
   },
   "triggers": {
-    // Observation mode: each minute scans real state without signing.
-    // Disable the old Vercel writers before changing DRY_RUN to false.
+    // Execution mode: owner confirmed Vercel paused on 2026-10-14.
+    // Never resume the old Vercel writers while this timer is enabled.
     "crons": ["* * * * *"]
   }
 }

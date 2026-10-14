@@ -51,7 +51,8 @@ Cloudflare service. The provider key is never a VITE_ setting.
 - Sponsor wallet: the owner's supplied sponsor key derives
   `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`, matching imported `PRIVATE_KEY`.
   Explicit shared-key configuration requires this exact address. Sponsorship
-  stays disabled until the old writer is stopped.
+  was enabled after the owner confirmed Vercel paused on 14 October, and a
+  dedicated verification wallet received a confirmed 0.01 Base Sepolia ETH top-up.
 
 Optional GA and three unused CDP values remain unrecovered. Preserve the old
 Vercel settings for reconciliation. No production-only values were copied into

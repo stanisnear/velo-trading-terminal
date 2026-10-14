@@ -3,8 +3,11 @@
 These findings distinguish hosting checks from a full application/security audit.
 The active contracts and app are on testnets.
 
-- Real login, wallet authorization, user-owned storage changes, gas sponsorship
-  and actual order/TP/SL fills require end-to-end checks after the writer handover.
+- Real login, wallet authorization, authenticated browser Pyth delivery and
+  user-owned storage changes still need end-to-end browser checks. The custom
+  domain is active in Cloudflare, but this environment's browser reported
+  ERR_BLOCKED_BY_CLIENT and its HTTP client received 403 during verification.
+  Do not infer the user's browser outcome from this environment's restriction.
 - `record_transaction_for_user` and `create_notification_for_user` are existing
   SECURITY DEFINER RPCs callable by authenticated users. Their live bodies accept
   arbitrary target users and caller-provided activity data without checking the
@@ -20,8 +23,9 @@ The active contracts and app are on testnets.
 - Optional Google Analytics lacks configuration. Three inventoried CDP settings
   have no consumers in the current source and remain unreconciled.
 - Vercel pause/environment operations reject this connection with a team-scope
-  403. Do not retry unchanged, expose write-only secrets through debugging, or
-  remove its projects before configuration reconciliation is complete.
+  403. The owner confirmed pausing the terminal on 14 October. Preserve the old
+  settings for optional reconciliation and keep Vercel paused while the new
+  transaction writers are enabled.
 - Public browser checks show an existing development Tailwind CDN warning and
   a WalletConnect metadata-origin warning on pages.dev. The configured wallet
   origin is the final app.velotrading.live domain. Public chart and interface

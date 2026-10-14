@@ -38,12 +38,16 @@ Imported SUPABASE aliases take precedence over Supabase's built-in defaults.
 The helper explicitly aliases public Supabase URL/anon values into VITE_
 settings if absent; it never uses a service-role key in the frontend.
 Production and Preview must not be mixed. The helper keeps execution switches
-false; backend enablement is a separate final cutover step.
+false for a fresh import; do not rerun that import helper over the live deployment.
+Backend enablement was completed separately after the owner paused Vercel.
 
 The owner imported six recovered contract settings and added PYTH_API_KEY. Supabase's built-in
 URL/keys serve the same existing project. Reviewed public contract defaults
 live in `_shared/public-config.js`; environment values override them, including
-empty values (which fail validation). Both transaction switches default false.
+empty values (which fail validation). Both transaction switches now default true
+following the 14 October handover; explicit false environment values are the
+backend emergency stop. The Deno smoke test sets its own false override and
+cannot submit a transaction.
 See RECOVERED-SETTINGS.md for provenance and missing settings.
 
 The initial service connection uses separate 256-bit random tokens in

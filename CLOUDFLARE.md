@@ -1,10 +1,10 @@
 # VELO hosting and update guide
 
-**14 October 2026: the terminal is deployed on Pages. The minute timer runs in
-dry-run mode; actual trading jobs and gas sponsorship are awaiting the Vercel
-handover.** See [migration/STATUS.md](migration/STATUS.md) for the exact live
-state and [migration/CONNECT-SERVICES.md](migration/CONNECT-SERVICES.md) for the
-remaining owner action.
+**14 October 2026: the terminal's custom domain is active on Cloudflare Pages.
+The minute trading jobs and gas sponsorship are enabled after the owner paused
+Vercel.** Open https://app.velotrading.live. See
+[migration/STATUS.md](migration/STATUS.md) for transaction evidence and the
+remaining browser/account checks.
 
 ## Where everything lives
 
@@ -89,8 +89,9 @@ npx --yes wrangler@4.151.0 deploy --config cloudflare/wrangler.pyth.jsonc
 npx --yes wrangler@4.151.0 deploy --config cloudflare/wrangler.keepers.jsonc
 ```
 
-The committed scheduler config currently represents dry-run observation mode.
-Keep it aligned with the approved live settings before future deployments.
+The committed scheduler config represents live execution mode. Use dry-run mode
+for diagnostics when transactions must not be submitted; keep source and live
+settings aligned before future deployments.
 Preserve the Pages `VELO_PYTH` service binding to `velo-pyth-proxy`; that Worker
 has no public workers.dev endpoint.
 
@@ -126,10 +127,17 @@ IDs, removing duplicates, with at most four transaction attempts per run. Large
 backlogs can take multiple ticks. A one-minute schedule does not guarantee
 execution within one minute or at an exact price.
 
-**Current dry-run mode performs the checks but never submits those transactions.**
-Do not change it until the old Vercel writers are stopped and the handover is
-complete. Pausing or failing jobs means protective TP/SL/liquidation execution
-is unavailable too.
+**Current mode submits transactions when an order or position is eligible.**
+The owner confirmed Vercel paused before activation. Keep the old Vercel project
+paused; running both backends could cause wallet nonce conflicts.
+
+To stop all scheduled execution, set the scheduler's `VELO_KEEPERS_ENABLED` to
+`false`. To keep observing without submitting, set `VELO_KEEPERS_DRY_RUN` to
+`true`. For a backend emergency stop, set Supabase secrets
+`VELO_KEEPERS_ENABLED=false` and/or `VELO_SPONSOR_ENABLED=false`; these override
+the enabled defaults in the deployed source. Pausing jobs also stops protective
+TP/SL/liquidation execution. Resume only after resolving the cause and checking
+pending signer state.
 
 For monitoring, open **velo-keeper-scheduler → Observability** and look for
 `velo_keeper_tick` with all three results successful. Then check **Supabase →

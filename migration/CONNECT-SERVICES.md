@@ -1,44 +1,40 @@
-# Finish the VELO handover
+# VELO handover and remaining account checks
 
-The terminal is deployed at https://velo-trading-terminal.pages.dev. Reown,
-Pyth and the sponsor wallet are identified and configured. No further API keys
-are needed for the currently implemented trading paths.
+The owner confirmed the old Vercel terminal paused on 14 October 2026. The
+Cloudflare timer and Supabase transaction handlers are now enabled. Keep Vercel
+paused; preserve its settings for optional configuration reconciliation.
 
-## Owner action: pause the old Vercel terminal
+Cloudflare reports https://app.velotrading.live active with its certificate.
+The CNAME points to velo-trading-terminal.pages.dev. The terminal's production
+branch is `codex/cloudflare-migration`; pushes deploy its frontend automatically.
 
-The Vercel connection can read project details, but its attempt to pause the
-terminal returned HTTP 403 for team `stanisnears-projects`. There is no separate
-authenticated Vercel CLI in this workspace. Repeating that request will not fix
-its permissions.
+Confirmed Base Sepolia receipts cover gas sponsorship, liquidation, a limit
+order and its take-profit close. See STATUS.md and LIVE-VERIFICATION.json. The
+one-mock-USDC test left no open order or position. No additional API key is
+needed for the implemented trading paths.
 
-In Vercel, select **stanisnears-projects → velo-trading-terminal → Settings →
-General → Pause Project**. If the button already says **Resume Project**, the
-project is already paused; confirm that state. Preserve the project and its
-settings; do not delete it. Keep legacy cron jobs disabled and do not resume
-Vercel after Cloudflare execution is enabled.
+## Remaining browser/account checks
 
-Tell Codex when the terminal is paused. This prevents the old cron/sponsor and
-the new backend from using the same wallet nonce at the same time.
+This environment's browser returned ERR_BLOCKED_BY_CLIENT for the custom domain;
+its HTTP client returned 403. The Pages interface/public chart was checked
+before cutover, but the final origin could not be visually checked here.
 
-## Remaining checks and activation
+Using your normal browser and existing VELO account:
 
-Cloudflare's minute timer is running in **dry-run mode**. Each tick reads real
-orders, positions and fresh prices, and saves results. It does not fill orders,
-close TP/SL positions, liquidate or sponsor gas. Supabase's two transaction
-switches also remain false.
+1. Open https://app.velotrading.live and sign in.
+2. Connect your existing wallet on Base Sepolia and confirm your profile and
+   trading balances appear.
+3. Confirm authenticated Pyth prices load and your normal profile/storage action
+   succeeds. Do not share passwords, session tokens or wallet recovery phrases.
 
-After the old writers are stopped, confirm the wallet has no pending transaction,
-enable the new backend and timer execution, and verify confirmed Base Sepolia
-receipts. Actual conditional-order and TP/SL fills need suitable test orders;
-empty scans are not evidence of a fill. The existing liquidation candidate can
-be simulated without sending a transaction.
+Reown's project ID is installed and wallet metadata uses the app domain. If it
+reports an origin restriction, its allowed origins must include that exact
+domain. The Pages origin also needs allowance if testing wallet flows there.
 
-The app domain is attached to Pages, with DNS cutover held until this handover.
-Use your existing VELO account to verify sign-in, wallet connection, authenticated
-Pyth prices and storage. Reown's project ID is installed; its allowed origins
-must include the app domain, and the exact Pages origin if testing wallets there.
+These user flows are still unverified; transaction receipts do not stand in for
+a full browser test. Optional Google Analytics and unused CDP values remain
+unreconciled. Known pre-existing signed-in RPC authorization gaps are documented
+in KNOWN-ISSUES.md.
 
-See [STATUS.md](STATUS.md) for evidence and [../CLOUDFLARE.md](../CLOUDFLARE.md)
-for the operating guide. Optional Google Analytics and unused CDP settings remain
-unreconciled; preserve their Vercel copies. Pyth provider access is separate from
-free hosting, and no paid subscription was activated by this migration.
+The operating guide is ../CLOUDFLARE.md, including frontend updates, separate
+backend/Worker deployments, monitoring, emergency stops and rollback.

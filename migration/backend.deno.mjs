@@ -21,6 +21,8 @@ if (sponsor.status !== 400) throw new Error('Sponsor validation failed');
 console.log('Deno bundle: authentication, Node crypto import, HTML renderer and viem import passed. No network requests or transactions.');
 
 Deno.env.set('CRON_SECRET', 'fixture-cron-secret-no-real-credentials');
+// Exercise the explicit emergency-stop override even after live activation.
+Deno.env.set('VELO_KEEPERS_ENABLED', 'false');
 await import('../supabase/functions/velo-keepers/bundle.js');
 const keeperBase = 'https://project.supabase.co/functions/v1/velo-keepers/api/cron-tp-sl';
 const unauthorized = await serve(new Request(keeperBase, { method: 'POST', body: '{}' }));

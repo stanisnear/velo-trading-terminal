@@ -10,8 +10,9 @@ export const publicConfig = Object.freeze({
   PYTH_CONTRACT_ADDRESS: '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729',
   MUSDC_ADDRESS: '0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699',
   VITE_PYTH_HERMES_URL: 'https://hermes.pyth.network',
-  VELO_KEEPERS_ENABLED: 'false',
-  VELO_SPONSOR_ENABLED: 'false',
+  // Activated after the owner paused Vercel and nonce 197 had no pending tx.
+  VELO_KEEPERS_ENABLED: 'true',
+  VELO_SPONSOR_ENABLED: 'true',
   // Owner supplied the original sponsor key; its derived address matches the
   // already imported PRIVATE_KEY. Reuse it only while this public address matches.
   VELO_SPONSOR_USE_KEEPER_KEY: 'true',
