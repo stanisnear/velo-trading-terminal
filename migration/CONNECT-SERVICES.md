@@ -1,62 +1,44 @@
-# Finish the VELO connection
+# Finish the VELO handover
 
-The six recovered contract settings are imported. Cloudflare settings and the
-private service connections are staged. The terminal is **not yet live** on
-Cloudflare, and new trading cron/sponsorship remain disabled.
+The terminal is deployed at https://velo-trading-terminal.pages.dev. Reown,
+Pyth and the sponsor wallet are identified and configured. No further API keys
+are needed for the currently implemented trading paths.
 
-No extra Cloudflare, Vercel or Supabase management tokens are needed for the
-work already completed. Do not rerun the full import helper with only the
-six-setting contracts file; it is not a full original production export.
+## Owner action: pause the old Vercel terminal
 
-## Remaining settings
+The Vercel connection can read project details, but its attempt to pause the
+terminal returned HTTP 403 for team `stanisnears-projects`. There is no separate
+authenticated Vercel CLI in this workspace. Repeating that request will not fix
+its permissions.
 
-### Reown project ID
+In Vercel, select **stanisnears-projects → velo-trading-terminal → Settings →
+General → Pause Project**. If the button already says **Resume Project**, the
+project is already paused; confirm that state. Preserve the project and its
+settings; do not delete it. Keep legacy cron jobs disabled and do not resume
+Vercel after Cloudflare execution is enabled.
 
-Open https://dashboard.reown.com, select your existing VELO project, and copy
-its **Project ID**. This is the public value used by
-`VITE_WALLETCONNECT_PROJECT_ID`, not a wallet private key. It can be shared with
-Codex to finish the Cloudflare build settings. Preserve the existing project
-and allow `https://app.velotrading.live` as an application origin. Add the
-specific Pages testing origin when testing there, rather than an unrestricted
-wildcard.
+Tell Codex when the terminal is paused. This prevents the old cron/sponsor and
+the new backend from using the same wallet nonce at the same time.
 
-### Pyth access
+## Remaining checks and activation
 
-Pyth's official upgrade guide requires an API key for Hermes following
-26 August 2026: https://docs.pyth.network/price-feeds/core/upgrade/preparing
+Cloudflare's minute timer is running in **dry-run mode**. Each tick reads real
+orders, positions and fresh prices, and saves results. It does not fill orders,
+close TP/SL positions, liquidate or sponsor gas. Supabase's two transaction
+switches also remain false.
 
-If you already have a key, save it directly under `PYTH_API_KEY` in
-https://supabase.com/dashboard/project/btgfoekgvyvdflzjfehz/functions/secrets
-and tell Codex it is saved. Do not put it in a `VITE_` field or paste it into
-chat. Backend code now supports that server-only setting.
+After the old writers are stopped, confirm the wallet has no pending transaction,
+enable the new backend and timer execution, and verify confirmed Base Sepolia
+receipts. Actual conditional-order and TP/SL fills need suitable test orders;
+empty scans are not evidence of a fill. The existing liquidation candidate can
+be simulated without sending a transaction.
 
-If you do not have a key, https://pythdata.app offers a free trial, while the
-current docs describe paid plans for ongoing use. A trial is not a permanent
-free solution. No paid plan has been selected or started. Decide the ongoing
-oracle-access approach before relying on the app for trading. Browser
-REST/SSE/history calls also need a protected server integration and testing;
-adding this backend key alone does not finish the frontend.
+The app domain is attached to Pages, with DNS cutover held until this handover.
+Use your existing VELO account to verify sign-in, wallet connection, authenticated
+Pyth prices and storage. Reown's project ID is installed; its allowed origins
+must include the app domain, and the exact Pages origin if testing wallets there.
 
-### Gas-sponsorship wallet
-
-`VELO_SPONSOR_PRIVATE_KEY` was not in the recovered file. Recover the original
-sponsor key and save it directly in the same Supabase Secrets page, or discuss
-an explicit replacement wallet with Codex. The recovered `PRIVATE_KEY` is the
-contract-owner/previous-keeper key; it has not been silently reused to fund
-arbitrary user wallets. Sponsorship remains disabled.
-
-## Final cutover
-
-Codex will finish frontend/backend validation after those dependencies are
-resolved. This includes fresh Pyth updates, login and wallet flow, sponsorship,
-and all three actual keeper transaction paths on Base Sepolia. Existing Vercel
-cron and sponsorship writers must be stopped before the new wallet writers
-are enabled. A wallet-signed test order may need approval in your wallet.
-
-Only then enable the Cloudflare minute schedule and switch the app domain.
-The full operating guide is [../CLOUDFLARE.md](../CLOUDFLARE.md); current evidence
-and limitations are [STATUS.md](STATUS.md).
-
-The old Vercel export contains unreadable placeholders, not a usable backup.
-Vercel team-scoped connector access is still unavailable. Preserve both Vercel
-projects and Preview settings until the remaining inventory is reconciled.
+See [STATUS.md](STATUS.md) for evidence and [../CLOUDFLARE.md](../CLOUDFLARE.md)
+for the operating guide. Optional Google Analytics and unused CDP settings remain
+unreconciled; preserve their Vercel copies. Pyth provider access is separate from
+free hosting, and no paid subscription was activated by this migration.

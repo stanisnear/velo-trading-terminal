@@ -40,7 +40,7 @@ settings if absent; it never uses a service-role key in the frontend.
 Production and Preview must not be mixed. The helper keeps execution switches
 false; backend enablement is a separate final cutover step.
 
-The owner has now imported six recovered server settings. Supabase's built-in
+The owner imported six recovered contract settings and added PYTH_API_KEY. Supabase's built-in
 URL/keys serve the same existing project. Reviewed public contract defaults
 live in `_shared/public-config.js`; environment values override them, including
 empty values (which fail validation). Both transaction switches default false.
@@ -74,7 +74,8 @@ Pyth's current official Hermes endpoints require server-only `PYTH_API_KEY`.
 The key goes only to approved HTTPS Pyth origins as a Bearer header, with
 redirects disabled. It never goes into a URL, log, error response or VITE_
 setting. Missing keys, rejected auth, throttling and upstream failures have
-distinct fixed error codes. This does not yet migrate the browser price feeds.
+distinct fixed error codes. Browser prices use the separate Cloudflare
+`velo-pyth-proxy` service through the Pages binding; see ../CLOUDFLARE.md.
 
 Private tables maintain a historical cursor and an active-item index. Each
 run covers up to 32 historical IDs, 32 oldest indexed active IDs and eight
@@ -103,7 +104,7 @@ separate review; do not treat a warning-free transport test as a security audit.
 ## Validation commands
 
 ```sh
-node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs migration/auth-pyth.test.mjs
+node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs migration/auth-pyth.test.mjs migration/pyth-proxy.test.mjs
 python3 -m unittest discover -s migration -p 'configure_services_test.py'
 npx --yes deno@2.2.6 run --no-config --no-npm --no-remote --no-lock --allow-env=VELO_PROXY_TOKEN,GA_PROPERTY_ID,GA_CLIENT_EMAIL,GA_PRIVATE_KEY,VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,CRON_SECRET,VELO_KEEPERS_ENABLED migration/backend.deno.mjs
 ```

@@ -1,134 +1,156 @@
 # VELO hosting and update guide
 
-**Status, 13 October 2026: migration staged, not cut over.** The landing page is
-on Cloudflare. The backend is deployed and twenty Cloudflare settings are
-staged. The terminal still points to Vercel: Reown, Pyth access, gas sponsorship
-and final end-to-end checks remain outstanding. See [migration/CONNECT-SERVICES.md](migration/CONNECT-SERVICES.md)
-for the one-time setup and [migration/STATUS.md](migration/STATUS.md) for evidence.
+**14 October 2026: the terminal is deployed on Pages. The minute timer runs in
+dry-run mode; actual trading jobs and gas sponsorship are awaiting the Vercel
+handover.** See [migration/STATUS.md](migration/STATUS.md) for the exact live
+state and [migration/CONNECT-SERVICES.md](migration/CONNECT-SERVICES.md) for the
+remaining owner action.
 
 ## Where everything lives
 
 | Component | Service | Name |
 | --- | --- | --- |
 | Landing page | Cloudflare Pages | velo-landing |
-| Trading frontend and API gateway | Cloudflare Pages | velo-trading-terminal |
+| Terminal and API gateway | Cloudflare Pages | velo-trading-terminal |
+| Protected Pyth REST, stream and history | Cloudflare Worker | velo-pyth-proxy |
 | API handlers and gas sponsorship | Supabase Edge Functions | velo-api |
-| Limit/stop, TP/SL, liquidation handlers | Supabase Edge Functions | velo-keepers |
-| Minute timer | Cloudflare Worker | velo-keeper-scheduler |
-| Database, login, storage, realtime | Existing Supabase project | VELO Main |
-| Domain registration/renewal | Namecheap | velotrading.live |
-| DNS and certificates | Cloudflare | velotrading.live zone |
+| Limit/stop, TP/SL and liquidation handlers | Supabase Edge Functions | velo-keepers |
+| Every-minute timer | Cloudflare Worker | velo-keeper-scheduler |
+| Database, login, storage and realtime | Existing Supabase project | VELO Main |
+| Domain registration and renewal | Namecheap | velotrading.live |
+| DNS and HTTPS certificates | Cloudflare | velotrading.live zone |
 
-Keeping the same app domain avoids changing your public URLs. Supabase remains
-the same project; user records are not copied to a new database. Cloudflare
-hosts the web interface; its gateway calls the private Supabase API with a
-secret token. The backend stores only its SHA-256 verifier. Browser bundles
-contain public VITE_ settings only.
+The same Supabase project and on-chain contracts are retained. User records were
+not copied into a replacement database. Cloudflare serves the website and routes
+API requests to Supabase. Its private Pyth Worker checks a signed-in user's
+session and keeps the provider key out of browser code.
 
-These services are configured for free plans, with usage quotas. Free hosting
-is not unlimited capacity or a guarantee of uninterrupted trading. Domain
-renewal at Namecheap is separate from hosting.
+The hosting services remain on free plans with quotas. Domain renewal is still
+paid to Namecheap. Pyth's access plan is a separate provider dependency; a free
+trial is not a promise of ongoing free access. No paid plan was selected here.
 
-Pyth now requires an API key for the price updates used by this app. Its
-documented free trial is not ongoing free access. No Pyth subscription was
-started. This dependency must be resolved separately from free Cloudflare
-hosting before trading can be enabled.
+## Publish a frontend update
 
-## Updating the frontend after cutover
+A **commit** saves your code in GitHub. A **deployment** publishes that saved
+version on Cloudflare. You do not commit to Cloudflare.
 
-A **commit** saves code in GitHub. A **deployment** builds and publishes that
-code on Cloudflare. You do not commit code to Cloudflare.
+The terminal's production branch is **codex/cloudflare-migration** in
+**stanisnear/velo-trading-terminal**. Automatic production deployments are now
+enabled: pushing to that branch starts a build. Pushing to `main` does not update
+this production branch until the project is deliberately switched or merged.
 
-The configured production branch is `codex/cloudflare-migration`, in each
-repository separately. Terminal automatic deployments are currently paused
-until configuration is complete. Once enabled, pushing to that branch triggers
-a build; pushing to `main` does not update this production branch.
+Using your local checkout:
 
 ```sh
 git switch codex/cloudflare-migration
 git pull --ff-only
-# Edit the app files.
+# Edit the intended files, then review:
+git diff
+# Stage the files you changed, for example:
 git add src/
 git commit -m "Describe the app update"
 git push origin codex/cloudflare-migration
 ```
 
-Review the changed files before committing. Include other intended files when
-needed; never add .env files or private backups. In Cloudflare, open **Workers &
-Pages → velo-trading-terminal → Deployments**. Confirm the commit and a
-successful production deployment. Build command: `npm run build:cloudflare`;
-output folder: `dist`.
+You can also edit a small file directly on GitHub while viewing that branch and
+commit it there. Never add .env files, private keys or temporary secret exports.
 
-For the landing, use its separate `Velo-Landing` repository and Pages project.
-Its existing production branch already deploys automatically.
+Open **Cloudflare → Workers & Pages → velo-trading-terminal → Deployments**.
+The newest entry should show your commit and **Success**. Open its URL to check
+the result. The build command is `npm run build:cloudflare`, output folder `dist`.
+A failed build leaves the previous successful version online. Read its build
+log; do not repeatedly redeploy an unchanged failing commit.
 
-## Backend updates are separate
+The landing uses its separate **Velo-Landing** repository and Pages project.
+This migration does not publish the cancelled landing-page upload.
 
-A frontend Git push does not deploy Supabase functions or the timer. Rebuild
-and deploy the backend when changing its source:
+## Backend and Worker updates are separate
+
+A terminal Git push deploys the frontend and Pages gateway. It does not deploy
+Supabase functions or either standalone Worker.
+
+For backend changes, use an authenticated Supabase CLI:
 
 ```sh
 npm ci
 npm run build:supabase
-node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs migration/auth-pyth.test.mjs
+node --test migration/gateway.test.mjs migration/backend.test.mjs migration/scheduler.test.mjs migration/keepers.test.mjs migration/auth-pyth.test.mjs migration/pyth-proxy.test.mjs
 npx --yes supabase@2.120.0 functions deploy velo-api velo-keepers --project-ref btgfoekgvyvdflzjfehz --use-api --no-verify-jwt
 ```
 
-Use an authenticated Supabase CLI. `--no-verify-jwt` is deliberate here: these
-two entrypoints implement mandatory gateway-token or cron-secret authentication.
-Do not apply that flag to an unguarded function. Never deploy old api/cron files
-directly; they lack the migration's coordination layer.
+These two functions implement mandatory gateway/cron authentication themselves;
+`--no-verify-jwt` is deliberate for them. Never copy that option to an unguarded
+function. Do not deploy the old `api/cron-*.ts` handlers directly.
 
-The timer source/config lives under `cloudflare/`. Use its deployed Settings
-and Cron Triggers for current state. The checked-in config intentionally has
-no schedule while staged; update it at cutover before using it for later
-deployments. Database changes use the committed Supabase migrations; do not
-rerun the older root-level SQL setup files, which contain superseded permissions.
+For Worker source changes, use an authenticated Wrangler CLI:
 
-## Cron operation and monitoring
+```sh
+npx --yes wrangler@4.151.0 deploy --config cloudflare/wrangler.pyth.jsonc
+npx --yes wrangler@4.151.0 deploy --config cloudflare/wrangler.keepers.jsonc
+```
 
-After activation, one `* * * * *` Cloudflare trigger calls all three jobs in
-sequence. Each job has a durable run ID. Active positions/orders and scan
-progress are tracked privately in Supabase. A shared signer lock also covers
-sponsorship; signed transactions are saved before broadcast and recovered after
-timeouts. Only successful receipts count as fills.
+The committed scheduler config currently represents dry-run observation mode.
+Keep it aligned with the approved live settings before future deployments.
+Preserve the Pages `VELO_PYTH` service binding to `velo-pyth-proxy`; that Worker
+has no public workers.dev endpoint.
 
-The free-tier implementation processes at most 32 historical IDs, 32 indexed
-active IDs and eight newest IDs per job per tick (duplicates removed), with at
-most four transaction attempts. This is bounded work, not a promise that every
-order fills within one minute. Initial history must finish indexing, and active
-backlog/runtime must be checked against actual load before cutover.
+## Variables and secrets
 
-In Cloudflare, open **velo-keeper-scheduler → Cron Triggers / Observability**.
-Look for recent successful executions. In Supabase, open **Edge Functions →
-velo-keepers → Logs** for job names, counts and errors. Private database runtime
-tables retain recent results and pending transaction state. A green timer alone
-does not prove a particular order filled; verify its confirmed transaction hash.
+| Setting | Where to change it | Follow-up |
+| --- | --- | --- |
+| Public `VITE_*` settings | Pages → Settings → Variables and Secrets | Rebuild the frontend |
+| Pyth browser-provider key | velo-pyth-proxy → Settings → Variables and Secrets → PYTH_API_KEY | Keep it a secret |
+| Pyth keeper-provider key | Supabase → Edge Functions → Secrets → PYTH_API_KEY | Keep the two copies synchronized |
+| Wallet and private RPC keys | Supabase → Edge Functions → Secrets | Never use a `VITE_` name |
+| Gateway token | Pages → VELO_PROXY_TOKEN | Coordinate backend verifier rotation |
+| Timer token | velo-keeper-scheduler → CRON_SECRET | Coordinate backend verifier rotation |
 
-## Settings, failures and rollback
+The sponsor key supplied by the owner derives the same address as the already
+imported keeper `PRIVATE_KEY`. A deliberate reuse flag and expected-address
+check allow that existing secret to serve both paths. They share a durable
+signer lock. The raw key is not duplicated into frontend settings or GitHub.
 
-- Public frontend settings: Pages project → Settings → Variables and Secrets.
-  Rebuild after changes to VITE_ values.
-- Backend secrets: Supabase → Edge Functions → Secrets. Preserve exact values
-  and imported SUPABASE_ aliases; redeploy to refresh any module-level settings.
-- Timer secret: Worker → Settings → Variables and Secrets → CRON_SECRET.
-  It matches the backend's SHA-256 verifier (or an explicit Supabase override).
-  See migration/SUPABASE.md for coordinated rotation. Do not put the token in
-  GitHub source or a URL. Gateway authentication uses the same arrangement
-  with a separate token.
-- Frontend rollback: Pages → Deployments → a previous successful production
-  deployment → rollback. Then revert the bad Git commit so it is not redeployed.
-- Backend rollback: rebuild a known-good Git commit and redeploy the affected
-  function. A Pages rollback does not roll back Supabase code or SQL.
-- If cron jobs fail, inspect the fixed error codes, RPC/Pyth availability,
-  signer balance and pending transaction. Do not blindly clear pending state
-  or enable a second scheduler. Pausing jobs also pauses protective execution.
+See [migration/SUPABASE.md](migration/SUPABASE.md) for token rotation. A public
+SHA-256 verifier is not the token; never paste the verifier into a secret field.
 
-## Still to validate
+## How the trading jobs work
 
-Remaining variables and Preview reconciliation; actual login/onboarding and
-wallet flow; sponsor identity; authenticated Pyth browser/keeper updates; all
-three live keeper paths; API quotas and execution budgets; optional analytics/CDP
-configuration; and the final domain/HTTPS check. Existing signed-in cross-user
-RPC behavior needs a broader authorization review. This migration is not a
-claim of a complete security audit or flawless operation.
+One `* * * * *` Cloudflare trigger calls the three Supabase jobs sequentially.
+They check conditional orders, TP/SL, then liquidations. Duplicate deliveries
+use durable run IDs; all jobs and sponsorship share the same wallet lock.
+Signed transactions are persisted before broadcast and recovered after timeouts.
+Only a matching successful receipt counts as an executed fill.
+
+Each job scans at most 32 historical IDs, 32 indexed active IDs and eight newest
+IDs, removing duplicates, with at most four transaction attempts per run. Large
+backlogs can take multiple ticks. A one-minute schedule does not guarantee
+execution within one minute or at an exact price.
+
+**Current dry-run mode performs the checks but never submits those transactions.**
+Do not change it until the old Vercel writers are stopped and the handover is
+complete. Pausing or failing jobs means protective TP/SL/liquidation execution
+is unavailable too.
+
+For monitoring, open **velo-keeper-scheduler → Observability** and look for
+`velo_keeper_tick` with all three results successful. Then check **Supabase →
+Edge Functions → velo-keepers → Logs** and the private saved job results. A green
+timer is not proof that an individual order filled: verify its transaction hash.
+
+## Rollback and limits
+
+- Frontend: Pages → Deployments → a previous successful production deployment
+  → Rollback. Revert the bad Git commit too, so it is not published again.
+- Backend: rebuild a known-good commit and redeploy the affected Supabase
+  function. A Pages rollback does not roll back SQL, Workers or Supabase.
+- For keeper errors, check the fixed error code, RPC/Pyth availability, wallet
+  balance and pending transaction. Never clear pending signed state blindly or
+  run a second scheduler against the same wallet.
+- Pyth requests allow only configured feeds and bounded candle ranges. Limits
+  apply per IP, user and stream. Cloudflare rate limiting is approximate per
+  location; it is not a global provider-billing cap.
+- Check Cloudflare and Supabase usage dashboards as traffic grows. Free hosting
+  has quotas; it is not unlimited infrastructure or a trading uptime guarantee.
+
+Optional Google Analytics remains unconfigured. Existing cross-user social and
+activity RPC authorization needs separate hardening before treating this testnet
+app as production financial infrastructure. See migration/KNOWN-ISSUES.md.

@@ -33,7 +33,7 @@ test('credentials are confined to separate fixed origins, redirects are forbidde
  assert.equal(calls[0][1].headers.Authorization,`Bearer ${token}`);
  assert(calls[1][0].startsWith('https://hermes.pyth.network/v2/updates/price/latest?'));
  assert.equal(calls[1][1].headers.Authorization,`Bearer ${key}`);
- for(const [u,o] of calls){assert(!u.includes(key));assert(!u.includes(token));assert.equal(o.redirect,'error');}
+ for(const [u,o] of calls){assert(!u.includes(key));assert(!u.includes(token));assert.equal(o.redirect,'manual');}
  assert.equal(res.headers.get('cache-control'),'no-store');
  assert(!(await res.text()).includes(key));
 });
@@ -93,4 +93,13 @@ test('browser SSE parses split frames and multiline data, using only its session
   await assert.rejects(fetchPyth('/api/pyth/history'),/Sign in/);
   await assert.rejects(fetchPyth('https://evil.invalid'),/Invalid/);
  }finally{globalThis.fetch=original;delete globalThis.__pythTestSession;}
+});
+
+// Workers use manual mode so redirects are rejected without forwarding headers.
+test('authentication and provider redirects never forward credentials',async()=>{
+ for(const stage of ['auth','provider']){
+  let calls=0;const res=await proxyPyth(request(),env(),async(u,o)=>{calls++;assert.equal(o.redirect,'manual');return stage==='provider'&&calls===1?Response.json(user):new Response(null,{status:302,headers:{Location:'https://untrusted.invalid'}});});
+  assert.equal(calls,stage==='auth'?1:2);assert.equal(res.status,stage==='auth'?503:502);
+  assert.equal(res.headers.get('location'),null);
+ }
 });

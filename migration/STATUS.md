@@ -1,101 +1,89 @@
-# Migration status — 13 October 2026, evening
+# Migration status — 14 October 2026
 
-**Backend connected and tested; terminal not yet cut over. Trading cron and
-sponsorship remain disabled. No migration transaction has been sent.**
+**Terminal deployed on Cloudflare Pages; automatic frontend updates enabled.
+The minute scheduler is verified in dry-run mode. Actual trading execution,
+gas sponsorship and the final app-domain switch await the Vercel handover.**
 
-## Deployed
+## Deployed and connected
 
-- Landing remains on Cloudflare. The newer landing upload was cancelled at the
-  owner's request; this checkpoint changes the terminal only.
-- Terminal Pages project `velo-trading-terminal` tracks GitHub branch
-  `codex/cloudflare-migration`. Twenty production settings are staged:
-  18 public build settings, the backend address and an encrypted gateway token.
-  Automatic builds remain paused; there is no terminal frontend deployment.
-- Supabase `velo-api` and `velo-keepers` version 4 are ACTIVE. Authenticated
-  user/protocol stats return HTTP 200; unauthenticated API calls return 401.
-  Protocol stats resolve the active V3.1 contract and its two open positions.
-  Google Analytics is unconfigured, and gas sponsorship returns disabled.
-- The Cloudflare scheduler now holds a new `CRON_SECRET`. Its enabled switch
-  remains false, dry-run switch true, cron list empty and workers.dev disabled.
-- The six recovered contract settings are present in Supabase. Four RPCs were
-  checked against their expected testnet chain IDs. Private values stayed in
-  Supabase; none were returned by the diagnostic or put into Git.
-- Temporary `velo-migration-check` is retired: version 3 returns only HTTP 404,
-  with no environment access. Its earlier authentication was also time-limited.
-- DNS for `app.velotrading.live` still targets Vercel. No DNS cutover occurred.
+- Terminal: https://velo-trading-terminal.pages.dev, from GitHub branch
+  `codex/cloudflare-migration`. Build `npm run build:cloudflare`, output `dist`.
+  Initial successful deployment `d892e4ce-4904-4faa-9e79-7c39d5f587b3` used commit
+  `9d1e318423e610f7f3705df12f257ddafe90bec6`. Subsequent production-branch pushes
+  deploy automatically; Preview builds remain disabled.
+- Pages has 21 production variables: 19 public VITE_ settings, the backend URL
+  and encrypted gateway token. All 16 required public variables in the original
+  inventory are present. No wallet/provider private key is in the browser bundle.
+- `VELO_PYTH` binds Pages to private Worker `velo-pyth-proxy`. Its provider key
+  is encrypted, its workers.dev/preview URLs are disabled, and auth/IP/user/stream
+  limits protect its narrow feed/history routes. The public Supabase anon key
+  is a normal public setting, not a service-role credential.
+- Supabase `velo-api` and `velo-keepers` are ACTIVE, version 6. Six recovered
+  contract secrets plus the owner's Pyth secret are installed. The sponsor key
+  was confirmed to match the imported keeper key; reuse is explicit and requires
+  the expected public address.
+- Cloudflare `velo-keeper-scheduler` has `* * * * *`, enabled=true, dry-run=true,
+  a separate secret token, and no public endpoint. The backend's execution and
+  sponsor switches remain false.
+- `app.velotrading.live` is attached to Pages. Domain validation is pending
+  because DNS deliberately still targets Vercel. The root/www landing and email
+  DNS were not changed. The cancelled newer landing upload was not published.
+- Temporary `velo-migration-check` remains retired, returning only HTTP 404.
 
-## Recovered configuration and authentication
+## Verification
 
-See [RECOVERED-SETTINGS.md](RECOVERED-SETTINGS.md). The recovered private key
-derives public address `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`, which owns
-the deployed contracts and previously executed conditional orders, TP/SL and
-liquidations. Its observed Base Sepolia balance was about 2.18 testnet ETH;
-latest and pending nonce both equalled 197 during recovery. This does not prove
-it was also the original gas-sponsorship wallet.
+- 47 Node regression checks pass, including authentication, credential rotation,
+  private-key confinement, redirects, response bounds, browser SSE parsing,
+  scheduler sequencing, contract math and signer coordination.
+- Both exact backend bundles pass Deno 2.2.6 import/authentication/disabled tests
+  with no network access or wallet credentials.
+- The real Cloudflare Git build succeeds. Browser verification shows the trading
+  interface and public TradingView/Pyth chart. Public stats return HTTP 200;
+  crawler social metadata returns HTML; cron routes are not publicly exposed.
+- The private Pyth route returns 401 for both missing and invalid sessions.
+  A live runtime issue with redirect handling was found and corrected: Worker
+  requests use manual mode and reject redirects without forwarding credentials.
+- The supplied Pyth key retrieves signed Hermes updates and the replacement
+  authenticated OHLC endpoint returns valid candle arrays. Backend liquidations
+  consume fresh Pyth data successfully.
+- Manual dry runs pass for conditional orders, TP/SL and liquidation. The actual
+  Cloudflare timer then completed consecutive minute ticks from about 07:26 UTC,
+  with all three jobs HTTP 200 / ok=true. Both Cloudflare logs and Supabase saved
+  run IDs verify these are scheduled executions, rather than only manual calls.
+- Historical indexing is complete: next order 21, next trade 104. Recent scans
+  cover eight orders (none active) and ten positions (two active), with no queued
+  active backlog. One position is currently liquidation-eligible.
+- A read-only Base Sepolia simulation of liquidation for position 65 succeeded
+  with the exact Pyth fee of 10 wei. An initial provider request failed transiently;
+  a fresh retry succeeded. This is simulation evidence, not a transaction receipt.
+- No migration transaction has been submitted. Dry runs never sign; the database
+  signer table was empty at verification. No real conditional/TP/SL fill or gas
+  sponsorship is claimed.
 
-Gateway and scheduler credentials are separate newly generated 256-bit tokens,
-stored as Cloudflare secrets. Supabase deployments contain only SHA-256
-verifiers. Explicit Supabase `VELO_PROXY_TOKEN` / `CRON_SECRET` values, if set
-later, override the corresponding verifier. This avoids another manual secret
-copy without embedding raw credentials in source. See SUPABASE.md for rotation.
+## Blocker and next action
 
-## Verification evidence
+Vercel project reads work. Pausing project `prj_VqN7q6hAYUx1JK0B5S73VMSWoPOC`
+in team `team_RDRP3vadkiN3qE9QSGkyvoFD` returns HTTP 403: this connection lacks
+access to the `stanisnears-projects` scope. No independently authenticated CLI is
+available. The old project has not been paused by this migration.
 
-- 38 Node regression tests pass, covering authentication/rotation, Pyth key
-  confinement, gateway behavior, schedules, contract versions, trigger math,
-  scan bounds, signer coordination and successful-receipt requirements.
-- Both exact bundles pass Deno 2.2.6 import/authentication/disabled checks with
-  no outbound network or wallet credentials.
-- The live V3.1 contract returns VERSION=31. The engine now accepts 31 with
-  the V3 struct layouts; regression tests exercise all three jobs.
-- Historical indexing is complete: conditional-order cursor 21 and position
-  cursors 104. Latest dry runs scan eight recent orders or ten indexed/recent
-  positions, with no queued active backlog. No dry run signs a transaction.
-- Conditional orders: no active orders, HTTP 200, about 1.1 seconds.
-- TP/SL: two active positions with no set triggers, HTTP 200, about 1.7 seconds.
-  Neither result proves a fresh price update or a real fill.
-- Liquidation: two active positions, HTTP 502, about 1.5 seconds, explicit
-  `PYTH_API_KEY_MISSING` for IDs 65 and 90. **This is a failed trading check.**
-- Database signer table remains empty. Existing user rows were not moved or
-  edited. The previously verified coordination and anonymous-access migrations
-  remain applied; runtime tables now contain real dry-run state/results.
+The owner should use Vercel **velo-trading-terminal → Settings → General → Pause
+Project**, or confirm that it already shows **Resume Project**. Preserve its
+settings and do not delete it. See CONNECT-SERVICES.md.
 
-## Blocking items
+After old writers stop: verify no pending wallet transaction; enable backend
+execution and sponsorship; change the timer out of dry-run mode; verify actual
+Base Sepolia receipts and suitable conditional/TP/SL test orders; switch the app
+CNAME to Pages and verify HTTPS and authenticated user flows. Reown metadata
+already targets the final app domain; validate its allowed origins as well.
 
-1. **Reown/WalletConnect project ID**: the only missing required frontend
-   build variable. Recover the existing public project ID and check its allowed
-   app origin. Do not substitute a random ID to make a build pass.
-2. **Pyth access**: official documentation says all Hermes users need an API
-   key following the 26 August 2026 upgrade. Public requests from this runner
-   returned HTTP 403 / Cloudflare 1010; that response alone does not establish
-   an authentication failure. The keeper now supports server-only
-   `PYTH_API_KEY` and distinguishes missing keys, authentication failures, rate
-   limits and upstream outages. Never put this key in a `VITE_` variable.
-   The browser's existing REST/SSE/history calls still require a protected
-   server integration and end-to-end verification. The documented free trial
-   is not perpetual free access; paid plans cover ongoing use. No subscription
-   or trial has been activated by this migration.
-3. **Gas sponsor**: `VELO_SPONSOR_PRIVATE_KEY` is still missing. Recover the
-   original key or explicitly choose a funded testnet sponsor. The recovered
-   contract-owner key has not been silently repurposed for sponsorship.
+## Limits
 
-The Vercel connector still lacks team-scoped environment access (403). Its
-export supplied placeholders for every app value; it was not a usable backup.
-Three CDP variables from the inventory remain unrecovered but have no consumers
-in the current source. GA configuration is also absent. Preserve Vercel projects
-and settings until the remaining inventory and Preview settings are reconciled.
+Real account sign-in, wallet authorization, authenticated browser Pyth delivery,
+user-owned storage changes and actual trading execution still need full end-to-end
+verification. Optional GA and unused CDP settings remain unreconciled. Existing
+signed-in social/activity RPC authorization has concrete pre-existing gaps,
+recorded in KNOWN-ISSUES.md. This is not a complete security audit.
 
-## Before cutover
-
-Resolve those dependencies; build/test the frontend on Pages; check login,
-wallets, API routing, price updates, storage and Supabase redirects. Rerun all
-keepers against fresh prices, then coordinate stopping old Vercel writers
-before enabling any new signer. Activate the minute schedule only after all
-three real execution paths are tested on Base Sepolia. Attach the app domain
-and change DNS after the application is ready. Do not claim flawless operation.
-
-Existing signed-in cross-user database RPC authorization still needs a separate
-review. Bounded scan/execution work may span multiple ticks under load. Free
-hosting quotas and Pyth access are separate constraints.
-
-Pyth reference: https://docs.pyth.network/price-feeds/core/upgrade/preparing
+Free hosting has usage limits. Pyth's access plan and Namecheap domain renewal
+are separate costs. No paid subscription or model service was activated.

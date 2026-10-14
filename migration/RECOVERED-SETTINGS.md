@@ -1,6 +1,6 @@
 # Recovered settings
 
-Recorded on 13 October 2026. These are verified/reconstructed configuration,
+Updated on 14 October 2026. These are verified/reconstructed configuration,
 not an assertion that unreadable Vercel values were exported verbatim.
 
 ## Supabase server secrets
@@ -37,18 +37,23 @@ credentials exclusively in Supabase. Public Supabase URL/legacy anon key were
 obtained from the connected project; the current frontend expects the legacy
 anon format. The recovered V2 address is now available for legacy positions.
 
-`VITE_PYTH_HERMES_URL` remains `https://hermes.pyth.network`. Merely configuring
-that URL does not supply the newly required API key or fix browser requests.
+`VITE_PYTH_HERMES_URL` remains `https://hermes.pyth.network` for backend
+compatibility. Browser requests now use `/api/pyth/`, routed to the private
+Cloudflare service. The provider key is never a VITE_ setting.
 
-## Still missing
+## Settings resolved on 13–14 October
 
-- `VITE_WALLETCONNECT_PROJECT_ID`: copy the existing public ID from Reown.
-- `PYTH_API_KEY`: new provider requirement; server-only, not VITE_. Confirm a
-  sustainable access plan before relying on a free trial for trading.
-- `VELO_SPONSOR_PRIVATE_KEY`: original gas-sponsorship wallet key or an
-  explicitly selected replacement. The public keeper address is not a key.
-- Three unused CDP values and optional GA values: not recovered; preserve
-  their original Vercel settings for later reconciliation.
+- Reown Project ID: `18c7b45a3ebfdc8dd646fd5287811413`, from the owner's VELO
+  project screenshot, now set in the Pages production build.
+- `PYTH_API_KEY`: supplied by the owner, saved directly by them in Supabase,
+  and installed as an encrypted Cloudflare Worker secret. Live Hermes signed
+  updates and the replacement authenticated history endpoint return HTTP 200.
+- Sponsor wallet: the owner's supplied sponsor key derives
+  `0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b`, matching imported `PRIVATE_KEY`.
+  Explicit shared-key configuration requires this exact address. Sponsorship
+  stays disabled until the old writer is stopped.
 
-No production-only settings were copied into Preview. Preview builds remain
-disabled. No wallet key, gateway token or cron token is recorded in this file.
+Optional GA and three unused CDP values remain unrecovered. Preserve the old
+Vercel settings for reconciliation. No production-only values were copied into
+Preview; preview builds remain disabled. No wallet/provider key, gateway token
+or cron token is recorded in this file.
