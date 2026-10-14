@@ -313,7 +313,7 @@ export const DepositWithdrawModal: React.FC<Props> = ({
 
           {/* Status / error */}
           {status && !error && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'oklch(0.68 0.22 295/0.08)', border: '1px solid oklch(0.68 0.22 295/0.2)', borderRadius: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 10 }}>
               <Loader2 size={14} style={{ color: 'var(--iris-violet)', flexShrink: 0, marginTop: 1, animation: 'spin 1s linear infinite' }} />
               <span style={{ ...S.sans, fontSize: 12 }}>{status}</span>
             </div>

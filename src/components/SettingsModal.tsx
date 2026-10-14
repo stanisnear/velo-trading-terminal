@@ -34,8 +34,7 @@ const NETWORK_NAMES: Record<number, string> = {
   84532: 'Base Sepolia', 8453: 'Base', 1: 'Ethereum', 11155111: 'Sepolia', 10: 'Optimism', 42161: 'Arbitrum',
 };
 
-// Shared Velo accent stripe — violet→blue, no rainbow
-const VELO_STRIPE = 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 35%, oklch(0.65 0.22 268) 70%, oklch(0.72 0.18 250) 100%)';
+const VELO_STRIPE = 'var(--brand-gradient)';
 
 interface Props {
   isOpen: boolean; onClose: () => void;
@@ -139,16 +138,16 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
       <style>{`
         @keyframes sm-overlay { from { opacity:0 } to { opacity:1 } }
         @keyframes sm-card { from { opacity:0; transform:translateY(14px) scale(0.97) } to { opacity:1; transform:none } }
-        .sm-ghost:hover { background: var(--chip-bg-hover) !important; border-color: oklch(0.55 0.24 295 / 0.35) !important; }
+        .sm-ghost:hover { background: var(--chip-bg-hover) !important; border-color: color-mix(in oklab, var(--accent) 35%, transparent) !important; }
       `}</style>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9999, background:'oklch(0 0 0 / 0.62)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, overflowY:'auto', animation:'sm-overlay 0.22s ease both' }}>
-        <div onClick={e => e.stopPropagation()} style={{ position:'relative', width:'100%', maxWidth:500, maxHeight:'min(92dvh, 92vh)', display:'flex', flexDirection:'column', background:'var(--modal-bg, var(--modal-bg))', borderRadius:28, border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.07) inset', backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)', overflow:'hidden', animation:'sm-card 0.36s cubic-bezier(0.22,1,0.36,1) both', color:'var(--fg)' }}>
+        <div onClick={e => e.stopPropagation()} style={{ position:'relative', width:'100%', maxWidth:500, maxHeight:'min(92dvh, 92vh)', display:'flex', flexDirection:'column', background:'var(--modal-bg, var(--modal-bg))', borderRadius:28, border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.07) inset', backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)', overflow:'hidden', animation:'sm-card 0.36s cubic-bezier(0.22,1,0.36,1) both', color:'var(--fg)' }}>
 
           {/* Velo accent stripe — violet→blue only */}
           <div style={{ position:'absolute', top:0, left:0, right:0, height:2.5, zIndex:3, background:VELO_STRIPE }} />
 
           {/* Ambient depth glow */}
-          <div style={{ position:'absolute', top:-80, right:-80, width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, oklch(0.55 0.24 295 / 0.05) 0%, transparent 70%)', pointerEvents:'none', zIndex:0 }} />
+          <div style={{ position:'absolute', top:-80, right:-80, width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, color-mix(in oklab, var(--accent) 5%, transparent) 0%, transparent 70%)', pointerEvents:'none', zIndex:0 }} />
 
           {/* Header */}
           <div style={{ padding:'24px 24px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative', zIndex:1, flexShrink:0 }}>
@@ -362,13 +361,13 @@ const ErrNote: React.FC<{ children: React.ReactNode; style?: React.CSSProperties
   <p style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'oklch(0.72 0.20 25)', margin:'8px 0 0', lineHeight:1.5, ...style }}>{children}</p>
 );
 const VeloBtn: React.FC<{ onClick:()=>void; disabled?:boolean; variant?:'green'|'violet'; children:React.ReactNode }> = ({ onClick, disabled, variant='violet', children }) => (
-  <button onClick={onClick} disabled={disabled} style={{ width:'100%', padding:'12px 16px', borderRadius:12, border:'none', background: disabled?'var(--chip-bg)':variant==='green'?'linear-gradient(100deg,oklch(0.72 0.18 150),oklch(0.65 0.20 160))':'linear-gradient(135deg,oklch(0.45 0.26 295),oklch(0.65 0.22 268))', color:disabled?'var(--fg-subtle)':'#fff', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' as const, cursor:disabled?'not-allowed':'pointer', opacity:disabled?0.5:1, boxShadow:disabled?'none':variant==='green'?'0 4px 16px -4px oklch(0.72 0.18 150 / 0.4)':'0 4px 16px -4px oklch(0.55 0.24 295 / 0.45)', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>{children}</button>
+  <button onClick={onClick} disabled={disabled} style={{ width:'100%', padding:'12px 16px', borderRadius:12, border:'1px solid color-mix(in oklab, var(--velo-sage-bright) 26%, var(--hr-2))', background: disabled?'var(--chip-bg)':variant==='green'?'linear-gradient(100deg, var(--pnl-up), var(--velo-sage))':'var(--brand-gradient)', color:disabled?'var(--fg-subtle)':'var(--fg)', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' as const, cursor:disabled?'not-allowed':'pointer', opacity:disabled?0.5:1, boxShadow:disabled?'none':'0 5px 16px -8px rgba(62, 100, 76, 0.6)', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>{children}</button>
 );
 const GhostBtn: React.FC<{ onClick:()=>void; disabled?:boolean; children:React.ReactNode; style?: React.CSSProperties }> = ({ onClick, disabled, children, style }) => (
   <button onClick={onClick} disabled={disabled} className="sm-ghost" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, width:'100%', padding:'11px 14px', borderRadius:10, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)', color:'var(--fg)', cursor:disabled?'not-allowed':'pointer', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:600, letterSpacing:'0.06em', transition:'background 0.14s, border-color 0.14s', ...style }}>{children}</button>
 );
 const ActBtn: React.FC<{ onClick:()=>void; icon:React.ReactNode; label:string; accent?:boolean; disabled?:boolean; title?:string }> = ({ onClick, icon, label, accent, disabled, title }) => (
-  <button onClick={onClick} disabled={disabled} title={title} style={{ padding:'12px 8px', borderRadius:12, border:accent && !disabled ?'none':'1px solid var(--hairline-strong)', background: disabled ? 'var(--chip-bg)' : accent?'linear-gradient(135deg,oklch(0.45 0.26 295),oklch(0.65 0.22 268))':'var(--chip-bg)', color: disabled ? 'var(--fg-subtle)' : accent?'#fff':'var(--fg)', fontFamily:'var(--font-mono)', fontSize:10, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow: !disabled && accent ?'0 4px 14px -4px oklch(0.55 0.24 295 / 0.4)':'none', transition:'opacity 0.14s' }}
+  <button onClick={onClick} disabled={disabled} title={title} style={{ padding:'12px 8px', borderRadius:12, border:'1px solid var(--hairline-strong)', background: disabled ? 'var(--chip-bg)' : accent?'var(--brand-gradient)':'var(--chip-bg)', color: disabled ? 'var(--fg-subtle)' : 'var(--fg)', fontFamily:'var(--font-mono)', fontSize:10, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow: !disabled && accent ?'0 4px 14px -4px rgba(62, 100, 76, 0.5)':'none', transition:'opacity 0.14s' }}
     onMouseEnter={e=>{ if (!disabled) e.currentTarget.style.opacity='0.85'; }} onMouseLeave={e=>{ if (!disabled) e.currentTarget.style.opacity='1'; }}>
     {icon} {label}
   </button>
@@ -376,8 +375,8 @@ const ActBtn: React.FC<{ onClick:()=>void; icon:React.ReactNode; label:string; a
 
 const WalletCard: React.FC<{ kind:'main'|'velo'; title:string; subtitle:string; address:string; eth:number; usdc:number; copied:boolean; onCopy:()=>void; }> = ({ kind, title, subtitle, address, eth, usdc, copied, onCopy }) => {
   const isVelo = kind === 'velo';
-  const aL = isVelo ? 'oklch(0.45 0.26 295)' : 'oklch(0.50 0.18 220)';
-  const aR = isVelo ? 'oklch(0.65 0.22 268)' : 'oklch(0.68 0.14 200)';
+  const aL = isVelo ? 'var(--accent)' : 'oklch(0.50 0.18 220)';
+  const aR = isVelo ? 'var(--velo-sage)' : 'var(--velo-sage-bright)';
   return (
     <div style={{ flexShrink:0, padding:16, borderRadius:20, background:`linear-gradient(145deg, ${aL.replace(')','/ 0.08)')}, ${aR.replace(')','/ 0.03)')})`, border:`1px solid ${aL.replace(')','/ 0.22)')}`, boxShadow:`0 2px 16px -8px ${aL.replace(')','/ 0.18)')}`, position:'relative', overflow:'hidden' }}>
       <div style={{ position:'absolute', top:-30, right:-30, width:140, height:140, borderRadius:'50%', background:`radial-gradient(circle, ${aL.replace(')','/ 0.07)')}, transparent 65%)`, pointerEvents:'none' }} />

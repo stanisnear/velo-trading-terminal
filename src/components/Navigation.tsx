@@ -163,9 +163,11 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
             }}
             className="navbar-container navbar-mobile-flush"
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <div className="navbar-brand" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <button
-                    className="lg:hidden"
+                    className="lg:hidden navbar-menu-toggle"
+                    aria-label="Open navigation"
+                    title="Open navigation"
                     style={{
                         width: 44,
                         height: 44,
@@ -183,8 +185,8 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                 >
                     <Menu size={20} />
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minWidth: 0 }} onClick={() => user && setActiveTab(TabView.DASHBOARD)}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 28, color: 'var(--fg)', letterSpacing: '-0.04em', lineHeight: 1 }}>Velo</span>
+                <div className="navbar-wordmark-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minWidth: 0 }} onClick={() => user && setActiveTab(TabView.DASHBOARD)}>
+                    <span className="navbar-wordmark" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 28, color: 'var(--fg)', letterSpacing: '-0.04em', lineHeight: 1 }}>Velo</span>
                 </div>
             </div>
 
@@ -219,8 +221,8 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                 </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifySelf: 'end' }}>
-                <div className="hidden lg:flex chip" style={{ minWidth: 76, justifyContent: 'center', gap: 6 }}>
+            <div className="navbar-controls" style={{ display: 'flex', alignItems: 'center', gap: 8, justifySelf: 'end' }}>
+                <div className="navbar-testnet chip" style={{ minWidth: 76, justifyContent: 'center', gap: 6 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--fg-2)' }}>TESTNET</span>
                 </div>
                 <div style={{ position: 'relative' }}>
@@ -351,7 +353,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                     )}
                 </div>
 
-                <button onClick={toggleTheme} style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
+                <button className="navbar-theme-toggle" aria-label={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} title={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} onClick={toggleTheme} style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
                     {theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>}
                 </button>

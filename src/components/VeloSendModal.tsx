@@ -34,7 +34,7 @@ const cardStyle: React.CSSProperties = {
   background: 'var(--modal-bg, var(--modal-bg))',
   border: '1px solid var(--hairline-strong)',
   borderRadius: 28,
-  boxShadow: '0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset',
+  boxShadow: '0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset',
   backdropFilter: 'blur(48px) saturate(1.5)',
   WebkitBackdropFilter: 'blur(48px) saturate(1.5)',
   position: 'relative', overflow: 'hidden',
@@ -42,7 +42,7 @@ const cardStyle: React.CSSProperties = {
 
 const holoGradient: React.CSSProperties = {
   position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-  background: 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 35%, oklch(0.65 0.22 268) 70%, oklch(0.72 0.18 250) 100%)',
+  background: 'var(--brand-gradient)',
   opacity: 0.9, zIndex: 1,
 };
 
@@ -362,7 +362,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
         style={{
           ...S.mono, width: '100%', padding: '14px 0', marginTop: 20, borderRadius: 12, border: 'none',
           background: canSend
-            ? 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340))'
+            ? 'linear-gradient(100deg, var(--accent), var(--velo-sage-bright))'
             : 'var(--chip-bg)',
           color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
           textTransform: 'uppercase' as const,

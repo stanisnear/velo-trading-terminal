@@ -106,7 +106,7 @@ export async function signUp(email: string, password: string, username: string) 
     const { error: profileErr } = await supabase.from('profiles').upsert({
       id: data.user.id, username, handle,
       avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-      banner_url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1000&q=80',
+      banner_url: '',
       balance: 0,
       auth_method: 'EMAIL',
     }, { onConflict: 'id' });
@@ -377,6 +377,17 @@ export async function fetchPosts(limit = 50): Promise<Post[]> {
     .limit(limit);
   if (error || !data) return [];
   return _enrichPosts(data);
+}
+
+export async function fetchPostById(postId: string): Promise<Post | null> {
+  const { data, error } = await supabase
+    .from('posts')
+    .select('*, profiles!author_id(username, handle, avatar_url)')
+    .eq('id', postId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const [post] = await _enrichPosts([data]);
+  return post || null;
 }
 
 export async function createPost(

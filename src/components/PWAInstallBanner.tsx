@@ -145,7 +145,7 @@ export function PWAInstallBanner() {
           borderRadius: 10,
           fontSize: 13,
           fontWeight: 700,
-          background: 'linear-gradient(135deg, #7B3CE8 0%, #3B5BFF 100%)',
+          background: 'linear-gradient(135deg, #557a64 0%, #91b99f 100%)',
           color: '#fff',
           border: 'none',
           cursor: 'pointer',

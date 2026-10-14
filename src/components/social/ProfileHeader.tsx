@@ -13,6 +13,7 @@ export const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, o
         display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
+    const hasCustomBanner = Boolean(profile.banner && !profile.banner.includes('photo-1579546929518-9e396f3cc809'));
     const realizedPnl = stats?.realizedPnl ?? profile.pnl ?? profile.pnlTotal ?? 0;
     const winRate = stats?.winRate ?? profile.winRate ?? 0;
     const pillBtn: React.CSSProperties = {
@@ -23,10 +24,9 @@ export const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, o
     return (
         <div className="vp" style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 20, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', overflow: 'hidden', marginBottom: 24 }}>
             {/* Banner */}
-            <div className="velo-profile-banner" style={{ height: 160, width: '100%', position: 'relative', background: profile.banner ? '#000' : 'var(--holo-linear)', backgroundSize: '220% 100%', animation: profile.banner ? 'none' : 'holoSlide 14s linear infinite' }}>
-                {profile.banner && <img src={profile.banner} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""/>}
-                {/* Soft vignette for contrast with the avatar */}
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,0.25) 100%)', pointerEvents: 'none' }}/>
+            <div className="velo-profile-banner" style={{ height: 160, width: '100%', position: 'relative', background: hasCustomBanner ? '#111914' : 'linear-gradient(135deg, #18241c, #26372b 52%, #17221b)' }}>
+                {hasCustomBanner && <img src={profile.banner} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.72) brightness(0.92)' }} alt=""/>}
+                {hasCustomBanner && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(110deg, rgba(10,16,12,0.18), rgba(48,70,54,0.10)), linear-gradient(180deg, rgba(0,0,0,0.02) 50%, rgba(0,0,0,0.26) 100%)', pointerEvents: 'none' }}/>}
             </div>
             <div className="velo-profile-inner" style={{ padding: '0 24px 24px', position: 'relative' }}>
                 {/* Avatar + actions row */}

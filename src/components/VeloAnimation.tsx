@@ -28,12 +28,12 @@ interface VeloAnimationProps {
 }
 
 const CONFIG: Record<VeloAnimationKind, { icon: string; tint: string; title: string; accent: string }> = {
-  LOGIN:       { icon: '→',  tint: 'oklch(0.68 0.22 295)', title: 'Welcome back',    accent: '#a78bfa' },
-  REGISTER:    { icon: '✦',  tint: 'oklch(0.70 0.22 340)', title: 'Account created', accent: '#d946ef' },
-  LOGOUT:      { icon: '←',  tint: 'oklch(0.80 0.14 205)', title: 'Signed out',      accent: '#22d3ee' },
+  LOGIN:       { icon: '→',  tint: 'var(--accent)', title: 'Welcome back',    accent: '#91b99f' },
+  REGISTER:    { icon: '✦',  tint: 'var(--velo-sage-bright)', title: 'Account created', accent: '#b4d5bf' },
+  LOGOUT:      { icon: '←',  tint: 'var(--velo-sage-bright)', title: 'Signed out',      accent: '#22d3ee' },
   DEPOSIT:     { icon: '↓',  tint: 'oklch(0.78 0.18 150)', title: 'Deposit confirmed',    accent: '#4ade80' },
   WITHDRAW:    { icon: '↑',  tint: 'oklch(0.74 0.18 30)',  title: 'Withdrawal confirmed', accent: '#f97316' },
-  ORDER_OPEN:  { icon: '⊕',  tint: 'oklch(0.68 0.22 295)', title: 'Order filled',    accent: '#a78bfa' },
+  ORDER_OPEN:  { icon: '⊕',  tint: 'var(--accent)', title: 'Order filled',    accent: '#91b99f' },
   ORDER_CLOSE: { icon: '⊖',  tint: 'oklch(0.82 0.16 75)',  title: 'Position closed', accent: '#eab308' },
 };
 

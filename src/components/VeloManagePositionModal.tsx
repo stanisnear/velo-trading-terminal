@@ -169,7 +169,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   const successColor = () => {
     if (!success) return 'oklch(0.78 0.18 150)';
     if (success.kind === 'close' && pnl < 0) return 'oklch(0.65 0.22 15)';
-    if (success.kind === 'reduce') return 'oklch(0.68 0.22 295)';
+    if (success.kind === 'reduce') return 'var(--accent)';
     return 'oklch(0.78 0.18 150)';
   };
 
@@ -199,7 +199,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           borderRadius:28,
           background:'var(--modal-bg, rgba(14,15,22,0.97))',
           border:'1px solid var(--hairline-strong)',
-          boxShadow:'0 0 0 1px oklch(0.55 0.24 295 / 0.1), 0 40px 100px -20px rgba(0,0,0,0.7), 0 1px 0 oklch(1 0 0 / 0.07) inset',
+          boxShadow:'0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.7), 0 1px 0 oklch(1 0 0 / 0.07) inset',
           backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)',
           overflow:'hidden',
           animation: closing ? 'vmp-out 0.35s cubic-bezier(0.4,0,1,1) forwards' : 'vmp-in 0.3s cubic-bezier(0.22,1,0.36,1) forwards',
@@ -210,8 +210,8 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           <div style={{
             position:'absolute', top:0, left:0, right:0, height:2.5, zIndex:3,
             background: position.side === 'LONG'
-              ? 'linear-gradient(90deg, oklch(0.72 0.20 150) 0%, oklch(0.55 0.24 285) 60%, oklch(0.65 0.22 268) 100%)'
-              : 'linear-gradient(90deg, oklch(0.62 0.22 25) 0%, oklch(0.55 0.24 285) 60%, oklch(0.65 0.22 268) 100%)',
+              ? 'linear-gradient(90deg, oklch(0.72 0.20 150) 0%, var(--velo-sage-deep) 60%, var(--velo-sage) 100%)'
+              : 'linear-gradient(90deg, oklch(0.62 0.22 25) 0%, var(--velo-sage-deep) 60%, var(--velo-sage) 100%)',
           }} />
 
           {/* Ambient glow */}
@@ -236,7 +236,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
               <div style={{ ...S.display, fontSize:28, color:'var(--fg)', marginBottom:6 }}>{successTitle()}</div>
               <div style={{ ...S.mono, fontSize:12, color:'var(--fg-muted)', marginBottom:30, textAlign:'center' as const }}>{successSub()}</div>
               <a href={`https://sepolia.basescan.org/tx/${success.txHash}`} target="_blank" rel="noopener noreferrer"
-                style={{ display:'flex', alignItems:'center', gap:7, ...S.mono, fontSize:11, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, color:'oklch(0.68 0.22 295)', padding:'11px 20px', borderRadius:14, background:'oklch(0.68 0.22 295 / 0.08)', border:'1px solid oklch(0.68 0.22 295 / 0.25)', textDecoration:'none' }}>
+                style={{ display:'flex', alignItems:'center', gap:7, ...S.mono, fontSize:11, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, color:'var(--accent)', padding:'11px 20px', borderRadius:14, background:'color-mix(in oklab, var(--accent) 8%, transparent)', border:'1px solid color-mix(in oklab, var(--accent) 25%, transparent)', textDecoration:'none' }}>
                 <ExternalLink size={12}/> View on BaseScan
               </a>
               <div style={{ marginTop:18, ...S.mono, fontSize:11, color:'var(--fg-subtle)', opacity:0.5 }}>Closing…</div>
@@ -286,9 +286,9 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                   style={{
                     flex:1, display:'flex', flexDirection:'column' as const, alignItems:'center', gap:4, padding:'9px 4px',
                     borderRadius:14, border:'none', cursor: ok || t.id==='PARTIAL' ? 'pointer' : 'not-allowed',
-                    background: tab===t.id ? 'linear-gradient(135deg, oklch(0.68 0.22 295 / 0.18), oklch(0.72 0.20 240 / 0.10))' : 'oklch(1 0 0 / 0.025)',
-                    boxShadow: tab===t.id ? '0 0 0 1px oklch(0.68 0.22 295 / 0.38) inset' : '0 0 0 1px var(--hairline) inset',
-                    color: tab===t.id ? 'var(--velo-violet, oklch(0.68 0.22 295))' : (!ok && t.id!=='PARTIAL') ? 'var(--fg-subtle)' : 'var(--fg-muted)',
+                    background: tab===t.id ? 'linear-gradient(135deg, color-mix(in oklab, var(--accent) 18%, transparent), color-mix(in oklab, var(--velo-sage-bright) 10%, transparent))' : 'oklch(1 0 0 / 0.025)',
+                    boxShadow: tab===t.id ? '0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent) inset' : '0 0 0 1px var(--hairline) inset',
+                    color: tab===t.id ? 'var(--velo-violet, var(--accent))' : (!ok && t.id!=='PARTIAL') ? 'var(--fg-subtle)' : 'var(--fg-muted)',
                     opacity: (!ok && t.id!=='PARTIAL') ? 0.35 : 1,
                     transition:'all 0.15s',
                   }}
@@ -307,7 +307,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                     <CheckCircle2 size={13}/> Confirmed on-chain
                   </span>
                   <a href={baseScanTxUrl(lastTx)} target="_blank" rel="noopener noreferrer"
-                    style={{ ...S.mono, fontSize:10, color:'oklch(0.68 0.22 295)', textDecoration:'none', display:'flex', alignItems:'center', gap:4 }}>
+                    style={{ ...S.mono, fontSize:10, color:'var(--accent)', textDecoration:'none', display:'flex', alignItems:'center', gap:4 }}>
                     BaseScan <ExternalLink size={10}/>
                   </a>
                 </div>
@@ -328,15 +328,15 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                   </div>
                   <input type="range" min="1" max="100" value={closePct}
                     onChange={(e) => setClosePct(parseInt(e.target.value))}
-                    style={{ width:'100%', accentColor:'oklch(0.68 0.22 295)', marginBottom:14 }}/>
+                    style={{ width:'100%', accentColor:'var(--accent)', marginBottom:14 }}/>
                   <div style={{ display:'flex', gap:6, marginBottom:14 }}>
                     {[25,50,75,100].map(p => (
                       <button key={p} onClick={() => setClosePct(p)} style={{
                         flex:1, padding:'9px 0', borderRadius:12, border:'none', cursor:'pointer',
                         ...S.mono, fontSize:11, fontWeight:700,
-                        background: closePct===p ? 'oklch(0.68 0.22 295 / 0.18)' : 'oklch(1 0 0 / 0.03)',
-                        boxShadow: closePct===p ? '0 0 0 1px oklch(0.68 0.22 295 / 0.45) inset' : '0 0 0 1px var(--hairline) inset',
-                        color: closePct===p ? 'oklch(0.72 0.22 295)' : 'var(--fg-muted)',
+                        background: closePct===p ? 'color-mix(in oklab, var(--accent) 18%, transparent)' : 'oklch(1 0 0 / 0.03)',
+                        boxShadow: closePct===p ? '0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent) inset' : '0 0 0 1px var(--hairline) inset',
+                        color: closePct===p ? 'var(--accent)' : 'var(--fg-muted)',
                       }}>{p}%</button>
                     ))}
                   </div>
@@ -438,7 +438,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                     <span style={{ ...S.label, fontSize:9 }}>Trading wallet</span>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:'var(--pnl-up)' }}>${userBalance.toFixed(2)} available</span>
-                      <button onClick={() => setAddAmount(userBalance.toFixed(2))} disabled={!ok || userBalance<=0} style={{ ...S.mono, fontSize:9, fontWeight:700, padding:'3px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'oklch(0.68 0.22 295 / 0.12)', color:'oklch(0.72 0.22 295)' }}>MAX</button>
+                      <button onClick={() => setAddAmount(userBalance.toFixed(2))} disabled={!ok || userBalance<=0} style={{ ...S.mono, fontSize:9, fontWeight:700, padding:'3px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'color-mix(in oklab, var(--accent) 12%, transparent)', color:'var(--accent)' }}>MAX</button>
                     </div>
                   </div>
                   <div style={{ ...S.label, marginBottom:6 }}>Amount (mUSDC)</div>
@@ -449,9 +449,9 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                     ))}
                   </div>
                   {parseFloat(addAmount) > 0 && entryValid && (
-                    <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 12px', marginTop:8, borderRadius:10, background:'oklch(0.68 0.22 295 / 0.06)', border:'1px solid oklch(0.68 0.22 295 / 0.18)', animation:'vmp-pnl 0.2s ease' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 12px', marginTop:8, borderRadius:10, background:'color-mix(in oklab, var(--accent) 6%, transparent)', border:'1px solid color-mix(in oklab, var(--accent) 18%, transparent)', animation:'vmp-pnl 0.2s ease' }}>
                       <span style={{ ...S.label, fontSize:9 }}>New collateral</span>
-                      <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:'oklch(0.72 0.22 295)' }}>
+                      <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:'var(--accent)' }}>
                         ${(collateral + (parseFloat(addAmount)||0)).toFixed(2)}
                         <span style={{ fontSize:10, fontWeight:400, color:'var(--fg-subtle)', marginLeft:4 }}>(was ${collateral.toFixed(2)})</span>
                       </span>
@@ -469,7 +469,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                     <span style={{ ...S.label, fontSize:9 }}>Current collateral</span>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:'var(--fg)' }}>${collateral.toFixed(2)}</span>
-                      <button onClick={() => setReduceAmount((collateral*0.8).toFixed(2))} disabled={!ok||collateral<=0} style={{ ...S.mono, fontSize:9, fontWeight:700, padding:'3px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'oklch(0.68 0.22 295 / 0.12)', color:'oklch(0.72 0.22 295)' }}>MAX</button>
+                      <button onClick={() => setReduceAmount((collateral*0.8).toFixed(2))} disabled={!ok||collateral<=0} style={{ ...S.mono, fontSize:9, fontWeight:700, padding:'3px 8px', borderRadius:7, border:'none', cursor:'pointer', background:'color-mix(in oklab, var(--accent) 12%, transparent)', color:'var(--accent)' }}>MAX</button>
                     </div>
                   </div>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
@@ -491,9 +491,9 @@ export const VeloManagePositionModal: React.FC<Props> = ({
                     const remaining = Math.max(0, collateral-(parseFloat(reduceAmount)||0));
                     const tooLow = remaining < collateral*0.2;
                     return (
-                      <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 12px', marginTop:8, borderRadius:10, background: tooLow?'oklch(0.65 0.22 15 / 0.06)':'oklch(0.68 0.22 295 / 0.06)', border:`1px solid ${tooLow?'oklch(0.65 0.22 15 / 0.3)':'oklch(0.68 0.22 295 / 0.18)'}`, animation:'vmp-pnl 0.2s ease' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 12px', marginTop:8, borderRadius:10, background: tooLow?'oklch(0.65 0.22 15 / 0.06)':'color-mix(in oklab, var(--accent) 6%, transparent)', border:`1px solid ${tooLow?'oklch(0.65 0.22 15 / 0.3)':'color-mix(in oklab, var(--accent) 18%, transparent)'}`, animation:'vmp-pnl 0.2s ease' }}>
                         <span style={{ ...S.label, fontSize:9 }}>{tooLow ? 'Below min buffer' : 'Remaining collateral'}</span>
-                        <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:tooLow?'var(--pnl-down)':'oklch(0.72 0.22 295)' }}>${remaining.toFixed(2)}</span>
+                        <span style={{ ...S.mono, fontSize:12, fontWeight:700, color:tooLow?'var(--pnl-down)':'var(--accent)' }}>${remaining.toFixed(2)}</span>
                       </div>
                     );
                   })()}
@@ -518,7 +518,7 @@ const PriceInput: React.FC<{
     ? 'oklch(0.78 0.18 150 / 0.35)'
     : accent === 'red'
     ? 'oklch(0.65 0.22 15 / 0.35)'
-    : 'oklch(0.68 0.22 295 / 0.35)';
+    : 'color-mix(in oklab, var(--accent) 35%, transparent)';
   return (
     <input
       type="number" value={value} onChange={(e) => onChange(e.target.value)}
@@ -551,12 +551,12 @@ const ActionBtn: React.FC<{
         ? 'var(--chip-bg)'
         : danger
           ? 'linear-gradient(135deg, oklch(0.55 0.20 15), oklch(0.58 0.22 25))'
-          : 'linear-gradient(135deg, oklch(0.68 0.22 295), oklch(0.72 0.20 240))',
+          : 'linear-gradient(135deg, var(--accent), var(--velo-sage-bright))',
       color: '#fff',
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
       boxShadow: (busy || disabled) ? 'none' : danger
         ? '0 4px 16px oklch(0.55 0.20 15 / 0.35)'
-        : '0 4px 16px oklch(0.68 0.22 295 / 0.35)',
+        : '0 4px 16px color-mix(in oklab, var(--accent) 35%, transparent)',
     }}
   >
     {busy ? <><Loader2 className="animate-spin" size={14} /> Working…</> : label}

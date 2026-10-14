@@ -131,10 +131,8 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const widgetRef = useRef<any>(null);
   const isDark = theme === 'dark';
 
-  // Branded chart surface — never pure white/black. Matches the obsidian dark
-  // and soft-lavender light panel tokens so the chart sits in the brand rather
-  // than punching a white hole in the page.
-  const BG = isDark ? '#0b0d12' : '#f7f6fc';
+  // Keep the embedded chart on the same graphite/sage surface ladder as the app.
+  const BG = isDark ? '#0a0e0c' : '#edf0ed';
 
   const tvSymbol = TV_SYMBOLS[pairName] || 'PYTH:BTCUSD';
   const tvInterval = TV_INTERVALS[timeframe] || '15';
@@ -179,9 +177,9 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     containerRef.current.appendChild(widgetDiv);
 
     const localBG = BG;
-    const localBG2 = isDark ? '#12141b' : '#eeecf8';
-    const localGRID = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,14,0.06)';
-    const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(84,85,100,0.75)';
+    const localBG2 = isDark ? '#111714' : '#e6ebe7';
+    const localGRID = isDark ? 'rgba(224,238,228,0.045)' : 'rgba(32,54,39,0.055)';
+    const localTICK = isDark ? 'rgba(162,175,166,0.72)' : 'rgba(81,98,87,0.78)';
 
     // Clear cached TradingView settings that would override our theme overrides
     try {
@@ -245,46 +243,46 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
           'items_favoriting',
         ],
         overrides: {
-          'mainSeriesProperties.candleStyle.upColor':               '#4ade80',
-          'mainSeriesProperties.candleStyle.downColor':             '#f87171',
-          'mainSeriesProperties.candleStyle.borderUpColor':         '#4ade80',
-          'mainSeriesProperties.candleStyle.borderDownColor':       '#f87171',
-          'mainSeriesProperties.candleStyle.wickUpColor':           '#4ade80',
-          'mainSeriesProperties.candleStyle.wickDownColor':         '#f87171',
-          'mainSeriesProperties.hollowCandleStyle.upColor':         '#4ade80',
-          'mainSeriesProperties.hollowCandleStyle.downColor':       '#f87171',
-          'mainSeriesProperties.hollowCandleStyle.borderUpColor':   '#4ade80',
-          'mainSeriesProperties.hollowCandleStyle.borderDownColor': '#f87171',
-          'mainSeriesProperties.hollowCandleStyle.wickUpColor':     '#4ade80',
-          'mainSeriesProperties.hollowCandleStyle.wickDownColor':   '#f87171',
-          'mainSeriesProperties.haStyle.upColor':                   '#4ade80',
-          'mainSeriesProperties.haStyle.downColor':                 '#f87171',
-          'mainSeriesProperties.haStyle.borderUpColor':             '#4ade80',
-          'mainSeriesProperties.haStyle.borderDownColor':           '#f87171',
-          'mainSeriesProperties.haStyle.wickUpColor':               '#4ade80',
-          'mainSeriesProperties.haStyle.wickDownColor':             '#f87171',
-          'mainSeriesProperties.barStyle.upColor':                  '#4ade80',
-          'mainSeriesProperties.barStyle.downColor':                '#f87171',
-          'mainSeriesProperties.lineStyle.color':     '#8b5cf6',
+          'mainSeriesProperties.candleStyle.upColor':               '#77c995',
+          'mainSeriesProperties.candleStyle.downColor':             '#9f655e',
+          'mainSeriesProperties.candleStyle.borderUpColor':         '#77c995',
+          'mainSeriesProperties.candleStyle.borderDownColor':       '#9f655e',
+          'mainSeriesProperties.candleStyle.wickUpColor':           '#77c995',
+          'mainSeriesProperties.candleStyle.wickDownColor':         '#9f655e',
+          'mainSeriesProperties.hollowCandleStyle.upColor':         '#77c995',
+          'mainSeriesProperties.hollowCandleStyle.downColor':       '#9f655e',
+          'mainSeriesProperties.hollowCandleStyle.borderUpColor':   '#77c995',
+          'mainSeriesProperties.hollowCandleStyle.borderDownColor': '#9f655e',
+          'mainSeriesProperties.hollowCandleStyle.wickUpColor':     '#77c995',
+          'mainSeriesProperties.hollowCandleStyle.wickDownColor':   '#9f655e',
+          'mainSeriesProperties.haStyle.upColor':                   '#77c995',
+          'mainSeriesProperties.haStyle.downColor':                 '#9f655e',
+          'mainSeriesProperties.haStyle.borderUpColor':             '#77c995',
+          'mainSeriesProperties.haStyle.borderDownColor':           '#9f655e',
+          'mainSeriesProperties.haStyle.wickUpColor':               '#77c995',
+          'mainSeriesProperties.haStyle.wickDownColor':             '#9f655e',
+          'mainSeriesProperties.barStyle.upColor':                  '#77c995',
+          'mainSeriesProperties.barStyle.downColor':                '#9f655e',
+          'mainSeriesProperties.lineStyle.color':     '#91b99f',
           'mainSeriesProperties.lineStyle.linewidth': 2,
-          'mainSeriesProperties.areaStyle.color1':    'rgba(139,92,246,0.22)',
-          'mainSeriesProperties.areaStyle.color2':    'rgba(139,92,246,0.01)',
-          'mainSeriesProperties.areaStyle.lineColor': '#8b5cf6',
+          'mainSeriesProperties.areaStyle.color1':    'rgba(145,185,159,0.22)',
+          'mainSeriesProperties.areaStyle.color2':    'rgba(145,185,159,0.01)',
+          'mainSeriesProperties.areaStyle.lineColor': '#91b99f',
           'mainSeriesProperties.areaStyle.linewidth': 2,
           'mainSeriesProperties.baselineStyle.topLineColor':    '#4ade80',
-          'mainSeriesProperties.baselineStyle.bottomLineColor': '#f87171',
-          'mainSeriesProperties.priceLineColor': '#8b5cf6',
+          'mainSeriesProperties.baselineStyle.bottomLineColor': '#9f655e',
+          'mainSeriesProperties.priceLineColor': '#91b99f',
           'mainSeriesProperties.priceLineWidth': 1,
           ...bgOverrides,
         },
         studies_overrides: {
-          'volume.volume.color.0':      'rgba(248,113,113,0.35)',
+          'volume.volume.color.0':      'rgba(159,101,94,0.30)',
           'volume.volume.color.1':      'rgba(74,222,128,0.35)',
-          'volume.volume ma.color':     '#8b5cf6',
+          'volume.volume ma.color':     '#91b99f',
           'volume.volume ma.linewidth': 1,
           'volume.show ma':             false,
         },
-        loading_screen: { backgroundColor: localBG, foregroundColor: '#8b5cf6' },
+        loading_screen: { backgroundColor: localBG, foregroundColor: '#91b99f' },
         autosize: true,
       });
       widgetRef.current = widget;
@@ -537,7 +535,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
         <div style={{
           position: 'absolute', left: 6, top: '50%',
           transform: 'translateY(-50%)',
-          ...badge(labelBg + 'cc', labelColor, labelBorder),
+          ...badge(labelBg, labelColor, labelBorder),
           fontSize: 9, padding: '2px 7px',
         }}>
           {label} · ${fmt(price)}
@@ -561,15 +559,6 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       {/* Chart widget container */}
       <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: BG }} />
 
-      {/* No overlay tint on the chart — the page background is kept light enough
-          that the chart's own surface blends in without masking it (masking hurt
-          candle/text legibility). A faint inner ring just frames the panel. */}
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 16, pointerEvents: 'none',
-        boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(90,70,160,0.08)'}`,
-        borderRadius: 'inherit',
-      }} />
-
       {/* Overlay price LINES (entry / TP / SL / liquidation) */}
       {(() => {
         if (!activePosition) return null;
@@ -591,7 +580,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 20, overflow: 'hidden' }}>
             {showEntryLine && (
               <PriceLine price={entry} refPrice={ref}
-                lineColor="#a78bfa" labelBg="rgba(139,92,246,0.22)" labelColor="#a78bfa" labelBorder="rgba(139,92,246,0.35)"
+                lineColor="#91b99f" labelBg="rgba(145,185,159,0.22)" labelColor="#b4d5bf" labelBorder="rgba(145,185,159,0.35)"
                 label={activePosition.side} />
             )}
             {showTPLine && (() => {

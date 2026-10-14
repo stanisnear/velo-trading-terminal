@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="26" y1="0" x2="570" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17231B"/><stop offset=".56" stop-color="#0A0E0C"/><stop offset="1" stop-color="#111914"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(536 420 -440 562 50 35)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#53785C" stop-opacity=".3"/><stop offset="1" stop-color="#53785C" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0v40" stroke="#E0EEE3" stroke-opacity=".045"/></pattern>
+    <linearGradient id="sage" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#E3EEE5"/><stop offset="1" stop-color="#91B99F"/></linearGradient>
+  </defs>
+  <rect width="600" height="600" rx="30" fill="url(#bg)"/>
+  <rect width="600" height="600" rx="30" fill="url(#glow)"/>
+  <rect width="600" height="600" rx="30" fill="url(#grid)"/>
+  <rect x="1" y="1" width="598" height="598" rx="29" stroke="#DCE9DF" stroke-opacity=".17"/>
+  <text x="300" y="172" text-anchor="middle" fill="url(#sage)" font-family="Fraunces,Georgia,serif" font-size="122" font-style="italic" letter-spacing="-5">Velo</text>
+  <text x="300" y="222" text-anchor="middle" fill="#A6B7AA" font-family="Geist,Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.2">PERPS YOU CAN PROVE</text>
+  <text x="300" y="263" text-anchor="middle" fill="#E9F0EA" font-family="Geist,Arial,sans-serif" font-size="25" font-weight="600">Positions in the feed.</text>
+  <rect x="54" y="310" width="492" height="226" rx="18" fill="#151D18" fill-opacity=".9" stroke="#DCE9DF" stroke-opacity=".18"/>
+  <path d="M54 365h492" stroke="#DCE9DF" stroke-opacity=".13"/>
+  <text x="78" y="346" fill="#E7EEE8" font-family="Fraunces,Georgia,serif" font-size="21" font-style="italic">Velo</text>
+  <text x="139" y="345" fill="#A2AFA6" font-family="Geist,Arial,sans-serif" font-size="9" font-weight="600" letter-spacing="2">TRADE</text>
+  <text x="78" y="397" fill="#E9F0EA" font-family="Geist,Arial,sans-serif" font-size="18" font-weight="600">ETH / USD</text>
+  <text x="492" y="397" text-anchor="end" fill="#B4D5BF" font-family="Geist Mono,monospace" font-size="17">$2,515.20</text>
+  <path d="M78 508c34-2 43-38 75-31 25 5 35 27 59 20 24-7 29-37 55-32 21 4 31 31 54 21 22-9 27-38 54-35 21 2 35 20 51 10 16-9 23-30 44-32 18-2 30 8 49-1" stroke="#91B99F" stroke-width="3" stroke-linecap="round"/>
+  <path d="M78 527c34-2 43-38 75-31 25 5 35 27 59 20 24-7 29-37 55-32 21 4 31 31 54 21 22-9 27-38 54-35 21 2 35 20 51 10 16-9 23-30 44-32 18-2 30 8 49-1v60H78z" fill="#91B99F" fill-opacity=".08"/>
+  <text x="300" y="573" text-anchor="middle" fill="#A2AFA6" font-family="Geist Mono,monospace" font-size="10" letter-spacing="2">PYTH-PRICED  ·  SETTLED ON-CHAIN</text>
+</svg>

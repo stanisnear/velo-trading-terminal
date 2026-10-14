@@ -118,7 +118,7 @@ export const renderContentWithMentions = (content: string, onViewProfile: (p: an
             return (
                 <a key={i} href={part} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    style={{ color: 'var(--iris-violet)', textDecoration: 'underline', textDecorationColor: 'oklch(0.68 0.22 295 / 0.4)', wordBreak: 'break-all' }}>
+                    style={{ color: 'var(--iris-violet)', textDecoration: 'underline', textDecorationColor: 'color-mix(in oklab, var(--accent) 40%, transparent)', wordBreak: 'break-all' }}>
                     {displayUrl}
                 </a>
             );
@@ -260,7 +260,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                 <button
                     onClick={() => contextLabel.trader && onViewProfile({ id: contextLabel.trader.id })}
                     style={{ padding: '7px 16px', ...S.label, fontSize: 10, background: 'var(--chip-bg)', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid var(--hairline)', color: 'var(--iris-violet)', border: 'none', borderRadius: 0, width: '100%', textAlign: 'left' as const, cursor: contextLabel.trader ? 'pointer' : 'default', transition: 'background 0.1s' }}
-                    onMouseEnter={e => { if (contextLabel.trader) (e.currentTarget as HTMLElement).style.background = 'oklch(0.68 0.22 295 / 0.08)'; }}
+                    onMouseEnter={e => { if (contextLabel.trader) (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--accent) 8%, transparent)'; }}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'}
                 >
                     <ArrowUpRight size={10}/>
@@ -296,7 +296,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
                     {post.isTradeSignal && post.tradeDetails && (
-                        <div style={{ background: 'oklch(0.68 0.22 295 / 0.06)', border: '1px solid oklch(0.68 0.22 295 / 0.2)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <div style={{ background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>{post.tradeDetails.pair}</span>

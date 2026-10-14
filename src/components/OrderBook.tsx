@@ -59,8 +59,9 @@ function rowToFill(r: any, flash = false): Fill | null {
   };
 }
 
-export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, openOrders: liveOpenOrders }) => {
+export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, openOrders: liveOpenOrders }) => {
   const [view, setView] = useState<'trades' | 'depth' | 'book'>('trades');
+  const [showAllFills, setShowAllFills] = useState(false);
   const [fills, setFills] = useState<Fill[]>([]);
   const [orders, setOrders] = useState<{ side: 'LONG' | 'SHORT'; price: number; size: number }[]>([]);
   const [now, setNow] = useState(() => Date.now());
@@ -172,6 +173,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, openOrders: l
   }, [pair, price, liveOpenOrders]);
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => { setShowAllFills(false); }, [pair]);
 
   // Depth: bucket recent fills by price into buy/sell sides.
   const depth = useMemo(() => {
@@ -230,7 +232,18 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, openOrders: l
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
         {Tabs}
-        <span style={{ fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>{pair}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          {view === 'trades' && fills.length > rows && (
+            <button
+              type="button"
+              onClick={() => setShowAllFills(v => !v)}
+              aria-label={showAllFills ? 'Show recent fills only' : `Show all ${fills.length} fills`}
+              title={showAllFills ? 'Show recent fills only' : `Show all ${fills.length} fills`}
+              style={{ border: 'none', background: 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', padding: '3px 0', whiteSpace: 'nowrap' }}
+            >{showAllFills ? 'RECENT' : `ALL ${fills.length}`}</button>
+          )}
+          <span style={{ fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>{pair}</span>
+        </div>
       </div>
 
       <div style={{ display: 'flex', color: 'var(--fg-subtle)', padding: '5px 12px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0, fontWeight: 700 }}>
@@ -239,7 +252,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, openOrders: l
         <span style={{ flex: 1, textAlign: 'right' }}>{view === 'trades' ? 'Time' : 'Total'}</span>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: view === 'trades' && showAllFills ? 'auto' : 'hidden', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
         {view === 'trades' ? (
           loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 11 }}>Loading fills…</div>
@@ -248,7 +261,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, openOrders: l
               <span style={{ fontWeight: 700 }}>No fills yet</span>
               <span style={{ opacity: 0.7 }}>Live {pair} trades will stream here as they happen on Velo.</span>
             </div>
-          ) : fills.map((f) => {
+          ) : (showAllFills ? fills : fills.slice(0, rows)).map((f) => {
             const buy = isBuy(f);
             return (
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', padding: '0 12px', height: 24, fontSize: 11, animation: f.flash ? `${buy ? 'veloFillFlashBuy' : 'veloFillFlashSell'} 0.7s ease-out` : undefined }}>

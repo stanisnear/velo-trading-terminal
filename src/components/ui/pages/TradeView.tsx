@@ -205,7 +205,7 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
         fields: [
             { key: 'length', label: 'Length', type: 'number', default: 9 },
             { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2', 'hlc3', 'ohlc4'] },
-            { key: 'color', label: 'Line Color', type: 'color', default: '#8b5cf6' },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#91b99f' },
         ],
     },
     'EMA@tv-basicstudies': {
@@ -615,6 +615,21 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Positions / Orders / History panel
 // ─────────────────────────────────────────────────────────────────────────────
+const TradeAuthGate = ({ onRequireAuth, title, description, compact = false }: any) => (
+    <div className={`trade-auth-gate${compact ? ' trade-auth-gate--compact' : ''}`}>
+        {!compact && <div className="trade-auth-gate__mark"><Lock size={18} /></div>}
+        <div className="trade-auth-gate__copy">
+            <strong>{title}</strong>
+            <span>{description}</span>
+        </div>
+        <button type="button" className="velo-btn-primary trade-auth-gate__button" onClick={onRequireAuth}>
+            {compact ? 'Sign in' : 'Sign in to trade'}
+            {!compact && <span aria-hidden="true">↗</span>}
+        </button>
+        {!compact && <span className="trade-auth-gate__note">Read-only market data stays available.</span>}
+    </div>
+);
+
 const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
     const PER = 5;
     const page = (items: any[], k: string) => {
@@ -651,28 +666,6 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: 'transparent' }}>
-            {!user && (
-                <div style={{
-                    position: 'absolute', inset: 0, zIndex: 30,
-                    background: 'linear-gradient(180deg, color-mix(in oklab, var(--bg-base) 30%, transparent) 0%, var(--bg-base) 70%)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
-                    flexWrap: 'wrap' as const, padding: '0 16px',
-                }}>
-                    <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Sign in to view your positions and history.</span>
-                    <button
-                        onClick={onRequireAuth}
-                        className="velo-btn-primary"
-                        style={{
-                            minHeight: 36, borderRadius: 11,
-                            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-                            letterSpacing: '0.06em', textTransform: 'uppercase' as const,
-                            padding: '0 22px', cursor: 'pointer',
-                            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-                        }}
-                    >Sign in →</button>
-                </div>
-            )}
-
             {/* Tabs */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', flex: 1 }}>
@@ -690,7 +683,18 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             </div>
 
             {/* Body */}
-            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', opacity: !user ? 0.4 : 1, pointerEvents: !user ? 'none' : 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
+            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
+
+                {!user ? (
+                    <div style={{ padding: isMobile ? '18px 14px' : '20px 16px' }}>
+                        <TradeAuthGate
+                            compact
+                            onRequireAuth={onRequireAuth}
+                            title="Your trading activity"
+                            description="Sign in to view positions, working orders and history."
+                        />
+                    </div>
+                ) : <>
 
                 {/* POSITIONS */}
                 {tab === 'POSITIONS' && <>
@@ -755,7 +759,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                         <span style={{ ...S.display, fontSize: 13, color: 'var(--fg)', textDecoration: 'underline', textDecorationColor: 'var(--hairline-strong)', textUnderlineOffset: 3 }}>{p.pair}</span>
                                                     </button>
                                                     <span style={{ ...S.chip, padding: '1px 5px', fontSize: 9, color: 'var(--fg-subtle)', fontWeight: 700 }}>{p.leverage}x</span>
-                                                    <span style={{ padding: '1px 5px', borderRadius: 5, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const, background: p.marginMode === 'CROSS' ? 'oklch(0.68 0.22 295/0.12)' : 'oklch(0.78 0.18 150/0.10)', color: p.marginMode === 'CROSS' ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)', border: `1px solid ${p.marginMode === 'CROSS' ? 'oklch(0.68 0.22 295/0.25)' : 'oklch(0.78 0.18 150/0.25)'}` }}>{p.marginMode === 'CROSS' ? 'CROSS' : 'ISO'}</span>
+                                                    <span style={{ padding: '1px 5px', borderRadius: 5, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const, background: p.marginMode === 'CROSS' ? 'color-mix(in oklab, var(--accent) 12%, transparent)' : 'oklch(0.78 0.18 150/0.10)', color: p.marginMode === 'CROSS' ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)', border: `1px solid ${p.marginMode === 'CROSS' ? 'color-mix(in oklab, var(--accent) 25%, transparent)' : 'oklch(0.78 0.18 150/0.25)'}` }}>{p.marginMode === 'CROSS' ? 'CROSS' : 'ISO'}</span>
                                                 </div>
                                             </td>
                                             <td style={{ padding: '4px 7px', fontWeight: 700, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</td>
@@ -918,7 +922,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         cursor: 'pointer',
                                         transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
                                         borderColor: isHighlighted ? 'var(--iris-violet, #6b46c1)' : 'var(--hairline)',
-                                        boxShadow: isHighlighted ? '0 0 0 1px var(--iris-violet, #6b46c1), 0 0 16px rgba(107,70,193,0.35)' : 'none',
+                                        boxShadow: isHighlighted ? '0 0 0 1px var(--accent), 0 0 16px color-mix(in oklab, var(--accent) 34%, transparent)' : 'none',
                                         animation: isHighlighted ? 'velo-pulse 1.1s ease-out 2' : undefined,
                                     }}
                                     onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--chip-bg)'; }}
@@ -941,10 +945,10 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                 : 'var(--iris-violet)',
                                               background: t.action === 'CLOSE'
                                                 ? (t.pnl >= 0 ? 'oklch(0.78 0.18 150 / 0.12)' : 'oklch(0.62 0.22 25 / 0.12)')
-                                                : 'oklch(0.68 0.22 295 / 0.12)',
+                                                : 'color-mix(in oklab, var(--accent) 12%, transparent)',
                                               border: t.action === 'CLOSE'
                                                 ? (t.pnl >= 0 ? '1px solid oklch(0.78 0.18 150 / 0.28)' : '1px solid oklch(0.62 0.22 25 / 0.28)')
-                                                : '1px solid oklch(0.68 0.22 295 / 0.28)',
+                                                : '1px solid color-mix(in oklab, var(--accent) 28%, transparent)',
                                             }}>{t.action}</span>
                                           )}
                                           {t.onChain && null}
@@ -982,7 +986,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={e => e.stopPropagation()}
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, textDecoration: 'none', padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295 / 0.1)', border: '1px solid oklch(0.68 0.22 295 / 0.25)', letterSpacing: '0.04em' }}>
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, textDecoration: 'none', padding: '1px 5px', borderRadius: 4, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', letterSpacing: '0.04em' }}>
                                             Tx ↗
                                           </a>
                                         )}
@@ -993,7 +997,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                           <button
                                             onClick={(e) => { e.stopPropagation(); onShareHistory(t); }}
                                             title="Share PnL card"
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4, marginLeft: 4, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295 / 0.1)', border: '1px solid oklch(0.68 0.22 295 / 0.25)', cursor: 'pointer', letterSpacing: '0.04em' }}>
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4, marginLeft: 4, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', cursor: 'pointer', letterSpacing: '0.04em' }}>
                                             <Share2 size={9} /> Share
                                           </button>
                                         )}
@@ -1004,6 +1008,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                         <Pager k="HISTORY" pages={hist.pages} pg={hist.pg} />
                     </div>
                 )}
+                </>}
             </div>
         </div>
     );
@@ -1039,8 +1044,8 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
     const newLiqDist = newLiqPreview > 0 ? Math.abs((currentPrice - newLiqPreview) / currentPrice) * 100 : 0;
 
     const accentColor = isBlocked ? 'var(--pnl-down)' : isUp ? '#f97316' : 'var(--iris-violet)';
-    const accentBg = isBlocked ? 'rgba(239,68,68,0.10)' : isUp ? 'rgba(249,115,22,0.10)' : 'rgba(107,70,193,0.10)';
-    const accentBorder = isBlocked ? 'rgba(239,68,68,0.30)' : isUp ? 'rgba(249,115,22,0.30)' : 'rgba(107,70,193,0.30)';
+    const accentBg = isBlocked ? 'rgba(239,68,68,0.10)' : isUp ? 'rgba(249,115,22,0.10)' : 'color-mix(in oklab, var(--accent) 10%, transparent)';
+    const accentBorder = isBlocked ? 'rgba(239,68,68,0.30)' : isUp ? 'rgba(249,115,22,0.30)' : 'color-mix(in oklab, var(--accent) 30%, transparent)';
     const textPrimary = 'var(--fg)';
     const textMuted = 'var(--fg-muted)';
     const borderRow = '1px solid var(--hairline-strong)';
@@ -1553,7 +1558,7 @@ export const TradeView = ({
             <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', alignSelf: isMobile ? 'flex-start' : undefined, gap: isMobile ? 0 : 10, overflow: isMobile ? 'visible' : 'hidden' }}>
 
                 {/* BUBBLE 1 ── Pair header + Order book */}
-                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(44% - 5px)' : '0 0 calc(34% - 5px)'), display: 'flex', flexDirection: 'column', minHeight: isMobile ? 'auto' : 200, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined, transition: 'flex-basis 0.3s ease' }}>
+                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(44% - 5px)' : '0 0 calc(34% - 5px)'), display: 'flex', flexDirection: 'column', height: isMobile ? 272 : undefined, minHeight: isMobile ? 272 : 200, maxHeight: isMobile ? 272 : undefined, flexShrink: 0, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined, transition: 'flex-basis 0.3s ease' }}>
 
                     {/* Pair header (desktop only) */}
                     <div style={{ flexShrink: 0, padding: '10px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
@@ -1563,7 +1568,7 @@ export const TradeView = ({
                                     <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{activePair.id}</span>
                                     <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
                                     {isActivePairDemo && (
-                                        <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
+                                        <span style={{ padding: '1px 5px', borderRadius: 4, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
                                     )}
                                 </div>
                                 <div style={{ ...S.label, marginTop: 2, color: 'var(--fg-subtle)' }}>Perpetual</div>
@@ -1577,45 +1582,21 @@ export const TradeView = ({
 
                     {/* Order book */}
                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <OrderBook price={currentPrice} pair={activePair.id} rows={3} openOrders={openOrders} />
+                        <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
                     </div>
                 </div>
 
                 {/* BUBBLE 2 ── Order form */}
-                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(56% - 5px)' : '0 0 calc(66% - 5px)'), minHeight: 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: isMobile ? 'visible' : 'hidden', margin: isMobile ? '8px 10px' : undefined, transition: 'flex-basis 0.3s ease' }}>
+                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(56% - 5px)' : '0 0 calc(66% - 5px)'), minHeight: !user && isMobile ? 230 : 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: isMobile && user ? 'visible' : 'hidden', margin: isMobile ? '8px 10px' : undefined, transition: 'flex-basis 0.3s ease' }}>
                     <div style={{ overflowY: isMobile ? 'visible' : 'auto', position: 'relative', display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%' }} className={isMobile ? '' : 'custom-scrollbar'}>
-
-                        {/* Auth overlay */}
-                        {!user && (
-                            <div style={{
-                                position: isMobile ? 'relative' : 'absolute', inset: 0, zIndex: 30,
-                                background: isMobile ? 'transparent' : 'linear-gradient(180deg, color-mix(in oklab, var(--bg-base) 30%, transparent) 0%, var(--bg-base) 62%)',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                justifyContent: isMobile ? 'flex-start' : 'flex-end', gap: 14,
-                                padding: isMobile ? '28px 16px' : '0 0 28px',
-                            }}>
-                                <div style={{
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' as const,
-                                    maxWidth: 240,
-                                }}>
-                                    <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 700, fontSize: isMobile ? 20 : 17, color: 'var(--fg)', letterSpacing: '-0.02em' }}>Start trading</span>
-                                    <span style={{ fontSize: isMobile ? 12 : 11, color: 'var(--fg-subtle)', lineHeight: 1.45 }}>Sign in to open positions with up to 25× leverage on Base.</span>
-                                </div>
-                                <button
-                                    onClick={onRequireAuth}
-                                    className="velo-btn-primary"
-                                    style={{
-                                        minHeight: isMobile ? 48 : 40, borderRadius: 12,
-                                        fontFamily: 'var(--font-mono)', fontSize: isMobile ? 13 : 12, fontWeight: 700,
-                                        letterSpacing: '0.06em', textTransform: 'uppercase' as const,
-                                        padding: '0 28px', width: isMobile ? '100%' : 'auto', cursor: 'pointer',
-                                        touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-                                    }}
-                                >Sign in →</button>
-                            </div>
-                        )}
-
-                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, opacity: !user ? (isMobile ? 0.5 : 0.45) : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
+                        {!user ? (
+                            <TradeAuthGate
+                                onRequireAuth={onRequireAuth}
+                                title="Your next trade starts here"
+                                description="Sign in to size an order, set risk and manage positions."
+                            />
+                        ) : (
+                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, flex: isMobile ? 'none' : 1 }}>
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
@@ -1660,9 +1641,9 @@ export const TradeView = ({
                                             width: `${sizeSlider}%`,
                                             borderRadius: 999,
                                             background: sizeSlider > 66
-                                                ? 'linear-gradient(90deg, oklch(0.78 0.18 150), oklch(0.68 0.22 295), #f97316)'
+                                                ? 'linear-gradient(90deg, oklch(0.78 0.18 150), var(--accent), #f97316)'
                                                 : sizeSlider > 33
-                                                    ? 'linear-gradient(90deg, oklch(0.78 0.18 150), oklch(0.68 0.22 295))'
+                                                    ? 'linear-gradient(90deg, oklch(0.78 0.18 150), var(--accent))'
                                                     : side === 'LONG'
                                                         ? 'oklch(0.78 0.18 150)'
                                                         : 'oklch(0.66 0.22 25)',
@@ -1801,14 +1782,12 @@ export const TradeView = ({
                                 touchAction: 'manipulation',
                                 WebkitTapHighlightColor: 'transparent',
                             }}>
-                                {user ? (
-                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                                        <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: '0.15em' }}>{activePosition ? `${activePosition.leverage}x ${side}` : side}</span>
-                                        <span style={{ opacity: 0.45 }}>·</span>
-                                        <span style={{ ...S.display, fontSize: 14 }}>{activePair.id.split('/')[0]}</span>
-                                        <span>{side === 'LONG' ? '↗' : '↘'}</span>
-                                    </span>
-                                ) : 'Connect Wallet'}
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                                    <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: '0.15em' }}>{activePosition ? `${activePosition.leverage}x ${side}` : side}</span>
+                                    <span style={{ opacity: 0.45 }}>·</span>
+                                    <span style={{ ...S.display, fontSize: 14 }}>{activePair.id.split('/')[0]}</span>
+                                    <span>{side === 'LONG' ? '↗' : '↘'}</span>
+                                </span>
                             </button>
                             {/* Subtle demo notice only — live mode no longer needs a label,
                                 the user already knows they connected a wallet. */}
@@ -1821,6 +1800,7 @@ export const TradeView = ({
                                 </div>
                             )}
                         </div>
+                        )}
                     </div>
                 </div>
             </div>

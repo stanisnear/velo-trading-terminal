@@ -33,9 +33,9 @@ const podiumAccents = [
 ];
 export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, handleCopyTrade, handleViewProfile }: any) => {
     const [period, setPeriod] = React.useState<'24H' | '7D' | '30D' | 'ALL'>('ALL');
-    const [isMobile, setIsMobile] = React.useState(window.innerWidth < 640);
+    const [isCompact, setIsCompact] = React.useState(window.innerWidth <= 1080);
     React.useEffect(() => {
-        const handler = () => setIsMobile(window.innerWidth < 640);
+        const handler = () => setIsCompact(window.innerWidth <= 1080);
         window.addEventListener('resize', handler);
         return () => window.removeEventListener('resize', handler);
     }, []);
@@ -64,7 +64,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
         .sort((a: any, b: any) => (b.pnl ?? 0) - (a.pnl ?? 0));
     const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
     return (
-        <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 80 }} className="animate-fade-in lb-view">
+        <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto', paddingBottom: isCompact ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 80 }} className="animate-fade-in lb-view">
             {/* Hero header */}
             <div style={{ textAlign: 'center', marginBottom: 40 }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 14px', borderRadius: 999, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', marginBottom: 16 }}>
@@ -83,7 +83,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
             </div>
 
             {/* Podium top 3 */}
-            {isMobile ? (
+            {isCompact ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
                     {/* #1 full width */}
                     {[0, 1, 2].map((idx) => {
@@ -96,7 +96,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                         return (
                             <div key={trader.id} onClick={() => handleViewProfile(trader)} style={{
                                 background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 18%, var(--bg-base-2))' : podiumGolds[idx],
-                                border: isSelf ? '1px solid oklch(0.68 0.22 295 / 0.5)' : podiumBorders[idx],
+                                border: isSelf ? '1px solid color-mix(in oklab, var(--accent) 50%, transparent)' : podiumBorders[idx],
                                 borderRadius: 16,
                                 backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)',
                                 padding: '14px 16px',
@@ -136,7 +136,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                     return (
                         <div key={trader.id} style={{
                             background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 18%, var(--bg-base-2))' : podiumGolds[idx],
-                            border: isSelf ? '1px solid oklch(0.68 0.22 295 / 0.5)' : podiumBorders[idx],
+                            border: isSelf ? '1px solid color-mix(in oklab, var(--accent) 50%, transparent)' : podiumBorders[idx],
                             borderRadius: 16,
                             backdropFilter: 'blur(10px) saturate(1.2)',
                             WebkitBackdropFilter: 'blur(10px) saturate(1.2)',
@@ -185,7 +185,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
 
             {/* Full table — desktop */}
             <div className="vp" style={panel}>
-                {!isMobile && (
+                {!isCompact && (
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' as const, whiteSpace: 'nowrap' as const }}>
                         <thead>
@@ -237,7 +237,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                 )}
 
                 {/* Mobile card list */}
-                {isMobile && (
+                {isCompact && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {/* Header row */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid var(--hairline)' }}>

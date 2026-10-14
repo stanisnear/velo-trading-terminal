@@ -675,7 +675,7 @@ const TxLink: React.FC<{ label: string; hash: `0x${string}` }> = ({ label, hash 
 const styleString = `
 @keyframes velo-spin { to { transform: rotate(360deg); } }
 @keyframes velo-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes velo-pulse-ring { 0% { box-shadow: 0 0 0 0 oklch(0.68 0.22 295 / 0.45); } 100% { box-shadow: 0 0 0 22px oklch(0.68 0.22 295 / 0); } }
+@keyframes velo-pulse-ring { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 45%, transparent); } 100% { box-shadow: 0 0 0 22px color-mix(in oklab, var(--accent) 0%, transparent); } }
 @keyframes velo-aurora-rotate { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes velo-check-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes velo-holo-shift { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
@@ -707,8 +707,8 @@ const styleString = `
   content: '';
   position: absolute; inset: -50%;
   background:
-    radial-gradient(40% 40% at 30% 30%, oklch(0.68 0.22 295 / 0.18) 0%, transparent 70%),
-    radial-gradient(35% 35% at 70% 70%, oklch(0.80 0.14 205 / 0.14) 0%, transparent 70%),
+    radial-gradient(40% 40% at 30% 30%, color-mix(in oklab, var(--accent) 18%, transparent) 0%, transparent 70%),
+    radial-gradient(35% 35% at 70% 70%, color-mix(in oklab, var(--velo-sage-bright) 14%, transparent) 0%, transparent 70%),
     radial-gradient(30% 30% at 50% 80%, oklch(0.74 0.18 30 / 0.10) 0%, transparent 70%);
   filter: blur(40px);
   animation: velo-aurora-rotate 22s linear infinite;
@@ -719,13 +719,13 @@ const styleString = `
 .velo-onb-edge {
   height: 2px;
   background: linear-gradient(100deg,
-    oklch(0.68 0.22 295) 0%,
-    oklch(0.70 0.22 340) 22%,
+    var(--accent) 0%,
+    var(--velo-sage-bright) 22%,
     oklch(0.74 0.18 30) 42%,
     oklch(0.82 0.16 75) 58%,
     oklch(0.84 0.18 130) 74%,
-    oklch(0.80 0.14 205) 90%,
-    oklch(0.68 0.18 250) 100%);
+    var(--velo-sage-bright) 90%,
+    var(--velo-sage-bright) 100%);
   background-size: 200% 100%;
   animation: velo-holo-shift 9s linear infinite;
   opacity: 0.85;
@@ -751,17 +751,17 @@ const styleString = `
 .velo-onb-mark {
   width: 92px; height: 92px; border-radius: 28px;
   background: linear-gradient(100deg,
-    oklch(0.68 0.22 295) 0%,
-    oklch(0.70 0.22 340) 22%,
+    var(--accent) 0%,
+    var(--velo-sage-bright) 22%,
     oklch(0.74 0.18 30) 42%,
     oklch(0.82 0.16 75) 58%,
     oklch(0.84 0.18 130) 74%,
-    oklch(0.80 0.14 205) 90%,
-    oklch(0.68 0.18 250) 100%);
+    var(--velo-sage-bright) 90%,
+    var(--velo-sage-bright) 100%);
   background-size: 200% 100%;
   animation: velo-holo-shift 9s linear infinite, velo-pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 24px 60px oklch(0.68 0.22 295 / 0.45);
+  box-shadow: 0 24px 60px color-mix(in oklab, var(--accent) 45%, transparent);
 }
 .velo-onb-mark-inner {
   width: 84px; height: 84px; border-radius: 24px;
@@ -775,9 +775,9 @@ const styleString = `
   display: flex; align-items: center; justify-content: center;
 }
 .velo-onb-ring {
-  background: linear-gradient(135deg, oklch(0.68 0.22 295), oklch(0.80 0.14 205));
+  background: linear-gradient(135deg, var(--accent), var(--velo-sage-bright));
   animation: velo-pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  box-shadow: 0 16px 40px oklch(0.68 0.22 295 / 0.4);
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--accent) 40%, transparent);
 }
 .velo-onb-ring-err {
   background: linear-gradient(135deg, oklch(0.66 0.22 25), oklch(0.66 0.22 25 / 0.6));
@@ -818,7 +818,7 @@ const styleString = `
   flex-shrink: 0;
   transition: all 240ms;
 }
-.velo-onb-rail-step.active .velo-onb-rail-dot { background: oklch(0.68 0.22 295); color: #fff; box-shadow: 0 0 0 4px oklch(0.68 0.22 295 / 0.18); }
+.velo-onb-rail-step.active .velo-onb-rail-dot { background: var(--accent); color: #fff; box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent); }
 .velo-onb-rail-step.done   .velo-onb-rail-dot { background: oklch(0.78 0.18 150); color: #fff; }
 .velo-onb-rail-label { letter-spacing: 0.04em; font-weight: 500; }
 
@@ -840,13 +840,13 @@ const styleString = `
   padding: 17px 22px;
   border-radius: 16px;
   background: linear-gradient(100deg,
-    oklch(0.68 0.22 295) 0%,
-    oklch(0.70 0.22 340) 22%,
+    var(--accent) 0%,
+    var(--velo-sage-bright) 22%,
     oklch(0.74 0.18 30) 42%,
     oklch(0.82 0.16 75) 58%,
     oklch(0.84 0.18 130) 74%,
-    oklch(0.80 0.14 205) 90%,
-    oklch(0.68 0.18 250) 100%);
+    var(--velo-sage-bright) 90%,
+    var(--velo-sage-bright) 100%);
   background-size: 200% 100%;
   animation: velo-holo-shift 9s linear infinite;
   color: #fff;
@@ -857,10 +857,10 @@ const styleString = `
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow: 0 14px 40px oklch(0.68 0.22 295 / 0.45);
+  box-shadow: 0 14px 40px color-mix(in oklab, var(--accent) 45%, transparent);
   transition: transform 140ms, box-shadow 140ms;
 }
-.velo-onb-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 18px 48px oklch(0.68 0.22 295 / 0.6); }
+.velo-onb-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 18px 48px color-mix(in oklab, var(--accent) 60%, transparent); }
 .velo-onb-btn-primary:active { transform: translateY(0); }
 .velo-onb-btn-primary.is-disabled { opacity: 0.45; cursor: wait; transform: none; box-shadow: none; }
 
@@ -956,7 +956,7 @@ const styleString = `
   background: rgba(255,255,255,0.02);
   transition: color 140ms, background 140ms;
 }
-.velo-onb-txlink:hover { color: oklch(0.68 0.22 295); background: rgba(255,255,255,0.05); }
+.velo-onb-txlink:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
 `;
 
 export default OrderlyOnboardingModal;

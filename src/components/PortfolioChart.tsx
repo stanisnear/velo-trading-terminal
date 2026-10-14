@@ -77,13 +77,11 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       handleScroll: false,
     });
 
-    // lightweight-charts does not parse modern OKLCH color syntax — it expects
-    // hex / rgb / rgba and throws "Failed to parse color" otherwise. We hardcode
-    // the rgba equivalent of `oklch(0.68 0.22 295)` (Velo iris violet).
+    // lightweight-charts expects concrete color strings rather than CSS vars.
     const series = chart.addSeries(AreaSeries, {
-      lineColor: 'rgb(140, 90, 255)',
-      topColor: theme === 'dark' ? 'rgba(140, 90, 255, 0.38)' : 'rgba(120, 70, 240, 0.20)',
-      bottomColor: theme === 'dark' ? 'rgba(120, 70, 240, 0.0)' : 'rgba(140, 90, 255, 0.0)',
+      lineColor: theme === 'dark' ? '#91b99f' : '#52765f',
+      topColor: theme === 'dark' ? 'rgba(145, 185, 159, 0.30)' : 'rgba(82, 118, 95, 0.18)',
+      bottomColor: theme === 'dark' ? 'rgba(145, 185, 159, 0)' : 'rgba(82, 118, 95, 0)',
       lineWidth: 2,
     });
 

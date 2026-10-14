@@ -15,27 +15,46 @@ export const TokenInteractiveChart = ({
     const [mode, setMode] = React.useState<'PRICE' | 'MCAP'>('PRICE');
     const [hoveredIdx, setHoveredIdx] = React.useState<number | null>(null);
     const [timeframe, setTimeframe] = React.useState<'24H' | '7D' | '30D'>('24H');
-    const [extPriceData, setExtPriceData] = React.useState<Record<string, number[]>>({});
+    const [priceDataMap, setPriceDataMap] = React.useState<Record<string, number[]>>({});
+    const [priceLoading, setPriceLoading] = React.useState(false);
+    const [priceError, setPriceError] = React.useState(false);
+    const [priceRetry, setPriceRetry] = React.useState(0);
     const [mcapDataMap, setMcapDataMap] = React.useState<Record<string, number[]>>({});
     const [mcapLoading, setMcapLoading] = React.useState(false);
+    const [mcapError, setMcapError] = React.useState(false);
+    const [mcapRetry, setMcapRetry] = React.useState(0);
+    const chartId = React.useId().replace(/:/g, '');
 
     const binanceSym = ticker === 'BTC' ? 'BTCUSDT' : ticker === 'ETH' ? 'ETHUSDT' : ticker === 'SOL' ? 'SOLUSDT' : ticker === 'DOGE' ? 'DOGEUSDT' : `${ticker}USDT`;
 
-    // Fetch 7D / 30D price data lazily from Binance
+    // Load only the selected window and keep failures explicit rather than
+    // leaving the chart in a permanent loading state.
     React.useEffect(() => {
-        const intervals: Record<string, string> = { '7D': '4h', '30D': '1d' };
-        const limits: Record<string, number> = { '7D': 42, '30D': 30 };
-        Object.entries(intervals).forEach(([tf, interval]) => {
-            if (extPriceData[tf]) return;
-            fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${interval}&limit=${limits[tf]}`)
-                .then(r => r.json())
-                .then((d: any[]) => {
-                    if (Array.isArray(d)) {
-                        setExtPriceData(prev => ({ ...prev, [tf]: d.map((c: any) => parseFloat(c[4])) }));
-                    }
-                }).catch(() => {});
-        });
-    }, [ticker]);
+        const provided24h = priceData.filter(v => Number.isFinite(v) && v > 0);
+        if (mode !== 'PRICE' || (timeframe === '24H' && provided24h.length >= 2) || priceDataMap[timeframe]?.length >= 2) return;
+
+        const config: Record<string, { interval: string; limit: number }> = {
+            '24H': { interval: '1h', limit: 24 },
+            '7D': { interval: '4h', limit: 42 },
+            '30D': { interval: '1d', limit: 30 },
+        };
+        const controller = new AbortController();
+        let timedOut = false;
+        const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 9000);
+        const { interval, limit } = config[timeframe];
+        setPriceLoading(true);
+        setPriceError(false);
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${interval}&limit=${limit}`, { signal: controller.signal })
+            .then(r => { if (!r.ok) throw new Error('Price history request failed'); return r.json(); })
+            .then((rows: any[]) => {
+                const values = Array.isArray(rows) ? rows.map(row => Number(row?.[4])).filter(v => Number.isFinite(v) && v > 0) : [];
+                if (values.length < 2) throw new Error('Price history unavailable');
+                setPriceDataMap(prev => ({ ...prev, [timeframe]: values }));
+            })
+            .catch(() => { if (!controller.signal.aborted || timedOut) { setPriceError(true); setPriceLoading(false); } })
+            .finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setPriceLoading(false); });
+        return () => { window.clearTimeout(timeout); controller.abort(); };
+    }, [mode, timeframe, ticker, binanceSym, priceData, priceDataMap, priceRetry]);
 
     // Fetch market cap data from CoinGecko when MCAP mode is selected
     React.useEffect(() => {
@@ -44,21 +63,29 @@ export const TokenInteractiveChart = ({
         const days = tfDays[timeframe];
         const cacheKey = timeframe;
         if (mcapDataMap[cacheKey]) return;
+        const controller = new AbortController();
+        let timedOut = false;
+        const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 9000);
         setMcapLoading(true);
-        fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${days}`)
-            .then(r => r.json())
+        setMcapError(false);
+        fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${days}`, { signal: controller.signal })
+            .then(r => { if (!r.ok) throw new Error('Market cap request failed'); return r.json(); })
             .then(d => {
-                if (d?.market_caps) {
-                    setMcapDataMap(prev => ({ ...prev, [cacheKey]: d.market_caps.map((c: any) => c[1]) }));
-                }
+                const values = Array.isArray(d?.market_caps) ? d.market_caps.map((c: any) => Number(c?.[1])).filter((v: number) => Number.isFinite(v) && v > 0) : [];
+                if (values.length < 2) throw new Error('Market cap history unavailable');
+                setMcapDataMap(prev => ({ ...prev, [cacheKey]: values }));
             })
-            .catch(() => {})
-            .finally(() => setMcapLoading(false));
-    }, [mode, timeframe, geckoId]);
+            .catch(() => { if (!controller.signal.aborted || timedOut) { setMcapError(true); setMcapLoading(false); } })
+            .finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setMcapLoading(false); });
+        return () => { window.clearTimeout(timeout); controller.abort(); };
+    }, [mode, timeframe, geckoId, mcapRetry]);
 
-    const priceDataForTf = timeframe === '24H' ? priceData : (extPriceData[timeframe] || []);
+    const provided24h = priceData.filter(v => Number.isFinite(v) && v > 0);
+    const priceDataForTf = timeframe === '24H' && provided24h.length >= 2 ? provided24h : (priceDataMap[timeframe] || []);
     const activeData = mode === 'PRICE' ? priceDataForTf : (mcapDataMap[timeframe] || []);
-    const loading = activeData.length < 2 || (mode === 'MCAP' && mcapLoading && (mcapDataMap[timeframe] || []).length < 2);
+    const hasData = activeData.length >= 2;
+    const loading = !hasData && (mode === 'PRICE' ? priceLoading : mcapLoading);
+    const failed = !hasData && (mode === 'PRICE' ? priceError : mcapError);
 
     const w = 800, h = 280;
     const pad = { top: 20, right: 16, bottom: 36, left: 78 };
@@ -69,9 +96,7 @@ export const TokenInteractiveChart = ({
     const toX = (i: number) => pad.left + (i / Math.max(activeData.length - 1, 1)) * (w - pad.left - pad.right);
     const toY = (v: number) => pad.top + ((max - v) / range) * (h - pad.top - pad.bottom);
 
-    // Purple for MCAP (matches dashboard equity chart), green/red for PRICE
-    const color = mode === 'MCAP' ? 'var(--iris-violet)' : (up ? 'var(--pnl-up)' : 'var(--pnl-down)');
-    const colorOklch = mode === 'MCAP' ? 'oklch(0.68 0.22 295)' : (up ? 'oklch(0.78 0.18 150)' : 'oklch(0.66 0.22 25)');
+    const color = 'var(--accent)';
 
     const formatTick = (v: number) => {
         if (mode === 'MCAP') {
@@ -103,7 +128,15 @@ export const TokenInteractiveChart = ({
 
     const firstVal = activeData[0];
     const lastVal = activeData[activeData.length - 1];
-    const pctChange = firstVal && lastVal ? ((lastVal - firstVal) / firstVal) * 100 : null;
+    const comparisonValue = mode === 'PRICE' && currentPrice > 0 ? currentPrice : lastVal;
+    const pctChange = firstVal && comparisonValue ? ((comparisonValue - firstVal) / firstVal) * 100 : null;
+    const displayedValue = hoveredVal != null
+        ? formatTick(hoveredVal)
+        : mode === 'PRICE' && currentPrice > 0
+            ? formatTick(currentPrice)
+            : hasData && lastVal
+                ? formatTick(lastVal)
+                : (loading ? 'Loading…' : '—');
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
@@ -113,35 +146,29 @@ export const TokenInteractiveChart = ({
     return (
         <div style={{ width: '100%' }}>
             {/* Header: value + controls */}
-            <div className="token-chart-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 0', gap: 8, flexWrap: 'wrap' }}>
+            <div className="token-chart-header" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', padding: '16px 18px 0', gap: 12 }}>
                 {/* Left: value + change */}
                 <div style={{ minWidth: 0, flex: '1 1 160px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ ...S.mono, fontSize: 20, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>
-                            {hoveredVal != null ? formatTick(hoveredVal) : (!loading && lastVal ? formatTick(lastVal) : (mcapLoading ? 'Loading…' : '—'))}
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 23, fontWeight: 650, fontVariantNumeric: 'tabular-nums', letterSpacing: 'normal', color: 'var(--fg)', lineHeight: 1 }}>
+                            {displayedValue}
                         </span>
                         {pctChange != null && hoveredIdx === null && (
-                            <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: pctChange >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', background: pctChange >= 0 ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>
+                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 650, fontVariantNumeric: 'tabular-nums', color: pctChange >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', background: pctChange >= 0 ? 'color-mix(in oklab, var(--pnl-up) 12%, transparent)' : 'color-mix(in oklab, var(--pnl-down) 10%, transparent)', borderRadius: 6, padding: '3px 7px', flexShrink: 0 }}>
                                 {pctChange >= 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(2)}%
                             </span>
                         )}
-                        {hoveredIdx !== null && hoveredVal != null && (
-                            <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>{getXLabel(hoveredIdx)}</span>
-                        )}
-                    </div>
-                    <div style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', marginTop: 3 }}>
-                        {mode === 'PRICE' ? 'Price' : 'Market Cap'} · {timeframe} · {mode === 'MCAP' ? 'CoinGecko' : 'Binance'}
                     </div>
                 </div>
                 {/* Right: mode + timeframe — inline on mobile */}
-                <div className="token-chart-controls" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+                <div className="token-chart-controls" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
                     <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 8, padding: 3, border: '1px solid var(--hairline)', gap: 2 }}>
                         {(['PRICE', 'MCAP'] as const).map(m => (
-                            <button key={m} onClick={() => setMode(m)} style={{
+                            <button key={m} aria-pressed={mode === m} onClick={() => { setMode(m); setHoveredIdx(null); }} style={{
                                 padding: '4px 10px', borderRadius: 6,
-                                border: mode === m ? '1px solid var(--iris-violet)' : '1px solid transparent',
+                                border: mode === m ? '1px solid var(--accent)' : '1px solid transparent',
                                 cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                                background: mode === m ? 'var(--bg-base-2)' : 'transparent',
+                                background: mode === m ? 'var(--glass-bg-strong)' : 'transparent',
                                 color: mode === m ? 'var(--fg)' : 'var(--fg-subtle)',
                                 boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
                                 transition: 'all 0.15s', whiteSpace: 'nowrap',
@@ -152,10 +179,10 @@ export const TokenInteractiveChart = ({
                     </div>
                     <div style={{ display: 'flex', gap: 2 }}>
                         {(['24H', '7D', '30D'] as const).map(tf => (
-                            <button key={tf} onClick={() => setTimeframe(tf)} style={{
+                            <button key={tf} aria-pressed={timeframe === tf} onClick={() => { setTimeframe(tf); setHoveredIdx(null); }} style={{
                                 padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
                                 ...S.label, fontSize: 9,
-                                background: timeframe === tf ? 'var(--bg-base-2)' : 'transparent',
+                                background: timeframe === tf ? 'var(--glass-bg-strong)' : 'transparent',
                                 color: timeframe === tf ? 'var(--fg)' : 'var(--fg-subtle)',
                                 boxShadow: timeframe === tf ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
                                 transition: 'all 0.15s',
@@ -168,43 +195,27 @@ export const TokenInteractiveChart = ({
             </div>
 
             {/* SVG Chart — responsive, no fixed height */}
-            <div style={{ position: 'relative', userSelect: 'none', marginTop: 8 }}>
-                {loading && (
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
-                        <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>
-                            {mcapLoading ? 'Fetching market cap data…' : 'Loading chart…'}
-                        </span>
-                    </div>
-                )}
-                <svg
+            <div className="token-chart-plot" style={{ position: 'relative', userSelect: 'none', marginTop: 8, touchAction: 'pan-y' }}>
+                {hasData ? <svg
                     viewBox={`0 0 ${w} ${h}`}
                     className="token-chart-svg"
-                    style={{ width: '100%', height: 'auto', minHeight: 200, maxHeight: 320, display: 'block', overflow: 'visible', opacity: loading ? 0.2 : 1, transition: 'opacity 0.3s' }}
-                    preserveAspectRatio="xMidYMid meet"
-                    onMouseLeave={() => setHoveredIdx(null)}
-                    onMouseMove={(e) => {
+                    style={{ width: '100%', height: 'clamp(210px, 28vw, 270px)', display: 'block', overflow: 'hidden' }}
+                    preserveAspectRatio="none"
+                    onPointerLeave={() => setHoveredIdx(null)}
+                    onPointerMove={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const svgX = ((e.clientX - rect.left) / rect.width) * w;
                         const frac = Math.max(0, Math.min(1, (svgX - pad.left) / (w - pad.left - pad.right)));
                         setHoveredIdx(Math.round(frac * (activeData.length - 1)));
                     }}
-                    onTouchMove={(e) => {
-                        e.preventDefault();
-                        const touch = e.touches[0];
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const svgX = ((touch.clientX - rect.left) / rect.width) * w;
-                        const frac = Math.max(0, Math.min(1, (svgX - pad.left) / (w - pad.left - pad.right)));
-                        setHoveredIdx(Math.round(frac * (activeData.length - 1)));
-                    }}
-                    onTouchEnd={() => setHoveredIdx(null)}
                 >
                     <defs>
-                        <linearGradient id={`fill-${ticker}-${mode}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={colorOklch} stopOpacity="0.28"/>
-                            <stop offset="65%" stopColor={colorOklch} stopOpacity="0.06"/>
-                            <stop offset="100%" stopColor={colorOklch} stopOpacity="0"/>
+                        <linearGradient id={`fill-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={color} stopOpacity="0.17"/>
+                            <stop offset="65%" stopColor={color} stopOpacity="0.035"/>
+                            <stop offset="100%" stopColor={color} stopOpacity="0"/>
                         </linearGradient>
-                        <clipPath id={`clip-${ticker}-${mode}`}>
+                        <clipPath id={`clip-${chartId}`}>
                             <rect x={pad.left} y={pad.top} width={w - pad.left - pad.right} height={h - pad.top - pad.bottom}/>
                         </clipPath>
                     </defs>
@@ -212,7 +223,7 @@ export const TokenInteractiveChart = ({
                     {/* Grid lines */}
                     {ticks.map((t, i) => (
                         <line key={i} x1={pad.left} x2={w - pad.right} y1={toY(t)} y2={toY(t)}
-                            stroke="var(--hairline)" strokeWidth="0.5" strokeDasharray="4,6"/>
+                            stroke="var(--hairline)" strokeWidth="0.65"/>
                     ))}
 
                     {/* Hover vertical line */}
@@ -225,8 +236,8 @@ export const TokenInteractiveChart = ({
                     {!loading && (
                         <path
                             d={`${activeData.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ')} L${toX(activeData.length-1).toFixed(1)},${(h-pad.bottom).toFixed(1)} L${pad.left},${(h-pad.bottom).toFixed(1)} Z`}
-                            fill={`url(#fill-${ticker}-${mode})`}
-                            clipPath={`url(#clip-${ticker}-${mode})`}
+                            fill={`url(#fill-${chartId})`}
+                            clipPath={`url(#clip-${chartId})`}
                         />
                     )}
 
@@ -234,8 +245,8 @@ export const TokenInteractiveChart = ({
                     {!loading && (
                         <polyline
                             points={activeData.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ')}
-                            fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
-                            clipPath={`url(#clip-${ticker}-${mode})`}
+                            fill="none" stroke={color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round"
+                            clipPath={`url(#clip-${chartId})`}
                         />
                     )}
 
@@ -269,19 +280,19 @@ export const TokenInteractiveChart = ({
                         </text>
                     ))}
 
-                    {/* VELO watermark */}
-                    <text x={w/2} y={h/2+10} textAnchor="middle"
-                        style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 32,
-                            fill: 'var(--fg)', opacity: 0.03, letterSpacing: '-0.02em', userSelect: 'none' }}>
-                        VELO
-                    </text>
-                </svg>
+                </svg> : (
+                    <div className="token-chart-empty" role="status" aria-live="polite">
+                        <span className="token-chart-empty-mark" aria-hidden="true">V</span>
+                        <span className="token-chart-empty-title">{loading ? 'Loading market history' : failed ? 'Market history unavailable' : 'No chart data yet'}</span>
+                        <span className="token-chart-empty-copy">{loading ? 'Fetching verified price points.' : failed ? 'The live price is still available. Try loading the chart again.' : 'Price history will appear when data is available.'}</span>
+                        {failed && <button className="token-chart-retry" onClick={() => mode === 'PRICE' ? setPriceRetry(v => v + 1) : setMcapRetry(v => v + 1)}>Retry</button>}
+                    </div>
+                )}
             </div>
 
             {/* Footer */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, padding: '4px 14px 12px' }}>
-                <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>{timeframe} · {mode === 'MCAP' ? 'CoinGecko' : 'Binance'}</span>
-                {!loading && <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>Low: {formatTick(min)} · High: {formatTick(max)}</span>}
+            <div className="token-chart-footer" style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 4, padding: '0 18px 14px' }}>
+                {!loading && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-subtle)' }}>Low {formatTick(min)} <span aria-hidden="true">·</span> High {formatTick(max)}</span>}
             </div>
         </div>
     );

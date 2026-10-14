@@ -113,9 +113,9 @@ export const Wordmark = ({ size = 22, className = '' }: { size?: number, classNa
 
 export const Ico3D = ({ size = 40, tone = 'violet', children }: { size?: number, tone?: 'violet' | 'blue' | 'ice' | 'up' | 'down', children: React.ReactNode }) => {
     const backgrounds: Record<string, string> = {
-        violet: 'linear-gradient(160deg, oklch(0.66 0.24 295), oklch(0.34 0.22 285))',
-        blue: 'linear-gradient(160deg, oklch(0.74 0.18 245), oklch(0.44 0.20 268))',
-        ice: 'linear-gradient(160deg, oklch(0.92 0.06 245), oklch(0.68 0.12 240))',
+        violet: 'linear-gradient(160deg, var(--accent), var(--velo-sage-deep))',
+        blue: 'linear-gradient(160deg, #718a77, var(--velo-sage))',
+        ice: 'linear-gradient(160deg, #cbd9ce, var(--velo-sage-bright))',
         up: 'linear-gradient(160deg, oklch(0.88 0.16 152), oklch(0.56 0.18 152))',
         down: 'linear-gradient(160deg, oklch(0.78 0.20 25), oklch(0.52 0.22 25))',
     };

@@ -126,14 +126,14 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     // ── Rainbow top accent bar ─────────────────────────────────────────
     const topGrad = ctx.createLinearGradient(0, 0, W, 0);
     if (isLight) {
-      topGrad.addColorStop(0, 'oklch(0.5 0.24 295 / 0.7)');
-      topGrad.addColorStop(0.4, 'oklch(0.55 0.2 280 / 0.7)');
+      topGrad.addColorStop(0, 'color-mix(in oklab, var(--accent) 70%, transparent)');
+      topGrad.addColorStop(0.4, 'color-mix(in oklab, var(--accent) 70%, transparent)');
       topGrad.addColorStop(0.8, 'oklch(0.6 0.18 265 / 0.5)');
       topGrad.addColorStop(1, pnlUp ? 'oklch(0.55 0.2 162 / 0.5)' : 'oklch(0.55 0.22 25 / 0.5)');
     } else {
-      topGrad.addColorStop(0, 'oklch(0.48 0.28 295 / 0.95)');
-      topGrad.addColorStop(0.35, 'oklch(0.58 0.25 285 / 0.9)');
-      topGrad.addColorStop(0.7, 'oklch(0.65 0.22 268 / 0.85)');
+      topGrad.addColorStop(0, 'color-mix(in oklab, var(--accent) 95%, transparent)');
+      topGrad.addColorStop(0.35, 'color-mix(in oklab, var(--velo-sage-deep) 90%, transparent)');
+      topGrad.addColorStop(0.7, 'color-mix(in oklab, var(--velo-sage) 85%, transparent)');
       topGrad.addColorStop(1, pnlUp ? 'oklch(0.68 0.22 162 / 0.8)' : 'oklch(0.62 0.22 25 / 0.8)');
     }
     ctx.fillStyle = topGrad; ctx.fillRect(0, 0, W, 4);
@@ -160,7 +160,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     // Dot after wordmark
     ctx.beginPath();
     ctx.arc(LX + wordW + 7, LY + 10, 4.5, 0, Math.PI * 2);
-    ctx.fillStyle = isLight ? 'oklch(0.50 0.26 295)' : 'oklch(0.68 0.24 295)';
+    ctx.fillStyle = isLight ? 'var(--accent)' : 'var(--accent)';
     ctx.fill();
     ctx.fillStyle = fgMuted;
     ctx.font = '700 9px "Geist Mono", monospace';
@@ -173,7 +173,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     ctx.strokeStyle = isLight ? 'rgba(107,70,255,0.22)' : 'rgba(130,90,255,0.32)'; ctx.lineWidth = 1;
     ctx.beginPath(); (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 8); ctx.stroke();
     ctx.font = '700 10px "Geist Mono", monospace';
-    ctx.fillStyle = isLight ? 'oklch(0.42 0.22 295)' : 'oklch(0.74 0.18 295)';
+    ctx.fillStyle = isLight ? 'var(--accent)' : 'var(--accent)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('TESTNET · BASE SEPOLIA', badgeX + badgeW / 2, badgeY + badgeH / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -296,7 +296,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
     if (visibleFields.handle && data.traderHandle) {
       const handle = data.traderHandle.startsWith('@') ? data.traderHandle : '@' + data.traderHandle;
-      ctx.font = '700 12px "Geist Mono", monospace'; ctx.fillStyle = isLight ? 'oklch(0.45 0.24 295)' : 'oklch(0.72 0.22 295)';
+      ctx.font = '700 12px "Geist Mono", monospace'; ctx.fillStyle = isLight ? 'var(--accent)' : 'var(--accent)';
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       ctx.fillText(handle, 52, H - 28);
     }
@@ -338,8 +338,8 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
   const BG_OPTIONS: { id: BgStyle; label: string; swatch: string }[] = [
     { id: 'obsidian', label: 'Obsidian', swatch: 'linear-gradient(135deg, #0d0f1a 0%, #1a1d2e 100%)' },
-    { id: 'gradient', label: 'Gradient', swatch: 'linear-gradient(135deg, #0b0818 0%, #7B3CE8 50%, #3B5BFF 100%)' },
-    { id: 'hologram', label: 'Hologram', swatch: 'linear-gradient(135deg, #050710 0%, #50dcff44 50%, #7B3CE8 100%)' },
+    { id: 'gradient', label: 'Gradient', swatch: 'linear-gradient(135deg, #0a0e0c 0%, #26352b 52%, #557a64 100%)' },
+    { id: 'hologram', label: 'Hologram', swatch: 'linear-gradient(135deg, #090d0b 0%, #27382d 52%, #91b99f 100%)' },
     { id: 'light',    label: 'Light',    swatch: 'linear-gradient(135deg, #F0EEE8 0%, #e8e2d8 100%)' },
   ];
 
@@ -373,14 +373,14 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
               <Download size={11} /> Download PNG
             </button>
             <button onClick={handleShare}
-              style={{ ...S.mono, flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, oklch(0.52 0.28 295), oklch(0.62 0.24 310))', color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px oklch(0.52 0.28 295 / 0.4)' }}>
+              style={{ ...S.mono, flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, var(--accent), oklch(0.62 0.24 310))', color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px color-mix(in oklab, var(--accent) 40%, transparent)' }}>
               {copied ? <><Check size={11} /> Copied!</> : <><Share2 size={11} /> Share</>}
             </button>
           </div>
 
           {/* Customize toggle */}
           <button onClick={() => setTweakOpen((p) => !p)}
-            style={{ ...S.mono, width: '100%', padding: '7px 12px', borderRadius: 10, background: tweakOpen ? 'oklch(0.68 0.22 295 / 0.10)' : 'var(--chip-bg)', border: `1px solid ${tweakOpen ? 'oklch(0.68 0.22 295 / 0.35)' : 'var(--hairline)'}`, color: tweakOpen ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            style={{ ...S.mono, width: '100%', padding: '7px 12px', borderRadius: 10, background: tweakOpen ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'var(--chip-bg)', border: `1px solid ${tweakOpen ? 'color-mix(in oklab, var(--accent) 35%, transparent)' : 'var(--hairline)'}`, color: tweakOpen ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <Settings size={11} /> {tweakOpen ? 'Hide Options' : 'Customize'}
           </button>
 
@@ -391,7 +391,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
               <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
                 {BG_OPTIONS.map(({ id, label, swatch }) => (
                   <button key={id} onClick={() => setBgStyle(id)}
-                    style={{ ...S.mono, flex: 1, padding: '8px 6px', borderRadius: 8, background: bgStyle === id ? 'oklch(0.68 0.22 295 / 0.18)' : 'rgba(255,255,255,0.02)', border: `1px solid ${bgStyle === id ? 'oklch(0.68 0.22 295 / 0.5)' : 'var(--hairline)'}`, color: bgStyle === id ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5 }}>
+                    style={{ ...S.mono, flex: 1, padding: '8px 6px', borderRadius: 8, background: bgStyle === id ? 'color-mix(in oklab, var(--accent) 18%, transparent)' : 'rgba(255,255,255,0.02)', border: `1px solid ${bgStyle === id ? 'color-mix(in oklab, var(--accent) 50%, transparent)' : 'var(--hairline)'}`, color: bgStyle === id ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 24, height: 24, borderRadius: 7, background: swatch, border: '1px solid rgba(255,255,255,0.14)', display: 'block', flexShrink: 0 }} />
                     {label}
                   </button>
@@ -403,7 +403,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
               <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
                 {(Object.keys(FIELD_LABELS) as FieldKey[]).map((k) => (
                   <button key={k} onClick={() => toggleField(k)}
-                    style={{ ...S.mono, padding: '5px 9px', borderRadius: 6, background: visibleFields[k] ? 'oklch(0.68 0.22 295 / 0.15)' : 'rgba(255,255,255,0.02)', border: `1px solid ${visibleFields[k] ? 'oklch(0.68 0.22 295 / 0.4)' : 'var(--hairline)'}`, color: visibleFields[k] ? 'var(--iris-violet)' : 'var(--fg-subtle)', fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    style={{ ...S.mono, padding: '5px 9px', borderRadius: 6, background: visibleFields[k] ? 'color-mix(in oklab, var(--accent) 15%, transparent)' : 'rgba(255,255,255,0.02)', border: `1px solid ${visibleFields[k] ? 'color-mix(in oklab, var(--accent) 40%, transparent)' : 'var(--hairline)'}`, color: visibleFields[k] ? 'var(--iris-violet)' : 'var(--fg-subtle)', fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                     {visibleFields[k] ? <Eye size={9} /> : <EyeOff size={9} />} {FIELD_LABELS[k]}
                   </button>
                 ))}

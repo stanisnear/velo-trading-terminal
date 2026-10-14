@@ -21,8 +21,8 @@ const ChainLink = ({ href, label }: { href: string; label: string }) => (
       fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
       color: 'var(--iris-violet)', textDecoration: 'none',
       padding: '3px 8px', borderRadius: 6,
-      border: '1px solid oklch(0.68 0.22 295/0.35)',
-      background: 'oklch(0.68 0.22 295/0.08)',
+      border: '1px solid color-mix(in oklab, var(--accent) 35%, transparent)',
+      background: 'color-mix(in oklab, var(--accent) 8%, transparent)',
     }}
   >
     {label} <ExternalLink size={9} />
@@ -247,7 +247,7 @@ export const OrderDetailsModal = ({
     const pnlUp      = t.pnl >= 0;
 
     hero = (
-      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: isOpenEntry ? 'rgba(99,102,241,0.06)' : (pnlUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)') }}>
+      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: isOpenEntry ? 'color-mix(in oklab, var(--accent) 6%, transparent)' : (pnlUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)') }}>
         {isOpenEntry ? (
           <>
             <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Position Opened</div>
@@ -578,7 +578,7 @@ export const OrderDetailsModal = ({
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: sideUp ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)', border: `1px solid ${sideUp ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}` }}>{headerSide}</span>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'var(--chip-bg)', color: 'var(--fg-muted)', border: '1px solid var(--hairline-strong)' }}>{payload.kind === 'HISTORY' ? ((payload.item as any)?.action === 'OPEN' ? 'OPENED' : (payload.item as any)?.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED') : payload.kind === 'POSITION' ? 'OPEN' : payload.kind === 'TRANSACTION' ? payload.item.type : 'PENDING'}</span>
             {copyId && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'rgba(107,70,193,0.12)', color: 'var(--iris-violet)', border: '1px solid rgba(107,70,193,0.3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Copy size={9}/> COPY
               </span>
             )}

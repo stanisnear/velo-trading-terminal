@@ -94,7 +94,7 @@ const ProgressBar = ({ step, total = 3 }: { step: number; total?: number }) => (
       <div key={i} style={{
         height: 2.5, borderRadius: 2, flex: 1,
         background: i <= step
-          ? 'var(--iris-violet, oklch(0.68 0.22 295))'
+          ? 'var(--iris-violet, var(--accent))'
           : 'var(--hairline-strong, rgba(255,255,255,0.1))',
         transition: 'background 0.4s ease',
         opacity: i < step ? 0.45 : 1,
@@ -129,7 +129,7 @@ const Field = ({
         style={{
           width: '100%', padding: '12px 14px',
           background: 'var(--bg-base-2, rgba(255,255,255,0.04))',
-          border: `1.5px solid ${error ? 'var(--pnl-down)' : focused ? 'var(--iris-violet, oklch(0.68 0.22 295))' : 'var(--hairline-strong)'}`,
+          border: `1.5px solid ${error ? 'var(--pnl-down)' : focused ? 'var(--iris-violet, var(--accent))' : 'var(--hairline-strong)'}`,
           borderRadius: 12,
           fontFamily: 'var(--font-mono)', fontSize: 14,
           color: 'var(--fg)', outline: 'none',
@@ -474,7 +474,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Top gradient line — matches onboarding modal */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 2,
-          background: 'linear-gradient(90deg, oklch(0.78 0.18 295), oklch(0.82 0.16 200), oklch(0.85 0.15 30))',
+          background: 'linear-gradient(90deg, var(--accent), var(--velo-sage-bright), oklch(0.85 0.15 30))',
           opacity: 0.85,
         }} />
 
@@ -633,8 +633,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: 8,
                 padding: '10px 12px', borderRadius: 12,
-                background: 'oklch(0.68 0.22 295 / 0.08)',
-                border: '1px solid oklch(0.68 0.22 295 / 0.18)',
+                background: 'color-mix(in oklab, var(--accent) 8%, transparent)',
+                border: '1px solid color-mix(in oklab, var(--accent) 18%, transparent)',
               }}>
                 <span style={{ color: 'var(--iris-violet)', marginTop: -1, flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, lineHeight: 1.4 }}>@</span>
                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.55, letterSpacing: '0.01em' }}>
@@ -846,7 +846,7 @@ const SuccessScreen = ({ variant, username }: {
   variant: 'new' | 'returning'; username: string; color: string; address?: string;
 }) => {
   const isNew = variant === 'new';
-  const accent     = isNew ? '#34d399' : '#a78bfa';
+  const accent     = isNew ? '#77c995' : '#91b99f';
   const accentDim  = isNew ? 'rgba(52,211,153,0.10)'  : 'rgba(167,139,250,0.10)';
   const accentEdge = isNew ? 'rgba(52,211,153,0.22)'  : 'rgba(167,139,250,0.22)';
 
@@ -959,12 +959,12 @@ const HoloButton = ({ onClick, children, disabled = false }: { onClick: () => vo
       color: disabled ? 'var(--fg-subtle)' : '#0B0B0E',
       cursor: disabled ? 'not-allowed' : 'pointer',
       letterSpacing: '0.07em', textTransform: 'uppercase',
-      boxShadow: disabled ? 'none' : '0 4px 20px -6px oklch(0.68 0.22 295 / 0.45)',
+      boxShadow: disabled ? 'none' : '0 4px 20px -6px color-mix(in oklab, var(--accent) 45%, transparent)',
       transition: 'transform 0.15s, box-shadow 0.15s',
       opacity: disabled ? 0.4 : 1,
     }}
-    onMouseEnter={e => { if (!disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px -6px oklch(0.68 0.22 295 / 0.6)'; }}}
-    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = disabled ? 'none' : '0 4px 20px -6px oklch(0.68 0.22 295 / 0.45)'; }}
+    onMouseEnter={e => { if (!disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px -6px color-mix(in oklab, var(--accent) 60%, transparent)'; }}}
+    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = disabled ? 'none' : '0 4px 20px -6px color-mix(in oklab, var(--accent) 45%, transparent)'; }}
   >{children}</button>
 );
 
@@ -1001,8 +1001,8 @@ const WalletPill = ({ address }: { address: string }) => (
 
 const PulseRing = () => (
   <div style={{ position: 'relative', width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--iris-violet, oklch(0.68 0.22 295))', animation: 'pulseRingAnim 1.5s ease-in-out infinite' }} />
-    <div style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid var(--hairline-strong)', borderTopColor: 'var(--iris-violet, oklch(0.68 0.22 295))', animation: 'authSpin 0.8s linear infinite' }} />
+    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--iris-violet, var(--accent))', animation: 'pulseRingAnim 1.5s ease-in-out infinite' }} />
+    <div style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid var(--hairline-strong)', borderTopColor: 'var(--iris-violet, var(--accent))', animation: 'authSpin 0.8s linear infinite' }} />
   </div>
 );
 

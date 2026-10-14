@@ -63,6 +63,7 @@ import {
   dbProfileToUserProfile,
   updateProfile,
   fetchPosts,
+  fetchPostById,
   createPost as supabaseCreatePost,
   deletePost as supabaseDeletePost,
   toggleLike as supabaseLike,
@@ -116,7 +117,7 @@ import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 
-import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, SOCIAL_FEATURED_PAIRS, TOP_SOCIAL_PAIRS, VALID_TICKER_SYMBOLS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS } from './utils/types';
+import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, SOCIAL_FEATURED_PAIRS, TOP_SOCIAL_PAIRS, VALID_TICKER_SYMBOLS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS, isTradablePair } from './utils/types';
 
 // --- Sound Service (Refined) ---
 const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
@@ -586,16 +587,16 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
     };
 
     return (
-        <div style={{ marginBottom: 12 }}>
+        <div className="social-token-rail" style={{ marginBottom: 12 }}>
             <div style={{ background: 'var(--glass-bg)', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+                <div className="social-token-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
                     {TOP_SOCIAL_PAIRS.map((p, i) => {
                         const price = prices[p.pairId];
                         const chg = changes[p.pairId] ?? 0;
                         const up = chg >= 0;
                         const spark = sparklines[p.symbol] || [];
                         return (
-                            <div key={p.symbol}
+                            <div key={p.symbol} className="social-token-card"
                                 onClick={() => onTickerClick(p.symbol)}
                                 style={{ background: 'transparent', borderLeft: i > 0 ? '1px solid var(--hairline)' : 'none', padding: '13px 15px', cursor: 'pointer', transition: 'background 0.15s', position: 'relative', overflow: 'hidden' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--fg) 5%, transparent)'; }}
@@ -724,30 +725,37 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 
     // Fetch 24h hourly sparkline from Binance
     React.useEffect(() => {
+        const controller = new AbortController();
         setSparkData([]);
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1h&limit=24`)
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1h&limit=24`, { signal: controller.signal })
             .then(r => r.json())
-            .then((d: any[]) => { if (Array.isArray(d)) setSparkData(d.map((c: any) => parseFloat(c[4]))); })
+            .then((d: any[]) => { if (!controller.signal.aborted && Array.isArray(d)) setSparkData(d.map((c: any) => parseFloat(c[4]))); })
             .catch(() => {});
+        return () => controller.abort();
     }, [ticker, binanceSym]);
 
     // Fetch token info from CoinGecko
     React.useEffect(() => {
+        setTokenInfo(null);
         if (!meta?.geckoId) return;
-        fetch(`https://api.coingecko.com/api/v3/coins/${meta.geckoId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`)
+        const controller = new AbortController();
+        fetch(`https://api.coingecko.com/api/v3/coins/${meta.geckoId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, { signal: controller.signal })
             .then(r => r.json())
-            .then(d => setTokenInfo(d))
+            .then(d => { if (!controller.signal.aborted) setTokenInfo(d); })
             .catch(() => {});
+        return () => controller.abort();
     }, [ticker, meta?.geckoId]);
 
     // Fetch news
     React.useEffect(() => {
         setNewsLoading(true);
         const categories = ticker === 'BTC' ? 'BTC' : ticker === 'ETH' ? 'ETH' : ticker === 'SOL' ? 'SOL' : ticker;
-        fetch(`https://min-api.cryptocompare.com/data/v2/news/?categories=${categories}&extraParams=Velo&sortOrder=latest`)
+        const controller = new AbortController();
+        fetch(`https://min-api.cryptocompare.com/data/v2/news/?categories=${categories}&extraParams=Velo&sortOrder=latest`, { signal: controller.signal })
             .then(r => r.json())
-            .then(d => { setNews((d.Data || []).slice(0, 8)); setNewsLoading(false); })
-            .catch(() => { setNews([]); setNewsLoading(false); });
+            .then(d => { if (!controller.signal.aborted) { setNews((d.Data || []).slice(0, 8)); setNewsLoading(false); } })
+            .catch(() => { if (!controller.signal.aborted) { setNews([]); setNewsLoading(false); } });
+        return () => controller.abort();
     }, [ticker]);
 
     const S = {
@@ -755,7 +763,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
         display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
-    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
+    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 18, backdropFilter: 'blur(16px) saturate(1.2)', WebkitBackdropFilter: 'blur(16px) saturate(1.2)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
 
     const handleViewProfileWrapper = (partial: { id: string }) => {
         const trader = traders.find((t: any) => t.id === partial.id);
@@ -780,6 +788,8 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 
     const mcap = tokenInfo?.market_data?.market_cap?.usd;
     const volume24h = tokenInfo?.market_data?.total_volume?.usd;
+    const high24h = tokenInfo?.market_data?.high_24h?.usd;
+    const low24h = tokenInfo?.market_data?.low_24h?.usd;
     const circulatingSupply = tokenInfo?.market_data?.circulating_supply;
     const ath = tokenInfo?.market_data?.ath?.usd;
     const athDate = tokenInfo?.market_data?.ath_date?.usd;
@@ -795,50 +805,57 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
         if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
         return `$${n.toFixed(2)}`;
     };
-
+    const formatQuote = (n?: number) => {
+        if (n == null || !Number.isFinite(n)) return '—';
+        if (n >= 1000) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+        if (n >= 1) return `$${n.toFixed(2)}`;
+        if (n >= 0.01) return `$${n.toFixed(4)}`;
+        if (n >= 0.0001) return `$${n.toFixed(6)}`;
+        return `$${n.toFixed(8)}`;
+    };
     const description = meta?.longDescription || meta?.description || tokenInfo?.description?.en?.split('. ').slice(0, 3).join('. ') || '';
     const descShort = description.length > 220 ? description.slice(0, 220).trimEnd() + '…' : description;
 
     return (
-        <div style={{ width: "100%", maxWidth: 1600, margin: "0 auto", paddingBottom: "max(80px, calc(env(safe-area-inset-bottom, 0px) + 80px))" }} className="animate-fade-in">
+        <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "18px 24px max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))" }} className="animate-fade-in token-page">
             {/* Back button */}
             <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 14, padding: 0 }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg)'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg-muted)'}>
-                ← BACK TO FEED
+                ← ALL MARKETS
             </button>
 
             {/* Token header */}
-            <div style={{ ...panel, padding: '14px 16px', marginBottom: 12 }}>
-                <div className="token-header-inner" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
-                    <div className="token-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+            <div className="token-hero" style={{ ...panel, padding: '20px 22px', marginBottom: 14 }}>
+                <div className="token-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+                    <div className="token-header-left" style={{ display: 'grid', gridTemplateColumns: '48px minmax(0,1fr)', alignItems: 'center', columnGap: 13, flex: 1, minWidth: 0 }}>
                         {(pairInfo?.logo || tokenInfo?.image?.large) && (
-                            <img src={pairInfo?.logo || tokenInfo?.image?.large} style={{ width: 44, height: 44, borderRadius: '50%', border: '2px solid var(--hairline)', flexShrink: 0 }} />
+                            <img src={pairInfo?.logo || tokenInfo?.image?.large} alt="" style={{ width: 46, height: 46, borderRadius: '50%', border: '1px solid var(--hairline-strong)', flexShrink: 0, background: 'var(--bg-2)' }} />
                         )}
                         <div style={{ minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                                <span style={{ ...S.display, fontSize: 22, color: 'var(--fg)' }}>${ticker}</span>
+                                <h1 style={{ ...S.display, fontSize: 28, fontWeight: 500, color: 'var(--fg)', lineHeight: 1, margin: 0 }}>${ticker}</h1>
                                 {(pairInfo?.name || tokenInfo?.name) && (
                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-subtle)' }}>{pairInfo?.name || tokenInfo?.name}</span>
                                 )}
-                                {rank && <span style={{ ...S.label, fontSize: 9, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 6, padding: '2px 7px', color: 'var(--iris-violet)' }}>#{rank}</span>}
-                                {meta?.category && <span style={{ ...S.label, fontSize: 9, background: 'oklch(0.68 0.22 295 / 0.08)', border: '1px solid oklch(0.68 0.22 295 / 0.2)', borderRadius: 6, padding: '2px 8px', color: 'var(--iris-violet)' }}>{meta.category}</span>}
+                                {rank && <span className="token-meta-chip">Rank #{rank}</span>}
+                                {meta?.category && <span className="token-meta-chip">{meta.category}</span>}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <span style={{ ...S.mono, fontSize: 20, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>
-                                    {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(3)}` : `$${price.toFixed(6)}`) : '—'}
+                            <div className="token-quote-line">
+                                <span style={{ ...S.mono, fontSize: 22, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>
+                                    {formatQuote(price)}
                                 </span>
-                                <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>
+                                <span className={`token-day-change ${up ? 'positive' : 'negative'}`}>
                                     {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}% 24h
                                 </span>
                                 {priceChange7d != null && (
-                                    <span className="hide-mobile" style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: priceChange7d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', opacity: 0.8 }}>
-                                        7d: {priceChange7d >= 0 ? '+' : ''}{priceChange7d.toFixed(2)}%
+                                    <span className="token-period-change" style={{ color: priceChange7d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
+                                        7D {priceChange7d >= 0 ? '+' : ''}{priceChange7d.toFixed(2)}%
                                     </span>
                                 )}
                                 {priceChange30d != null && (
-                                    <span className="hide-mobile" style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: priceChange30d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', opacity: 0.8 }}>
-                                        30d: {priceChange30d >= 0 ? '+' : ''}{priceChange30d.toFixed(2)}%
+                                    <span className="token-period-change hide-mobile" style={{ color: priceChange30d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
+                                        30D {priceChange30d >= 0 ? '+' : ''}{priceChange30d.toFixed(2)}%
                                     </span>
                                 )}
                             </div>
@@ -854,32 +871,31 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                 <button
                                     onClick={() => onToggleWatchlist(pairId)}
                                     title={isFav ? 'Remove from watchlist' : 'Add to watchlist'}
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 10, border: `1px solid ${isFav ? 'oklch(0.80 0.16 60 / 0.5)' : 'var(--hairline-strong)'}`, background: isFav ? 'oklch(0.80 0.16 60 / 0.1)' : 'var(--chip-bg)', cursor: 'pointer', color: isFav ? 'oklch(0.80 0.16 60)' : 'var(--fg-subtle)', transition: 'all 0.15s' }}
-                                    onMouseEnter={e => { if (!isFav) { (e.currentTarget as HTMLElement).style.borderColor = 'oklch(0.80 0.16 60 / 0.4)'; (e.currentTarget as HTMLElement).style.color = 'oklch(0.80 0.16 60)'; }}}
-                                    onMouseLeave={e => { if (!isFav) { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline-strong)'; (e.currentTarget as HTMLElement).style.color = 'var(--fg-subtle)'; }}}>
+                                    aria-label={isFav ? 'Remove from watchlist' : 'Add to watchlist'}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 11, border: `1px solid ${isFav ? 'color-mix(in oklab,var(--accent) 55%,var(--hairline))' : 'var(--hairline-strong)'}`, background: isFav ? 'color-mix(in oklab,var(--accent) 9%,transparent)' : 'var(--chip-bg)', cursor: 'pointer', color: isFav ? 'var(--accent-text)' : 'var(--fg-subtle)', transition: 'all 0.15s' }}>
                                     <Star size={16} fill={isFav ? 'currentColor' : 'none'} strokeWidth={1.5}/>
                                 </button>
                             );
                         })()}
-                        {onNavigateToTrade && (
+                        {onNavigateToTrade && isTradablePair(pairId) && (
                             <button
                                 className="token-trade-btn"
                                 onClick={() => onNavigateToTrade(ticker)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite', color: '#0B0B0E', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', boxShadow: '0 2px 12px oklch(0.68 0.22 295 / 0.25)', transition: 'transform 0.1s, box-shadow 0.1s', whiteSpace: 'nowrap' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px oklch(0.68 0.22 295 / 0.4)'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px oklch(0.68 0.22 295 / 0.25)'; }}>
-                                <TrendingUp size={13} strokeWidth={2.5}/> Trade ${ticker}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 40, padding: '0 16px', borderRadius: 11, border: '1px solid color-mix(in oklab,var(--accent) 60%,var(--hairline))', cursor: 'pointer', background: 'var(--accent)', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                                <TrendingUp size={13} strokeWidth={2.5}/> Trade
                             </button>
                         )}
+                        {!isTradablePair(pairId) && <span className="token-trade-unavailable">Perpetual not listed</span>}
                     </div>
                 </div>
             </div>
 
-            <div className="token-page-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 12 }}>
+            <div className="token-page-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 16, alignItems: 'start' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* Interactive chart */}
                     <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
                         <TokenInteractiveChart
+                            key={ticker}
                             priceData={sparkData}
                             up={up}
                             ticker={ticker}
@@ -889,23 +905,30 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     </div>
 
                     {/* Stats strip */}
-                    {(mcap || ath || circulatingSupply) && (
-                        <div style={{ ...panel, padding: '12px 16px' }}>
-                            <div className="token-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 14 }}>
+                    {(mcap || ath || circulatingSupply || high24h || low24h) && (
+                        <div className="token-data-panel" style={{ ...panel, padding: '17px 19px' }}>
+                            <div className="token-data-heading"><span>Market data</span></div>
+                            <div className="token-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0 }}>
                                 {mcap && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Market Cap</div>
                                         <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{formatLarge(mcap)}</div>
                                     </div>
                                 )}
                                 {volume24h && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Volume</div>
                                         <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{formatLarge(volume24h)}</div>
                                     </div>
                                 )}
+                                {(high24h || low24h) && (
+                                    <div className="token-stat">
+                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Range</div>
+                                        <div style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{low24h ? formatQuote(low24h) : '—'} <span style={{ color: 'var(--fg-subtle)' }}>–</span> {high24h ? formatQuote(high24h) : '—'}</div>
+                                    </div>
+                                )}
                                 {circulatingSupply && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Circulating</div>
                                         <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>
                                             {circulatingSupply >= 1e12 ? `${(circulatingSupply / 1e12).toFixed(2)}T` : circulatingSupply >= 1e9 ? `${(circulatingSupply / 1e9).toFixed(2)}B` : circulatingSupply >= 1e6 ? `${(circulatingSupply / 1e6).toFixed(2)}M` : circulatingSupply.toFixed(0)}
@@ -913,28 +936,16 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                     </div>
                                 )}
                                 {ath && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>All-Time High</div>
                                         <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{ath >= 1000 ? `$${ath.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : `$${ath.toFixed(4)}`}</div>
                                         {athDate && <div style={{ ...S.label, fontSize: 8, marginTop: 2 }}>{new Date(athDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</div>}
                                     </div>
                                 )}
-                                {meta?.supply && (
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Max Supply</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{meta.supply}</div>
-                                    </div>
-                                )}
-                                {fdv && (
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>FDV</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{formatLarge(fdv)}</div>
-                                    </div>
-                                )}
-                                {meta?.launchYear && (
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Launched</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{meta.launchYear}</div>
+                                {(fdv || rank) && (
+                                    <div className="token-stat">
+                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>{fdv ? 'Fully diluted value' : 'Market rank'}</div>
+                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{fdv ? formatLarge(fdv) : `#${rank}`}</div>
                                     </div>
                                 )}
                             </div>
@@ -948,7 +959,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
                                 <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>About {pairInfo?.name || ticker}</span>
                                 {meta?.category && (
-                                    <span style={{ marginLeft: 'auto', ...S.label, fontSize: 9, color: 'var(--iris-violet)', background: 'oklch(0.68 0.22 295 / 0.08)', border: '1px solid oklch(0.68 0.22 295 / 0.2)', borderRadius: 6, padding: '2px 8px' }}>
+                                    <span style={{ marginLeft: 'auto', ...S.label, fontSize: 9, color: 'var(--iris-violet)', background: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 6, padding: '2px 8px' }}>
                                         {meta.category}
                                     </span>
                                 )}
@@ -1052,13 +1063,13 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     )}
                 </div>
 
-                {/* Right sidebar — related tokens + top posters */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Related-market shortcuts */}
+                <div className="token-market-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div className="vp" style={panel}>
                         <div style={{ padding: '14px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
-                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Related tokens</span>
+                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Related markets</span>
                             </div>
                             {TOP_SOCIAL_PAIRS.filter(p => p.symbol !== ticker).map(p => {
                                 const pc = changes[p.pairId] ?? 0;
@@ -1132,16 +1143,28 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 };
 
 // ─── Single Post View (like Twitter /status/:id) ────────────────────────────
-const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
-    const post = posts.find((p: any) => p.id === postId);
+const SinglePostView = ({ postId, commentId, posts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
+    const [fetchedPost, setFetchedPost] = useState<any>(null);
+    const post = posts.find((p: any) => p.id === postId) || fetchedPost;
+
+    useEffect(() => {
+        let active = true;
+        setFetchedPost(null);
+        if (posts.some((p: any) => p.id === postId)) return;
+        fetchPostById(postId).then(result => {
+            if (active && result) setFetchedPost(result);
+        }).catch(error => console.warn('[velo] shared post lookup failed:', error));
+        return () => { active = false; };
+    }, [postId]);
 
     // Update page title and OG meta for this post
     useEffect(() => {
         if (!post) return;
         const prev = document.title;
-        document.title = `${post.authorHandle} on Velo — "${post.content.slice(0, 60)}${post.content.length > 60 ? '…' : ''}"`;
+        const subject = commentId ? `Reply by ${post.comments?.find((comment: any) => comment.id === commentId)?.authorHandle || 'trader'}` : post.authorHandle;
+        document.title = `${subject} on Velo — "${post.content.slice(0, 60)}${post.content.length > 60 ? '…' : ''}"`;
         return () => { document.title = prev; };
-    }, [post?.id]);
+    }, [post?.id, commentId]);
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
@@ -1216,7 +1239,7 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
 
                 {/* Trade signal card */}
                 {post.isTradeSignal && post.tradeDetails && (
-                    <div style={{ margin: '16px 24px 0', background: 'oklch(0.68 0.22 295 / 0.06)', border: '1px solid oklch(0.68 0.22 295 / 0.2)', borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ margin: '16px 24px 0', background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                 <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>{post.tradeDetails.pair}</span>
@@ -1272,6 +1295,7 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
                 onViewProfile={onViewProfile}
                 onTickerClick={onTickerClick}
                 compact={false}
+                focusCommentId={commentId}
             />
         </div>
     );
@@ -1431,7 +1455,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     user={user}
                     prices={prices}
                     changes={changes}
-                    onClose={(sym?: string) => { if (sym && typeof sym === 'string') setActiveTickerWithURL(sym); else setActiveTickerWithURL(null); }}
+                    onClose={(sym?: string) => { if (sym && typeof sym === 'string') setActiveTickerWithURL(sym); else { setActiveTickerWithURL(null); onNavigateToMarkets?.(); } }}
                     onLike={onLike}
                     onRepost={onRepost}
                     onComment={onComment}
@@ -1489,7 +1513,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                     </div>
                                 </div>
                                 <button onClick={() => handleFollow(t.id)}
-                                    style={{ padding: '4px 11px', borderRadius: 20, border: '1px solid var(--hairline-strong)', background: user?.following?.includes(t.id) ? 'var(--chip-bg)' : 'oklch(0.55 0.24 295/0.12)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: user?.following?.includes(t.id) ? 'var(--fg-muted)' : 'var(--iris-violet)', cursor: 'pointer', transition: 'all 0.1s' }}>
+                                    style={{ padding: '4px 11px', borderRadius: 20, border: '1px solid var(--hairline-strong)', background: user?.following?.includes(t.id) ? 'var(--chip-bg)' : 'color-mix(in oklab, var(--accent) 12%, transparent)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: user?.following?.includes(t.id) ? 'var(--fg-muted)' : 'var(--iris-violet)', cursor: 'pointer', transition: 'all 0.1s' }}>
                                     {user?.following?.includes(t.id) ? 'Following' : 'Follow'}
                                 </button>
                             </div>
@@ -1528,7 +1552,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             </div>
 
             {/* Right — tokens strip + compose + feed */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="social-feed-main" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* Top Tokens Bar */}
                 <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets} />
                 {/* Compose */}
@@ -1569,7 +1593,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     <div style={{ display: 'flex', gap: 0 }}>
                         {['LATEST','TRENDING','FOLLOWING','SIGNALS'].map(f => (
                             <button key={f} onClick={() => setFilter(f as any)}
-                                style={{ flex: 1, padding: '11px 8px', border: 'none', background: filter === f ? 'oklch(0.55 0.24 295/0.10)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--iris-violet)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s' }}>
+                                style={{ flex: 1, padding: '11px 8px', border: 'none', background: filter === f ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--iris-violet)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s' }}>
                                 {f}
                             </button>
                         ))}
@@ -1664,7 +1688,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                             </div>
                             <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Size ${formatMoney(p.size)}</span>
                         </div>
-                        <span style={{ padding: '4px 10px', borderRadius: 8, background: 'oklch(0.68 0.22 295/0.1)', border: '1px solid oklch(0.68 0.22 295/0.25)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
+                        <span style={{ padding: '4px 10px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                     </div>
                 )))}
             </div>
@@ -1777,7 +1801,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                                             <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Mark ${formatPrice(curPrice)} · Size ${formatMoney(p.size)}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                                            <span style={{ padding: '3px 8px', borderRadius: 8, background: 'oklch(0.68 0.22 295/0.1)', border: '1px solid oklch(0.68 0.22 295/0.25)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
+                                            <span style={{ padding: '3px 8px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                                             <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: posUnreal >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
                                                 {posUnreal >= 0 ? '+' : '-'}${formatMoney(Math.abs(posUnreal))}
                                             </span>
@@ -2068,6 +2092,7 @@ const App = () => {
     const [socialOpenCommentsPostId, setSocialOpenCommentsPostId] = useState<string | null>(null);
     // Single post view — like Twitter's /status/:id
     const [singlePostId, setSinglePostId] = useState<string | null>(null);
+    const [singleCommentId, setSingleCommentId] = useState<string | null>(null);
     const [deletePostConfirm, setDeletePostConfirm] = useState<{ isOpen: boolean; postId: string | null; onConfirm: (() => void) | null; itemType: 'post' | 'comment' }>({ isOpen: false, postId: null, onConfirm: null, itemType: 'post' });
     const [createPostModalOpen, setCreatePostModalOpen] = useState(false);
     const [activePair, setActivePair] = useState(PAIRS[0]);
@@ -2077,6 +2102,7 @@ const App = () => {
             setSocialFocusPostId(null);
             setSocialOpenCommentsPostId(null);
             setSinglePostId(null);
+            setSingleCommentId(null);
         }
         if (activeTab !== TabView.TRADE) {
             setAutoOpenHistoryId(null);
@@ -3897,6 +3923,7 @@ const App = () => {
             // Going back to the global feed — clear any active ticker or post
             setActiveSocialTicker(null);
             setSinglePostId(null);
+            setSingleCommentId(null);
             setActiveTab(TabView.SOCIAL);
             return;
         }
@@ -3905,6 +3932,7 @@ const App = () => {
             if (parts[1] === 'post' && parts[2]) {
                 // Single post view
                 setSinglePostId(parts[2]);
+                setSingleCommentId(parts[3] === 'comment' && parts[4] ? parts[4] : null);
                 setActiveSocialTicker(null);
                 setActiveTab(TabView.SOCIAL);
                 return;
@@ -3913,6 +3941,7 @@ const App = () => {
             const ticker = parts[1]?.toUpperCase();
             if (ticker) {
                 setSinglePostId(null);
+                setSingleCommentId(null);
                 setActiveSocialTicker(ticker);
             }
             setActiveTab(TabView.SOCIAL);
@@ -3926,6 +3955,7 @@ const App = () => {
                 const knownPair = SOCIAL_FEATURED_PAIRS.find(sp => sp.symbol === ticker);
                 if (knownPair) {
                     setSinglePostId(null);
+                    setSingleCommentId(null);
                     setActiveSocialTicker(ticker);
                     setActiveTab(TabView.SOCIAL);
                     return;
@@ -3987,7 +4017,7 @@ const App = () => {
             [TabView.DASHBOARD]: '/dashboard',
             [TabView.TRADE]: `/trade/${activePair?.id?.replace('/', '-') || 'ETH-USD'}`,
             [TabView.MARKETS]: '/markets',
-            [TabView.SOCIAL]: singlePostId ? `/social/post/${singlePostId}` : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
+            [TabView.SOCIAL]: singlePostId ? `/social/post/${singlePostId}${singleCommentId ? `/comment/${singleCommentId}` : ''}` : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
             [TabView.LEADERBOARD]: '/leaderboard',
             [TabView.PROFILE]: `/profile/${user?.handle?.replace('@', '') || ''}`,
             [TabView.PUBLIC_PROFILE]: `/profile/${viewingProfile?.handle?.replace('@', '') || ''}`,
@@ -3996,7 +4026,7 @@ const App = () => {
         if (newPath && newPath !== window.location.pathname) {
             window.history.pushState(null, '', newPath);
         }
-    }, [activeTab, activePair, user, viewingProfile, activeSocialTicker, singlePostId]);
+    }, [activeTab, activePair, user, viewingProfile, activeSocialTicker, singlePostId, singleCommentId]);
 
     // Dynamic document title: show pair + price when on trade view
     useEffect(() => {
@@ -6634,6 +6664,7 @@ const App = () => {
         if (!postId) throw new Error('post not created');
         setToast({ message: 'Post published!', type: 'SUCCESS' });
         setActiveSocialTicker(null);
+        setSingleCommentId(null);
         setSinglePostId(postId);          // → SinglePostView
         setActiveTab(TabView.SOCIAL);     // URL sync pushes /social/post/<id>
         // Guaranteed close: the modal animates itself shut on success, but if
@@ -6991,9 +7022,9 @@ const App = () => {
                     <svg viewBox="0 0 28 28" width="28" height="28" style={{ animation: 'veloLoadSpin 1.1s linear infinite' }}>
                         <defs>
                             <linearGradient id="veloLoadG" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%"   stopColor="oklch(0.68 0.22 295)" />
-                                <stop offset="50%"  stopColor="oklch(0.80 0.14 205)" />
-                                <stop offset="100%" stopColor="oklch(0.68 0.22 295)" stopOpacity="0" />
+                                <stop offset="0%"   stopColor="var(--accent)" />
+                                <stop offset="50%"  stopColor="var(--velo-sage-bright)" />
+                                <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
                             </linearGradient>
                         </defs>
                         <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1.5" />
@@ -7033,7 +7064,7 @@ const App = () => {
                   <button
                     onClick={handleRederive}
                     disabled={rederiving}
-                    style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: rederiving ? 'wait' : 'pointer', background: 'var(--velo-violet, oklch(0.55 0.24 295))', color: '#fff', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontSize: 12, opacity: rederiving ? 0.7 : 1, transition: 'opacity 0.15s' }}>
+                    style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: rederiving ? 'wait' : 'pointer', background: 'var(--velo-violet, var(--accent))', color: '#fff', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontSize: 12, opacity: rederiving ? 0.7 : 1, transition: 'opacity 0.15s' }}>
                     {rederiving ? 'Waiting for signature…' : 'Authorize & restore wallet'}
                   </button>
                   <button
@@ -7576,7 +7607,7 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }}/>
+            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
             <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
@@ -7825,16 +7856,16 @@ const App = () => {
                 </> }
                 {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
-                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
+                    <SinglePostView postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setSingleCommentId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
                 ))}
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} walletAddress={walletAddress} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
                 {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
-            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} />
+            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }} />
             {/* App-level order details modal — opened from notifications without tab switch */}
             {appOrderDetails && (
                 <OrderDetailsModal
