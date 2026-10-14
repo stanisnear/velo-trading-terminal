@@ -2,6 +2,8 @@
 // Do not enable until the backend has durable locking, bounded scans and
 // duplicate-run protection, and the previous Vercel schedules are disabled.
 export const jobs = ['cron-conditional-orders', 'cron-tp-sl', 'cron-liquidate'];
+const transientGatewayStatuses = new Set([520, 521, 522, 523, 524]);
+const retryDelayMs = 1000;
 
 async function readResult(response) {
   const reader = response.body?.getReader();
@@ -20,7 +22,45 @@ async function readResult(response) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-export async function runKeepers(controller, env, fetchImpl = fetch) {
+async function requestJob(target, options, fetchImpl, deadline, now, sleep) {
+  for (let attempts = 1; attempts <= 2; attempts++) {
+    const remaining = deadline - now();
+    if (remaining <= 0) return { ok: false, status: 'deadline-exceeded', attempts: attempts - 1 };
+    let response;
+    try {
+      response = await fetchImpl(target, { ...options, signal: AbortSignal.timeout(remaining) });
+    } catch {
+      // A lost response may follow a successful execution. Reuse the exact
+      // request so the backend's durable run ID and signer lock still apply.
+      if (attempts === 2 || deadline - now() <= retryDelayMs) {
+        return { ok: false, status: 'request-failed', attempts };
+      }
+      await sleep(retryDelayMs);
+      continue;
+    }
+    if (!response.ok) {
+      try { await response.body?.cancel(); } catch { /* Discard untrusted error bodies. */ }
+      if (attempts === 1 && transientGatewayStatuses.has(response.status) && deadline - now() > retryDelayMs) {
+        await sleep(retryDelayMs);
+        continue;
+      }
+      // Do not retry authorization, redirects, busy jobs or backend results.
+      return { ok: false, status: response.status, attempts };
+    }
+    try {
+      const result = await readResult(response);
+      // A 200 with configured:false/skipped:true is not a successful keeper run.
+      return { ok: result.ok === true && result.skipped !== true && result.configured !== false, status: response.status, attempts };
+    } catch {
+      return { ok: false, status: 'invalid-response', attempts };
+    }
+  }
+}
+
+export async function runKeepers(controller, env, fetchImpl = fetch, {
+  now = Date.now,
+  sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
+} = {}) {
   if (env.VELO_KEEPERS_ENABLED !== 'true') return { enabled: false, results: [] };
   if (!env.CRON_SECRET || !env.VELO_KEEPER_BASE_URL) throw new Error('Keeper scheduler is not configured');
   let base;
@@ -40,25 +80,16 @@ export async function runKeepers(controller, env, fetchImpl = fetch) {
   for (const job of jobs) {
     const target = new URL(base);
     target.pathname = base.pathname.replace(/\/$/, '') + '/api/' + job;
-    try {
-      const response = await fetchImpl(target, {
+    // Retries share the existing 120-second job budget. Stop stale invocations
+    // before the backend's five-minute run timestamp window expires.
+    const deadline = Math.min(now() + 120_000, scheduledTime + 270_000);
+    const result = await requestJob(target, {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.CRON_SECRET}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ runId: `${scheduledTime}:${job}`, scheduledTime, ...(env.VELO_KEEPERS_DRY_RUN === 'true' ? { dryRun: true } : {}) }),
         redirect: 'manual',
-        signal: AbortSignal.timeout(120_000),
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        results.push({ job, ok: false, status: response.status });
-        continue;
-      }
-      const result = await readResult(response);
-      // A 200 with configured:false/skipped:true is not a successful keeper run.
-      results.push({ job, ok: result.ok === true && result.skipped !== true && result.configured !== false, status: response.status });
-    } catch {
-      results.push({ job, ok: false, status: 'request-failed' });
-    }
+      }, fetchImpl, deadline, now, sleep);
+    results.push({ job, ...result });
   }
   const failed = results.filter(result => !result.ok);
   console.log(JSON.stringify({ event: 'velo_keeper_tick', scheduledTime, dryRun: env.VELO_KEEPERS_DRY_RUN === 'true', results }));

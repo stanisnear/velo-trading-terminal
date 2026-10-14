@@ -42,6 +42,7 @@ this production branch until the project is deliberately switched or merged.
 Using your local checkout:
 
 ```sh
+git fetch origin
 git switch codex/cloudflare-migration
 git pull --ff-only
 # Edit the intended files, then review:
@@ -121,6 +122,12 @@ They check conditional orders, TP/SL, then liquidations. Duplicate deliveries
 use durable run IDs; all jobs and sponsorship share the same wallet lock.
 Signed transactions are persisted before broadcast and recovered after timeouts.
 Only a matching successful receipt counts as an executed fill.
+
+The timer retries a network failure or HTTP 520–524 once after one second,
+using the identical run ID. Both attempts share a 120-second job budget, and
+the invocation stops sending requests 270 seconds after its scheduled time.
+Authorization errors, busy jobs and backend failure results are not retried.
+The `attempts` field in each timer result shows whether a retry was needed.
 
 Each job scans at most 32 historical IDs, 32 indexed active IDs and eight newest
 IDs, removing duplicates, with at most four transaction attempts per run. Large

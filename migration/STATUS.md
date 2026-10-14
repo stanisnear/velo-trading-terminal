@@ -31,9 +31,9 @@ Browser/account checks remain explicitly open.**
 
 ## Verification
 
-- All 47 Node regression checks pass, including authentication, credential
+- All 53 Node regression checks pass, including authentication, credential
   confinement, response bounds, redirects, SSE parsing, scheduler sequencing,
-  contract math, idempotency and signer coordination.
+  contract math, idempotency, signer coordination and bounded transport retries.
 - Both exact v7 backend bundles pass Deno 2.2.6 runtime/authentication tests
   without network access or wallet credentials. The explicit emergency-stop
   override is tested even though deployed defaults are now enabled.
@@ -91,3 +91,25 @@ KNOWN-ISSUES.md. This is not a complete security audit.
 
 Free hosting has usage limits. Pyth access and Namecheap domain renewal are
 separate costs. No paid subscription or model service was activated.
+
+## Recheck at 19:22 Europe/Rome / 17:22 UTC
+
+Supabase v7 remained active. Each job had completed at least 288 live runs since
+activation, with no recorded backend failures and no pending signed transaction.
+Cloudflare still reported the app domain/certificate active. The two later Velo
+rebrand commits were preserved; commit 739396aff5056b18bf9a5e2cb69f98335ae7ba0b
+had successfully deployed at 16:35 UTC. This recheck does not close the browser
+and signed-in account checks described above.
+
+Cloudflare logs also revealed one TP/SL HTTP 520 at 15:52:36 UTC. It did not
+reach the backend; the next minute recovered, so the backend's zero-failure
+count alone did not capture this delivery failure. No claim of uninterrupted
+delivery is made.
+
+At 17:31:44 UTC the scheduler was updated to retry network failures and HTTP
+520–524 once, with the same request/run ID and a one-second delay. Retries share
+the 120-second per-job budget; no requests start after scheduled time +270 seconds.
+Authentication, redirects, job-busy responses and backend failure results are
+not retried. Six added regression checks cover recovery, identical payloads,
+retry limits, non-retryable errors and exhausted deadlines. The production
+trigger, secrets and enabled execution mode were preserved.
