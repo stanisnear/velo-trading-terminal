@@ -8,11 +8,14 @@ export function chainClients(getEnv, needsSigner = false, sponsorOnly = false) {
   const transport = http(rpc.href, { timeout: 8000, retryCount: 0 });
   const publicClient = createPublicClient({ chain: baseSepolia, transport });
   if (!needsSigner) return { publicClient };
-  let key = getEnv('VELO_SPONSOR_PRIVATE_KEY') || (!sponsorOnly && getEnv('PRIVATE_KEY'));
+  const sponsorKey = getEnv('VELO_SPONSOR_PRIVATE_KEY');
+  const confirmedSharedSponsor = sponsorOnly && !sponsorKey && getEnv('VELO_SPONSOR_USE_KEEPER_KEY') === 'true';
+  let key = sponsorKey || ((!sponsorOnly || confirmedSharedSponsor) && getEnv('PRIVATE_KEY'));
   if (!key) throw new RuntimeError('SIGNER_NOT_CONFIGURED');
   if (!key.startsWith('0x')) key = `0x${key}`;
   if (!/^0x[0-9a-fA-F]{64}$/.test(key)) throw new RuntimeError('INVALID_SIGNER');
   const account = privateKeyToAccount(key);
+  if (confirmedSharedSponsor && account.address.toLowerCase() !== getEnv('VELO_SPONSOR_EXPECTED_ADDRESS')?.toLowerCase()) throw new RuntimeError('SPONSOR_WALLET_MISMATCH');
   const walletClient = createWalletClient({ account, chain: baseSepolia, transport });
   return { publicClient, walletClient, account };
 }

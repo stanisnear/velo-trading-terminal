@@ -23,6 +23,11 @@ function error(message, status, extra = {}) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith('/api/pyth/')) {
+      if (!env.VELO_PYTH) return error('Price service not configured', 503);
+      try { return await env.VELO_PYTH.fetch(request); }
+      catch { return error('Price service temporarily unavailable', 503); }
+    }
     let route = url.pathname;
     const sharedPost = route.match(/^\/social\/post\/([^/]+)\/?$/);
     if (sharedPost && bot.test(request.headers.get('user-agent') || '')) {

@@ -12,4 +12,8 @@ export const publicConfig = Object.freeze({
   VITE_PYTH_HERMES_URL: 'https://hermes.pyth.network',
   VELO_KEEPERS_ENABLED: 'false',
   VELO_SPONSOR_ENABLED: 'false',
+  // Owner supplied the original sponsor key; its derived address matches the
+  // already imported PRIVATE_KEY. Reuse it only while this public address matches.
+  VELO_SPONSOR_USE_KEEPER_KEY: 'true',
+  VELO_SPONSOR_EXPECTED_ADDRESS: '0x8f8fF5A29760278C7B54D450dA57A13Cd3FD3A8b',
 });

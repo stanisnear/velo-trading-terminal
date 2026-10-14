@@ -14,7 +14,7 @@
  * settles on:
  *   • Live mark price  → Hermes SSE stream      (/v2/updates/price/stream)
  *   • Initial snapshot → Hermes latest REST     (/v2/updates/price/latest)
- *   • Chart candles    → Pyth Benchmarks shim   (/v1/shims/tradingview/history)
+ *   • Chart candles    → authenticated Pyth OHLC history
  *
  * After this, entry / mark / chart all come from one oracle. The only
  * remaining difference is normal tick timing (your entry is locked at fill
@@ -22,7 +22,7 @@
  *
  * Docs:
  *   https://docs.pyth.network/price-feeds/fetch-price-updates
- *   https://benchmarks.pyth.network  (TradingView-compatible OHLC shim)
+ *   https://docs.pyth.network/price-feeds/pro/api-reference/history
  */
 
 // Binance/CoinGecko are kept as a *fallback* price source. Pyth stays primary
@@ -30,9 +30,9 @@
 // blocked, or blocked by an aggressive browser extension — and when it was the
 // ONLY source the whole app went priceless. The fallback keeps prices flowing.
 import { binancePriceStream, fetchRealPrices } from './priceService';
+import { fetchPyth, PythEventStream } from './pythConnection';
 
-const HERMES_URL = import.meta.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
-const BENCHMARKS_URL = import.meta.env.VITE_PYTH_BENCHMARKS_URL || 'https://benchmarks.pyth.network';
+const HERMES_URL = '/api/pyth';
 
 // ── pair id → Pyth feed id ────────────────────────────────────────────────────
 // Verified against https://hermes.pyth.network/v2/price_feeds (crypto, USD quote).
@@ -101,7 +101,7 @@ export async function fetchPythPrices(): Promise<{
     for (const id of ALL_FEED_IDS) params.append('ids[]', id);
     params.set('parsed', 'true');
 
-    const res = await fetch(`${HERMES_URL}/v2/updates/price/latest?${params.toString()}`);
+    const res = await fetchPyth(`${HERMES_URL}/v2/updates/price/latest?${params.toString()}`);
     if (!res.ok) throw new Error(`Hermes ${res.status}`);
     const data = await res.json();
 
@@ -148,7 +148,7 @@ export async function fetchPricesResilient(): Promise<{
 type PriceCallback = (prices: Record<string, number>) => void;
 
 class PythPriceStream {
-  private es: EventSource | null = null;
+  private es: PythEventStream | null = null;
   private callbacks: Set<PriceCallback> = new Set();
   // Real Pyth oracle metadata per pair (confidence band + publish time).
   private latestMeta: Record<string, { conf: number; publishTime: number }> = {};
@@ -160,9 +160,8 @@ class PythPriceStream {
   private watchdog: ReturnType<typeof setInterval> | null = null;
   private fallbackUnsub: (() => void) | null = null;
 
-  // After this many consecutive failed SSE connects we stop hammering Hermes and
-  // lean on the Binance fallback + the 30s REST poll instead (avoids console spam
-  // and wasted retries when the stream is blocked in this environment).
+  // After repeated failures, keep the display fallback and retry every 30s.
+  // This also recovers when a visitor signs in after opening the terminal.
   private static MAX_SSE_FAILS = 4;
 
   private buildStreamUrl(): string {
@@ -198,8 +197,8 @@ class PythPriceStream {
   }
 
   connect() {
-    if (typeof EventSource === 'undefined') { this.startFallback(); return; } // SSR / unsupported
-    if (this.es && this.es.readyState !== EventSource.CLOSED) return;
+    if (typeof window === 'undefined') return;
+    if (this.es && this.es.readyState !== 2) return;
     this.alive = true;
 
     // Watchdog: if no Pyth tick for >8s, bring up the Binance fallback; once Pyth
@@ -214,7 +213,7 @@ class PythPriceStream {
     }
 
     try {
-      this.es = new EventSource(this.buildStreamUrl());
+      this.es = new PythEventStream(this.buildStreamUrl());
 
       this.es.onmessage = (event: MessageEvent) => {
         try {
@@ -249,7 +248,7 @@ class PythPriceStream {
       };
 
       this.es.onerror = () => {
-        if (this.es && this.es.readyState === EventSource.CLOSED) this.scheduleReconnect();
+        if (this.es && this.es.readyState === 2) this.scheduleReconnect();
       };
     } catch (_) {
       this.scheduleReconnect();
@@ -260,15 +259,14 @@ class PythPriceStream {
     if (this.reconnectTimer || !this.alive) return;
     if (this.es) { try { this.es.close(); } catch (_) {} this.es = null; }
     this.failCount++;
-    // Give up on the SSE after a few failures and rely on the fallback + REST poll.
+    // Back off after failures while retaining recovery after a later sign-in.
     if (this.failCount >= PythPriceStream.MAX_SSE_FAILS) {
       this.startFallback();
-      return;
     }
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       if (this.alive) this.connect();
-    }, 3000);
+    }, this.failCount >= PythPriceStream.MAX_SSE_FAILS ? 30000 : 3000);
   }
 
   disconnect() {
@@ -336,9 +334,9 @@ export async function fetchPythKlines(pairId: string, tf = '1H'): Promise<KlineC
   const from = to - secs * count;
 
   try {
-    const url = `${BENCHMARKS_URL}/v1/shims/tradingview/history`
+    const url = '/api/pyth/history'
       + `?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}`;
-    const res = await fetch(url);
+    const res = await fetchPyth(url);
     if (!res.ok) throw new Error(`Benchmarks ${res.status}`);
     const d = await res.json();
     if (d?.s !== 'ok' || !Array.isArray(d.t)) return [];

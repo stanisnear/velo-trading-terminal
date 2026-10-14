@@ -1,0 +1,16 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "velo-pyth-proxy",
+  "main": "pyth-worker.js",
+  "compatibility_date": "2026-10-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  // Approximate per-location limits, not global quota accounting.
+  "ratelimits": [
+    { "name": "AUTH_LIMIT", "namespace_id": "845321301", "simple": { "limit": 120, "period": 60 } },
+    { "name": "USER_LIMIT", "namespace_id": "845321302", "simple": { "limit": 60, "period": 60 } },
+    { "name": "STREAM_LIMIT", "namespace_id": "845321303", "simple": { "limit": 6, "period": 60 } }
+  ]
+  // PYTH_API_KEY and SUPABASE_ANON_KEY are configured through Worker secrets.
+}

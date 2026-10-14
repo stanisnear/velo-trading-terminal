@@ -33,7 +33,8 @@ export const PYTH_FEED_IDS = {
   'POL-USD':    '0xffd11c5a1cfd42f80afb2df4d9f264c15f956d68153335374ec10722edd70472',
 } as const;
 
-const HERMES_URL = import.meta.env.VITE_PYTH_HERMES_URL || 'https://hermes.pyth.network';
+import { fetchPyth } from './pythConnection';
+const HERMES_URL = '/api/pyth';
 
 /**
  * Maximum age (seconds) we accept from Hermes before retrying.
@@ -62,7 +63,7 @@ async function fetchOnce(feedIds: readonly string[]): Promise<{
   params.set('encoding', 'hex');
   params.set('parsed', 'true');
 
-  const res = await fetch(`${HERMES_URL}/v2/updates/price/latest?${params.toString()}`);
+  const res = await fetchPyth(`${HERMES_URL}/v2/updates/price/latest?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Hermes returned ${res.status}: ${await res.text()}`);
   }
@@ -143,7 +144,7 @@ export async function fetchLatestPrice(feedId: string): Promise<number | null> {
   try {
     const params = new URLSearchParams();
     params.append('ids[]', feedId.startsWith('0x') ? feedId.slice(2) : feedId);
-    const res = await fetch(`${HERMES_URL}/v2/updates/price/latest?${params.toString()}`);
+    const res = await fetchPyth(`${HERMES_URL}/v2/updates/price/latest?${params.toString()}`);
     if (!res.ok) return null;
     const data = await res.json();
     const parsed = data?.parsed?.[0]?.price;
