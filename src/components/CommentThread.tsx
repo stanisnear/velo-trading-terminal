@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { Heart, Trash2, MessageCircle, ChevronDown, ChevronUp, Link2, Check } from 'lucide-react';
 import { Comment } from '../utils/types';
 import { PAIRS } from '../utils/types';
+import { VeloAssetIcon } from './ui/shared';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ function MentionDropdown({ results, anchorRef, activeIndex, onSelect, onHover }:
                         onMouseDown={e => { e.preventDefault(); onSelect(item); }}
                         onMouseEnter={() => onHover(i)}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: i === activeIndex ? 'var(--chip-bg)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const }}>
-                        <img src={item.logo} alt={item.symbol} style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
+                        <VeloAssetIcon src={item.logo} symbol={item.symbol} size={28} />
                         <div>
                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>${item.symbol}</div>
                             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--fg-subtle)' }}>{item.name}</div>

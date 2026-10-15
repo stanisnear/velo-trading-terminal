@@ -533,7 +533,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, user, onSocialClick }
         { id: TabView.LEADERBOARD, icon: Trophy, label: 'Lead', requiresAuth: false },
     ].filter(item => !item.requiresAuth || user);
     return (
-        <div className="lg:hidden fixed left-2 right-2 z-[60]" style={{ bottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}>
+        <div className="velo-mobile-bottom-nav lg:hidden fixed left-2 right-2 z-[60]" style={{ bottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}>
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 4, padding: '6px 6px', borderRadius: 26, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(28px) saturate(1.3)', WebkitBackdropFilter: 'blur(28px) saturate(1.3)' }}>
                 {items.map((item) => {
                     const isActive = activeTab === item.id;

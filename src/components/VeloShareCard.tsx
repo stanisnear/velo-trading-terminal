@@ -59,63 +59,64 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
     const isLight   = bgStyle === 'light';
     const pnlUp     = data.pnl >= 0;
-    const sideColor = data.side === 'LONG' ? (isLight ? '#16a34a' : '#22c55e') : (isLight ? '#dc2626' : '#ff5050');
-    const pnlColor  = pnlUp ? (isLight ? '#16a34a' : '#22c55e') : (isLight ? '#dc2626' : '#ff5050');
-    const fgPrimary = isLight ? '#0f1117' : '#F4F1E8';
-    const fgMuted   = isLight ? 'rgba(15,17,23,0.5)' : 'rgba(236,237,241,0.5)';
-    const fgSubtle  = isLight ? 'rgba(15,17,23,0.28)' : 'rgba(236,237,241,0.22)';
-    const cardBg    = isLight ? 'rgba(15,17,23,0.04)' : 'rgba(255,255,255,0.055)';
-    const cardBorder= isLight ? 'rgba(15,17,23,0.10)' : 'rgba(255,255,255,0.10)';
+    const sideColor = data.side === 'LONG' ? (isLight ? '#398356' : '#77c995') : (isLight ? '#c65c5a' : '#df7774');
+    const pnlColor  = pnlUp ? (isLight ? '#398356' : '#77c995') : (isLight ? '#c65c5a' : '#df7774');
+    const accent    = isLight ? '#557a62' : '#91b99f';
+    const fgPrimary = isLight ? '#19241d' : '#edf2ee';
+    const fgMuted   = isLight ? 'rgba(25,36,29,0.66)' : 'rgba(237,242,238,0.66)';
+    const fgSubtle  = isLight ? 'rgba(25,36,29,0.44)' : 'rgba(237,242,238,0.42)';
+    const cardBg    = isLight ? 'rgba(49,83,59,0.055)' : 'rgba(225,238,228,0.055)';
+    const cardBorder= isLight ? 'rgba(44,75,53,0.14)' : 'rgba(224,238,228,0.12)';
 
     // ── Background ──────────────────────────────────────────────────────
     if (isLight) {
-      ctx.fillStyle = '#F0EEE8';
+      ctx.fillStyle = '#e2ebe3';
       ctx.fillRect(0, 0, W, H);
       // Subtle dot matrix
-      ctx.fillStyle = 'rgba(15,17,23,0.04)';
+      ctx.fillStyle = 'rgba(44,75,53,0.045)';
       for (let x = 24; x < W; x += 28) for (let y = 24; y < H; y += 28) {
         ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI * 2); ctx.fill();
       }
       // Ambient glow from PnL color
       const amb = ctx.createRadialGradient(W * 0.12, H * 0.15, 0, W * 0.12, H * 0.15, W * 0.6);
-      amb.addColorStop(0, pnlUp ? 'rgba(22,163,74,0.06)' : 'rgba(220,38,38,0.06)');
+      amb.addColorStop(0, pnlUp ? 'rgba(57,131,86,0.08)' : 'rgba(198,92,90,0.07)');
       amb.addColorStop(1, 'transparent');
       ctx.fillStyle = amb; ctx.fillRect(0, 0, W, H);
     } else if (bgStyle === 'gradient') {
-      // Deep indigo-navy gradient
+      // Restrained Velo forest gradient
       const g = ctx.createLinearGradient(0, 0, W * 0.7, H);
-      g.addColorStop(0, '#0b0818'); g.addColorStop(0.45, '#0d1140'); g.addColorStop(1, '#060a0f');
+      g.addColorStop(0, '#111a14'); g.addColorStop(0.5, '#1d2a21'); g.addColorStop(1, '#0a0e0c');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // Violet bloom top-left
+      // Soft sage bloom top-left
       const vBloom = ctx.createRadialGradient(W * 0.08, H * 0.1, 0, W * 0.08, H * 0.1, W * 0.65);
-      vBloom.addColorStop(0, 'rgba(123,60,232,0.32)'); vBloom.addColorStop(0.5, 'rgba(70,100,255,0.14)'); vBloom.addColorStop(1, 'transparent');
+      vBloom.addColorStop(0, 'rgba(145,185,159,0.2)'); vBloom.addColorStop(0.5, 'rgba(85,122,98,0.1)'); vBloom.addColorStop(1, 'transparent');
       ctx.fillStyle = vBloom; ctx.fillRect(0, 0, W, H);
       // Secondary warm bloom bottom-right
       const wBloom = ctx.createRadialGradient(W * 0.9, H * 0.85, 0, W * 0.9, H * 0.85, W * 0.5);
       wBloom.addColorStop(0, pnlUp ? 'rgba(34,197,94,0.12)' : 'rgba(255,80,80,0.12)'); wBloom.addColorStop(1, 'transparent');
       ctx.fillStyle = wBloom; ctx.fillRect(0, 0, W, H);
     } else if (bgStyle === 'hologram') {
-      ctx.fillStyle = '#050710'; ctx.fillRect(0, 0, W, H);
-      // Cyan-violet dual bloom
+      ctx.fillStyle = '#0b100d'; ctx.fillRect(0, 0, W, H);
+      // Layered sage bloom
       const hg1 = ctx.createRadialGradient(W * 0.75, H * 0.2, 0, W * 0.75, H * 0.2, W * 0.8);
-      hg1.addColorStop(0, 'rgba(80,220,255,0.22)'); hg1.addColorStop(0.4, 'rgba(123,60,232,0.14)'); hg1.addColorStop(1, 'transparent');
+      hg1.addColorStop(0, 'rgba(180,213,191,0.18)'); hg1.addColorStop(0.4, 'rgba(85,122,98,0.12)'); hg1.addColorStop(1, 'transparent');
       ctx.fillStyle = hg1; ctx.fillRect(0, 0, W, H);
       const hg2 = ctx.createRadialGradient(W * 0.2, H * 0.8, 0, W * 0.2, H * 0.8, W * 0.5);
-      hg2.addColorStop(0, 'rgba(60,190,232,0.14)'); hg2.addColorStop(1, 'transparent');
+      hg2.addColorStop(0, 'rgba(145,185,159,0.12)'); hg2.addColorStop(1, 'transparent');
       ctx.fillStyle = hg2; ctx.fillRect(0, 0, W, H);
       // Scan lines
-      ctx.strokeStyle = 'rgba(140,210,255,0.022)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(223,239,227,0.025)'; ctx.lineWidth = 1;
       for (let y = 0; y < H; y += 5) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
     } else {
       // Obsidian — very dark with faint grid
-      ctx.fillStyle = '#06070c'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#0a0e0c'; ctx.fillRect(0, 0, W, H);
     }
 
     // Shared: dark-mode subtle grid overlay
     if (!isLight) {
-      // Corner bloom — violet
+      // Corner bloom — Velo sage
       const bL = ctx.createRadialGradient(80, 80, 0, 80, 80, 400);
-      bL.addColorStop(0, 'rgba(107,70,255,0.18)'); bL.addColorStop(1, 'transparent');
+      bL.addColorStop(0, 'rgba(145,185,159,0.12)'); bL.addColorStop(1, 'transparent');
       ctx.fillStyle = bL; ctx.fillRect(0, 0, W, H);
       // Faint grid
       ctx.strokeStyle = 'rgba(255,255,255,0.013)'; ctx.lineWidth = 1;
@@ -123,18 +124,16 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       for (let y = 0; y < H; y += 52) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
     }
 
-    // ── Rainbow top accent bar ─────────────────────────────────────────
+    // ── Velo accent bar ──────────────────────────────────────────────────
     const topGrad = ctx.createLinearGradient(0, 0, W, 0);
     if (isLight) {
-      topGrad.addColorStop(0, 'color-mix(in oklab, var(--accent) 70%, transparent)');
-      topGrad.addColorStop(0.4, 'color-mix(in oklab, var(--accent) 70%, transparent)');
-      topGrad.addColorStop(0.8, 'oklch(0.6 0.18 265 / 0.5)');
-      topGrad.addColorStop(1, pnlUp ? 'oklch(0.55 0.2 162 / 0.5)' : 'oklch(0.55 0.22 25 / 0.5)');
+      topGrad.addColorStop(0, '#557a62');
+      topGrad.addColorStop(0.65, '#91b99f');
+      topGrad.addColorStop(1, pnlColor);
     } else {
-      topGrad.addColorStop(0, 'color-mix(in oklab, var(--accent) 95%, transparent)');
-      topGrad.addColorStop(0.35, 'color-mix(in oklab, var(--velo-sage-deep) 90%, transparent)');
-      topGrad.addColorStop(0.7, 'color-mix(in oklab, var(--velo-sage) 85%, transparent)');
-      topGrad.addColorStop(1, pnlUp ? 'oklch(0.68 0.22 162 / 0.8)' : 'oklch(0.62 0.22 25 / 0.8)');
+      topGrad.addColorStop(0, '#557a62');
+      topGrad.addColorStop(0.65, '#91b99f');
+      topGrad.addColorStop(1, pnlColor);
     }
     ctx.fillStyle = topGrad; ctx.fillRect(0, 0, W, 4);
 
@@ -160,7 +159,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     // Dot after wordmark
     ctx.beginPath();
     ctx.arc(LX + wordW + 7, LY + 10, 4.5, 0, Math.PI * 2);
-    ctx.fillStyle = isLight ? 'var(--accent)' : 'var(--accent)';
+    ctx.fillStyle = accent;
     ctx.fill();
     ctx.fillStyle = fgMuted;
     ctx.font = '700 9px "Geist Mono", monospace';
@@ -168,12 +167,12 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
     // ── Testnet badge (top right) ─────────────────────────────────────────
     const badgeW = 210, badgeH = 28, badgeX = W - badgeW - 44, badgeY = LY + 8;
-    ctx.fillStyle = isLight ? 'rgba(107,70,255,0.07)' : 'rgba(107,70,255,0.14)';
+    ctx.fillStyle = isLight ? 'rgba(85,122,98,0.08)' : 'rgba(145,185,159,0.12)';
     ctx.beginPath(); (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 8); ctx.fill();
-    ctx.strokeStyle = isLight ? 'rgba(107,70,255,0.22)' : 'rgba(130,90,255,0.32)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = isLight ? 'rgba(85,122,98,0.24)' : 'rgba(145,185,159,0.3)'; ctx.lineWidth = 1;
     ctx.beginPath(); (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 8); ctx.stroke();
     ctx.font = '700 10px "Geist Mono", monospace';
-    ctx.fillStyle = isLight ? 'var(--accent)' : 'var(--accent)';
+    ctx.fillStyle = accent;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('TESTNET · BASE SEPOLIA', badgeX + badgeW / 2, badgeY + badgeH / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -296,7 +295,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
 
     if (visibleFields.handle && data.traderHandle) {
       const handle = data.traderHandle.startsWith('@') ? data.traderHandle : '@' + data.traderHandle;
-      ctx.font = '700 12px "Geist Mono", monospace'; ctx.fillStyle = isLight ? 'var(--accent)' : 'var(--accent)';
+      ctx.font = '700 12px "Geist Mono", monospace'; ctx.fillStyle = accent;
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       ctx.fillText(handle, 52, H - 28);
     }
@@ -337,16 +336,16 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
   if (!isOpen) return null;
 
   const BG_OPTIONS: { id: BgStyle; label: string; swatch: string }[] = [
-    { id: 'obsidian', label: 'Obsidian', swatch: 'linear-gradient(135deg, #0d0f1a 0%, #1a1d2e 100%)' },
-    { id: 'gradient', label: 'Gradient', swatch: 'linear-gradient(135deg, #0a0e0c 0%, #26352b 52%, #557a64 100%)' },
-    { id: 'hologram', label: 'Hologram', swatch: 'linear-gradient(135deg, #090d0b 0%, #27382d 52%, #91b99f 100%)' },
-    { id: 'light',    label: 'Light',    swatch: 'linear-gradient(135deg, #F0EEE8 0%, #e8e2d8 100%)' },
+    { id: 'obsidian', label: 'Obsidian', swatch: 'linear-gradient(135deg, #090d0b 0%, #19211c 100%)' },
+    { id: 'gradient', label: 'Forest', swatch: 'linear-gradient(135deg, #111a14 0%, #1d2a21 52%, #557a64 100%)' },
+    { id: 'hologram', label: 'Sage Glass', swatch: 'linear-gradient(135deg, #0b100d 0%, #27382d 52%, #91b99f 100%)' },
+    { id: 'light',    label: 'Light',    swatch: 'linear-gradient(135deg, #e2ebe3 0%, #cfdfd1 100%)' },
   ];
 
   return (
-    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(20px)' }}>
-      <div style={{ width: '100%', maxWidth: 720, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' as const }}>
+    <div className="velo-modal-enter-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'var(--overlay)', backdropFilter: 'blur(22px) saturate(1.28)' }}>
+      <div className="velo-modal-enter-card" style={{ width: '100%', maxWidth: 720, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' as const }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--hairline)' }}>
@@ -358,7 +357,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
         </div>
 
         {/* Canvas Preview */}
-        <div style={{ padding: '14px 14px 10px', background: 'rgba(0,0,0,0.4)', overflowY: 'auto' as const }}>
+        <div style={{ padding: '14px 14px 10px', background: 'var(--surface-inset)', overflowY: 'auto' as const }}>
           <canvas ref={canvasRef} width={1200} height={675}
             style={{ width: '100%', height: 'auto', borderRadius: 10, display: 'block', boxShadow: '0 16px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06)' }} />
         </div>
@@ -373,7 +372,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
               <Download size={11} /> Download PNG
             </button>
             <button onClick={handleShare}
-              style={{ ...S.mono, flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(100deg, var(--accent), oklch(0.62 0.24 310))', color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px color-mix(in oklab, var(--accent) 40%, transparent)' }}>
+              style={{ ...S.mono, flex: 2, padding: '11px 0', borderRadius: 10, border: '1px solid var(--control-border)', background: 'var(--primary-bg)', color: 'var(--primary-fg)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px color-mix(in oklab, var(--accent) 24%, transparent)' }}>
               {copied ? <><Check size={11} /> Copied!</> : <><Share2 size={11} /> Share</>}
             </button>
           </div>

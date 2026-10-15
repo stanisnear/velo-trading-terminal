@@ -74,16 +74,16 @@ export function PWAInstallBanner() {
   // iOS manual instruction sheet
   if (showIOSSheet) {
     return (
-      <div className="fixed inset-0 z-[9999] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+      <div className="fixed inset-0 z-[9999] flex items-end justify-center" style={{ background: 'var(--overlay)', backdropFilter: 'blur(18px) saturate(1.2)' }}>
         <div className="glass-panel rounded-t-2xl w-full max-w-sm mx-auto p-6 pb-8 animate-slide-up">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="velo-logo-bug w-8 h-8 flex items-center justify-center">
-                <span className="font-display italic text-base font-light" style={{ color: '#F4F1E8' }}>V</span>
+                <span className="font-display italic text-base font-light" style={{ color: 'var(--velo-bone)' }}>V</span>
               </div>
-              <span className="font-semibold text-sm" style={{ color: '#ECEDF1' }}>Add VELO to Home Screen</span>
+              <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>Add VELO to Home Screen</span>
             </div>
-            <button onClick={dismiss} style={{ color: '#8E919B', background: 'none', border: 'none', cursor: 'pointer', padding: 4, touchAction: 'manipulation' }}>
+            <button onClick={dismiss} style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', padding: 4, touchAction: 'manipulation' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           </div>
@@ -93,13 +93,13 @@ export function PWAInstallBanner() {
               { icon: '➕', text: 'Scroll down and tap "Add to Home Screen"' },
               { icon: '✅', text: 'Tap "Add" to confirm' },
             ].map((step, i) => (
-              <li key={i} className="flex items-start gap-3 text-sm" style={{ color: '#ECEDF1' }}>
+              <li key={i} className="flex items-start gap-3 text-sm" style={{ color: 'var(--fg)' }}>
                 <span className="text-lg leading-none mt-0.5">{step.icon}</span>
                 <span>{step.text}</span>
               </li>
             ))}
           </ol>
-          <p className="mt-4 text-xs" style={{ color: '#8E919B' }}>
+          <p className="mt-4 text-xs" style={{ color: 'var(--fg-subtle)' }}>
             Once added, VELO opens full-screen — no Safari chrome.
           </p>
         </div>
@@ -123,19 +123,19 @@ export function PWAInstallBanner() {
         borderRadius: 16,
         maxWidth: '360px',
         width: 'calc(100% - 32px)',
-        background: 'rgba(20,22,30,0.95)',
-        border: '1px solid rgba(123,60,232,0.35)',
+        background: 'var(--modal-surface)',
+        border: '1px solid var(--glass-border)',
         backdropFilter: 'blur(20px)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        boxShadow: 'var(--glass-shadow)',
         animation: 'bounceIn 0.35s ease-out',
       }}
     >
       <div className="velo-logo-bug flex-shrink-0 w-9 h-9 flex items-center justify-center">
-        <span className="font-display italic text-lg font-light" style={{ color: '#F4F1E8' }}>V</span>
+        <span className="font-display italic text-lg font-light" style={{ color: 'var(--velo-bone)' }}>V</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: '#ECEDF1', margin: 0 }}>Install VELO</p>
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#8E919B', margin: 0 }}>Add to home screen</p>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: 'var(--fg)', margin: 0 }}>Install VELO</p>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-subtle)', margin: 0 }}>Add to home screen</p>
       </div>
       <button
         onClick={handleInstallClick}
@@ -145,9 +145,9 @@ export function PWAInstallBanner() {
           borderRadius: 10,
           fontSize: 13,
           fontWeight: 700,
-          background: 'linear-gradient(135deg, #557a64 0%, #91b99f 100%)',
-          color: '#fff',
-          border: 'none',
+          background: 'var(--primary-bg)',
+          color: 'var(--primary-fg)',
+          border: '1px solid var(--control-border)',
           cursor: 'pointer',
           touchAction: 'manipulation',
           WebkitTapHighlightColor: 'transparent',
@@ -157,7 +157,7 @@ export function PWAInstallBanner() {
       </button>
       <button
         onClick={dismiss}
-        style={{ flexShrink: 0, padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#8E919B', touchAction: 'manipulation' }}
+        style={{ flexShrink: 0, padding: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', touchAction: 'manipulation' }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path d="M18 6L6 18M6 6l12 12"/>

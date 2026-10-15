@@ -88,6 +88,7 @@ export const VeloShareTradeModal: React.FC<Props> = ({ isOpen, trade, onClose, o
     <div
       role="dialog"
       aria-modal="true"
+      className="velo-modal-enter-backdrop"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0, 0, 0, 0.6)',
@@ -96,7 +97,7 @@ export const VeloShareTradeModal: React.FC<Props> = ({ isOpen, trade, onClose, o
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={cardStyle}>
+      <div className="velo-modal-enter-card" style={cardStyle}>
         <div style={holoGradient} />
 
         {/* Header */}

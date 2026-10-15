@@ -29,7 +29,7 @@
 // (it's what the contract settles on), but Hermes can be rate-limited, network-
 // blocked, or blocked by an aggressive browser extension — and when it was the
 // ONLY source the whole app went priceless. The fallback keeps prices flowing.
-import { binancePriceStream, fetchRealPrices } from './priceService';
+import { binancePriceStream, fetchKlines, fetchKlinesBefore, fetchRealPrices } from './priceService';
 import { fetchPyth, PythEventStream } from './pythConnection';
 
 const HERMES_URL = '/api/pyth';
@@ -300,13 +300,13 @@ export interface KlineCandle {
   low: number;
   close: number;
   volume: number; // Pyth is an oracle, not an exchange — volume is always 0
+  source?: 'pyth' | 'exchange';
 }
 
-// Velo timeframe → Benchmarks resolution. Benchmarks supports the intraday
-// multipliers 1,2,5,15,30,60,120,240,360,720 plus D/W/M. Velo's 3m and 3D have
-// no exact Pyth equivalent, so they fall back to the nearest finer resolution.
+// Velo timeframe → Benchmarks resolution. Unsupported 3m/3D intervals use
+// 1m/daily source candles and are aggregated into the exact requested bars.
 const TF_TO_BENCHMARKS: Record<string, string> = {
-  '1m': '1', '3m': '5', '5m': '5', '15m': '15', '30m': '30',
+  '1m': '1', '3m': '1', '5m': '5', '15m': '15', '30m': '30',
   '1H': '60', '2H': '120', '4H': '240', '6H': '360', '12H': '720',
   '1D': 'D', '3D': 'D', '1W': 'W', '1M': 'M',
 };
@@ -317,49 +317,131 @@ const RESOLUTION_SECONDS: Record<string, number> = {
   'D': 86400, 'W': 604800, 'M': 2592000,
 };
 
+const PYTH_PAGE_CANDLES = 500;
+const INITIAL_HISTORY_CANDLES = 2000;
+const PYTH_MAX_HISTORY_SECONDS = 5 * 366 * 24 * 60 * 60;
+
+function parsePythHistory(data: any): KlineCandle[] {
+  if (data?.s !== 'ok' || !Array.isArray(data.t)) return [];
+  const parsed: KlineCandle[] = [];
+  for (let i = 0; i < data.t.length; i++) {
+    const rawTime = Number(data.t[i]);
+    const close = Number(data.c[i]);
+    if (!Number.isFinite(rawTime) || !Number.isFinite(close) || close <= 0) continue;
+    parsed.push({
+      time: Math.floor(rawTime > 1e12 ? rawTime / 1000 : rawTime),
+      open: Number.isFinite(Number(data.o[i])) ? Number(data.o[i]) : close,
+      high: Number.isFinite(Number(data.h[i])) ? Number(data.h[i]) : close,
+      low: Number.isFinite(Number(data.l[i])) ? Number(data.l[i]) : close,
+      close,
+      volume: Array.isArray(data.v) && Number.isFinite(Number(data.v[i])) ? Number(data.v[i]) : 0,
+      source: 'pyth',
+    });
+  }
+  return parsed;
+}
+
+async function fetchPythHistoryRange(symbol: string, resolution: string, from: number, to: number): Promise<KlineCandle[]> {
+  const url = '/api/pyth/history'
+    + `?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}`;
+  const res = await fetchPyth(url);
+  if (!res.ok) throw new Error(`Benchmarks ${res.status}`);
+  return parsePythHistory(await res.json());
+}
+
+function aggregateCandles(candles: KlineCandle[], targetSeconds: number): KlineCandle[] {
+  if (!candles.length || !targetSeconds) return [];
+  const grouped = new Map<number, KlineCandle[]>();
+  for (const candle of candles) {
+    const bucket = Math.floor(candle.time / targetSeconds) * targetSeconds;
+    const group = grouped.get(bucket);
+    if (group) group.push(candle);
+    else grouped.set(bucket, [candle]);
+  }
+  return [...grouped.entries()].map(([time, group]) => ({
+    time,
+    open: group[0].open,
+    high: Math.max(...group.map(candle => candle.high)),
+    low: Math.min(...group.map(candle => candle.low)),
+    close: group[group.length - 1].close,
+    volume: 0,
+    source: 'pyth' as const,
+  })).sort((a, b) => a.time - b.time);
+}
+
+function pythHistoryConfig(tf: string) {
+  const resolution = TF_TO_BENCHMARKS[tf] ?? '60';
+  const sourceSeconds = RESOLUTION_SECONDS[resolution] ?? 3600;
+  const targetSeconds = tf === '3m' ? 180 : tf === '3D' ? 259200 : sourceSeconds;
+  const barsPerTarget = Math.max(1, targetSeconds / sourceSeconds);
+  const pageCandles = Math.floor(PYTH_PAGE_CANDLES / barsPerTarget) * barsPerTarget;
+  return { resolution, sourceSeconds, targetSeconds, barsPerTarget, pageCandles };
+}
+
 /**
  * Fetch real OHLC candles from Pyth Benchmarks for a pair + timeframe.
  * Same return shape as the old Binance fetchKlines so it is a drop-in swap.
- * Returns [] on failure (chart simply shows nothing rather than mock data).
+ * Uses the authenticated oracle history when available, then falls back to
+ * real public exchange candles for signed-out/unavailable states. The caller
+ * can label the source so exchange candles are never mistaken for the mark.
  */
 export async function fetchPythKlines(pairId: string, tf = '1H'): Promise<KlineCandle[]> {
   const symbol = benchmarksSymbol(pairId);
   if (!symbol) return [];
 
-  const resolution = TF_TO_BENCHMARKS[tf] ?? '60';
-  const secs = RESOLUTION_SECONDS[resolution] ?? 3600;
-  // Bars to request: ~300 intraday, more headroom for coarse frames.
-  const count = resolution === 'D' ? 365 : resolution === 'W' ? 104 : resolution === 'M' ? 60 : 300;
+  const { resolution, sourceSeconds, targetSeconds, barsPerTarget, pageCandles } = pythHistoryConfig(tf);
   const to = Math.floor(Date.now() / 1000);
-  const from = to - secs * count;
+  const maxFrom = to - PYTH_MAX_HISTORY_SECONDS;
+  const availableSourceCandles = Math.floor((to - maxFrom) / sourceSeconds);
+  const sourceCount = Math.floor(Math.min(INITIAL_HISTORY_CANDLES, availableSourceCandles) / barsPerTarget) * barsPerTarget;
+  const ranges: Array<{ from: number; to: number }> = [];
+  let cursor = to;
+  let remaining = sourceCount;
+  while (remaining > 0) {
+    const count = Math.min(pageCandles, remaining);
+    const from = cursor - sourceSeconds * count;
+    ranges.push({ from, to: cursor });
+    cursor = from;
+    remaining -= count;
+  }
 
   try {
-    const url = '/api/pyth/history'
-      + `?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}`;
-    const res = await fetchPyth(url);
-    if (!res.ok) throw new Error(`Benchmarks ${res.status}`);
-    const d = await res.json();
-    if (d?.s !== 'ok' || !Array.isArray(d.t)) return [];
-
-    const out: KlineCandle[] = [];
-    for (let i = 0; i < d.t.length; i++) {
-      const open = Number(d.o[i]);
-      const high = Number(d.h[i]);
-      const low = Number(d.l[i]);
-      const close = Number(d.c[i]);
-      if (!Number.isFinite(close) || close <= 0) continue;
-      out.push({
-        time: Number(d.t[i]),
-        open: Number.isFinite(open) ? open : close,
-        high: Number.isFinite(high) ? high : close,
-        low: Number.isFinite(low) ? low : close,
-        close,
-        volume: Array.isArray(d.v) && Number.isFinite(Number(d.v[i])) ? Number(d.v[i]) : 0,
-      });
+    const pages = await Promise.allSettled(ranges.map(range => fetchPythHistoryRange(symbol, resolution, range.from, range.to)));
+    if (pages.every(page => page.status === 'fulfilled')) {
+      const sourceCandles = pages.flatMap(page => page.status === 'fulfilled' ? page.value : []);
+      const unique = [...new Map(sourceCandles.map(candle => [candle.time, candle])).values()].sort((a, b) => a.time - b.time);
+      if (unique.length) return targetSeconds > sourceSeconds ? aggregateCandles(unique, targetSeconds) : unique;
     }
-    return out;
   } catch (e) {
-    console.warn(`[velo] fetchPythKlines(${pairId}, ${tf}) failed:`, e);
-    return [];
+    // Public exchange history below keeps the chart useful while signed out or
+    // when the authenticated oracle history service is temporarily unavailable.
+  }
+  const fallback = await fetchKlines(pairId, tf);
+  return fallback.map(candle => ({ ...candle, source: 'exchange' as const }));
+}
+
+export async function fetchOlderPythKlines(
+  pairId: string,
+  tf: string,
+  beforeTime: number,
+  source: 'pyth' | 'exchange' = 'pyth',
+): Promise<KlineCandle[]> {
+  if (source === 'exchange') {
+    const fallback = await fetchKlinesBefore(pairId, tf, beforeTime);
+    return fallback.map(candle => ({ ...candle, source: 'exchange' as const }));
+  }
+  const symbol = benchmarksSymbol(pairId);
+  if (!symbol || !Number.isFinite(beforeTime)) return [];
+  const { resolution, sourceSeconds, targetSeconds, pageCandles } = pythHistoryConfig(tf);
+  const to = Math.floor(beforeTime / targetSeconds) * targetSeconds - 1;
+  const historyFloor = Math.floor(Date.now() / 1000) - PYTH_MAX_HISTORY_SECONDS;
+  const from = Math.max(historyFloor, to - sourceSeconds * pageCandles);
+  if (from >= to) return [];
+  try {
+    const sourceCandles = await fetchPythHistoryRange(symbol, resolution, from, to);
+    return targetSeconds > sourceSeconds ? aggregateCandles(sourceCandles, targetSeconds) : sourceCandles;
+  } catch (e) {
+    console.warn(`[velo] fetchOlderPythKlines(${pairId}, ${tf}) failed:`, e);
+    throw e;
   }
 }

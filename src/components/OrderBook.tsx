@@ -203,7 +203,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
           background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 3px',
           fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
           color: view === v ? 'var(--fg)' : 'var(--fg-subtle)',
-          borderBottom: view === v ? '1.5px solid var(--iris-violet, #8b7cf6)' : '1.5px solid transparent',
+          borderBottom: view === v ? '1.5px solid var(--accent)' : '1.5px solid transparent',
         }}>{v === 'trades' ? 'Trades' : v === 'depth' ? 'Depth' : 'Book'}</button>
       ))}
     </div>

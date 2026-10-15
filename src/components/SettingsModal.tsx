@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // VELO SETTINGS MODAL — Wallet & Settings
-// Deep glass · CSS-var theming · Velo brand accent (violet→blue only)
+// Deep glass · CSS-var theming · Velo sage and graphite palette
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
@@ -136,14 +136,12 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
   return createPortal(
     <>
       <style>{`
-        @keyframes sm-overlay { from { opacity:0 } to { opacity:1 } }
-        @keyframes sm-card { from { opacity:0; transform:translateY(14px) scale(0.97) } to { opacity:1; transform:none } }
         .sm-ghost:hover { background: var(--chip-bg-hover) !important; border-color: color-mix(in oklab, var(--accent) 35%, transparent) !important; }
       `}</style>
-      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9999, background:'oklch(0 0 0 / 0.62)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, overflowY:'auto', animation:'sm-overlay 0.22s ease both' }}>
-        <div onClick={e => e.stopPropagation()} style={{ position:'relative', width:'100%', maxWidth:500, maxHeight:'min(92dvh, 92vh)', display:'flex', flexDirection:'column', background:'var(--modal-bg, var(--modal-bg))', borderRadius:28, border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.07) inset', backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)', overflow:'hidden', animation:'sm-card 0.36s cubic-bezier(0.22,1,0.36,1) both', color:'var(--fg)' }}>
+      <div onClick={onClose} className="velo-modal-enter-backdrop" style={{ position:'fixed', inset:0, zIndex:9999, background:'oklch(0 0 0 / 0.62)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, overflowY:'auto' }}>
+        <div onClick={e => e.stopPropagation()} className="velo-modal-enter-card" style={{ position:'relative', width:'100%', maxWidth:500, maxHeight:'min(92dvh, 92vh)', display:'flex', flexDirection:'column', background:'var(--modal-bg, var(--modal-bg))', borderRadius:28, border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.07) inset', backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)', overflow:'hidden', color:'var(--fg)' }}>
 
-          {/* Velo accent stripe — violet→blue only */}
+          {/* Restrained Velo accent stripe */}
           <div style={{ position:'absolute', top:0, left:0, right:0, height:2.5, zIndex:3, background:VELO_STRIPE }} />
 
           {/* Ambient depth glow */}
@@ -166,12 +164,12 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
           </div>
 
           {/* Network pill */}
-          <div style={{ margin:'0 20px 14px', padding:'9px 14px', borderRadius:12, position:'relative', zIndex:1, flexShrink:0, background: networkOk ? 'oklch(0.80 0.18 150 / 0.06)' : 'oklch(0.76 0.14 60 / 0.08)', border:`1px solid ${networkOk ? 'oklch(0.80 0.18 150 / 0.22)' : 'oklch(0.76 0.14 60 / 0.28)'}`, display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:7, height:7, borderRadius:'50%', background: networkOk ? 'oklch(0.82 0.18 150)' : 'oklch(0.80 0.16 60)', boxShadow:`0 0 8px ${networkOk ? 'oklch(0.82 0.18 150 / 0.65)' : 'oklch(0.80 0.16 60 / 0.65)'}`, flexShrink:0 }} />
+          <div style={{ margin:'0 20px 14px', padding:'9px 14px', borderRadius:12, position:'relative', zIndex:1, flexShrink:0, background: networkOk ? 'color-mix(in oklab, var(--pnl-up) 9%, transparent)' : 'color-mix(in oklab, var(--iris-amber) 10%, transparent)', border:`1px solid ${networkOk ? 'color-mix(in oklab, var(--pnl-up) 28%, transparent)' : 'color-mix(in oklab, var(--iris-amber) 30%, transparent)'}`, display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:7, height:7, borderRadius:'50%', background: networkOk ? 'var(--pnl-up)' : 'var(--iris-amber)', boxShadow:`0 0 8px ${networkOk ? 'color-mix(in oklab, var(--pnl-up) 65%, transparent)' : 'color-mix(in oklab, var(--iris-amber) 65%, transparent)'}`, flexShrink:0 }} />
             <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', flex:1 }}>
               <span style={{ color:'var(--fg-subtle)', marginRight:8, letterSpacing:'0.08em' }}>NETWORK</span>
               {networkName}
-              {!networkOk && <span style={{ color:'oklch(0.82 0.16 60)', marginLeft:8 }}>· Switch to Base Sepolia</span>}
+              {!networkOk && <span style={{ color:'var(--iris-amber)', marginLeft:8 }}>· Switch to Base Sepolia</span>}
             </span>
           </div>
 
@@ -190,7 +188,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                       <div style={{ ...F.mono, fontSize:11, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, color:'var(--fg)' }}>Move to trading wallet</div>
                       <div style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', marginTop:3 }}>${ownerUsdc.toFixed(2)} mUSDC from main wallet</div>
                     </div>
-                    <div style={{ ...F.display, fontSize:22, color:'oklch(0.82 0.16 150)', fontWeight:700 }}>${ownerUsdc.toFixed(0)}</div>
+                      <div style={{ ...F.display, fontSize:22, color:'var(--pnl-up)', fontWeight:700 }}>${ownerUsdc.toFixed(0)}</div>
                   </div>
                   <VeloBtn onClick={moveToTradingWallet} disabled={movingFunds || ownerEth < 0.0005} variant="green">
                     {movingFunds ? 'Moving…' : `Move $${ownerUsdc.toFixed(2)} →`}
@@ -358,10 +356,10 @@ const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <p style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--fg-muted)', margin:'8px 0 0', lineHeight:1.5 }}>{children}</p>
 );
 const ErrNote: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({ children, style }) => (
-  <p style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'oklch(0.72 0.20 25)', margin:'8px 0 0', lineHeight:1.5, ...style }}>{children}</p>
+  <p style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--pnl-down)', margin:'8px 0 0', lineHeight:1.5, ...style }}>{children}</p>
 );
 const VeloBtn: React.FC<{ onClick:()=>void; disabled?:boolean; variant?:'green'|'violet'; children:React.ReactNode }> = ({ onClick, disabled, variant='violet', children }) => (
-  <button onClick={onClick} disabled={disabled} style={{ width:'100%', padding:'12px 16px', borderRadius:12, border:'1px solid color-mix(in oklab, var(--velo-sage-bright) 26%, var(--hr-2))', background: disabled?'var(--chip-bg)':variant==='green'?'linear-gradient(100deg, var(--pnl-up), var(--velo-sage))':'var(--brand-gradient)', color:disabled?'var(--fg-subtle)':'var(--fg)', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' as const, cursor:disabled?'not-allowed':'pointer', opacity:disabled?0.5:1, boxShadow:disabled?'none':'0 5px 16px -8px rgba(62, 100, 76, 0.6)', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>{children}</button>
+  <button onClick={onClick} disabled={disabled} style={{ width:'100%', padding:'12px 16px', borderRadius:12, border:'1px solid var(--control-border)', background: disabled?'var(--control-bg)':variant==='green'?'var(--secondary-bg)':'var(--primary-bg)', color:disabled?'var(--fg-subtle)':variant==='green'?'var(--secondary-fg)':'var(--primary-fg)', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' as const, cursor:disabled?'not-allowed':'pointer', opacity:disabled?0.58:1, boxShadow:disabled?'none':'0 1px 0 rgba(255,255,255,.12) inset, 0 8px 22px -16px rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'transform 160ms ease, background 160ms ease, box-shadow 160ms ease' }}>{children}</button>
 );
 const GhostBtn: React.FC<{ onClick:()=>void; disabled?:boolean; children:React.ReactNode; style?: React.CSSProperties }> = ({ onClick, disabled, children, style }) => (
   <button onClick={onClick} disabled={disabled} className="sm-ghost" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, width:'100%', padding:'11px 14px', borderRadius:10, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)', color:'var(--fg)', cursor:disabled?'not-allowed':'pointer', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:600, letterSpacing:'0.06em', transition:'background 0.14s, border-color 0.14s', ...style }}>{children}</button>
@@ -375,7 +373,7 @@ const ActBtn: React.FC<{ onClick:()=>void; icon:React.ReactNode; label:string; a
 
 const WalletCard: React.FC<{ kind:'main'|'velo'; title:string; subtitle:string; address:string; eth:number; usdc:number; copied:boolean; onCopy:()=>void; }> = ({ kind, title, subtitle, address, eth, usdc, copied, onCopy }) => {
   const isVelo = kind === 'velo';
-  const aL = isVelo ? 'var(--accent)' : 'oklch(0.50 0.18 220)';
+  const aL = isVelo ? 'var(--accent)' : 'oklch(0.52 0.04 155)';
   const aR = isVelo ? 'var(--velo-sage)' : 'var(--velo-sage-bright)';
   return (
     <div style={{ flexShrink:0, padding:16, borderRadius:20, background:`linear-gradient(145deg, ${aL.replace(')','/ 0.08)')}, ${aR.replace(')','/ 0.03)')})`, border:`1px solid ${aL.replace(')','/ 0.22)')}`, boxShadow:`0 2px 16px -8px ${aL.replace(')','/ 0.18)')}`, position:'relative', overflow:'hidden' }}>

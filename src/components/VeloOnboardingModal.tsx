@@ -390,6 +390,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   return createPortal(
     <div
       onClick={e => { if (e.target === e.currentTarget && showClose) onClose(); }}
+      className="velo-modal-stateful"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0,0,0,0.5)',
@@ -403,6 +404,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     >
       <div
         onClick={e => e.stopPropagation()}
+        className="velo-modal-stateful"
         style={{
           position: 'relative', width: '100%', maxWidth: 460,
           // CSS vars — adapts to light/dark automatically from tokens.css

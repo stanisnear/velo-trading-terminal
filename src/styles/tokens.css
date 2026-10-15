@@ -25,8 +25,7 @@
      sweep, small 3D accents. Never a full-bleed background. */
   --brand-gradient: linear-gradient(140deg, #91b99f, #b4d5bf);
 
-  /* Prism survives only as thin accents now (modal top-bar, verified tick,
-     prism chips). Retuned to the violet→blue brand hues. */
+  /* Prism survives only as a restrained sage accent for tiny highlights. */
   --prism: linear-gradient(
     135deg,
     #557a64 0%,
@@ -55,6 +54,10 @@ body.dark,
   --bg: #0a0e0c;
   --bg-2: #111714;
   --bg-3: #19211c;
+  --surface: rgba(225, 238, 228, 0.055);
+  --surface-raised: rgba(22, 30, 25, 0.92);
+  --surface-inset: rgba(4, 9, 6, 0.28);
+  --surface-hover: rgba(225, 238, 228, 0.09);
   --fg: #edf2ee;
   --fg-2: #a2afa6;
   --fg-3: #717d75;
@@ -62,6 +65,21 @@ body.dark,
   --hr-2: rgba(224, 238, 228, 0.16);
   --accent: #91b99f;
   --accent-text: #b4d5bf;
+  --control-bg: rgba(225, 238, 228, 0.055);
+  --control-bg-hover: rgba(225, 238, 228, 0.10);
+  --control-border: rgba(225, 238, 228, 0.15);
+  --focus-ring: rgba(145, 185, 159, 0.3);
+  --primary-bg: #28322b;
+  --primary-bg-hover: #333e36;
+  --primary-fg: #f4f8f4;
+  --disabled-bg: #27312b;
+  --disabled-fg: #c1cbc4;
+  --secondary-bg: rgba(225, 238, 228, 0.075);
+  --secondary-fg: #e2ebe4;
+  --form-bg: rgba(4, 9, 6, 0.26);
+  --form-border: rgba(225, 238, 228, 0.16);
+  --overlay: rgba(3, 7, 5, 0.72);
+  --modal-surface: rgba(19, 27, 22, 0.96);
   /* Real frosted glass — neutral white transparency over obsidian, not a
      tinted gray box. The blur + hairline + inset highlight carry the surface. */
   --glass: rgba(226, 238, 229, 0.055);
@@ -117,30 +135,51 @@ body.dark,
 html.light,
 body.light,
 .light {
-  --bg: #e9f1ea;
-  --bg-2: #e1ebe3;
-  --bg-3: #d5e3d8;
+  --bg: #e7eee8;
+  --bg-2: #dfe8e0;
+  --bg-3: #d5e1d7;
+  --surface: rgba(226, 234, 227, 0.72);
+  --surface-raised: rgba(234, 240, 235, 0.92);
+  --surface-inset: rgba(99, 122, 104, 0.07);
+  --surface-hover: rgba(100, 132, 107, 0.10);
   --fg: #19241d;
   --fg-2: #516257;
-  --fg-3: #7d8c81;
-  --hr: rgba(38, 69, 47, 0.12);
-  --hr-2: rgba(38, 69, 47, 0.20);
-  --accent: #52765f;
-  --accent-text: #3e644c;
+  --fg-3: #5f6f63;
+  --hr: rgba(44, 75, 53, 0.11);
+  --hr-2: rgba(44, 75, 53, 0.17);
+  --accent: #557a62;
+  --accent-text: #365b43;
+  --pnl-up: #347b50;
+  --pnl-down: #b64e4c;
+  --control-bg: rgba(100, 136, 108, 0.075);
+  --control-bg-hover: rgba(100, 136, 108, 0.12);
+  --control-border: rgba(48, 79, 56, 0.18);
+  --focus-ring: rgba(78, 125, 91, 0.24);
+  --primary-bg: #28322b;
+  --primary-bg-hover: #333e36;
+  --primary-fg: #f4f8f4;
+  --disabled-bg: #d8e3d9;
+  --disabled-fg: #405447;
+  --secondary-bg: rgba(114, 151, 122, 0.10);
+  --secondary-fg: #304c38;
+  --form-bg: rgba(123, 153, 129, 0.11);
+  --form-border: rgba(53, 85, 60, 0.2);
+  --overlay: rgba(23, 40, 28, 0.56);
+  --modal-surface: rgba(229, 237, 230, 0.97);
   /* Sage-tinted glass stays visibly green without turning surfaces white. */
-  --glass: rgba(238, 246, 239, 0.76);
-  --glass-2: rgba(229, 239, 231, 0.98);
-  --gl-edge: rgba(250, 255, 250, 0.82);
-  --glass-ring: rgba(255, 255, 255, 0.22);
-  --chip: rgba(49, 83, 59, 0.055);
-  --chip-h: rgba(49, 83, 59, 0.10);
+  --glass: rgba(222, 232, 223, 0.72);
+  --glass-2: rgba(229, 237, 230, 0.94);
+  --gl-edge: rgba(248, 252, 248, 0.46);
+  --glass-ring: rgba(255, 255, 255, 0.18);
+  --chip: rgba(49, 83, 59, 0.075);
+  --chip-h: rgba(49, 83, 59, 0.11);
   --ambient: none;
-  --app-bg: var(--bg);
+  --app-bg: #e7eee8;
   --glass-shadow:
     0 1px 0 var(--gl-edge) inset,
-    0 18px 42px -28px rgba(35, 61, 41, 0.17),
-    0 5px 14px -10px rgba(35, 61, 41, 0.09);
-  --modal-bg: rgba(232, 242, 233, 0.96);
+    0 20px 48px -34px rgba(35, 61, 41, 0.19),
+    0 4px 12px -10px rgba(35, 61, 41, 0.09);
+  --modal-bg: rgba(229, 237, 230, 0.97);
   --podium-gold-bg: rgba(197, 221, 202, 0.25);
   --podium-silver-bg: rgba(238, 246, 239, 0.62);
   --podium-bronze-bg: rgba(207, 224, 211, 0.20);
@@ -262,7 +301,7 @@ select {
 /* ── Light mode: chart background matches page bg ─────────────────────────── */
 html.light .tv-lightweight-charts,
 html.light iframe[id*="tradingview"] {
-  background: #edf0ed !important;
+  background: #dfe8e0 !important;
 }
 
 /* ── Mobile content offset: navbar = 60px + safe-area-inset-top ──────────── */
@@ -748,22 +787,22 @@ html.light iframe[id*="tradingview"] {
 [style*="var(--glass-bg-strong)"],
 [style*="var(--glass-2)"],
 [style*="var(--modal-bg)"] {
-  -webkit-backdrop-filter: blur(34px) saturate(1.6);
-  backdrop-filter: blur(34px) saturate(1.6);
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  backdrop-filter: blur(22px) saturate(1.08);
 }
 
 /* Stronger blur for modals */
 [style*="var(--modal-bg)"] {
-  -webkit-backdrop-filter: blur(40px) saturate(1.6);
-  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(30px) saturate(1.08);
+  backdrop-filter: blur(30px) saturate(1.08);
 }
 
 /* Light mode: ensure glass panels have visible frosted depth */
 html.light [style*="var(--glass-bg)"],
 html.light [style*="var(--glass-bg-strong)"],
 html.light [style*="var(--glass-2)"] {
-  -webkit-backdrop-filter: blur(28px) saturate(1.12);
-  backdrop-filter: blur(28px) saturate(1.12);
+  -webkit-backdrop-filter: blur(22px) saturate(1.06);
+  backdrop-filter: blur(22px) saturate(1.06);
 }
 
 /* Navbar: always fullblur, mode-aware border */
@@ -902,7 +941,7 @@ html.light .navbar-container {
   .token-page { padding-inline:11px !important; }
   .token-hero { padding:13px !important; }
   .token-header-left { grid-template-columns:40px minmax(0, 1fr) !important; column-gap:10px !important; }
-  .token-header-left img { width:38px !important; height:38px !important; }
+  .token-header-left > .token-header-icon { width:38px !important; height:38px !important; }
   .token-quote-line { gap:6px; }
   .token-quote-line > span:first-child { font-size:19px !important; }
   .token-day-change,.token-period-change { min-height:22px; padding-inline:6px; font-size:9px; }

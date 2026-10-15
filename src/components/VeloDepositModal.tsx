@@ -385,19 +385,16 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
     : null;
 
   return createPortal(
-    <>
-    <style>{`
-      @keyframes dm-in { from { opacity:0; transform:translateY(12px) scale(0.97) } to { opacity:1; transform:none } }
-      @keyframes dm-bg { from { opacity:0 } to { opacity:1 } }
-    `}</style>
     <div
-      style={{ position:'fixed', inset:0, zIndex:70, display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'oklch(0 0 0 / 0.65)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', animation:'dm-bg 0.22s ease both' }}
+      className="velo-modal-enter-backdrop"
+      style={{ position:'fixed', inset:0, zIndex:70, display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'oklch(0 0 0 / 0.65)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)' }}
       onClick={onClose}>
       <div
-        style={{ width:'100%', maxWidth:460, borderRadius:28, background:'var(--modal-bg, var(--modal-bg))', border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset', backdropFilter:'blur(48px) saturate(1.5)', WebkitBackdropFilter:'blur(48px) saturate(1.5)', overflow:'hidden', maxHeight:'92vh', display:'flex', flexDirection:'column', animation:'dm-in 0.34s cubic-bezier(0.22,1,0.36,1) both', position:'relative' }}
+        className="velo-modal-enter-card"
+        style={{ width:'100%', maxWidth:460, borderRadius:28, background:'var(--modal-bg, var(--modal-bg))', border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset', backdropFilter:'blur(48px) saturate(1.5)', WebkitBackdropFilter:'blur(48px) saturate(1.5)', overflow:'hidden', maxHeight:'92vh', display:'flex', flexDirection:'column', position:'relative' }}
         onClick={e => e.stopPropagation()}>
 
-        {/* Velo accent stripe — violet→blue */}
+        {/* Restrained Velo accent stripe */}
         <div style={{ position:'absolute', top:0, left:0, right:0, height:2.5, zIndex:3, background:'var(--brand-gradient)', flexShrink:0 }} />
 
         {/* Ambient depth glow */}
@@ -757,7 +754,6 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
         </div>
       </div>
     </div>,
-    </>,
     document.body,
   );
 };

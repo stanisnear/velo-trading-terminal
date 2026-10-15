@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, ArrowDownRight, ArrowUpRight, ChevronRight, Search, Star } from 'lucide-react';
 import { PAIRS, isTradablePair } from '@/utils/types';
+import { VeloAssetIcon } from '@/components/ui/shared';
 
 type SortKey = 'volume' | 'change' | 'price' | 'name';
 type MarketStats = { volume: number; marketCap: number };
@@ -166,7 +167,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
         .markets-star { display:grid; place-items:center; width:30px; height:34px; border:0; background:transparent; color:var(--fg-subtle); cursor:pointer; }
         .markets-star[aria-pressed="true"] { color:var(--accent-text); }
         .markets-asset { display:flex; align-items:center; gap:11px; min-width:0; padding:0; border:0; background:none; color:inherit; text-align:left; cursor:pointer; }
-        .markets-asset img { width:34px; height:34px; border:1px solid var(--hairline); border-radius:50%; background:var(--bg-2); object-fit:cover; flex:none; }
+        .markets-asset .velo-asset-icon { width:34px; height:34px; flex:none; }
         .markets-asset-copy { display:grid; gap:3px; min-width:0; }
         .markets-asset-copy strong { overflow:hidden; color:var(--fg); font:600 13px/1.1 var(--font-sans); text-overflow:ellipsis; white-space:nowrap; }
         .markets-asset-copy span { overflow:hidden; color:var(--fg-subtle); font:11px/1.1 var(--font-sans); text-overflow:ellipsis; white-space:nowrap; }
@@ -202,7 +203,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           .markets-col-change { display:none!important; }
           .markets-mobile-change { display:flex; font-size:9px; }
           .markets-asset { gap:8px; }
-          .markets-asset img { width:30px; height:30px; }
+          .markets-asset .velo-asset-icon { width:30px; height:30px; }
           .markets-asset-copy strong { font-size:12px; }
           .markets-asset-copy span { font-size:10px; }
           .markets-price { font-size:11px; }
@@ -256,7 +257,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           return <div className="markets-row" key={pair.id} role="link" tabIndex={0} aria-label={`Open ${pair.name} market details`} onClick={() => onNavigateToSocial(ticker)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigateToSocial(ticker); } }}>
             <button className="markets-star" aria-label={favorite ? `Remove ${ticker} from watchlist` : `Add ${ticker} to watchlist`} aria-pressed={favorite} onClick={event => { event.stopPropagation(); onToggleWatchlist(pair.id); }}><Star size={15} fill={favorite ? 'currentColor' : 'none'} /></button>
             <button className="markets-asset" onClick={event => { event.stopPropagation(); onNavigateToSocial(ticker); }}>
-              <img src={pair.logo} alt="" />
+              <VeloAssetIcon src={pair.logo} symbol={ticker} size={34} />
               <span className="markets-asset-copy"><strong>{ticker} <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>/ USD</span></strong><span>{pair.name} <span aria-hidden="true">·</span> {categories[pair.id]}</span></span>
             </button>
             <div className="markets-quote">

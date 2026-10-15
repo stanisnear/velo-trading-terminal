@@ -37,9 +37,10 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const colors = {
-      text: theme === 'dark' ? '#9ca3af' : '#50506a',
-    };
+    const palette = getComputedStyle(document.documentElement);
+    const accent = palette.getPropertyValue('--accent').trim() || (theme === 'dark' ? '#91b99f' : '#557a62');
+    const textColor = palette.getPropertyValue('--fg-2').trim() || (theme === 'dark' ? '#a2afa6' : '#516257');
+    const colors = { text: textColor, accent };
 
     const resizeObserver = new ResizeObserver((entries) => {
       window.requestAnimationFrame(() => {
@@ -69,7 +70,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       timeScale: { visible: false, borderVisible: false },
       rightPriceScale: { visible: false, borderVisible: false },
       crosshair: {
-        vertLine: { visible: true, labelVisible: false, style: 2, color: theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)' },
+        vertLine: { visible: true, labelVisible: false, style: 2, color: theme === 'dark' ? 'rgba(226, 238, 229, 0.2)' : 'rgba(44, 75, 53, 0.2)' },
         horzLine: { visible: false, labelVisible: false },
         mode: CrosshairMode.Magnet,
       },
@@ -79,9 +80,9 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
 
     // lightweight-charts expects concrete color strings rather than CSS vars.
     const series = chart.addSeries(AreaSeries, {
-      lineColor: theme === 'dark' ? '#91b99f' : '#52765f',
-      topColor: theme === 'dark' ? 'rgba(145, 185, 159, 0.30)' : 'rgba(82, 118, 95, 0.18)',
-      bottomColor: theme === 'dark' ? 'rgba(145, 185, 159, 0)' : 'rgba(82, 118, 95, 0)',
+      lineColor: colors.accent,
+      topColor: theme === 'dark' ? 'rgba(145, 185, 159, 0.28)' : 'rgba(85, 122, 98, 0.2)',
+      bottomColor: theme === 'dark' ? 'rgba(145, 185, 159, 0)' : 'rgba(85, 122, 98, 0)',
       lineWidth: 2,
     });
 

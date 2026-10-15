@@ -446,6 +446,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
   return createPortal(
     <div
       role="dialog" aria-modal="true"
+      className="velo-modal-enter-backdrop"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0, 0, 0, 0.6)',
@@ -454,7 +455,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
       }}
       onClick={(e) => { if (e.target === e.currentTarget && step !== 'SENDING') onClose(); }}
     >
-      <div style={cardStyle}>
+      <div className="velo-modal-enter-card" style={cardStyle}>
         <div style={holoGradient} />
         <button
           onClick={onClose}

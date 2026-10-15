@@ -413,7 +413,7 @@ export const OrderDetailsModal = ({
     const isTpSl      = o.type === 'TAKE_PROFIT' || o.type === 'STOP_LOSS';
 
     hero = (
-      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'rgba(107,70,255,0.06)' }}>
+      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'color-mix(in oklab, var(--accent) 7%, transparent)' }}>
         <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>{o.type.replace('_', ' ')} Trigger</div>
         <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: 'var(--fg)' }}>
           ${formatPrice(o.price)}
@@ -537,7 +537,7 @@ export const OrderDetailsModal = ({
 
   const overlay = (
     <div
-      className="animate-fade-in"
+      className="velo-modal-enter-backdrop"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 120,
@@ -547,6 +547,7 @@ export const OrderDetailsModal = ({
       }}
     >
       <div
+        className="velo-modal-enter-card"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: isSmall ? '100%' : 460,

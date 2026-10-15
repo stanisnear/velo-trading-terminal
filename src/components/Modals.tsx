@@ -60,8 +60,8 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in" onClick={onClose}>
-            <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md velo-modal-enter-backdrop" onClick={onClose}>
+            <div onClick={(e: any) => e.stopPropagation()} className="velo-modal-enter-card" style={{
                 width: '100%', maxWidth: 480, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)',
                 borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
                 maxHeight: '90vh', overflowY: 'auto',
@@ -178,8 +178,8 @@ export const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm, itemType = 
     if (!isOpen) return null;
     const label = itemType === 'comment' ? 'comment' : 'post';
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in" onClick={onClose}>
-            <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md velo-modal-enter-backdrop" onClick={onClose}>
+            <div onClick={(e: any) => e.stopPropagation()} className="velo-modal-enter-card" style={{
                 width: '100%', maxWidth: 360, background: 'var(--glass-bg-strong)',
                 border: '1px solid oklch(0.66 0.22 25 / 0.35)', borderRadius: 20,
                 overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
@@ -247,8 +247,8 @@ export const UsersListModal = ({ isOpen, onClose, title, userIds, traders, onVie
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in" onClick={onClose}>
-            <GlassCard className="w-full max-w-md max-h-[60vh] flex flex-col" onClick={(e: any) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md velo-modal-enter-backdrop" onClick={onClose}>
+            <GlassCard className="velo-modal-enter-card w-full max-w-md max-h-[60vh] flex flex-col" onClick={(e: any) => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-white/5 pb-2">
                     <h3 className="font-bold text-gray-900 dark:text-white">{title}</h3>
                     <button onClick={onClose}><X size={20}/></button>
@@ -281,8 +281,8 @@ export const LoginModal = ({ isOpen, onClose, onLogin }: any) => {
     const [username, setUsername] = useState('');
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in" onClick={onClose}>
-            <GlassCard className="w-full max-w-sm" onClick={(e: any) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md velo-modal-enter-backdrop" onClick={onClose}>
+            <GlassCard className="velo-modal-enter-card w-full max-w-sm" onClick={(e: any) => e.stopPropagation()}>
                 <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">Welcome to VELO</h3>
                 <p className="text-sm text-gray-500 mb-6">Enter a username to start trading.</p>
                 <input 
@@ -361,8 +361,8 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
     });
 
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.8)', backdropFilter: 'blur(16px)' }} className="animate-fade-in">
-            <div onClick={(e: any) => e.stopPropagation()} className="animate-bounce-in" style={{
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.8)', backdropFilter: 'blur(16px)' }} className="velo-modal-enter-backdrop">
+            <div onClick={(e: any) => e.stopPropagation()} className="velo-modal-enter-card" style={{
                 width: '100%', maxWidth: 360, position: 'relative', overflow: 'hidden',
                 background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)',
                 borderRadius: 'var(--r-lg)', padding: 24, boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
@@ -444,8 +444,8 @@ export const ResetPasswordModal = ({ onClose, onSuccess }: { onClose: () => void
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="glass-panel w-full max-w-sm rounded-3xl p-6 animate-bounce-in">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md velo-modal-enter-backdrop">
+      <div className="glass-panel velo-modal-enter-card w-full max-w-sm rounded-3xl p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-black text-gray-900 dark:text-white">Set new password</h2>

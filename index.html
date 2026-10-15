@@ -161,15 +161,15 @@
         --glass-bg: rgba(226,238,229,0.055); --glass-bg-strong: rgba(20,27,23,0.91);
         --glass-border: rgba(223,239,227,0.14);
       }
-      html.light { --hairline: rgba(32,54,39,0.10); --hairline-strong: rgba(32,54,39,0.17); --glass-bg: rgba(255,255,255,0.60); --glass-bg-strong: rgba(244,248,244,0.94); --glass-border: rgba(255,255,255,0.94); }
+      html.light { --hairline: rgba(44,75,53,0.11); --hairline-strong: rgba(44,75,53,0.17); --glass-bg: rgba(222,232,223,0.72); --glass-bg-strong: rgba(229,237,230,0.94); --glass-border: rgba(44,75,53,0.17); }
 
       body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; background-attachment: fixed; }
-      html.dark body { background-color: #0a0e0c; background-image: radial-gradient(at 8% 5%, rgba(77,116,88,0.19) 0px, transparent 48%), radial-gradient(at 94% 14%, rgba(66,97,75,0.13) 0px, transparent 50%), radial-gradient(at 84% 100%, rgba(58,92,69,0.17) 0px, transparent 52%); }
-      html.light body { background-color: #f0f4f0; background-image: radial-gradient(at 6% 4%, rgba(197,221,202,0.44) 0px, transparent 48%), radial-gradient(at 97% 5%, rgba(224,232,222,0.43) 0px, transparent 50%), radial-gradient(at 90% 97%, rgba(196,221,201,0.33) 0px, transparent 52%); }
+      html.dark body { background-color: #0a0e0c; background-image: none; }
+      html.light body { background-color: #e7eee8; background-image: none; }
 
-      .glass-panel { background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4); box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 -1px 0 rgba(0,0,0,0.2) inset, 0 24px 48px -20px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.15); position: relative; }
-      html.light .glass-panel { box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 -1px 0 rgba(10,10,14,0.04) inset, 0 18px 40px -20px rgba(10,10,14,0.2), 0 2px 6px rgba(10,10,14,0.05); }
-      .glass-panel::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent 40%); z-index: 0; }
+      .glass-panel { background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(22px) saturate(1.08); -webkit-backdrop-filter: blur(22px) saturate(1.08); box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 18px 40px -24px rgba(0,0,0,0.26); position: relative; }
+      html.light .glass-panel { box-shadow: 0 1px 0 rgba(250,255,250,0.45) inset, 0 18px 40px -28px rgba(35,61,41,0.16); }
+      .glass-panel::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(135deg, rgba(255,255,255,0.025), transparent 42%); z-index: 0; }
       .glass-panel > * { position: relative; z-index: 1; }
 
       .glass-input { background: rgba(255,255,255,0.03); border: 1px solid var(--hairline); outline: none; transition: all 0.2s; }

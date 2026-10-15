@@ -24,6 +24,7 @@ export const TokenInteractiveChart = ({
     const [mcapError, setMcapError] = React.useState(false);
     const [mcapRetry, setMcapRetry] = React.useState(0);
     const chartId = React.useId().replace(/:/g, '');
+    const chartSvgRef = React.useRef<SVGSVGElement | null>(null);
 
     const binanceSym = ticker === 'BTC' ? 'BTCUSDT' : ticker === 'ETH' ? 'ETHUSDT' : ticker === 'SOL' ? 'SOLUSDT' : ticker === 'DOGE' ? 'DOGEUSDT' : `${ticker}USDT`;
 
@@ -87,7 +88,23 @@ export const TokenInteractiveChart = ({
     const loading = !hasData && (mode === 'PRICE' ? priceLoading : mcapLoading);
     const failed = !hasData && (mode === 'PRICE' ? priceError : mcapError);
 
-    const w = 800, h = 280;
+    const [plotSize, setPlotSize] = React.useState({ width: 800, height: 280 });
+    React.useEffect(() => {
+        const svg = chartSvgRef.current;
+        if (!hasData || !svg) return;
+        const updateSize = () => {
+            const rect = svg.getBoundingClientRect();
+            const width = Math.max(1, Math.round(rect.width));
+            const height = Math.max(1, Math.round(rect.height));
+            setPlotSize(current => current.width === width && current.height === height ? current : { width, height });
+        };
+        const observer = new ResizeObserver(updateSize);
+        observer.observe(svg);
+        updateSize();
+        return () => observer.disconnect();
+    }, [hasData]);
+
+    const w = plotSize.width, h = plotSize.height;
     const pad = { top: 20, right: 16, bottom: 36, left: 78 };
 
     const min = loading ? 0 : Math.min(...activeData);
@@ -140,6 +157,7 @@ export const TokenInteractiveChart = ({
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
+        numeric: { fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: 'normal' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em' } as React.CSSProperties,
     };
 
@@ -197,6 +215,7 @@ export const TokenInteractiveChart = ({
             {/* SVG Chart — responsive, no fixed height */}
             <div className="token-chart-plot" style={{ position: 'relative', userSelect: 'none', marginTop: 8, touchAction: 'pan-y' }}>
                 {hasData ? <svg
+                    ref={chartSvgRef}
                     viewBox={`0 0 ${w} ${h}`}
                     className="token-chart-svg"
                     style={{ width: '100%', height: 'clamp(210px, 28vw, 270px)', display: 'block', overflow: 'hidden' }}
@@ -267,7 +286,7 @@ export const TokenInteractiveChart = ({
                     {/* Y labels */}
                     {ticks.map((t, i) => (
                         <text key={i} x={pad.left - 8} y={toY(t) + 4} textAnchor="end"
-                            style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: 'var(--fg-subtle)' }}>
+                            style={{ ...S.numeric, fontSize: 11, fill: 'var(--fg-subtle)' }}>
                             {formatTick(t)}
                         </text>
                     ))}
@@ -275,7 +294,7 @@ export const TokenInteractiveChart = ({
                     {/* X labels */}
                     {xTickIdxs.map(i => (
                         <text key={i} x={toX(i)} y={h - 8} textAnchor="middle"
-                            style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fill: 'var(--fg-subtle)' }}>
+                            style={{ ...S.numeric, fontSize: 11, fill: 'var(--fg-subtle)' }}>
                             {getXLabel(i)}
                         </text>
                     ))}

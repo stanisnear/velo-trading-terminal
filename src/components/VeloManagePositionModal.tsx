@@ -186,6 +186,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
       `}</style>
       <div
         onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
+        className="velo-modal-stateful"
         style={{
           position:'fixed', inset:0, zIndex:65,
           display:'flex', alignItems:'center', justifyContent:'center', padding:20,
@@ -194,7 +195,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
           animation: closing ? 'vmp-bg-out 0.35s ease forwards' : 'vmp-bg 0.22s ease forwards',
         }}
       >
-        <div style={{
+        <div className="velo-modal-stateful" style={{
           width:'100%', maxWidth:440,
           borderRadius:28,
           background:'var(--modal-bg, rgba(14,15,22,0.97))',

@@ -75,8 +75,8 @@ body::after {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
-  backdrop-filter: blur(34px) saturate(1.6);
-  -webkit-backdrop-filter: blur(34px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.08);
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
   box-shadow: var(--glass-shadow);
   position: relative;
   overflow: hidden;
@@ -317,8 +317,8 @@ button:disabled { cursor: not-allowed; }
 .navbar-container {
   background: color-mix(in oklab, var(--bg-2) 70%, transparent) !important;
   border-color: var(--hr-2) !important;
-  backdrop-filter: blur(28px) saturate(1.35) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(1.35) !important;
+  backdrop-filter: blur(22px) saturate(1.08) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.08) !important;
 }
 
 @media (min-width: 1024px) {
@@ -339,13 +339,13 @@ button:disabled { cursor: not-allowed; }
   justify-content: center;
   gap: 7px;
   min-height: 40px;
-  color: #f4f6f4 !important;
-  background: linear-gradient(180deg, color-mix(in oklab, var(--velo-sage) 25%, #343b36), #202622) !important;
-  border: 1px solid color-mix(in oklab, var(--velo-sage-bright) 28%, var(--hr-2)) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 8px 18px -14px rgba(0,0,0,0.7);
+  color: var(--primary-fg) !important;
+  background: var(--primary-bg) !important;
+  border: 1px solid var(--control-border) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 8px 18px -16px rgba(0,0,0,0.55);
 }
 
-.velo-connect-btn:hover { filter: brightness(1.1); }
+.velo-connect-btn:hover { background: var(--primary-bg-hover) !important; }
 
 .glass, .glass-strong, .glass-panel, .vp,
 [style*="var(--glass-bg)"], [style*="var(--glass-bg-strong)"],
@@ -365,14 +365,194 @@ textarea, select {
 }
 
 .velo-btn-primary, .btn.primary, .btn.prism {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--velo-sage) 27%, #343b36), #202622) !important;
-  border: 1px solid color-mix(in oklab, var(--velo-sage-bright) 26%, var(--hr-2)) !important;
-  color: var(--fg) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.13) inset, 0 8px 22px -14px rgba(0,0,0,0.7);
+  background: var(--primary-bg) !important;
+  border: 1px solid var(--control-border) !important;
+  color: var(--primary-fg) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 8px 20px -17px rgba(0,0,0,0.55);
 }
 
 .velo-btn-primary:hover, .btn.primary:hover, .btn.prism:hover {
-  filter: brightness(1.1);
+  background: var(--primary-bg-hover) !important;
+}
+
+button:not(:disabled) {
+  transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 180ms ease;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+input, textarea, select, a { transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 180ms ease; }
+.glass-card-interactive { transition: transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 200ms ease, box-shadow 200ms ease; }
+.glass-card-interactive:hover { transform: translateY(-2px); border-color: color-mix(in oklab, var(--accent) 32%, var(--glass-border)); box-shadow: var(--glass-shadow), 0 12px 28px -20px color-mix(in oklab, var(--accent) 28%, transparent); }
+
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 74%, transparent);
+  outline-offset: 2px;
+}
+
+html.light .velo-modal-enter-backdrop {
+  background: rgba(28, 47, 34, 0.42) !important;
+  backdrop-filter: blur(20px) saturate(1.06) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.06) !important;
+}
+
+html.light .velo-modal-enter-card,
+html.light .velo-modal-card {
+  border-color: rgba(53, 85, 60, 0.2) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.88) inset, 0 28px 72px -32px rgba(25,45,31,0.3), 0 4px 16px rgba(25,45,31,0.1) !important;
+}
+
+.chart-history-state {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--fg-muted);
+  font: 500 13px/1.4 var(--font-sans);
+  pointer-events: none;
+  animation: veloChartStateIn 220ms ease both;
+}
+
+.chart-history-spinner { color: var(--accent); animation: spin 1s linear infinite; }
+.chart-history-retry {
+  min-height: 36px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--fg);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: var(--glass-shadow);
+  cursor: pointer;
+  pointer-events: auto;
+  font: 600 12px/1 var(--font-sans);
+}
+
+.chart-indicator-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(72vh, 560px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow), 0 22px 58px rgba(14, 30, 19, 0.18);
+  backdrop-filter: blur(22px) saturate(1.08);
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  overflow: hidden;
+  z-index: 200;
+}
+
+.chart-indicator-menu__header {
+  min-height: 54px;
+  padding: 11px 14px 9px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.chart-indicator-menu__header > div { display: grid; gap: 3px; }
+.chart-indicator-menu__header strong { color: var(--fg); font: 650 13px/1.15 var(--font-sans); }
+.chart-indicator-menu__header small { color: var(--fg-subtle); font: 500 10px/1.2 var(--font-sans); }
+.chart-indicator-menu__close {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--fg-muted);
+  background: var(--chip-bg);
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  cursor: pointer;
+}
+.chart-indicator-menu__search-wrap { position: relative; margin: 11px 12px 4px; color: var(--fg-subtle); }
+.chart-indicator-menu__search-wrap > svg { position: absolute; z-index: 1; top: 12px; left: 11px; pointer-events: none; }
+
+.chart-indicator-menu__search {
+  width: 100%;
+  height: 38px;
+  padding: 0 11px 0 34px;
+  color: var(--fg);
+  background: color-mix(in oklab, var(--glass-bg) 76%, var(--bg-2));
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  outline: none;
+  font: 12px var(--font-sans);
+}
+
+.chart-indicator-menu__search:focus-visible {
+  border-color: color-mix(in oklab, var(--accent) 62%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 16%, transparent);
+}
+
+.chart-indicator-menu__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 8px;
+  overflow-y: auto;
+  padding: 4px 10px 12px;
+}
+
+.chart-indicator-menu__group {
+  grid-column: 1 / -1;
+  margin: 8px 0 3px;
+  color: var(--fg-subtle);
+  font: 700 9px/1.2 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chart-indicator-menu__item {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 8px 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: left;
+  font: 550 11px/1.2 var(--font-sans);
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.chart-indicator-menu__item:hover { background: var(--chip-bg-hover); border-color: var(--hairline); }
+.chart-indicator-menu__item[aria-pressed="true"] { color: var(--accent-text); background: color-mix(in oklab, var(--accent) 10%, transparent); border-color: color-mix(in oklab, var(--accent) 25%, transparent); }
+.chart-indicator-menu__item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-indicator-menu__item svg { flex: none; color: var(--accent); }
+.chart-indicator-menu__empty { grid-column: 1 / -1; padding: 18px 8px; color: var(--fg-subtle); text-align: center; font: 12px var(--font-sans); }
+
+html.light .chart-indicator-menu {
+  background: rgba(238, 245, 239, 0.94);
+  border-color: rgba(53, 85, 60, 0.2);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.86) inset, 0 24px 62px -25px rgba(29,49,34,0.28);
+}
+
+@media (max-width: 520px) {
+  .chart-indicator-menu { width: min(390px, calc(100vw - 20px)); max-height: min(68vh, 520px); }
+  .chart-indicator-menu__grid { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .chart-indicator-menu__group { margin-top: 9px; }
+}
+
+@keyframes veloChartStateIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .velo-logo-bug {
@@ -511,7 +691,12 @@ textarea, select {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.28s ease-out;
+  animation: veloPageEnter 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes veloPageEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-bounce-in {
@@ -613,7 +798,7 @@ textarea, select {
   background: oklch(0 0 0 / 0.66);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
-  animation: veloModalOverlayIn 0.22s ease both;
+  animation: veloModalOverlayIn 180ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 .velo-modal-card {
@@ -622,14 +807,22 @@ textarea, select {
   border-radius: 24px;
   background: var(--modal-bg);
   border: 1px solid var(--glass-border);
-  backdrop-filter: blur(48px) saturate(1.8);
-  -webkit-backdrop-filter: blur(48px) saturate(1.8);
+  backdrop-filter: blur(30px) saturate(1.08);
+  -webkit-backdrop-filter: blur(30px) saturate(1.08);
   box-shadow:
     0 1px 0 rgba(255,255,255,0.12) inset,
     0 32px 96px -16px oklch(0 0 0 / 0.55),
     0 0 0 0.5px rgba(255,255,255,0.06);
-  animation: veloModalCardIn 0.34s cubic-bezier(0.34, 1.3, 0.64, 1) both;
+  animation: veloModalCardIn 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+
+/* Shared motion for hand-built dialog shells that keep their own layout. */
+.velo-modal-enter-backdrop { animation: veloModalOverlayIn 180ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.velo-modal-enter-card { animation: veloModalCardIn 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.velo-modal-enter-backdrop > [role="dialog"][aria-modal="true"],
+[role="dialog"][aria-modal="true"]:not(.velo-modal-card):not(.velo-modal-enter-card) { animation: veloModalCardIn 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.velo-modal-stateful { transition-duration: 220ms !important; transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1) !important; }
+.velo-popover { transform-origin: top right; animation: veloPopoverIn 150ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
 html.light .velo-modal-card {
   box-shadow:
@@ -647,13 +840,8 @@ html.light .velo-modal-card {
   right: 0;
   height: 2px;
   z-index: 2;
-  background: linear-gradient(
-    90deg,
-    var(--accent) 0%,
-    color-mix(in oklab, var(--accent) 72%, white) 48%,
-    var(--velo-sage-deep) 100%
-  );
-  opacity: 1;
+  background: var(--accent);
+  opacity: 0.58;
 }
 
 @keyframes veloModalOverlayIn {
@@ -662,12 +850,48 @@ html.light .velo-modal-card {
 }
 
 @keyframes veloModalCardIn {
-  from { opacity: 0; transform: translateY(8px) scale(0.985); }
-  to   { opacity: 1; transform: translateY(0)   scale(1); }
+  from { opacity: 0; transform: translateY(9px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes veloPopoverIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @media (max-width: 768px) {
   .velo-modal-card { max-width: calc(100vw - 24px) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .velo-modal-overlay,
+  .velo-modal-card,
+  .velo-modal-enter-backdrop,
+  .velo-modal-enter-card,
+  .velo-modal-stateful,
+  .velo-popover,
+  .velo-onb-backdrop,
+  .velo-onb-card,
+  .velo-onb-body {
+    animation: none !important;
+    transition: none !important;
+  }
+  .velo-modal-stateful *,
+  .velo-onb-backdrop *,
+  .velo-onb-card::before,
+  .velo-onb-edge,
+  .velo-onb-mark,
+  .velo-onb-ring,
+  .velo-onb-ring-err,
+  .velo-onb-check {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .chart-history-state { animation: none !important; }
+  button:not(:disabled), input, textarea, select, a, .glass-card-interactive, .navbar-container, .velo-mobile-bottom-nav { transition: none !important; }
+  .glass-card-interactive:hover { transform: none !important; }
 }
 
 /* ── TP/SL price inputs ───────────────────────────────────────────────────────
@@ -698,28 +922,21 @@ html.light .velo-modal-card {
   [style*="veloFloat"] { animation: none !important; }
 }
 
-/* ── Modal-open navbar suppression ────────────────────────────────────────
-   App.tsx and TradeView.tsx add `modal-open` to <body> while any overlay is
-   open. The floating navbar (position:fixed, z-index:30) carries its own
-   backdrop-filter, which creates a stacking context that can let it bleed in
-   front of — or capture clicks through — a modal backdrop on some browsers.
-   While a modal is open we drop the navbar fully behind the backdrop and make
-   it inert so nothing leaks through. */
+/* The header and floating mobile navigation disappear while a dialog is open. */
 body.modal-open .navbar-container {
-  /* Drop the navbar's own backdrop-filter so it can't paint in front of a
-     modal backdrop, but KEEP the bar interactive. A blanket
-     pointer-events:none here is what made the "Sign in" / "Log In" buttons
-     completely dead while a (sometimes invisible) modal flag was set. The
-     buttons must always respond. */
-  z-index: 5 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
-/* Interactive controls inside the bar always receive clicks, even at z-index:5,
-   because the modal backdrop sits above the page but these are re-raised. */
-body.modal-open .navbar-container button,
-body.modal-open .navbar-container a {
-  pointer-events: auto !important;
+body.modal-open .velo-mobile-bottom-nav {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.navbar-container, .velo-mobile-bottom-nav { transition: opacity 140ms ease, visibility 0s linear 140ms; }
+body:not(.modal-open) .navbar-container, body:not(.modal-open) .velo-mobile-bottom-nav { transition-delay: 0s; }
+body.modal-open .navbar-container, body.modal-open .velo-mobile-bottom-nav {
+  transition: none !important;
 }
 
 /* ── Modal exit animation (CreatePostModal success/dismiss) ──────────────── */
@@ -729,6 +946,7 @@ body.modal-open .navbar-container a {
 }
 .velo-modal-closing { animation: veloModalOut 0.18s ease forwards; }
 .velo-modal-closing > div { transform: scale(0.965) translateY(4px); transition: transform 0.18s ease; }
+.velo-modal-closing .velo-modal-enter-card { animation: none; }
 
 /* ── Velo wordmark shimmer (ported from landing .wshimmer) ──────────────── */
 .velo-wshimmer {
@@ -747,10 +965,8 @@ body.modal-open .navbar-container a {
 .velo-card-aura {
   position: absolute; left: 50%; top: 50%; width: 250px; height: 150px;
   transform: translate(-50%, -50%); pointer-events: none; border-radius: 50%;
-  background:
-    radial-gradient(42% 60% at 38% 42%, color-mix(in oklab, var(--velo-sage) 32%, transparent), transparent 70%),
-    radial-gradient(40% 56% at 64% 58%, color-mix(in oklab, var(--velo-sage-bright) 24%, transparent), transparent 72%);
-  filter: blur(28px); opacity: 0.42;
+  background: radial-gradient(ellipse at center, color-mix(in oklab, var(--velo-sage) 18%, transparent), transparent 72%);
+  filter: blur(30px); opacity: 0.22;
   animation: none;
 }
 @keyframes veloAuraDrift { 0% { transform: translate(-53%, -52%) scale(1); } 100% { transform: translate(-47%, -47%) scale(1.12); } }
@@ -758,15 +974,13 @@ body.modal-open .navbar-container a {
 
 /* ── Primary CTA (ported from landing .btn-primary: graphite glass) ─────── */
 .velo-btn-primary {
-  position: relative; overflow: hidden; color: #fff;
+  position: relative; overflow: hidden; color: var(--primary-fg);
   border: 1px solid color-mix(in oklab, var(--fg) 18%, transparent);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--fg) 16%, #16181f) 0%, #101218 100%);
-  box-shadow: 0 10px 26px -14px color-mix(in oklab, var(--velo-sage) 36%, transparent), 0 1px 0 rgba(255,255,255,0.08) inset;
+  background: var(--primary-bg);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 8px 22px -18px rgba(0,0,0,0.48);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
-.velo-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 30px -14px color-mix(in oklab, var(--velo-sage) 46%, transparent), 0 1px 0 rgba(255,255,255,0.1) inset; }
-.velo-btn-primary::after { content: ""; position: absolute; inset: -40% -60%; background: linear-gradient(100deg, transparent 42%, rgba(255,255,255,0.12) 50%, transparent 58%); transform: translateX(-70%); transition: transform 0.6s ease; pointer-events: none; }
-.velo-btn-primary:hover::after { transform: translateX(70%); }
+.velo-btn-primary:hover { transform: translateY(-1px); background: var(--primary-bg-hover); box-shadow: 0 10px 24px -18px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.1) inset; }
 
 /* ── Signed-out trade states ────────────────────────────────────────────── */
 .trade-auth-gate {
@@ -813,4 +1027,232 @@ body.modal-open .navbar-container a {
   100% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
 }
 @media (prefers-reduced-motion: reduce) { .comment-focus-target { animation: none; background: color-mix(in oklab, var(--velo-sage) 12%, transparent); } }
+
+/* ── Velo material system: shared controls, surfaces, and asset marks ─────── */
+html.light body {
+  background: var(--app-bg) !important;
+  background-attachment: fixed !important;
+}
+
+html.dark body {
+  background: var(--app-bg) !important;
+  background-attachment: fixed !important;
+}
+
+.glass,
+.glass-strong,
+.glass-panel,
+.vp {
+  border-color: var(--glass-border) !important;
+  box-shadow: var(--glass-shadow), 0 1px 0 var(--glass-ring) inset !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  backdrop-filter: blur(22px) saturate(1.08);
+}
+
+.glass,
+.glass-panel,
+.vp { background: var(--surface) !important; }
+.glass-strong { background: var(--surface-raised) !important; }
+
+.velo-button {
+  min-height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--control-border);
+  border-radius: 11px;
+  color: var(--fg);
+  background: var(--control-bg);
+  box-shadow: 0 1px 0 var(--glass-ring) inset;
+  font: 650 12px/1 var(--font-sans);
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 180ms ease, transform 180ms cubic-bezier(.2,.7,.2,1);
+}
+
+.velo-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--control-bg-hover);
+  border-color: color-mix(in oklab, var(--accent) 42%, var(--control-border));
+  box-shadow: 0 5px 14px -10px color-mix(in oklab, var(--accent) 38%, transparent), 0 1px 0 var(--glass-ring) inset;
+}
+
+.velo-button:active:not(:disabled) { transform: translateY(0) scale(.985); }
+.velo-button:disabled { color: var(--disabled-fg); background: var(--disabled-bg); border-color: var(--control-border); opacity: 1; cursor: not-allowed; box-shadow: none; }
+.velo-button--primary {
+  color: var(--primary-fg);
+  background: var(--primary-bg);
+  border-color: color-mix(in oklab, var(--accent) 30%, var(--control-border));
+  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 8px 22px -16px rgba(0,0,0,.7);
+}
+.velo-button--primary:hover:not(:disabled) { background: var(--primary-bg-hover); }
+.velo-button--primary:disabled { color: var(--disabled-fg); background: var(--disabled-bg); border-color: var(--control-border); }
+.velo-button--secondary { color: var(--secondary-fg); background: var(--secondary-bg); }
+.velo-button--danger {
+  color: var(--pnl-down);
+  background: color-mix(in oklab, var(--pnl-down) 10%, transparent);
+  border-color: color-mix(in oklab, var(--pnl-down) 25%, transparent);
+}
+.velo-button--success {
+  color: #f6fbf7;
+  background: var(--velo-sage-deep);
+  border-color: color-mix(in oklab, var(--pnl-up) 55%, var(--control-border));
+}
+
+.velo-field__heading label { color: var(--fg-subtle); }
+.velo-field:focus-within .velo-field__heading label { color: var(--accent-text); }
+.velo-field__heading > span { color: var(--fg-subtle); }
+.velo-field__error { color: var(--pnl-down); }
+.velo-input,
+.glass-input {
+  min-height: 40px;
+  color: var(--fg) !important;
+  background: var(--form-bg) !important;
+  border: 1px solid var(--form-border) !important;
+  border-radius: 10px;
+  box-shadow: 0 1px 0 var(--glass-ring) inset;
+  font-family: var(--font-sans);
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 180ms ease;
+}
+.velo-input { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.velo-input::placeholder,
+.glass-input::placeholder,
+.velo-modal-enter-card input::placeholder,
+.velo-modal-enter-card textarea::placeholder { color: var(--fg-subtle); opacity: .8; }
+.velo-input:hover,
+.glass-input:hover { border-color: color-mix(in oklab, var(--accent) 34%, var(--form-border)) !important; }
+.velo-input:focus,
+.glass-input:focus,
+.velo-modal-card input:focus,
+.velo-modal-card textarea:focus,
+.velo-modal-card select:focus,
+.velo-modal-enter-card input:focus,
+.velo-modal-enter-card textarea:focus,
+.velo-modal-enter-card select:focus {
+  border-color: color-mix(in oklab, var(--accent) 66%, var(--form-border)) !important;
+  box-shadow: 0 0 0 3px var(--focus-ring), 0 1px 0 var(--glass-ring) inset !important;
+  outline: none;
+}
+
+.velo-asset-icon {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--control-border);
+  border-radius: 50%;
+  background: var(--surface-raised);
+  box-shadow: 0 1px 0 var(--glass-ring) inset;
+  transition: transform 180ms cubic-bezier(.2,.7,.2,1), box-shadow 180ms ease;
+}
+.velo-asset-icon > img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 84%;
+  height: 84%;
+  border-radius: 50%;
+  object-fit: cover;
+  clip-path: circle(50%);
+}
+.velo-asset-icon.has-image .velo-asset-icon__fallback { display: none; }
+.velo-asset-icon__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+  font: 700 52%/1 var(--font-mono);
+}
+.velo-asset-icon:hover { transform: translateY(-1px) scale(1.025); box-shadow: 0 1px 0 var(--glass-ring) inset, 0 3px 9px -7px rgba(0,0,0,.42); }
+.ticker-icon,
+.token-related-row img {
+  padding: 3px;
+  object-fit: contain !important;
+  background: var(--surface-raised);
+  border: 1px solid var(--control-border) !important;
+  box-shadow: 0 1px 0 var(--glass-ring) inset;
+}
+
+.velo-modal-overlay,
+.velo-modal-enter-backdrop {
+  background: var(--overlay) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.08) !important;
+  backdrop-filter: blur(20px) saturate(1.08) !important;
+}
+.velo-modal-stateful[style*="position: fixed"] {
+  background: var(--overlay) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.08) !important;
+  backdrop-filter: blur(20px) saturate(1.08) !important;
+}
+.velo-modal-card,
+.velo-modal-enter-card,
+.velo-modal-stateful[style*="position: relative"] {
+  color: var(--fg) !important;
+  background: var(--modal-surface) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: 0 1px 0 var(--gl-edge) inset, 0 28px 76px -34px rgba(0,0,0,.56), 0 8px 24px -18px color-mix(in oklab, var(--accent) 22%, transparent) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(1.08) !important;
+  backdrop-filter: blur(30px) saturate(1.08) !important;
+}
+.velo-modal-card :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
+.velo-modal-enter-card :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
+.velo-modal-stateful[style*="position: relative"] :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+  color: var(--fg) !important;
+  background: var(--form-bg) !important;
+  border-color: var(--form-border) !important;
+  border-radius: 10px;
+}
+.velo-modal-card :is(input, textarea, select),
+.velo-modal-enter-card :is(input, textarea, select) { accent-color: var(--accent); }
+.velo-modal-card select option,
+.velo-modal-enter-card select option { color: var(--fg); background: var(--surface-raised); }
+.velo-modal-card button,
+.velo-modal-enter-card button { -webkit-tap-highlight-color: transparent; }
+.velo-modal-card button:focus-visible,
+.velo-modal-enter-card button:focus-visible,
+.velo-button:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+html.light button[style*="rgba(255,255,255"] {
+  background: var(--control-bg) !important;
+  border-color: var(--control-border) !important;
+}
+.velo-modal-enter-card [class~="text-gray-900"],
+.velo-modal-enter-card [class~="text-gray-800"] { color: var(--fg) !important; }
+.velo-modal-enter-card [class~="text-gray-600"],
+.velo-modal-enter-card [class~="text-gray-500"],
+.velo-modal-enter-card [class~="text-gray-400"] { color: var(--fg-subtle) !important; }
+.velo-modal-enter-card [class~="border-gray-200"],
+.velo-modal-enter-card [class~="border-gray-300"] { border-color: var(--hairline) !important; }
+.velo-modal-enter-card [class~="bg-gray-50"],
+.velo-modal-enter-card [class~="bg-gray-100"] { background: var(--form-bg) !important; }
+.velo-popover {
+  color: var(--fg);
+  background: var(--surface-raised) !important;
+  border-color: var(--glass-border) !important;
+  box-shadow: 0 1px 0 var(--gl-edge) inset, 0 20px 48px -22px rgba(0,0,0,.46) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  backdrop-filter: blur(22px) saturate(1.08);
+}
+.velo-market-select-row { color: var(--fg); background: transparent; transition: background 140ms ease; }
+.velo-market-select-row:hover { background: var(--control-bg-hover) !important; }
+
+html.light .velo-modal-card,
+html.light .velo-modal-enter-card,
+html.light .velo-modal-stateful[style*="position: relative"] {
+  box-shadow: 0 1px 0 rgba(250,255,250,.72) inset, 0 24px 64px -30px rgba(33,57,38,.28), 0 4px 14px -8px rgba(47,76,53,.12) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .velo-button,
+  .velo-asset-icon { transition: none !important; }
+  .velo-asset-icon:hover,
+  .velo-button:hover:not(:disabled) { transform: none; }
+}
 

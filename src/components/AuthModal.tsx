@@ -443,6 +443,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const content = (
     <div
       onClick={handleClose}
+      className="velo-modal-stateful"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'oklch(0 0 0 / 0.72)',
@@ -456,7 +457,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="mode-dark"
+        className="mode-dark velo-modal-stateful"
         style={{
           position: 'relative',
           width: '100%', maxWidth: 460,

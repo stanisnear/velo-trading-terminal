@@ -1,12 +1,13 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { VeloAssetIcon } from './ui/shared';
 import { PAIRS } from '../utils/types';
 
 // ── Shared featured pairs list (mirrors App.tsx SOCIAL_FEATURED_PAIRS) ────────
 const SOCIAL_FEATURED_PAIRS = PAIRS.map(p => ({
     symbol: p.id.split('/')[0],
-    name: p.label ?? p.id,
+    name: p.name,
     pairId: p.id,
     logo: p.logo ?? '',
 }));
@@ -68,8 +69,7 @@ const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onHover }:
             }
             .velo-mention-item:hover,
             .velo-mention-item.active { background: var(--chip-bg-hover, rgba(0,0,0,0.06)); }
-            .velo-mention-item img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--hairline, rgba(0,0,0,0.08)); }
-            .velo-mention-item .ticker-icon { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--hairline, rgba(0,0,0,0.08)); }
+            .velo-mention-item > img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--hairline, rgba(0,0,0,0.08)); }
             .velo-mention-name { font-family: var(--font-display, Georgia); font-style: italic; font-size: 13px; font-weight: 600; color: var(--fg, #0a0a0e); letter-spacing: -0.01em; line-height: 1.2; }
             .velo-mention-handle { font-family: var(--font-mono, monospace); font-size: 10px; color: var(--fg-subtle, rgba(10,10,14,0.45)); letter-spacing: 0.04em; margin-top: 2px; }
             .velo-mention-ticker-tag { font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 700; color: var(--pnl-up, #34d399); letter-spacing: 0.04em; }
@@ -90,7 +90,7 @@ const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onHover }:
                         onMouseDown={e => { e.preventDefault(); onSelect(item); }}
                         onMouseEnter={() => onHover(i)}
                     >
-                        <img src={item.logo} alt={item.symbol} className="ticker-icon" />
+                        <VeloAssetIcon src={item.logo} symbol={item.symbol} size={32} />
                         <div>
                             <div className="velo-mention-name">{item.name}</div>
                             <div className="velo-mention-ticker-tag">${item.symbol}</div>
@@ -237,12 +237,12 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
 
     return (
         <div
-            className={`fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md ${closing ? 'velo-modal-closing' : 'animate-fade-in'}`}
+            className={`fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md ${closing ? 'velo-modal-closing' : 'velo-modal-enter-backdrop'}`}
             onClick={animatedClose}
         >
             <div
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                className="animate-bounce-in"
+                className="velo-modal-enter-card"
                 style={{
                     width: '100%', maxWidth: 540,
                     background: 'var(--glass-bg-strong)',

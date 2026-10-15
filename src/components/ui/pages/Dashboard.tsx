@@ -123,8 +123,8 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       </div>
     );
     return (
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.85)', backdropFilter: 'blur(16px)' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--glass-shadow)' }}>
+      <div className="velo-modal-enter-backdrop" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.85)', backdropFilter: 'blur(16px)' }}>
+        <div className="velo-modal-enter-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--glass-shadow)' }}>
           {/* Header */}
           <div style={{ padding: '18px 20px 16px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

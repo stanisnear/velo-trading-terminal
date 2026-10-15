@@ -6,6 +6,7 @@ export interface Candle {
   low: number;
   close: number;
   volume: number;
+  source?: 'pyth' | 'exchange';
 }
 
 export interface TradeHistoryItem {
