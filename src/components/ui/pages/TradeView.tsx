@@ -531,7 +531,7 @@ const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, char
         <div style={{ display: 'flex', gap: isMobile ? 4 : 5, alignItems: 'center' }}>
             {/* Indicators dropdown */}
             <div ref={indRef} style={{ position: 'relative' }}>
-                <button aria-haspopup="dialog" aria-expanded={showInd} onClick={() => { setShowInd((v: boolean) => !v); setShowCandle(false); setShowOverlays(false); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: `1px solid ${indicators.length > 0 ? 'var(--accent)' : 'var(--hairline-strong)'}`, background: indicators.length > 0 ? 'color-mix(in oklab, var(--accent) 9%, transparent)' : 'transparent', color: indicators.length > 0 ? 'var(--accent)' : 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: isMobile ? 9 : 10, transition: 'all 0.12s' }}>
+                <button aria-haspopup="dialog" aria-expanded={showInd} onClick={() => { setShowInd((v: boolean) => !v); setShowCandle(false); setShowOverlays(false); }} style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: `1px solid ${indicators.length > 0 ? 'var(--accent)' : 'var(--hairline-strong)'}`, background: indicators.length > 0 ? 'color-mix(in oklab, var(--accent) 9%, transparent)' : 'transparent', color: indicators.length > 0 ? 'var(--accent)' : 'var(--fg-subtle)', cursor: 'pointer', fontSize: isMobile ? 9 : 10, transition: 'all 0.12s' }}>
                     Indicators
                     {indicators.length > 0 && <span style={{ background: 'var(--accent)', color: 'var(--bg)', fontSize: 9, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{indicators.length}</span>}
                 </button>
@@ -573,7 +573,7 @@ const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, char
             </div>
             {/* Position risk levels */}
             <div ref={overlaysRef} style={{ position: 'relative' }}>
-                <button onClick={() => { setShowOverlays((v: boolean) => !v); setShowInd(false); setShowCandle(false); }} aria-expanded={showOverlays} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: showOverlays ? 'var(--chip-bg)' : 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: isMobile ? 9 : 10 }}>
+                <button onClick={() => { setShowOverlays((v: boolean) => !v); setShowInd(false); setShowCandle(false); }} aria-expanded={showOverlays} style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: showOverlays ? 'var(--chip-bg)' : 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', fontSize: isMobile ? 9 : 10 }}>
                     Levels
                     <span style={{ color: 'var(--accent)' }}>{Number(overlays.entry) + Number(overlays.tp) + Number(overlays.sl) + Number(overlays.liq)}</span>
                 </button>

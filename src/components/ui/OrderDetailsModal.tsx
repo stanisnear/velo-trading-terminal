@@ -537,6 +537,7 @@ export const OrderDetailsModal = ({
 
   const overlay = (
     <div
+      role="presentation"
       className="velo-modal-enter-backdrop"
       onClick={onClose}
       style={{
@@ -547,6 +548,9 @@ export const OrderDetailsModal = ({
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="velo-order-details-title"
         className="velo-modal-enter-card"
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -573,10 +577,10 @@ export const OrderDetailsModal = ({
           paddingTop: isSmall ? 20 : 18,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' as const }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: isSmall ? 20 : 22, color: 'var(--fg)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+            <span id="velo-order-details-title" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: isSmall ? 20 : 22, color: 'var(--fg)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
               {headerPair}
             </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: sideUp ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)', border: `1px solid ${sideUp ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}` }}>{headerSide}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: `color-mix(in oklab, ${sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)'} 10%, transparent)`, color: sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)', border: `1px solid color-mix(in oklab, ${sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)'} 30%, transparent)` }}>{headerSide}</span>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'var(--chip-bg)', color: 'var(--fg-muted)', border: '1px solid var(--hairline-strong)' }}>{payload.kind === 'HISTORY' ? ((payload.item as any)?.action === 'OPEN' ? 'OPENED' : (payload.item as any)?.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED') : payload.kind === 'POSITION' ? 'OPEN' : payload.kind === 'TRANSACTION' ? payload.item.type : 'PENDING'}</span>
             {copyId && (
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -593,11 +597,11 @@ export const OrderDetailsModal = ({
 
         {hero}
 
-        <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, minHeight: 0, background: 'transparent', paddingBottom: 4 }}>
+        <div className="custom-scrollbar" style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, minHeight: 0, background: 'transparent', paddingBottom: 16 }}>
           {body}
         </div>
 
-        <div style={{ padding: isSmall ? '12px 14px calc(12px + env(safe-area-inset-bottom))' : '12px 18px', borderTop: '1px solid var(--hairline-strong)', display: 'flex', gap: 8, flexShrink: 0, background: 'var(--bg-base-2)' }}>
+        <div style={{ padding: isSmall ? '12px 14px calc(12px + env(safe-area-inset-bottom))' : '12px 18px', borderTop: '1px solid var(--hairline-strong)', display: 'flex', gap: 8, flexShrink: 0, background: 'var(--surface-raised)', boxShadow: '0 -12px 28px -24px rgba(0,0,0,.42)' }}>
           {footer}
         </div>
       </div>

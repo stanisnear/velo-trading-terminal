@@ -3,7 +3,8 @@
 // Four themes: obsidian · gradient · hologram · light
 // Long = green accent, Short = red accent, side-bar on left edge.
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Download, Share2, X, Check, Settings, Eye, EyeOff } from 'lucide-react';
 
 const S = {
@@ -37,8 +38,60 @@ const FIELD_LABELS = {
 } as const;
 type FieldKey = keyof typeof FIELD_LABELS;
 
+const finite = (value: unknown, fallback = 0) =>
+  Number.isFinite(typeof value === 'number' ? value : Number(value))
+    ? Number(value)
+    : fallback;
+
+const roundedPath = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) => {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+};
+
+const canvasPng = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => {
+  const fromDataUrl = () => {
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    if (!base64) throw new Error('PNG export returned an empty image.');
+    const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+    return new Blob([bytes], { type: 'image/png' });
+  };
+  try {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else {
+          try { resolve(fromDataUrl()); } catch (error) { reject(error); }
+        }
+      }, 'image/png');
+      return;
+    }
+    resolve(fromDataUrl());
+  } catch (error) {
+    reject(error);
+  }
+});
+
+const safeFilePart = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || 'trade';
+
 export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const copyTimerRef = useRef<number | null>(null);
+  const requestCloseRef = useRef<() => void>(() => {});
+  const exportingRef = useRef(false);
+  const renderedPngRef = useRef<Blob | null>(null);
+  const renderVersionRef = useRef(0);
+  const [closing, setClosing] = useState(false);
   const [bgStyle, setBgStyle] = useState<BgStyle>('obsidian');
   const [visibleFields, setVisibleFields] = useState<Record<FieldKey, boolean>>({
     pair: true, side: true, leverage: true,
@@ -47,19 +100,72 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
   });
   const [copied, setCopied] = useState(false);
   const [tweakOpen, setTweakOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [pngReady, setPngReady] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [feedbackError, setFeedbackError] = useState(false);
 
-  useEffect(() => { if (isOpen) renderToCanvas(); }, [isOpen, bgStyle, visibleFields, data]); // eslint-disable-line
+  const safeData = useMemo<ShareCardData>(() => ({
+    ...data,
+    pair: typeof data.pair === 'string' && data.pair.trim() ? data.pair.trim() : 'Market',
+    side: data.side === 'SHORT' ? 'SHORT' : 'LONG',
+    leverage: finite(data.leverage),
+    entryPrice: finite(data.entryPrice),
+    closePrice: data.closePrice == null ? undefined : finite(data.closePrice),
+    markPrice: data.markPrice == null ? undefined : finite(data.markPrice),
+    size: finite(data.size),
+    collateral: finite(data.collateral),
+    pnl: finite(data.pnl),
+    pnlPct: finite(data.pnlPct),
+    status: data.status === 'CLOSED' || data.status === 'LIQUIDATED' ? data.status : 'OPEN',
+  }), [data]);
 
-  const renderToCanvas = () => {
+  const requestClose = useCallback(() => {
+    if (closing || exporting) return;
+    setClosing(true);
+    window.setTimeout(onClose, 180);
+  }, [closing, exporting, onClose]);
+
+  useEffect(() => { requestCloseRef.current = requestClose; }, [requestClose]);
+  useEffect(() => { exportingRef.current = exporting; }, [exporting]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setClosing(false);
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !exportingRef.current) requestCloseRef.current();
+      if (event.key !== 'Tab') return;
+      const panel = canvasRef.current?.closest('[role="dialog"]');
+      if (!panel) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      previousFocus?.focus();
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+    };
+  }, [isOpen]);
+
+  const renderToCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) throw new Error('Canvas preview is unavailable in this browser.');
     const W = canvas.width, H = canvas.height;
 
     const isLight   = bgStyle === 'light';
-    const pnlUp     = data.pnl >= 0;
-    const sideColor = data.side === 'LONG' ? (isLight ? '#398356' : '#77c995') : (isLight ? '#c65c5a' : '#df7774');
+    const pnlUp     = safeData.pnl >= 0;
+    const sideColor = safeData.side === 'LONG' ? (isLight ? '#398356' : '#77c995') : (isLight ? '#c65c5a' : '#df7774');
     const pnlColor  = pnlUp ? (isLight ? '#398356' : '#77c995') : (isLight ? '#c65c5a' : '#df7774');
     const accent    = isLight ? '#557a62' : '#91b99f';
     const fgPrimary = isLight ? '#19241d' : '#edf2ee';
@@ -145,7 +251,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     ctx.fillStyle = sideGrad; ctx.fillRect(0, 4, 5, H - 4);
     // Glow behind bar
     const barGlow = ctx.createLinearGradient(0, 0, 90, 0);
-    barGlow.addColorStop(0, data.side === 'LONG' ? (isLight ? 'rgba(22,163,74,0.12)' : 'rgba(34,197,94,0.15)') : (isLight ? 'rgba(220,38,38,0.12)' : 'rgba(255,80,80,0.15)'));
+    barGlow.addColorStop(0, safeData.side === 'LONG' ? (isLight ? 'rgba(22,163,74,0.12)' : 'rgba(34,197,94,0.15)') : (isLight ? 'rgba(220,38,38,0.12)' : 'rgba(255,80,80,0.15)'));
     barGlow.addColorStop(1, 'transparent');
     ctx.fillStyle = barGlow; ctx.fillRect(5, 4, 90, H);
 
@@ -168,9 +274,9 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     // ── Testnet badge (top right) ─────────────────────────────────────────
     const badgeW = 210, badgeH = 28, badgeX = W - badgeW - 44, badgeY = LY + 8;
     ctx.fillStyle = isLight ? 'rgba(85,122,98,0.08)' : 'rgba(145,185,159,0.12)';
-    ctx.beginPath(); (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 8); ctx.fill();
+    roundedPath(ctx, badgeX, badgeY, badgeW, badgeH, 8); ctx.fill();
     ctx.strokeStyle = isLight ? 'rgba(85,122,98,0.24)' : 'rgba(145,185,159,0.3)'; ctx.lineWidth = 1;
-    ctx.beginPath(); (ctx as any).roundRect(badgeX, badgeY, badgeW, badgeH, 8); ctx.stroke();
+    roundedPath(ctx, badgeX, badgeY, badgeW, badgeH, 8); ctx.stroke();
     ctx.font = '700 10px "Geist Mono", monospace';
     ctx.fillStyle = accent;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -186,8 +292,8 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     ctx.beginPath(); ctx.moveTo(48, 118); ctx.lineTo(W - 48, 118); ctx.stroke();
 
     // ── Status badge ─────────────────────────────────────────────────────
-    const badge = data.status === 'LIQUIDATED' ? '● LIQUIDATED'
-      : data.status === 'CLOSED' ? (pnlUp ? '● CLOSED IN PROFIT' : '● CLOSED AT LOSS')
+    const badge = safeData.status === 'LIQUIDATED' ? '● LIQUIDATED'
+      : safeData.status === 'CLOSED' ? (pnlUp ? '● CLOSED IN PROFIT' : '● CLOSED AT LOSS')
       : '● OPEN POSITION';
     // Pill background for status
     ctx.font = '700 9px "Geist Mono", monospace';
@@ -195,7 +301,7 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     ctx.fillStyle = pnlUp
       ? (isLight ? 'rgba(22,163,74,0.1)' : 'rgba(34,197,94,0.1)')
       : (isLight ? 'rgba(220,38,38,0.1)' : 'rgba(255,80,80,0.1)');
-    ctx.beginPath(); (ctx as any).roundRect(48, 134, statusW, 20, 5); ctx.fill();
+    roundedPath(ctx, 48, 134, statusW, 20, 5); ctx.fill();
     ctx.fillStyle = pnlColor; ctx.textBaseline = 'middle';
     ctx.fillText(badge, 57, 144);
 
@@ -206,60 +312,65 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
       if (visibleFields.pair) {
         ctx.font = 'italic 400 80px "Fraunces", "Times New Roman", serif';
         ctx.fillStyle = fgPrimary;
-        ctx.fillText(data.pair, x, y);
-        x += ctx.measureText(data.pair).width + 20;
+        ctx.fillText(safeData.pair, x, y);
+        x += ctx.measureText(safeData.pair).width + 20;
       }
       const tagY = y + 40;
       if (visibleFields.side) {
         // Side pill
-        ctx.font = '700 20px "Geist Mono", monospace';
-        const sw = ctx.measureText(data.side).width;
-        ctx.fillStyle = data.side === 'LONG'
+        ctx.font = '650 18px "Geist Sans", system-ui, sans-serif';
+        const sw = ctx.measureText(safeData.side).width;
+        ctx.fillStyle = safeData.side === 'LONG'
           ? (isLight ? 'rgba(22,163,74,0.12)' : 'rgba(34,197,94,0.12)')
           : (isLight ? 'rgba(220,38,38,0.12)' : 'rgba(255,80,80,0.12)');
-        ctx.beginPath(); (ctx as any).roundRect(x - 6, tagY - 4, sw + 22, 34, 8); ctx.fill();
+        roundedPath(ctx, x - 6, tagY - 4, sw + 22, 34, 8); ctx.fill();
         ctx.fillStyle = sideColor;
-        ctx.fillText(data.side, x + 5, tagY);
+        ctx.fillText(safeData.side, x + 5, tagY);
         x += sw + 32;
       }
       if (visibleFields.leverage) {
-        ctx.font = '700 20px "Geist Mono", monospace'; ctx.fillStyle = fgMuted;
-        ctx.fillText(`${data.leverage}×`, x, tagY);
+        ctx.font = '600 18px "Geist Sans", system-ui, sans-serif'; ctx.fillStyle = fgMuted;
+        ctx.fillText(`${safeData.leverage}×`, x, tagY);
       }
     }
 
     // ── PnL hero ─────────────────────────────────────────────────────────
     if (visibleFields.pnl) {
-      const pnlY = 302;
+      const pnlY = 270;
       ctx.font = '700 9px "Geist Mono", monospace'; ctx.fillStyle = fgMuted; ctx.textBaseline = 'top';
-      ctx.fillText(data.status === 'OPEN' ? 'UNREALISED PnL' : 'REALISED PnL', 52, pnlY);
+      ctx.textAlign = 'center';
+      ctx.fillText(safeData.status === 'OPEN' ? 'UNREALISED PnL' : 'REALISED PnL', W / 2, pnlY);
 
-      const pnlStr = (pnlUp ? '+' : '-') + '$' + Math.abs(data.pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      ctx.font = 'italic 400 100px "Fraunces", "Times New Roman", serif'; ctx.fillStyle = pnlColor;
+      const pnlStr = (pnlUp ? '+' : '-') + '$' + Math.abs(safeData.pnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      ctx.font = 'italic 400 92px "Fraunces", "Times New Roman", serif'; ctx.fillStyle = pnlColor;
       ctx.textBaseline = 'top';
-      ctx.fillText(pnlStr, 52, pnlY + 18);
-      const pnlW = ctx.measureText(pnlStr).width;
+      const pnlWidth = ctx.measureText(pnlStr).width;
+      if (pnlWidth > W - 160) {
+        ctx.font = `italic 400 ${Math.floor(92 * (W - 160) / pnlWidth)}px "Fraunces", "Times New Roman", serif`;
+      }
+      ctx.fillText(pnlStr, W / 2, pnlY + 18);
 
       // Percentage badge
-      const pctStr = (data.pnlPct >= 0 ? '+' : '') + data.pnlPct.toFixed(2) + '%';
-      ctx.font = '700 22px "Geist Mono", monospace';
+      const pctStr = (safeData.pnlPct >= 0 ? '+' : '') + safeData.pnlPct.toFixed(2) + '%';
+      ctx.font = '600 20px "Geist Sans", system-ui, sans-serif';
       const pctW = ctx.measureText(pctStr).width;
-      const pctX = 52 + pnlW + 18, pctY = pnlY + 18 + 66;
+      const pctX = W / 2 - (pctW + 22) / 2, pctY = pnlY + 18 + 90;
       ctx.fillStyle = pnlUp
         ? (isLight ? 'rgba(22,163,74,0.12)' : 'rgba(34,197,94,0.12)')
         : (isLight ? 'rgba(220,38,38,0.12)' : 'rgba(255,80,80,0.12)');
-      ctx.beginPath(); (ctx as any).roundRect(pctX - 8, pctY - 4, pctW + 22, 36, 10); ctx.fill();
+      roundedPath(ctx, pctX, pctY - 4, pctW + 22, 36, 10); ctx.fill();
       ctx.fillStyle = pnlColor;
-      ctx.fillText(pctStr, pctX + 3, pctY);
+      ctx.fillText(pctStr, W / 2, pctY);
+      ctx.textAlign = 'left';
     }
 
     // ── Stat strip ────────────────────────────────────────────────────────
     const stats: { label: string; value: string }[] = [];
-    if (visibleFields.entryPrice) stats.push({ label: 'ENTRY', value: '$' + data.entryPrice.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
-    if (visibleFields.closePrice && data.closePrice != null) stats.push({ label: 'CLOSE', value: '$' + data.closePrice.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
-    if (visibleFields.markPrice && data.markPrice != null && data.status === 'OPEN') stats.push({ label: 'MARK', value: '$' + data.markPrice.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
-    if (visibleFields.size) stats.push({ label: 'SIZE', value: '$' + data.size.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
-    if (visibleFields.collateral) stats.push({ label: 'COLLATERAL', value: '$' + data.collateral.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
+    if (visibleFields.entryPrice) stats.push({ label: 'ENTRY', value: '$' + safeData.entryPrice.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
+    if (visibleFields.closePrice && safeData.closePrice != null) stats.push({ label: 'CLOSE', value: '$' + safeData.closePrice.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
+    if (visibleFields.markPrice && safeData.markPrice != null && safeData.status === 'OPEN') stats.push({ label: 'MARK', value: '$' + safeData.markPrice.toLocaleString('en-US', { maximumFractionDigits: 4 }) });
+    if (visibleFields.size) stats.push({ label: 'SIZE', value: '$' + safeData.size.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
+    if (visibleFields.collateral) stats.push({ label: 'COLLATERAL', value: '$' + safeData.collateral.toLocaleString('en-US', { maximumFractionDigits: 2 }) });
 
     if (stats.length > 0) {
       const stripY = 510, stripX = 48, stripW = W - 96;
@@ -268,22 +379,22 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
         const cx = stripX + (colW + gap) * i;
         // Card body
         ctx.fillStyle = cardBg;
-        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 88, 14); ctx.fill();
+        roundedPath(ctx, cx, stripY, colW, 88, 14); ctx.fill();
         // Top shimmer line
         const shimmer = ctx.createLinearGradient(cx, stripY, cx + colW, stripY);
         shimmer.addColorStop(0, 'transparent');
         shimmer.addColorStop(0.5, isLight ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)');
         shimmer.addColorStop(1, 'transparent');
         ctx.fillStyle = shimmer;
-        ctx.beginPath(); (ctx as any).roundRect(cx + 1, stripY, colW - 2, 2, 2); ctx.fill();
+        roundedPath(ctx, cx + 1, stripY, colW - 2, 2, 2); ctx.fill();
         // Border
         ctx.strokeStyle = cardBorder; ctx.lineWidth = 1;
-        ctx.beginPath(); (ctx as any).roundRect(cx, stripY, colW, 88, 14); ctx.stroke();
+        roundedPath(ctx, cx, stripY, colW, 88, 14); ctx.stroke();
         // Label
         ctx.font = '700 9px "Geist Mono", monospace'; ctx.fillStyle = fgMuted; ctx.textBaseline = 'top';
         ctx.fillText(s.label, cx + 18, stripY + 18);
         // Value
-        ctx.font = '700 22px "Geist Mono", monospace'; ctx.fillStyle = fgPrimary;
+        ctx.font = '600 22px "Geist Sans", system-ui, sans-serif'; ctx.fillStyle = fgPrimary;
         ctx.fillText(s.value, cx + 18, stripY + 44);
       });
     }
@@ -293,8 +404,8 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     ctx.strokeStyle = isLight ? 'rgba(15,17,23,0.07)' : 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(48, H - 52); ctx.lineTo(W - 48, H - 52); ctx.stroke();
 
-    if (visibleFields.handle && data.traderHandle) {
-      const handle = data.traderHandle.startsWith('@') ? data.traderHandle : '@' + data.traderHandle;
+    if (visibleFields.handle && safeData.traderHandle) {
+      const handle = safeData.traderHandle.startsWith('@') ? safeData.traderHandle : '@' + safeData.traderHandle;
       ctx.font = '700 12px "Geist Mono", monospace'; ctx.fillStyle = accent;
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       ctx.fillText(handle, 52, H - 28);
@@ -303,33 +414,126 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText('Velo Perps Testnet · For illustrative purposes only', W - 48, H - 28);
     ctx.textAlign = 'left';
+  }, [bgStyle, visibleFields, safeData]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    const draw = () => {
+      if (!active) return;
+      const renderVersion = ++renderVersionRef.current;
+      renderedPngRef.current = null;
+      setPngReady(false);
+      try {
+        renderToCanvas();
+        setFeedback('');
+        setFeedbackError(false);
+        const canvas = canvasRef.current;
+        if (canvas) {
+          void canvasPng(canvas).then(blob => {
+            if (!active || renderVersion !== renderVersionRef.current) return;
+            renderedPngRef.current = blob;
+            setPngReady(true);
+          }).catch(error => {
+            if (!active || renderVersion !== renderVersionRef.current) return;
+            console.error('[velo] share card image preparation failed:', error);
+          });
+        }
+      } catch (error) {
+        console.error('[velo] share card render failed:', error);
+        setFeedback('Preview could not be rendered in this browser. You can still try downloading the card.');
+        setFeedbackError(true);
+      }
+    };
+    draw();
+    if ('fonts' in document) void document.fonts.ready.then(draw);
+    return () => { active = false; };
+  }, [isOpen, renderToCanvas]);
+
+  const fileName = `velo-${safeFilePart(safeData.pair.replace('/', '-'))}-${safeData.side.toLowerCase()}.png`;
+
+  const downloadBlob = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const handleDownload = () => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `velo-${data.pair.replace('/', '-')}-${data.side}-${Date.now()}.png`;
-      a.click(); URL.revokeObjectURL(url);
-    }, 'image/png');
+  const handleDownload = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || exporting) return;
+    setExporting(true);
+    setFeedback('Preparing your Velo trade card…');
+    setFeedbackError(false);
+    try {
+      downloadBlob(renderedPngRef.current ?? await canvasPng(canvas));
+      setFeedback('PNG downloaded.');
+    } catch (error) {
+      console.error('[velo] share card download failed:', error);
+      setFeedback('The card could not be exported. Please try again in a supported browser.');
+      setFeedbackError(true);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleShare = async () => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const file = new File([blob], `velo-${data.pair.replace('/', '-')}.png`, { type: 'image/png' });
-      const navAny = navigator as any;
-      if (navAny.share && navAny.canShare?.({ files: [file] })) {
-        try { await navAny.share({ title: `${data.pair} ${data.side} ${data.leverage}× on Velo`, text: `${(data.pnl >= 0 ? '+' : '') + '$' + Math.abs(data.pnl).toFixed(2)} on Velo Perps testnet.`, files: [file] }); }
-        catch { /* dismissed */ }
+    const canvas = canvasRef.current;
+    if (!canvas || exporting) return;
+    setExporting(true);
+    setFeedback('Preparing your Velo trade card…');
+    setFeedbackError(false);
+    try {
+      const blob = renderedPngRef.current ?? await canvasPng(canvas);
+      const file = new File([blob], fileName, { type: 'image/png' });
+      const navAny = navigator as Navigator & {
+        canShare?: (data: ShareData) => boolean;
+        share?: (data: ShareData) => Promise<void>;
+      };
+      if (navAny.share && (!navAny.canShare || navAny.canShare({ files: [file] }))) {
+        try {
+          const sharePromise = navAny.share({
+            title: `${safeData.pair} ${safeData.side} on Velo`,
+            text: `${safeData.pnl >= 0 ? '+' : '-'}$${Math.abs(safeData.pnl).toFixed(2)} · ${safeData.leverage}× · Velo testnet`,
+            files: [file],
+          });
+          await sharePromise;
+          setFeedback('Trade card shared.');
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            setFeedback('');
+          } else {
+            throw error;
+          }
+        }
+      } else if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        setCopied(true);
+        setFeedback('Image copied. Paste it into your post or message.');
+        if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = window.setTimeout(() => setCopied(false), 2200);
       } else {
-        try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); setCopied(true); setTimeout(() => setCopied(false), 2000); }
-        catch { handleDownload(); }
+        downloadBlob(blob);
+        setFeedback('PNG downloaded. Attach it to your post or message.');
       }
-    }, 'image/png');
+    } catch (error) {
+      console.error('[velo] share card export failed:', error);
+      try {
+        downloadBlob(await canvasPng(canvas));
+        setFeedback('Sharing is unavailable here, so the PNG was downloaded instead.');
+      } catch (downloadError) {
+        console.error('[velo] share card fallback failed:', downloadError);
+        setFeedback('Could not create the trade card. Please try again.');
+        setFeedbackError(true);
+      }
+    } finally {
+      setExporting(false);
+    }
   };
 
   const toggleField = (k: FieldKey) => setVisibleFields((p) => ({ ...p, [k]: !p[k] }));
@@ -342,55 +546,62 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
     { id: 'light',    label: 'Light',    swatch: 'linear-gradient(135deg, #e2ebe3 0%, #cfdfd1 100%)' },
   ];
 
-  return (
-    <div className="velo-modal-enter-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'var(--overlay)', backdropFilter: 'blur(22px) saturate(1.28)' }}>
-      <div className="velo-modal-enter-card" style={{ width: '100%', maxWidth: 720, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' as const }}>
+  return createPortal((
+    <div role="dialog" aria-modal="true" aria-labelledby="velo-share-title" aria-describedby="velo-share-feedback"
+      className={`velo-modal-enter-backdrop${closing ? ' velo-modal-closing' : ''}`}
+      onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'var(--overlay)', backdropFilter: 'blur(22px) saturate(1.18)' }}>
+      <div className="velo-modal-enter-card" style={{ width: '100%', maxWidth: 760, borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden', maxHeight: 'min(92dvh, 860px)', display: 'flex', flexDirection: 'column' as const }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--hairline)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '14px 18px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Share2 size={14} style={{ color: 'var(--velo-violet)' }} />
-            <span style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Share Trade Card</span>
+            <Share2 size={15} style={{ color: 'var(--accent-text)' }} />
+            <div>
+              <div id="velo-share-title" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', color: 'var(--fg)', fontSize: 18, lineHeight: 1.15 }}>Share trade</div>
+              <div style={{ ...S.label, marginTop: 3 }}>{safeData.pair} · {safeData.side} · {safeData.status.toLowerCase()}</div>
+            </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', padding: 4 }}><X size={16} /></button>
+          <button ref={closeButtonRef} onClick={requestClose} aria-label="Close share trade dialog" title="Close" className="velo-modal-icon-button"><X size={17} /></button>
         </div>
 
         {/* Canvas Preview */}
-        <div style={{ padding: '14px 14px 10px', background: 'var(--surface-inset)', overflowY: 'auto' as const }}>
+        <div style={{ padding: '16px clamp(12px, 3vw, 22px)', background: 'var(--surface-inset)', overflowY: 'auto' as const, flex: '1 1 auto', minHeight: 0 }}>
           <canvas ref={canvasRef} width={1200} height={675}
-            style={{ width: '100%', height: 'auto', borderRadius: 10, display: 'block', boxShadow: '0 16px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06)' }} />
+            aria-label={`Preview of ${safeData.pair} ${safeData.side} trade card`}
+            style={{ width: '100%', height: 'auto', borderRadius: 10, display: 'block', background: '#0a0e0c', boxShadow: '0 18px 44px -28px rgba(0,0,0,0.62), 0 0 0 1px var(--glass-border)' }} />
         </div>
 
         {/* Controls */}
-        <div style={{ padding: '10px 14px 14px', borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+        <div style={{ padding: '12px 16px max(14px, env(safe-area-inset-bottom))', borderTop: '1px solid var(--hairline)', display: 'flex', flexDirection: 'column' as const, gap: 9, flexShrink: 0 }}>
 
           {/* Action row */}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleDownload}
-              style={{ ...S.mono, flex: 1, padding: '11px 0', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)', color: 'var(--fg)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Download size={11} /> Download PNG
+            <button onClick={handleDownload} disabled={exporting} className="velo-button velo-button--secondary" style={{ flex: 1 }}>
+              <Download size={14} /> Download PNG
             </button>
-            <button onClick={handleShare}
-              style={{ ...S.mono, flex: 2, padding: '11px 0', borderRadius: 10, border: '1px solid var(--control-border)', background: 'var(--primary-bg)', color: 'var(--primary-fg)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 20px color-mix(in oklab, var(--accent) 24%, transparent)' }}>
-              {copied ? <><Check size={11} /> Copied!</> : <><Share2 size={11} /> Share</>}
+            <button onClick={handleShare} disabled={exporting || !pngReady} className="velo-button velo-button--primary" style={{ flex: 1.4 }}>
+              {exporting || !pngReady ? <><span className="velo-inline-spinner" aria-hidden="true" /> Preparing…</> : copied ? <><Check size={14} /> Copied</> : <><Share2 size={14} /> Share card</>}
             </button>
           </div>
 
+          <div id="velo-share-feedback" role="status" aria-live="polite" style={{ minHeight: 16, font: '500 12px/1.35 var(--font-sans)', color: feedbackError ? 'var(--pnl-down)' : 'var(--fg-subtle)' }}>
+            {feedback}
+          </div>
+
           {/* Customize toggle */}
-          <button onClick={() => setTweakOpen((p) => !p)}
-            style={{ ...S.mono, width: '100%', padding: '7px 12px', borderRadius: 10, background: tweakOpen ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'var(--chip-bg)', border: `1px solid ${tweakOpen ? 'color-mix(in oklab, var(--accent) 35%, transparent)' : 'var(--hairline)'}`, color: tweakOpen ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <Settings size={11} /> {tweakOpen ? 'Hide Options' : 'Customize'}
+          <button onClick={() => setTweakOpen((p) => !p)} aria-expanded={tweakOpen} className="velo-button velo-button--secondary" style={{ width: '100%' }}>
+            <Settings size={14} /> {tweakOpen ? 'Hide options' : 'Customize card'}
           </button>
 
           {tweakOpen && (
-            <div style={{ paddingTop: 4 }}>
+            <div className="velo-share-options" style={{ paddingTop: 8, animation: 'veloModalContentIn 180ms cubic-bezier(.2,.7,.2,1) both' }}>
               {/* Theme */}
               <div style={{ ...S.label, marginBottom: 8 }}>Theme</div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
                 {BG_OPTIONS.map(({ id, label, swatch }) => (
-                  <button key={id} onClick={() => setBgStyle(id)}
-                    style={{ ...S.mono, flex: 1, padding: '8px 6px', borderRadius: 8, background: bgStyle === id ? 'color-mix(in oklab, var(--accent) 18%, transparent)' : 'rgba(255,255,255,0.02)', border: `1px solid ${bgStyle === id ? 'color-mix(in oklab, var(--accent) 50%, transparent)' : 'var(--hairline)'}`, color: bgStyle === id ? 'var(--iris-violet)' : 'var(--fg-muted)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5 }}>
+                  <button key={id} onClick={() => setBgStyle(id)} aria-pressed={bgStyle === id}
+                    style={{ ...S.mono, flex: 1, minWidth: 0, padding: '8px 6px', borderRadius: 8, background: bgStyle === id ? 'color-mix(in oklab, var(--accent) 13%, var(--control-bg))' : 'var(--control-bg)', border: `1px solid ${bgStyle === id ? 'color-mix(in oklab, var(--accent) 48%, var(--control-border))' : 'var(--control-border)'}`, color: bgStyle === id ? 'var(--accent-text)' : 'var(--fg-muted)', fontSize: 9, letterSpacing: '0.04em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 24, height: 24, borderRadius: 7, background: swatch, border: '1px solid rgba(255,255,255,0.14)', display: 'block', flexShrink: 0 }} />
                     {label}
                   </button>
@@ -401,8 +612,8 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
               <div style={{ ...S.label, marginBottom: 8 }}>Visible Fields</div>
               <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
                 {(Object.keys(FIELD_LABELS) as FieldKey[]).map((k) => (
-                  <button key={k} onClick={() => toggleField(k)}
-                    style={{ ...S.mono, padding: '5px 9px', borderRadius: 6, background: visibleFields[k] ? 'color-mix(in oklab, var(--accent) 15%, transparent)' : 'rgba(255,255,255,0.02)', border: `1px solid ${visibleFields[k] ? 'color-mix(in oklab, var(--accent) 40%, transparent)' : 'var(--hairline)'}`, color: visibleFields[k] ? 'var(--iris-violet)' : 'var(--fg-subtle)', fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button key={k} onClick={() => toggleField(k)} aria-pressed={visibleFields[k]}
+                    style={{ ...S.mono, padding: '7px 10px', borderRadius: 7, background: visibleFields[k] ? 'color-mix(in oklab, var(--accent) 12%, var(--control-bg))' : 'var(--control-bg)', border: `1px solid ${visibleFields[k] ? 'color-mix(in oklab, var(--accent) 38%, var(--control-border))' : 'var(--control-border)'}`, color: visibleFields[k] ? 'var(--accent-text)' : 'var(--fg-subtle)', fontSize: 9, letterSpacing: '0.03em', textTransform: 'uppercase' as const, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                     {visibleFields[k] ? <Eye size={9} /> : <EyeOff size={9} />} {FIELD_LABELS[k]}
                   </button>
                 ))}
@@ -412,5 +623,5 @@ export const VeloShareCard: React.FC<Props> = ({ isOpen, onClose, data }) => {
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 };

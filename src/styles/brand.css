@@ -1182,12 +1182,20 @@ html.dark body {
   background: var(--overlay) !important;
   -webkit-backdrop-filter: blur(20px) saturate(1.08) !important;
   backdrop-filter: blur(20px) saturate(1.08) !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10000 !important;
+  isolation: isolate;
+  overscroll-behavior: contain;
 }
 .velo-modal-stateful[style*="position: fixed"] {
   background: var(--overlay) !important;
   -webkit-backdrop-filter: blur(20px) saturate(1.08) !important;
   backdrop-filter: blur(20px) saturate(1.08) !important;
+  z-index: 10000 !important;
+  isolation: isolate;
 }
+.velo-onb-backdrop { z-index: 10000 !important; }
 .velo-modal-card,
 .velo-modal-enter-card,
 .velo-modal-stateful[style*="position: relative"] {
@@ -1199,6 +1207,7 @@ html.dark body {
   -webkit-backdrop-filter: blur(30px) saturate(1.08) !important;
   backdrop-filter: blur(30px) saturate(1.08) !important;
 }
+.velo-modal-enter-card { min-width: 0; transform-origin: center; }
 .velo-modal-card :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
 .velo-modal-enter-card :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
 .velo-modal-stateful[style*="position: relative"] :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
@@ -1213,6 +1222,22 @@ html.dark body {
 .velo-modal-enter-card select option { color: var(--fg); background: var(--surface-raised); }
 .velo-modal-card button,
 .velo-modal-enter-card button { -webkit-tap-highlight-color: transparent; }
+.velo-modal-enter-card button:not(:disabled),
+.velo-modal-card button:not(:disabled),
+.velo-onb-card button:not(:disabled) {
+  transition-property: color, background-color, border-color, box-shadow, filter, transform;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(.2,.7,.2,1);
+}
+.velo-modal-enter-card button:hover:not(:disabled),
+.velo-modal-card button:hover:not(:disabled),
+.velo-onb-card button:hover:not(:disabled) { filter: brightness(1.045); }
+.velo-modal-enter-card button:active:not(:disabled),
+.velo-modal-card button:active:not(:disabled),
+.velo-onb-card button:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+.velo-modal-enter-card button:disabled,
+.velo-modal-card button:disabled,
+.velo-onb-card button:disabled { cursor: not-allowed; }
 .velo-modal-card button:focus-visible,
 .velo-modal-enter-card button:focus-visible,
 .velo-button:focus-visible {
@@ -1247,6 +1272,44 @@ html.light .velo-modal-card,
 html.light .velo-modal-enter-card,
 html.light .velo-modal-stateful[style*="position: relative"] {
   box-shadow: 0 1px 0 rgba(250,255,250,.72) inset, 0 24px 64px -30px rgba(33,57,38,.28), 0 4px 14px -8px rgba(47,76,53,.12) !important;
+}
+
+.velo-modal-icon-button {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--fg-muted);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.velo-modal-icon-button:hover:not(:disabled) {
+  color: var(--fg);
+  background: var(--control-bg-hover);
+  border-color: color-mix(in oklab, var(--accent) 38%, var(--control-border));
+}
+.velo-inline-spinner {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: veloSpinner 700ms linear infinite;
+}
+@keyframes veloSpinner { to { transform: rotate(360deg); } }
+@keyframes veloModalContentIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .velo-inline-spinner { animation: none; }
+  .velo-modal-enter-card button,
+  .velo-modal-card button,
+  .velo-onb-card button { transition: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
