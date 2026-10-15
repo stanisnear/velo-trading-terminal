@@ -166,7 +166,7 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
 
     if (!user) return null;
 
-    const mentionResults: any[] = React.useMemo ? (() => {
+    const mentionResults: any[] = (() => {
         if (mentionQuery === null) return [];
         const q = mentionQuery.toLowerCase();
         if (mentionTrigger === '$') {
@@ -182,7 +182,7 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
             }).slice(0, 6);
         }
         return [];
-    })() : [];
+    })();
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;

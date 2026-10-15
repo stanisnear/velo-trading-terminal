@@ -104,11 +104,11 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
     if (!resolvedAddress) { setSendToAddress(null); return; }
     // Unblock the Send button right away with the best address we have.
     setSendToAddress(resolvedAddress);
-    supabase
+    Promise.resolve(supabase
       .from('profiles')
       .select('velo_wallet_address')
       .ilike('wallet_address', resolvedAddress)
-      .maybeSingle()
+      .maybeSingle())
       .then(({ data }) => {
         const tradingWallet = data?.velo_wallet_address;
         if (tradingWallet && isAddress(tradingWallet)) {

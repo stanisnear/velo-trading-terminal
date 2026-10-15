@@ -1,3 +1,4 @@
+import { requireSafeTestnetAction } from './testnetReleaseGate';
 /**
  * useVeloPerpsTrading
  * ───────────────────
@@ -245,6 +246,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const openPosition = useCallback(
     async (args: OpenPositionArgs) => {
+      requireSafeTestnetAction('open', args.marginMode);
       if (!tradingClient || !publicClient || !traderAddress) {
         throw new Error('Trading wallet not ready');
       }
@@ -327,6 +329,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const addMargin = useCallback(
     async (tradeId: bigint, amountUSDC: number) => {
+      requireSafeTestnetAction('margin');
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {
@@ -345,6 +348,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const reduceMargin = useCallback(
     async (tradeId: bigint, amountUSDC: number, pair: VeloPairLabel) => {
+      requireSafeTestnetAction('margin');
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {
@@ -404,6 +408,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const depositCross = useCallback(
     async (amountUSDC: number) => {
+      requireSafeTestnetAction('crossDeposit');
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {
@@ -440,6 +445,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const placeConditionalOrder = useCallback(
     async (args: PlaceConditionalOrderArgs) => {
+      requireSafeTestnetAction('order', args.marginMode, args.reduceOnly);
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
       setPending(true); setLastError(null);
       try {

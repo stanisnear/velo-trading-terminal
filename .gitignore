@@ -15,3 +15,8 @@ supabase/functions/velo-keepers/generated/
 supabase/functions/velo-keepers/bundle.js
 __pycache__/
 
+
+contracts/lib/
+contracts/out/
+contracts/cache/
+audit/

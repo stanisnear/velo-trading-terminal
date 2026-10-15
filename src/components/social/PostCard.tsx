@@ -142,7 +142,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
     const [commentMentionIdx, setCommentMentionIdx] = useState(0);
     const commentInputRef = useRef<HTMLInputElement>(null);
 
-    const commentMentionResults: any[] = React.useMemo ? (() => {
+    const commentMentionResults: any[] = (() => {
         if (commentMentionQuery === null) return [];
         const q = commentMentionQuery.toLowerCase();
         if (commentMentionTrigger === '$') {
@@ -158,7 +158,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
             }).slice(0, 5);
         }
         return [];
-    })() : [];
+    })();
 
     const handleCommentTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;

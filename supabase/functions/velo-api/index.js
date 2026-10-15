@@ -8,6 +8,8 @@ Deno.serve(createApi({
   getEnv: runtimeEnv,
   tokenHash: gatewayTokenHash,
   loaders: {
+    'record-transfer': () => import('./record-transfer.js'),
+    'wallet-auth': () => import('./wallet-auth.js'),
     'sponsor-eth': () => import('./sponsor.js'),
     'user-stats': () => import('./generated/user-stats.js'),
     'ga-stats': () => import('./generated/ga-stats.js'),

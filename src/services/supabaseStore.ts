@@ -158,6 +158,11 @@ export async function getCurrentSession() {
 export async function getProfile(userId: string) {
   const { data, error } = await supabase
     .from('profiles').select('*').eq('id', userId).single();
+  const { data: current } = await supabase.auth.getSession();
+  if (data && current.session?.user.id === userId) {
+    const { data: email } = await supabase.rpc('get_my_contact_email');
+    data.email = email || null;
+  }
   return { profile: data, error };
 }
 
@@ -1005,26 +1010,14 @@ export async function recordTransactionForUser(
   amount: number,
   onChainMeta?: { txHash?: string; counterparty?: string; onChain?: boolean },
 ): Promise<void> {
-  const { error } = await supabase.rpc('record_transaction_for_user', {
-    target_user_id: targetUserId,
-    p_type: type,
-    p_amount: amount,
-    p_tx_hash: onChainMeta?.txHash || null,
-    p_counterparty: onChainMeta?.counterparty || null,
-    p_on_chain: onChainMeta?.onChain ?? true,
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || type !== 'RECEIVE' || !onChainMeta?.txHash) throw new Error('A signed-in session and confirmed transfer are required');
+  const response = await fetch('/api/record-transfer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ targetUserId, txHash: onChainMeta.txHash }), signal: AbortSignal.timeout(20000),
   });
-  if (!error) return;
-  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
-    const { error: insertErr } = await supabase.from('transactions').insert({
-      user_id: targetUserId, type, amount, status: 'COMPLETED',
-      on_chain: onChainMeta?.onChain ?? true,
-      tx_hash: onChainMeta?.txHash || null,
-      counterparty: onChainMeta?.counterparty || null,
-    });
-    if (insertErr) throw new Error(`fallback transactions insert failed: ${insertErr.message}`);
-    return;
-  }
-  throw new Error(error.message);
+  if (!response.ok) throw new Error('Transfer succeeded on-chain; recipient activity could not be synchronized yet.');
+
 }
 
 // ══════════════════════════════════════════════════════════════════

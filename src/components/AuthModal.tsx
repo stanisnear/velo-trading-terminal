@@ -1,10 +1,11 @@
+import { signInWithWallet } from '../services/walletAuth';
 // src/components/AuthModal.tsx
 // Apple-quality onboarding + MetaMask-style wallet UX
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { VeloWordmark } from '@/components/ui/shared';
 import { createPortal } from 'react-dom';
 import { useAppKit, useAppKitState, useAppKitAccount } from '@reown/appkit/react';
-import { useAccount, useDisconnect, useChainId } from 'wagmi';
+import { useAccount, useDisconnect, useChainId, useSignMessage } from 'wagmi';
 import { isConfigured as isSupabaseConfigured, supabase } from '../services/supabaseStore';
 
 // Base Sepolia chainId — must match web3Config.ts
@@ -30,10 +31,6 @@ type Step =
   | 'creating'
   | 'success_new'
   | 'success_returning';
-
-function wPass(addr: string) {
-  return `velo_w3_${addr.toLowerCase().slice(2, 20)}_xK9`;
-}
 
 // ─── Animated word-by-word text reveal (Apple style) ──────────────────────────
 const TypeReveal = ({ text, delay = 0, size = 28, color = 'var(--fg)', italic = false, onDone }: {
@@ -150,6 +147,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
+  const { signMessageAsync } = useSignMessage();
   const { open: openAppKit } = useAppKit();
   const { open: appKitModalOpen } = useAppKitState();
   // embeddedWalletInfo is populated after social/email login — gives us the
@@ -236,7 +234,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       try {
         const { data: { session: existingSession } } = await supabase.auth.getSession();
-        if (existingSession?.user) {
+        if (existingSession?.user.app_metadata?.velo_wallet_verified === address.toLowerCase()) {
           const sessionEmail = existingSession.user.email ?? '';
           const sessionWallet = sessionEmail.replace('@wallet.velo', '');
           if (sessionWallet && sessionWallet !== address.toLowerCase()) {
@@ -245,7 +243,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             return;
           }
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', existingSession.user.id).single();
-          if (profile?.username) {
+          if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
             setReturningName(profile.username);
             setStep('success_returning');
             setTimeout(() => {
@@ -257,13 +255,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           }
         }
 
-        const pseudoEmail = `${address.toLowerCase()}@wallet.velo`;
-        const password = wPass(address);
-        const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
+        const { data, error: signInErr } = await signInWithWallet(address, signMessageAsync);
 
         if (data?.user && !signInErr) {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-          if (profile?.username) {
+          if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
             setReturningName(profile.username);
             setStep('success_returning');
             setTimeout(() => {
@@ -330,15 +326,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setFieldError(''); setStep('email'); return;
     }
     if (step === 'email') {
-      // Check email uniqueness if provided (profiles table stores contact email)
-      if (email.trim() && supabaseReady) {
-        const { data: existingEmail } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', email.trim().toLowerCase())
-          .maybeSingle();
-        if (existingEmail) { setFieldError('Email already registered with another account'); return; }
-      }
       setFieldError(''); setStep('confirm'); return;
     }
     if (step === 'confirm') { handleCreate(); return; }
@@ -356,8 +343,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const uname = username.trim();
     setStep('creating'); setError('');
 
-    const pseudoEmail = `${address.toLowerCase()}@wallet.velo`;
-    const password = wPass(address);
     const contactEmail = email.trim() || null;
 
     try {
@@ -375,33 +360,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: pseudoEmail, password,
-        options: { data: { username: uname, wallet_address: address.toLowerCase() } },
-      });
-
-      if (signUpError) {
-        if (signUpError.message?.includes('already') || signUpError.message?.includes('registered')) {
-          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-          if (signInErr || !signInData?.user) throw signInErr || new Error('Sign in failed');
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', signInData.user.id).single();
-          if (profile) await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', signInData.user.id);
-          setStep('success_new');
-          setTimeout(() => {
-            if (completedRef.current) return;
-            completedRef.current = true;
-            onAuth(signInData.user, { ...profile, username: uname, handle: `@${uname}` }, true); onClose();
-          }, 2400);
-          return;
-        }
-        throw signUpError;
-      }
-
-      if (!signUpData.user) throw new Error('No user returned from signup');
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-      if (signInErr || !signInData?.user) throw signInErr || new Error('Sign in after signup failed');
-
-      await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', signInData.user.id);
+      const { data: signInData } = await signInWithWallet(address, signMessageAsync);
+      if (!signInData.user) throw new Error('Wallet sign-in failed');
+      const { error: updateError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', signInData.user.id);
+      if (updateError) throw updateError;
+      if (contactEmail) { const { error } = await supabase.rpc('set_my_contact_email', { contact_email: contactEmail }); if (error) throw error; }
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', signInData.user.id).single();
 
       setStep('success_new');

@@ -168,12 +168,12 @@ export const VeloCrossAccountModal: React.FC<Props> = ({
           </a>
         )}
 
-        <button onClick={submit} disabled={!valid || busy} style={{
+        <button onClick={submit} disabled={!valid || busy} style={{ ...S.label,
           width: '100%', padding: '12px 16px', borderRadius: 10,
           background: valid && !busy ? 'var(--accent)' : 'var(--glass-bg)',
           color: valid && !busy ? 'var(--bg)' : 'var(--fg-subtle)',
           border: 'none', cursor: valid && !busy ? 'pointer' : 'not-allowed',
-          ...S.label, fontSize: 13, letterSpacing: '0.10em',
+          fontSize: 13, letterSpacing: '0.10em',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}>
           {busy ? <Loader2 size={14} className="animate-spin" /> : null}

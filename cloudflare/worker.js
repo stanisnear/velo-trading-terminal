@@ -1,6 +1,8 @@
 // A narrow Pages gateway. The API implementation must be deployed separately.
 // Runtime secrets: VELO_BACKEND_URL and VELO_PROXY_TOKEN.
 const routes = new Map([
+  ['/api/record-transfer', ['POST']],
+  ['/api/wallet-auth', ['POST']],
   ['/api/sponsor-eth', ['POST', 'OPTIONS']],
   ['/api/user-stats', ['GET', 'HEAD']],
   ['/api/ga-stats', ['GET', 'HEAD']],
@@ -69,6 +71,7 @@ export default {
     }
     // The caller cannot override the gateway credential.
     headers.set('X-Velo-Proxy-Token', env.VELO_PROXY_TOKEN);
+    headers.set('X-Velo-Client-IP', request.headers.get('CF-Connecting-IP') || 'unknown');
     try {
       const upstream = await fetch(target, {
         method: request.method,
