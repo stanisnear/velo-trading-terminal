@@ -1,3 +1,4 @@
+import { LEGACY_V31_RESTRICTED } from '@/services/testnetReleaseGate';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2, Plus, Check, RefreshCw } from 'lucide-react';
@@ -523,6 +524,7 @@ const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, char
                     <ChevronDown size={11} style={{ color: 'var(--fg-subtle)' }} />
                 </button>
             )}
+            {LEGACY_V31_RESTRICTED && <a href="https://velotrading.live/docs#contracts" target="_blank" rel="noopener noreferrer" title="Cross-margin, margin adjustments and reduce-only entry orders are paused for a contract correction. Test funds only." style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Testnet · limited release</a>}
             {/* Timeframe selector — quick buttons + "More" dropdown */}
             <TfSelector tf={tf} setTf={setTf} isMobile={isMobile} />
         </div>
@@ -595,7 +597,7 @@ const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, char
             </div>
             {/* Candle style */}
             <div ref={candleRef} style={{ position: 'relative' }}>
-                <button onClick={() => { setShowCandle((v: boolean) => !v); setShowInd(false); setShowOverlays(false); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: isMobile ? 9 : 10 }}>
+                <button onClick={() => { setShowCandle((v: boolean) => !v); setShowInd(false); }} style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', fontSize: isMobile ? 9 : 10 }}>
                     {CHART_STYLES.find((s: any) => s.code === chartStyle)?.label || 'Candles'} <ChevronDown size={9} />
                 </button>
                 {showCandle && (
@@ -753,11 +755,11 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', flex: 1 }}>
                     {TABS.map(({ k, label, n }) => (
-                        <button key={k} onClick={() => setTab(k)} style={{
+                        <button key={k} onClick={() => setTab(k)} style={{ ...S.label,
                             padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const,
                             borderBottom: `2px solid ${tab === k ? 'var(--iris-violet)' : 'transparent'}`,
                             color: tab === k ? 'var(--fg)' : 'var(--fg-subtle)',
-                            ...S.label, fontSize: 10, transition: 'all 0.12s',
+                            fontSize: 10, transition: 'all 0.12s',
                         }}>
                             {label} <span style={{ opacity: 0.4, marginLeft: 2 }}>· {n}</span>
                         </button>
@@ -925,14 +927,14 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         ))}
                                     </div>
                                     <div style={{ display: 'flex', gap: 5 }}>
-                                        {!p.onChain && <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'TRIGGERS'); }} style={{ flex: 1, background: 'var(--chip-bg)', border: 'none', padding: '6px 0', borderRadius: 8, cursor: 'pointer', ...S.label, textAlign: 'center' as const, fontSize: 9 }}>Edit TP/SL</button>}
+                                        {!p.onChain && <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'TRIGGERS'); }} style={{ ...S.label, flex: 1, background: 'var(--chip-bg)', border: 'none', padding: '6px 0', borderRadius: 8, cursor: 'pointer', textAlign: 'center' as const, fontSize: 9 }}>Edit TP/SL</button>}
                                         {onSharePosition && (
                                           <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share" style={{ padding: '6px 12px', background: 'color-mix(in oklab, var(--accent) 11%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 8, cursor: 'pointer', color: 'var(--accent-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <Share2 size={11} />
                                           </button>
                                         )}
-                                        <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'PARTIAL'); }} style={{ flex: 1, padding: '6px 0', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 8, cursor: 'pointer', ...S.label, color: 'var(--fg)', textAlign: 'center' as const, fontSize: 9 }}>Close</button>
-                                        <button onClick={(e) => { e.stopPropagation(); onClosePosition(p.id); }} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,60,60,0.12)', border: '1px solid oklch(0.66 0.22 25/0.3)', borderRadius: 8, cursor: 'pointer', ...S.label, color: 'var(--pnl-down)', textAlign: 'center' as const, fontSize: 9, fontWeight: 700 }}>Close 100%</button>
+                                        <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'PARTIAL'); }} style={{ ...S.label, flex: 1, padding: '6px 0', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 8, cursor: 'pointer', color: 'var(--fg)', textAlign: 'center' as const, fontSize: 9 }}>Close</button>
+                                        <button onClick={(e) => { e.stopPropagation(); onClosePosition(p.id); }} style={{ ...S.label, flex: 1, padding: '6px 0', background: 'rgba(255,60,60,0.12)', border: '1px solid oklch(0.66 0.22 25/0.3)', borderRadius: 8, cursor: 'pointer', color: 'var(--pnl-down)', textAlign: 'center' as const, fontSize: 9, fontWeight: 700 }}>Close 100%</button>
                                     </div>
                                 </div>
                             );
@@ -1628,7 +1630,7 @@ export const TradeView = ({
 
             {/* Toast */}
             {toast && (
-                <div style={{ position: 'fixed', bottom: isMobile ? 96 : 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 10, background: toast.type === 'ERROR' ? 'var(--pnl-down)' : 'var(--pnl-up)', color: '#fff', ...S.label, fontSize: 11, boxShadow: '0 8px 28px rgba(0,0,0,0.4)' }}>
+                <div style={{ ...S.label, position: 'fixed', bottom: isMobile ? 96 : 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 10, background: toast.type === 'ERROR' ? 'var(--pnl-down)' : 'var(--pnl-up)', color: '#fff', fontSize: 11, boxShadow: '0 8px 28px rgba(0,0,0,0.4)' }}>
                     {toast.message}
                     <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', opacity: 0.7, display: 'flex', padding: 0 }}><X size={11} /></button>
                 </div>
@@ -1742,7 +1744,7 @@ export const TradeView = ({
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
                                 {(['MARKET', 'LIMIT', 'STOP'] as const).map(t => (
-                                    <button key={t} onClick={() => setOrderType(t)} style={{ border: 'none', background: 'none', cursor: 'pointer', position: 'relative', paddingBottom: 3, ...S.label, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', transition: 'color 0.12s' }}>
+                                    <button key={t} onClick={() => setOrderType(t)} style={{ ...S.label, border: 'none', background: 'none', cursor: 'pointer', position: 'relative', paddingBottom: 3, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', transition: 'color 0.12s' }}>
                                         {t}
                                         {orderType === t && <div style={{ position: 'absolute', bottom: -8, left: 0, right: 0, height: 2, background: 'var(--fg)', borderRadius: 2 }} />}
                                     </button>

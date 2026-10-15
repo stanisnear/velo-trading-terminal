@@ -1,3 +1,4 @@
+import { signInWithWallet } from '../services/walletAuth';
 // VeloOnboardingModal — new-user registration only.
 //
 // Shown ONLY when a wallet connects and has NO existing Velo account.
@@ -44,7 +45,7 @@ export function isDismissed(addr?: string | null) {
   return false;
 }
 
-function wPass(addr: string) { return `velo_w3_${addr.toLowerCase().slice(2, 20)}_xK9`; }
+
 
 export interface VeloOnboardingModalProps {
   isOpen: boolean;
@@ -270,10 +271,6 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       setFieldError(''); setStep('EMAIL'); return;
     }
     if (step === 'EMAIL') {
-      if (email.trim() && supabaseReady) {
-        const { data: existingEmail } = await supabase.from('profiles').select('id').eq('email', email.trim().toLowerCase()).maybeSingle();
-        if (existingEmail) { setFieldError('Email already registered with another account'); return; }
-      }
       setFieldError(''); setStep('REVIEW'); return;
     }
     if (step === 'REVIEW') { handleCreate(); return; }
@@ -306,23 +303,12 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
         const { data: taken } = await supabase.from('profiles').select('id').ilike('username', uname).maybeSingle();
         if (taken) { setGlobalError(`@${uname} is already taken — go back and choose another`); setStep('REVIEW'); return; }
       }
-      const pseudoEmail = `${address.toLowerCase()}@wallet.velo`;
-      const password = wPass(address);
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: pseudoEmail, password,
-        options: { data: { username: uname, wallet_address: address.toLowerCase() } },
-      });
-      let authUser = signUpData?.user;
-      if (signUpError) {
-        if (signUpError.message?.includes('already') || signUpError.message?.includes('registered')) {
-          const { data: si } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-          authUser = si?.user;
-        } else throw signUpError;
-      }
-      if (!authUser) throw new Error('No user returned from signup');
-      const { data: si2 } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-      if (si2?.user) authUser = si2.user;
-      await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', authUser.id);
+      const { data: signedIn } = await signInWithWallet(address, ({ message }) => walletClient.signMessage({ account: address, message }));
+      const authUser = signedIn.user;
+      if (!authUser) throw new Error('Wallet sign-in failed');
+      const { error: profileError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', authUser.id);
+      if (profileError) throw profileError;
+      if (contactEmail) { const { error } = await supabase.rpc('set_my_contact_email', { contact_email: contactEmail }); if (error) throw error; }
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
 
       setStep('BURNER_SIGN');

@@ -585,8 +585,7 @@ export async function fetchOpenPositions(
   );
 
   return positions
-    .filter((r): r is PromiseFulfilledResult<VeloPosition> => r.status === 'fulfilled')
-    .map((r) => r.value);
+    .flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
 }
 
 /** Fetch active conditional orders for a trader (V3 only). */
@@ -765,7 +764,7 @@ export async function openPosition(
         abi: usdcAbi,
         functionName: 'approve',
         args: [VELO_PERPS_ADDRESS, amount * 10n], // approve 10× for UX
-        account,
+        account: account!,
         chain: walletClient.chain,
       });
       await publicClient.waitForTransactionReceipt({ hash: approveTx });

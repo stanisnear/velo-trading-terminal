@@ -318,8 +318,8 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
     useEffect(() => {
         if (!position) return;
         
-        let err = null;
-        let proj = null;
+        let err: string | null = null;
+        let proj: { tpPnl: number; slPnl: number } | null = null;
         const tpVal = parseFloat(tp);
         const slVal = parseFloat(sl);
 

@@ -30,7 +30,7 @@ const ETH_RPC  = import.meta.env.VITE_ETH_SEPOLIA_RPC_URL   || 'https://ethereum
 export const networks = [baseSepolia, arbitrumSepolia, optimismSepolia, sepolia] as const;
 
 export const wagmiAdapter = new WagmiAdapter({
-  networks,
+  networks: [...networks],
   projectId,
   transports: {
     [baseSepolia.id]:     http(BASE_RPC),

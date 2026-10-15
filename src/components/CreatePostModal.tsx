@@ -7,7 +7,7 @@ import { PAIRS } from '../utils/types';
 // ── Shared featured pairs list (mirrors App.tsx SOCIAL_FEATURED_PAIRS) ────────
 const SOCIAL_FEATURED_PAIRS = PAIRS.map(p => ({
     symbol: p.id.split('/')[0],
-    name: p.name,
+    name: p.name ?? p.id,
     pairId: p.id,
     logo: p.logo ?? '',
 }));
@@ -15,7 +15,7 @@ const SOCIAL_FEATURED_PAIRS = PAIRS.map(p => ({
 // ── MentionDropdown ───────────────────────────────────────────────────────────
 const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onHover }: {
     results: any[];
-    anchorRef: React.RefObject<HTMLTextAreaElement>;
+    anchorRef: React.RefObject<HTMLTextAreaElement | null>;
     activeIndex: number;
     onSelect: (item: any) => void;
     onHover: (i: number) => void;

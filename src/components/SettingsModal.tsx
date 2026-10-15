@@ -228,7 +228,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                     <span style={{ marginLeft:'auto', ...F.mono, fontSize:9, color: profile?.email ? 'oklch(0.82 0.16 150)' : 'oklch(0.74 0.18 30)' }}>{profile?.email ? '● Saved' : '○ Not set'}</span>
                   </div>
                   <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>
-                    {profile?.email ? 'Get notified when positions are filled, liquidated, or copied.' : 'Add an email to receive position and liquidation alerts.'}
+                    {profile?.email ? 'Contact email saved. Automated email alerts are not available yet.' : 'Add an optional contact email. Automated alerts are planned.'}
                   </p>
                   <div style={{ display:'flex', gap:8 }}>
                     <input type="email" value={emailInput} onChange={e => { setEmailInput(e.target.value); setEmailError(''); setEmailSaved(false); }} placeholder={profile?.email || 'your@email.com'}
@@ -239,10 +239,8 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                         if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { setEmailError('Enter a valid email address'); return; }
                         setEmailSaving(true); setEmailError('');
                         try {
-                          const { data: dup } = await supabase!.from('profiles').select('id').eq('email', em).maybeSingle();
-                          if (dup && dup.id !== profile?.id) { setEmailError('Email already used'); return; }
-                          const { data: { user } } = await supabase!.auth.getUser();
-                          if (user) await supabase!.from('profiles').update({ email: em }).eq('id', user.id);
+                          const { error } = await supabase!.rpc('set_my_contact_email', { contact_email: em });
+                          if (error) throw error;
                           setEmailSaved(true); onEmailSaved?.(em);
                         } catch { setEmailError('Failed to save — try again.'); }
                         finally { setEmailSaving(false); }

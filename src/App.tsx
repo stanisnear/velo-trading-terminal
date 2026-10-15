@@ -1,3 +1,4 @@
+import { signInWithWallet } from './services/walletAuth';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { VeloOnboardingModal, useOnboardingGuard } from './components/VeloOnboardingModal';
@@ -424,26 +425,14 @@ async function recordTransactionForUser(
   amount: number,
   onChainMeta?: { txHash?: string; counterparty?: string; onChain?: boolean },
 ): Promise<void> {
-  const { error } = await supabase.rpc('record_transaction_for_user', {
-    target_user_id: targetUserId,
-    p_type: type,
-    p_amount: amount,
-    p_tx_hash: onChainMeta?.txHash || null,
-    p_counterparty: onChainMeta?.counterparty || null,
-    p_on_chain: onChainMeta?.onChain ?? true,
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || type !== 'RECEIVE' || !onChainMeta?.txHash) throw new Error('A signed-in session and confirmed transfer are required');
+  const response = await fetch('/api/record-transfer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ targetUserId, txHash: onChainMeta.txHash }), signal: AbortSignal.timeout(20000),
   });
-  if (!error) return;
-  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
-    const { error: insertErr } = await supabase.from('transactions').insert({
-      user_id: targetUserId, type, amount, status: 'COMPLETED',
-      on_chain: onChainMeta?.onChain ?? true,
-      tx_hash: onChainMeta?.txHash || null,
-      counterparty: onChainMeta?.counterparty || null,
-    });
-    if (insertErr) throw new Error(`fallback transactions insert failed: ${insertErr.message}`);
-    return;
-  }
-  throw new Error(error.message);
+  if (!response.ok) throw new Error('Transfer succeeded on-chain; recipient activity could not be synchronized yet.');
+
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2224,6 +2213,16 @@ const App = () => {
     const { open: openAppKitModal } = useAppKit();
     const publicClient = usePublicClient();
     const { signMessageAsync } = useSignMessage();
+    useEffect(() => {
+      void supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (session?.user.email?.endsWith('@wallet.velo') && !session.user.app_metadata?.velo_wallet_verified) {
+          await supabase.auth.signOut({ scope: 'local' });
+          localStorage.removeItem('velo_session_v1');
+          window.location.reload();
+        }
+      });
+    }, []);
+
     // Guard so the auto-recovery signature prompt fires at most once per session.
     const autoRecoverAttemptedRef = useRef(false);
 
@@ -2511,67 +2510,20 @@ const App = () => {
       setTimeout(async () => {
         if (freshSignupRef.current) return;
         if (intentionalLogoutRef.current) return;
-        const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-        const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-
-        // Distinguish a genuine "no wallet account yet" from a transient
-        // failure. Supabase returns "Invalid login credentials" (status 400)
-        // ONLY when the email/password pair doesn't exist — that's the real
-        // onboarding signal. Network blips, 5xx, rate-limits, and JWT-timing
-        // races surface as other messages/statuses. Previously every error
-        // (including transient ones) dropped a returning user onto the login
-        // modal — the root cause of the "flaky sign-on": a momentary network
-        // hiccup looked identical to "you have no account". We now retry the
-        // transient cases a couple of times before giving up.
-        const isNoAccountError = (err: any): boolean => {
-          if (!err) return false;
-          const msg = (err.message || '').toLowerCase();
-          const status = err.status ?? err.code;
-          return status === 400 && (msg.includes('invalid login credentials') || msg.includes('invalid credentials'));
-        };
-
-        const MAX_ATTEMPTS = 3;
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-          if (freshSignupRef.current || intentionalLogoutRef.current) return;
-          try {
-            const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-            if (freshSignupRef.current) return;
-
-            if (data?.user && !signInErr) {
-              const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-              if (freshSignupRef.current) return;
-              if (profile?.username) {
-                intentionalLogoutRef.current = false;
-                freshSignupRef.current = false;
-                socialLoginHandledRef.current = true;
-                sessionRestoredRef.current = true;
-                silentLoginCallbackRef.current?.(data.user, profile);
-                return;
-              }
-              // Authenticated but no profile row yet — treat as new account.
-              break;
-            }
-
-            if (isNoAccountError(signInErr)) {
-              // Genuine: this wallet has never signed up. Stop and onboard.
-              break;
-            }
-
-            // Transient error — back off and retry (unless this was the last try).
-            if (attempt < MAX_ATTEMPTS) {
-              console.warn(`[velo] silent wallet sign-in transient error (attempt ${attempt}/${MAX_ATTEMPTS}):`, signInErr?.message);
-              await new Promise(r => setTimeout(r, attempt * 600));
-              continue;
-            }
-          } catch (e: any) {
-            // Thrown (network) error — same transient handling.
-            if (attempt < MAX_ATTEMPTS) {
-              console.warn(`[velo] silent wallet sign-in threw (attempt ${attempt}/${MAX_ATTEMPTS}):`, e?.message);
-              await new Promise(r => setTimeout(r, attempt * 600));
-              continue;
-            }
+        try {
+          const { data } = await signInWithWallet(walletAddress, signMessageAsync);
+          if (intentionalLogoutRef.current || freshSignupRef.current) return;
+          const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
+          if (error) throw error;
+          if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
+            sessionRestoredRef.current = true;
+            silentLoginCallbackRef.current?.(data.user, profile);
+            return;
           }
-          break;
+        } catch (error: any) {
+          socialLoginHandledRef.current = false;
+          setToast({ message: error?.shortMessage || error?.message || 'Sign-in cancelled. Click Log In to retry.', type: 'ERROR' });
+          return;
         }
 
         // No existing account (or retries exhausted) — open onboarding.
@@ -3239,26 +3191,12 @@ const App = () => {
     const walletConnectRef = useRef<string | undefined>(undefined);
     const userIdRef = useRef<string | null>(null);
 
-    // ── Silent re-auth provider for the session manager ─────────────────────
-    // When the Supabase session dies (refresh token revoked / no session) the
-    // session manager calls this to silently re-establish a session using the
-    // wallet-derived deterministic credentials — the SAME identity, no prompt.
-    // This is what makes blanked data reappear on its own instead of forcing a
-    // manual logout/login. Respects the logout sentinel so it never re-signs-in
-    // a user who just logged out.
+    // Refresh an existing session only. A new session requires wallet proof.
     useEffect(() => {
         registerReauthProvider(async () => {
-            if (typeof window !== 'undefined' && (window as any).__veloLogoutLock) return false;
-            if (intentionalLogoutRef.current) return false;
-            if (!walletAddress) return false;
-            try {
-                const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-                const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-                const { data, error } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-                return !!(data?.session && !error);
-            } catch {
-                return false;
-            }
+            if (window.__veloLogoutLock || intentionalLogoutRef.current) return false;
+            const { data, error } = await supabase.auth.refreshSession();
+            return !error && !!data.session && data.user?.app_metadata?.velo_wallet_verified === walletAddress?.toLowerCase();
         });
         return () => registerReauthProvider(null);
     }, [walletAddress]);
@@ -5269,102 +5207,28 @@ const App = () => {
         };
     }, []);
 
-    // Smart auth entry point — used by all "Log In" buttons in the UI.
-    // If the wallet is already connected, silently sign in with wallet credentials
-    // instead of reopening AppKit (which just shows the already-connected wallet info).
-    // Only open AppKit if there is no wallet connected at all.
+    // Login is explicit: connect a wallet, sign a one-use challenge, restore the same profile.
     const handleRequireAuth = async () => {
-        console.info('[velo:auth] requireAuth click → user:', !!user, '| walletConnected:', isWalletConnected, '| addr:', walletAddress?.slice(0,8));
-        if (user) { console.info('[velo:auth] already have user — no-op'); return; }
-        // ── GUARANTEED-OUTCOME CONTRACT ──────────────────────────────────────
-        // Clicking Sign in / Log In must ALWAYS produce a visible surface — never
-        // a silent no-op. The whole body is wrapped so a throw anywhere still
-        // lands on the always-rendering onboarding modal, and the no-wallet path
-        // has an AppKit-failure fallback to that same modal.
-        try {
-        // Clear any stale modal flags that may have left the app in a locked
-        // `modal-open` state (the cause of "clicking does absolutely nothing").
+        if (user) return;
+        intentionalLogoutRef.current = false;
+        window.__veloLogoutLock = false;
         setVeloWelcomeOpen(false);
-        if (isWalletConnected && walletAddress) {
-            console.info('[velo:auth] wallet connected, attempting silent re-auth…');
-            // Manual click — clear all guards so this always succeeds.
-            intentionalLogoutRef.current = false;
-            socialLoginHandledRef.current = false;
-            socialLoginHandledRef.current = true; // lock against concurrent calls
-            const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-            const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-            // Bounded retry so a transient blip on an expired-session re-auth
-            // doesn't bounce a returning user to onboarding (same rationale as
-            // the silent-login effect). Genuine "no account" (400) onboards.
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                    const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-                    if (data?.user && !signInErr) {
-                        const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-                        if (profile?.username) {
-                            console.info('[velo:auth] silent re-auth SUCCESS → restoring session for', profile.username);
-                            intentionalLogoutRef.current = false;
-                            sessionRestoredRef.current = true;
-                            if (!silentLoginCallbackRef.current) {
-                                // Hard fallback: callback not wired (shouldn't happen)
-                                console.error('[velo:auth] silentLoginCallbackRef is NULL — forcing reload to restore');
-                                window.location.reload();
-                                return;
-                            }
-                            silentLoginCallbackRef.current(data.user, profile);
-                            return;
-                        }
-                        console.info('[velo:auth] authed but no profile row → onboarding');
-                        break; // authed but no profile → onboarding
-                    }
-                    const msg = (signInErr?.message || '').toLowerCase();
-                    const status = (signInErr as any)?.status ?? (signInErr as any)?.code;
-                    const isNoAccount = status === 400 && msg.includes('invalid login credentials');
-                    if (isNoAccount) break; // genuine: never signed up
-                    if (attempt < 3) { await new Promise(r => setTimeout(r, attempt * 600)); continue; }
-                } catch (e: any) {
-                    if (attempt < 3) { await new Promise(r => setTimeout(r, attempt * 600)); continue; }
-                }
-                break;
+        try {
+            if (!isWalletConnected || !walletAddress) { await openAppKitModal(); return; }
+            socialLoginHandledRef.current = true;
+            const { data } = await signInWithWallet(walletAddress, signMessageAsync);
+            const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
+            if (error) throw error;
+            if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
+                sessionRestoredRef.current = true;
+                silentLoginCallbackRef.current?.(data.user, profile);
+            } else {
+                setLoginReturningName('');
+                setLoginOpen(true);
             }
-            console.info('[velo:auth] silent re-auth did not resolve → opening onboarding modal');
+        } catch (error: any) {
             socialLoginHandledRef.current = false;
-            setLoginReturningName('');
-            setLoginOpen(true);
-        } else {
-            console.info('[velo:auth] no wallet connected → opening AppKit (with fallback)');
-            // AppKit's open() can silently fail (provider mid-init, version
-            // quirks). Guarantee an outcome: if the wallet isn't connected
-            // shortly after, open our own onboarding modal so the button is
-            // NEVER dead.
-            let appkitOpened = false;
-            try {
-                const r: any = openAppKitModal();
-                if (r && typeof r.then === 'function') { await r; }
-                appkitOpened = true;
-            } catch (e: any) {
-                console.warn('[velo:auth] openAppKitModal threw → falling back to onboarding modal:', e?.message || e);
-            }
-            // Give AppKit a beat to actually paint / connect. If nothing
-            // happened (no modal, no connection), show our modal.
-            setTimeout(() => {
-                const connectedNow = !!walletConnectRef.current;
-                const appkitVisible = !!document.querySelector('w3m-modal, wcm-modal, appkit-modal, [data-appkit], w3m-router');
-                if (!connectedNow && !appkitVisible) {
-                    console.warn('[velo:auth] AppKit did not surface → opening onboarding modal fallback');
-                    setLoginReturningName('');
-                    setLoginOpen(true);
-                }
-            }, 600);
-            void appkitOpened;
-        }
-        } catch (err: any) {
-            // Last-resort guarantee: any unexpected throw still yields a visible
-            // auth surface instead of a dead click.
-            console.error('[velo:auth] requireAuth failed → opening onboarding modal:', err?.message || err);
-            socialLoginHandledRef.current = false;
-            setLoginReturningName('');
-            setLoginOpen(true);
+            setToast({ message: error?.shortMessage || error?.message || 'Unable to sign in. Please try again.', type: 'ERROR' });
         }
     };
     const handleLogout = async () => {
@@ -7236,7 +7100,7 @@ const App = () => {
                   const faucetRef = txHash ? `faucet:${txHash}` : `faucet:welcome:${user.id}`;
                   try {
                     await recordTransaction(user.id, 'DEPOSIT', amount, { onChain: !!txHash, txHash: faucetRef });
-                    await createNotification(user.id, 'DEPOSIT', `Welcome bonus: $${amount.toFixed(2)} mUSDC credited to your trading wallet`, txHash);
+                    await createNotification(user.id, 'DEPOSIT', `Welcome bonus: $${amount.toFixed(2)} mUSDC credited to your trading wallet`, txHash ?? undefined);
                     const txns = await fetchTransactions(user.id);
                     setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
                   } catch (e) {
@@ -7309,9 +7173,9 @@ const App = () => {
                 // Optimistically prepend the send to recent activity immediately
                 const optimisticTx = {
                   id: `send-${Date.now()}`,
-                  type: 'SEND',
+                  type: 'SEND' as const,
                   amount,
-                  status: 'COMPLETED',
+                  status: 'COMPLETED' as const,
                   timestamp: Date.now(),
                   on_chain: true,
                   tx_hash: txHash,
@@ -7378,7 +7242,7 @@ const App = () => {
                       : (user.username ? `@${user.username}` : 'a Velo user');
                     try {
                       await createNotificationForUser(
-                        recipientProfile.id,
+                        (recipientProfile as { id: string }).id,
                         'TRANSFER_RECEIVED',
                         `${fromLabel} sent you $${amount.toFixed(2)} mUSDC`,
                         txHash,
@@ -7389,7 +7253,7 @@ const App = () => {
                     }
                     try {
                       await recordTransactionForUser(
-                        recipientProfile.id,
+                        (recipientProfile as { id: string }).id,
                         'RECEIVE',
                         amount,
                         { txHash, onChain: true, counterparty: fromLabel },
@@ -7686,14 +7550,11 @@ const App = () => {
                                             side: data.side,
                                             action: data.action,
                                             size: data.size,
-                                            price: data.price,
                                             pnl: data.pnl,
-                                            fee: data.fee,
                                             timestamp: data.timestamp,
                                             leverage: data.leverage,
                                             entryPrice: data.entry_price,
                                             exitPrice: data.exit_price,
-                                            margin: data.margin,
                                         };
                                         setAppOrderDetails({ kind: 'HISTORY', item });
                                     } else {

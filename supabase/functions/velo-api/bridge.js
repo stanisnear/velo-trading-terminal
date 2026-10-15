@@ -1,6 +1,8 @@
 // Fetch <-> Vercel req/res adapter. All handlers require the private gateway token.
 import { tokenStatus } from '../_shared/auth.js';
 const methods = new Map([
+  ['record-transfer', ['POST']],
+  ['wallet-auth', ['POST']],
   ['sponsor-eth', ['POST', 'OPTIONS']],
   ['user-stats', ['GET', 'HEAD']],
   ['ga-stats', ['GET', 'HEAD']],
