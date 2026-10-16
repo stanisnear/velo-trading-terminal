@@ -6,7 +6,8 @@ export async function fetchPyth(url: string, signal?: AbortSignal): Promise<Resp
   if (!url.startsWith('/api/pyth/')) throw new Error('Invalid price-service route');
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Sign in to use live Pyth prices');
-  return fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` }, signal });
+  const requestSignal = url.includes('/stream?') ? signal : AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(18000)]);
+  return fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` }, signal: requestSignal });
 }
 
 export class PythEventStream {

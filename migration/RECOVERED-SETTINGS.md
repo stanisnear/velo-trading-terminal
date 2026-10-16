@@ -1,3 +1,5 @@
+> Historical migration record. Current status and security limitations: [15 October engineering audit](../docs/AUDIT-2026-10-15.md), [feature matrix](../FEATURES.md) and [operator guide](../CLOUDFLARE.md). Later changes supersede older verification claims.
+
 # Recovered settings
 
 Updated on 14 October 2026. These are verified/reconstructed configuration,

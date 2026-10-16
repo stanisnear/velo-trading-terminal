@@ -39,7 +39,7 @@ const VELO_STRIPE = 'var(--brand-gradient)';
 interface Props {
   isOpen: boolean; onClose: () => void;
   onOpenBridge?: () => void; onOpenUsername?: () => void; onOpenSend?: () => void;
-  profile?: { id?: string; email?: string; username?: string } | null;
+  profile?: { id?: string; email?: string; username?: string; veloWalletAddress?: string } | null;
   onEmailSaved?: (email: string) => void;
   /** Fired after a successful re-derive so the parent can hydrate the trading
       layer (burnerAddress) and persist the address — without a page refresh. */
@@ -74,7 +74,16 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
     setEmailSaved(false); setEmailError('');
     setEmailInput(profile?.email || '');
     if (ownerAddress) setBurner(loadStoredBurner(ownerAddress));
-  }, [isOpen, ownerAddress, profile]);
+  }, [isOpen, ownerAddress, profile?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !supabaseReady || !profile?.id) return;
+    let cancelled = false;
+    void Promise.resolve(supabase.rpc('get_my_contact_email')).then(({ data, error }) => {
+      if (!cancelled && !error && typeof data === 'string') setEmailInput(data);
+    }).catch(() => { /* Keep the form usable if the contact service is unavailable. */ });
+    return () => { cancelled = true; };
+  }, [isOpen, supabaseReady, profile?.id]);
 
   const { data: ownerEthData }  = useBalance({ address: ownerAddress, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });
   const { data: ownerUsdcData } = useReadContract({ address: USDC_BASE_SEPOLIA as `0x${string}`, abi: ERC20_BAL_ABI, functionName: 'balanceOf', args: ownerAddress ? [ownerAddress as `0x${string}`] : undefined, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });
@@ -120,7 +129,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
   const handleRederive = async () => {
     setBusy(true); setError('');
     try {
-      const b = await rederiveVeloBurner(ownerAddress as `0x${string}`, signMessageAsync as any);
+      const b = await rederiveVeloBurner(ownerAddress as `0x${string}`, signMessageAsync as any, profile?.veloWalletAddress);
       setBurner(b); setBusy(false);
       // Hydrate the parent app's trading layer (burnerAddress) + persist, so the
       // dashboard/trading work immediately without a page refresh.
@@ -296,7 +305,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                   <RefreshCw size={13} style={{ color:'var(--fg-muted)' }} />
                   <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const }}>Recover on this device</span>
                 </div>
-                <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>Sign once with your main wallet to re-derive your Velo wallet — useful on a new device or after clearing browser data.</p>
+                <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>Use the same owner wallet to attempt recovery. Keep a private-key backup: another wallet implementation may produce a different signature.</p>
                 <GhostBtn onClick={handleRederive} disabled={busy} style={{ opacity:busy?0.5:1, cursor:busy?'wait':'pointer' }}>
                   <RefreshCw size={11}/> {busy ? 'Waiting for signature…' : 'Re-derive from Main Wallet'}
                 </GhostBtn>

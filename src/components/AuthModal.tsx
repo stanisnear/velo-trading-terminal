@@ -1,3 +1,4 @@
+import { validateUsername as validateRegistryUsername } from '../services/usernameService';
 import { signInWithWallet } from '../services/walletAuth';
 // src/components/AuthModal.tsx
 // Apple-quality onboarding + MetaMask-style wallet UX
@@ -294,13 +295,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   }, [chainId, step, isOpen]);
 
-  const validateUsername = (v: string) => {
-    if (!v.trim()) return 'Username is required';
-    if (v.trim().length < 3) return 'Minimum 3 characters';
-    if (v.trim().length > 20) return 'Maximum 20 characters';
-    if (!/^[a-zA-Z0-9_]+$/.test(v.trim())) return 'Letters, numbers and underscores only';
-    return '';
-  };
+  const validateUsername = (v: string) => validateRegistryUsername(v.trim().toLowerCase()) || '';
 
   const advance = async () => {
     if (step === 'splash') { setStep('name'); return; }
@@ -340,7 +335,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleCreate = useCallback(async () => {
     if (!address) return;
-    const uname = username.trim();
+    const uname = username.trim().toLowerCase();
     setStep('creating'); setError('');
 
     const contactEmail = email.trim() || null;
@@ -587,9 +582,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </p>
               <Field
                 label="Username" value={username}
-                onChange={v => { setUsername(v); setFieldError(''); }}
+                onChange={v => { setUsername(v.toLowerCase()); setFieldError(''); }}
                 placeholder="e.g. alpha_trader" autoFocus error={fieldError}
-                hint="3–20 characters · letters, numbers, underscores"
+                hint="3–16 characters · start with a letter · lowercase, digits, underscores"
                 onKeyDown={e => e.key === 'Enter' && advance()}
               />
               {/* On-chain identity note — the handle is registered in the

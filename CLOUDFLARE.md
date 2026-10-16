@@ -1,6 +1,6 @@
 # VELO hosting and update guide
 
-**14 October 2026: the terminal's custom domain is active on Cloudflare Pages.
+**15 October 2026: the terminal's custom domain is active on Cloudflare Pages.
 The minute trading jobs and gas sponsorship are enabled after the owner paused
 Vercel.** Open https://app.velotrading.live. See
 [migration/STATUS.md](migration/STATUS.md) for transaction evidence and the
@@ -63,7 +63,7 @@ A failed build leaves the previous successful version online. Read its build
 log; do not repeatedly redeploy an unchanged failing commit.
 
 The landing uses its separate **Velo-Landing** repository and Pages project.
-This migration does not publish the cancelled landing-page upload.
+The landing also deploys `codex/cloudflare-migration`. Its `/docs` page and README now describe the current architecture and restricted feature status. This documentation update does not republish the previously cancelled landing-page design upload.
 
 ## Backend and Worker updates are separate
 
@@ -166,6 +166,28 @@ timer is not proof that an individual order filled: verify its transaction hash.
 - Check Cloudflare and Supabase usage dashboards as traffic grows. Free hosting
   has quotas; it is not unlimited infrastructure or a trading uptime guarantee.
 
-Optional Google Analytics remains unconfigured. Existing cross-user social and
-activity RPC authorization needs separate hardening before treating this testnet
-app as production financial infrastructure. See migration/KNOWN-ISSUES.md.
+Optional Google Analytics remains unconfigured. Legacy account/social authorization and contract accounting remain release blockers. See [the current engineering audit](docs/AUDIT-2026-10-15.md).
+
+## October account/security release
+
+Signature login is deployed in `velo-api` v9. Challenges are short-lived and single-use; the app preserves the existing wallet user's identity. Private contact APIs and owner-only notification reads are live. Global legacy password/session retirement and historical public-email removal are **not** applied. The broad pending plan lives outside automatic SQL migrations in `audit-plans/`.
+
+A Git commit does not apply database migrations. Reconcile the live migration ledger before any SQL change; do not run all SQL files blindly against the existing database. Never run the pending account/social plan without the documented staging checks and owner approval.
+
+The terminal build now includes `npm run typecheck`. For local review use `npm run typecheck`, `npm test` and `npm run build`. When rolling back, preserve compatibility with the deployed signature-login backend: do not restore the old password-derived login or weaker data access. A Pages rollback cannot undo account changes or replace an immutable contract.
+
+## Daily five-minute check
+
+1. Open both custom domains and the docs page; confirm the expected deployment commit is successful in Pages.
+2. Check scheduler results for all three jobs, recent timestamps, errors and backlog. A successful scan with zero executions can be normal; inspect an individual transaction receipt when investigating a fill.
+3. Check Pyth access/expiry, recent feed timestamps, RPC availability and the keeper/sponsor gas balance. Do not fund with real assets.
+4. Check Supabase errors and Cloudflare/Supabase quota dashboards. Record incidents and disable affected new actions if correctness is uncertain; understand that stopping keepers stops protective execution too.
+5. Before sharing a wider invitation, review the audit's P0 gates. Current UI restrictions are containment, not a contract repair.
+
+## Login, cache and session behavior
+
+Public posts, profiles and fills load independently of wallet login. Public cached results last at most five minutes and refresh from Supabase. Failed fills show Retry; a successful zero-row query shows an empty state. Clearing cookies/cache should not be a normal login step.
+
+Log In connects the owner wallet if needed and requests a one-use signature. Sign Out clears the app session while preserving the local trading-wallet backup and owner connector. After 30 minutes without activity the app signs out, warning during the last minute; eight hours requires a new sign-in regardless of activity. This does not close positions or stop keepers. Browser key storage is still plaintext: the session lock is not a secure key vault.
+
+Wallet settings keep key confirmation/reveal open across price/profile refreshes. Recovery checks the expected address before replacing a stored key; cancel or mismatch leaves the previous key intact. Keep a secure backup and never paste it into support chats.

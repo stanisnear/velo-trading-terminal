@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { supabase } from '@/services/supabaseStore';
+import { supabase, publicSupabase } from '@/services/supabaseStore';
 import { pythPriceStream } from '@/services/pythPriceService';
 
 /**
@@ -66,73 +66,58 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
   const [orders, setOrders] = useState<{ side: 'LONG' | 'SHORT'; price: number; size: number }[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reload, setReload] = useState(0);
   const seen = useRef<Set<string>>(new Set());
 
-  // Load + stream real fills. Wrapped so a thrown query can NEVER leave the
-  // panel stuck on "Loading fills…" — loading always resolves.
+  // Public reads do not depend on authentication. Errors never masquerade as
+  // an empty market, and reconnect/focus/poll fill gaps missed by Realtime.
   useEffect(() => {
     let active = true;
-    seen.current = new Set();
-    setLoading(true);
-    setFills([]);
-
-    // Hard watchdog: clear the loading state no matter what.
-    const watchdog = setTimeout(() => { if (active) setLoading(false); }, 6000);
-
-    (async () => {
+    let reading = false;
+    const flashes = new Set<ReturnType<typeof setTimeout>>();
+    const controller = new AbortController();
+    seen.current = new Set(); setLoading(true); setFills([]); setLoadError('');
+    const refresh = async () => {
+      if (!active || reading) return;
+      reading = true;
+      const requestedAt = Date.now();
       try {
-        const { data, error } = await supabase
-          .from('trade_history')
+        const { data, error } = await publicSupabase.from('trade_history')
           .select('id,pair,side,entry_price,exit_price,size,action,created_at')
-          .eq('pair', pair)
-          .order('created_at', { ascending: false })
-          .limit(40);
+          .eq('pair', pair).order('created_at', { ascending: false }).limit(60)
+          .abortSignal(controller.signal);
         if (!active) return;
-        let rows = data;
-        // If the SDK call returned nothing or errored — which happens when the
-        // session JWT is stale/expired in a half-auth state — fall back to a
-        // direct REST read with the public anon key. trade_history is public,
-        // so the tape must render regardless of login state.
-        if (error || !rows || rows.length === 0) {
-          if (error) console.warn('[velo] fills SDK error, trying REST fallback:', error.message);
-          try {
-            const base = (import.meta as any).env?.VITE_SUPABASE_URL || 'https://btgfoekgvyvdflzjfehz.supabase.co';
-            const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (supabase as any)?.supabaseKey;
-            if (key) {
-              const url = `${base}/rest/v1/trade_history?select=id,pair,side,entry_price,exit_price,size,action,created_at&pair=eq.${encodeURIComponent(pair)}&order=created_at.desc&limit=40`;
-              const resp = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-              if (resp.ok) rows = await resp.json();
-            }
-          } catch (fe: any) { console.warn('[velo] fills REST fallback failed:', fe?.message || fe); }
-        }
+        if (error) throw error;
+        const mapped = (data || []).map(r => rowToFill(r)).filter(Boolean) as Fill[];
+        setFills(prev => {
+          const merged = [...new Map([...prev.filter(f => f.ts > requestedAt), ...mapped].map(f => [f.id, f])).values()]
+            .sort((a, b) => b.ts - a.ts).slice(0, 60);
+          seen.current = new Set(merged.map(f => f.id));
+          return merged;
+        });
+        setLoadError('');
+      } catch { if (active) setLoadError('Unable to refresh fills. Check your connection and retry.'); }
+      finally { reading = false; if (active) setLoading(false); }
+    };
+    void refresh();
+    const channel = publicSupabase.channel(`public_fills_${pair}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trade_history', filter: `pair=eq.${pair}` }, payload => {
         if (!active) return;
-        const mapped = (rows || []).map((r: any) => rowToFill(r)).filter(Boolean) as Fill[];
-        mapped.forEach(f => seen.current.add(f.id));
-        setFills(mapped);
-      } catch (e: any) {
-        console.warn('[velo] fills load threw:', e?.message || e);
-      } finally {
-        if (active) setLoading(false);   // ← always clears
-        clearTimeout(watchdog);
-      }
-    })();
-
-    let ch: any = null;
-    try {
-      ch = supabase
-        .channel(`fills_${pair}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trade_history', filter: `pair=eq.${pair}` }, (payload: any) => {
-          const f = rowToFill(payload.new, true);
-          if (!f || seen.current.has(f.id)) return;
-          seen.current.add(f.id);
-          setFills(prev => [f, ...prev].slice(0, 60));
-          setTimeout(() => setFills(prev => prev.map(x => x.id === f.id ? { ...x, flash: false } : x)), 700);
-        })
-        .subscribe();
-    } catch (e: any) { console.warn('[velo] fills realtime failed:', e?.message || e); }
-
-    return () => { active = false; clearTimeout(watchdog); if (ch) supabase.removeChannel(ch); };
-  }, [pair]);
+        const fill = rowToFill(payload.new, true);
+        if (!fill || seen.current.has(fill.id)) return;
+        seen.current.add(fill.id); setFills(prev => [fill, ...prev].slice(0, 60));
+        const timer = setTimeout(() => { flashes.delete(timer); if (active) setFills(prev => prev.map(f => f.id === fill.id ? { ...f, flash: false } : f)); }, 700);
+        flashes.add(timer);
+      }).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trade_history', filter: `pair=eq.${pair}` }, () => void refresh())
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'trade_history' }, () => void refresh())
+      .subscribe(status => { if (status === 'SUBSCRIBED') void refresh(); });
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    const timer = setInterval(onVisible, 30_000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
+    return () => { active = false; controller.abort(); clearInterval(timer); flashes.forEach(clearTimeout); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible); void publicSupabase.removeChannel(channel); };
+  }, [pair, reload]);
 
   // Load real resting orders for the Book view. Prefer the live in-app
   // openOrders (exactly what the OPEN ORDERS panel shows — guaranteed to match,
@@ -199,12 +184,12 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
   const Tabs = (
     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
       {(['trades', 'depth', 'book'] as const).map(v => (
-        <button key={v} onClick={() => setView(v)} style={{
+        <button key={v} title={v === 'depth' ? 'Recent reported fills grouped by price; not executable market liquidity' : v === 'book' ? 'Conditional orders; not a matching-engine order book' : 'Reported testnet trading activity'} onClick={() => setView(v)} style={{
           background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 3px',
           fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
           color: view === v ? 'var(--fg)' : 'var(--fg-subtle)',
           borderBottom: view === v ? '1.5px solid var(--accent)' : '1.5px solid transparent',
-        }}>{v === 'trades' ? 'Trades' : v === 'depth' ? 'Depth' : 'Book'}</button>
+        }}>{v === 'trades' ? 'Trades' : v === 'depth' ? 'Volume' : 'Orders'}</button>
       ))}
     </div>
   );
@@ -252,14 +237,15 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
         <span style={{ flex: 1, textAlign: 'right' }}>{view === 'trades' ? 'Time' : 'Total'}</span>
       </div>
 
+      {loadError && <div role="status" style={{ padding: '8px 12px', fontSize: 11, color: 'var(--fg-muted)' }}>{loadError} <button onClick={() => setReload(x => x + 1)}>Retry</button></div>}
       <div style={{ flex: 1, minHeight: 0, overflowY: view === 'trades' && showAllFills ? 'auto' : 'hidden', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
         {view === 'trades' ? (
           loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 11 }}>Loading fills…</div>
-          ) : fills.length === 0 ? (
+          ) : fills.length === 0 && loadError ? null : fills.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 10, textAlign: 'center', padding: '0 16px' }}>
               <span style={{ fontWeight: 700 }}>No fills yet</span>
-              <span style={{ opacity: 0.7 }}>Live {pair} trades will stream here as they happen on Velo.</span>
+              <span style={{ opacity: 0.7 }}>No reported {pair} trades were returned. This is public testnet activity.</span>
             </div>
           ) : (showAllFills ? fills : fills.slice(0, rows)).map((f) => {
             const buy = isBuy(f);
@@ -277,7 +263,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
           fills.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 10, textAlign: 'center', padding: '0 16px' }}>
               <span style={{ fontWeight: 700 }}>No flow yet</span>
-              <span style={{ opacity: 0.7 }}>Depth builds from real {pair} fills.</span>
+              <span style={{ opacity: 0.7 }}>Volume groups recent reported {pair} fills.</span>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

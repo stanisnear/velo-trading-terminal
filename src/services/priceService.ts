@@ -200,7 +200,7 @@ export interface KlineCandle {
 async function fetchBinancePage(symbol: string, interval: string, limit: number, endTime?: number): Promise<any[][]> {
   const params = new URLSearchParams({ symbol: symbol.toUpperCase(), interval, limit: String(limit) });
   if (endTime !== undefined) params.set('endTime', String(endTime));
-  const res = await fetch(`https://api.binance.com/api/v3/klines?${params}`);
+  const res = await fetch(`https://api.binance.com/api/v3/klines?${params}`, { signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -220,7 +220,8 @@ export async function fetchKlines(pairId: string, tf = '1H'): Promise<KlineCandl
   const binanceSym = BINANCE_SYMBOLS[pairId];
   if (!binanceSym) return [];
 
-  const { interval, history } = TF_TO_BINANCE[tf] ?? TF_TO_BINANCE['1H'];
+  const { interval, history: requestedHistory } = TF_TO_BINANCE[tf] ?? TF_TO_BINANCE['1H'];
+  const history = Math.min(requestedHistory, 300);
 
   try {
     const pages: any[][] = [];

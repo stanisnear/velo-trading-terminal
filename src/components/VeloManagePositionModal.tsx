@@ -65,7 +65,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
       setTp(position.takeProfit && position.takeProfit > 0 ? String(position.takeProfit) : '');
       setSl(position.stopLoss   && position.stopLoss   > 0 ? String(position.stopLoss)   : '');
     }
-  }, [isOpen, position, initialTab]);
+  }, [isOpen, position?.id, initialTab]);
 
   if (!isOpen && !closing) return null;
   if (!position) return null;
@@ -78,7 +78,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
   const pnlPct      = entryValid && collateral > 0 ? (pnl / collateral) * 100 : 0;
   const tradeId     = position.onChainTradeId ? BigInt(position.onChainTradeId) : 0n;
   const isV1        = !position.onChain || tradeId === 0n;
-  const ok          = IS_V2 && !isV1;
+  const ok          = IS_V2 && !isV1 && !(error && lastTx);
 
   // TP/SL expected PnL previews
   const tpNum = parseFloat(tp) || 0;
@@ -139,6 +139,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
         dismiss(2600);
       }
     } catch (e: any) {
+      if (e?.txHash) setLastTx(e.txHash);
       setError(e?.shortMessage || e?.message || 'Action failed');
     } finally {
       setBusy(false);
@@ -305,7 +306,7 @@ export const VeloManagePositionModal: React.FC<Props> = ({
               {lastTx && !success && (
                 <div style={{ marginBottom:14, padding:'10px 14px', borderRadius:14, background:'oklch(0.78 0.18 150 / 0.08)', border:'1px solid oklch(0.78 0.18 150 / 0.25)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <span style={{ ...S.mono, fontSize:11, color:'var(--pnl-up)', display:'flex', alignItems:'center', gap:6 }}>
-                    <CheckCircle2 size={13}/> Confirmed on-chain
+                    <AlertCircle size={13}/> {error ? 'Submitted — confirmation pending' : 'Confirmed on-chain'}
                   </span>
                   <a href={baseScanTxUrl(lastTx)} target="_blank" rel="noopener noreferrer"
                     style={{ ...S.mono, fontSize:10, color:'var(--accent)', textDecoration:'none', display:'flex', alignItems:'center', gap:4 }}>

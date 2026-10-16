@@ -33,7 +33,7 @@ export const wagmiAdapter = new WagmiAdapter({
   networks: [...networks],
   projectId,
   transports: {
-    [baseSepolia.id]:     http(BASE_RPC),
+    [baseSepolia.id]:     http(BASE_RPC, { batch: { wait: 20 }, timeout: 12000, retryCount: 0 }),
     [arbitrumSepolia.id]: http(ARB_RPC),
     [optimismSepolia.id]: http(OP_RPC),
     [sepolia.id]:         http(ETH_RPC),

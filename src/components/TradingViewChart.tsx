@@ -1,3 +1,4 @@
+import { pythPriceStream } from '../services/pythPriceService';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
@@ -1173,6 +1174,11 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   useEffect(() => {
     const series = seriesRef.current;
     if (!series || !isLivePrice || !Number.isFinite(currentPrice) || currentPrice <= 0) return;
+    // An oracle mark must not rewrite exchange candles, or use stale fallback ticks.
+    const meta = pythPriceStream.getMeta(pairName);
+    if (initialData[0]?.source !== 'pyth' || !meta || Date.now() / 1000 - meta.publishTime > 30) return;
+    // Calendar bars are not fixed-duration Unix buckets.
+    if (externalTimeframe === '1M' || externalTimeframe === '1W') return;
     const nextPrecision = currentPrice < 1 ? 6 : currentPrice < 100 ? 4 : 2;
     if (pricePrecisionRef.current !== nextPrecision) {
       const priceFormat = { type: 'price' as const, precision: nextPrecision, minMove: 10 ** -nextPrecision };
@@ -1220,7 +1226,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     } else {
       series.update({ ...candle, time: candle.time as Time });
     }
-  }, [currentPrice, externalChartStyle, isLivePrice, timeframeSeconds]);
+  }, [currentPrice, externalChartStyle, isLivePrice, timeframeSeconds, pairName, initialData, externalTimeframe]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -1258,7 +1264,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       {initialData.length > 0 && (
         <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: isDark ? 'rgba(10,14,12,0.82)' : 'rgba(237,242,238,0.92)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: isLivePrice ? candleUp : foreground, opacity: isLivePrice ? 1 : 0.65 }} />
-          {historySource}{isLivePrice ? ' · live mark' : ''}
+          {historySource}{isLivePrice && initialData[0]?.source === 'pyth' ? ' · mark updates when fresh' : ''}
         </div>
       )}
       {isLoadingOlder && (

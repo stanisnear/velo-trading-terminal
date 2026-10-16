@@ -1,3 +1,5 @@
+> Historical migration record. Current status and security limitations: [15 October engineering audit](../docs/AUDIT-2026-10-15.md), [feature matrix](../FEATURES.md) and [operator guide](../CLOUDFLARE.md). Later changes supersede older verification claims.
+
 # Migration status — 14 October 2026
 
 **Cloudflare handover activated. The app domain is active, automatic frontend

@@ -638,7 +638,7 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
     };
     const hide = () => {
         if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
-        hideTimer.current = setTimeout(() => setRect(null), 100);
+        hideTimer.current = setTimeout(() => setRect(null), 250);
     };
 
     React.useEffect(() => () => {
@@ -654,7 +654,7 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
         <span ref={triggerRef}
             style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'help' }}
             onMouseEnter={show}
-            onMouseLeave={hide}>
+            onMouseLeave={hide} tabIndex={0} onFocus={show} onBlur={hide} onKeyDown={e => { if (e.key === 'Escape') setRect(null); }}>
             {label}
             {rect && ReactDOM.createPortal(
                 <div

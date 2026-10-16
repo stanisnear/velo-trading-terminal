@@ -1,3 +1,4 @@
+import { validateUsername as validateRegistryUsername } from '../services/usernameService';
 import { signInWithWallet } from '../services/walletAuth';
 // VeloOnboardingModal — new-user registration only.
 //
@@ -282,18 +283,12 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     if (step === 'REVIEW') { setStep('EMAIL'); return; }
   };
 
-  const validateHandle = (v: string) => {
-    if (!v.trim()) return 'Username is required';
-    if (v.trim().length < 3) return 'Minimum 3 characters';
-    if (v.trim().length > 20) return 'Maximum 20 characters';
-    if (!/^[a-zA-Z0-9_]+$/.test(v.trim())) return 'Letters, numbers and underscores only';
-    return '';
-  };
+  const validateHandle = (v: string) => validateRegistryUsername(v.trim().toLowerCase()) || '';
 
   // ── Account creation ──────────────────────────────────────────────────────
   const handleCreate = useCallback(async () => {
     if (!address || !walletClient || !publicClient) return;
-    const uname = username.trim();
+    const uname = username.trim().toLowerCase();
     const contactEmail = email.trim() || null;
     setGlobalError('');
     flowAbortedRef.current = false;
@@ -510,7 +505,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 This is how you'll appear on leaderboards, the social feed, and copy trading rankings.
               </p>
               {address && <WalletPill address={address} />}
-              <Field label="Username" value={username} onChange={v => { setUsername(v); setFieldError(''); }} placeholder="e.g. alpha_trader" autoFocus error={fieldError} hint="3–20 chars · letters, numbers, underscores" onKeyDown={e => e.key === 'Enter' && advance()} />
+              <Field label="Username" value={username} onChange={v => { setUsername(v.toLowerCase()); setFieldError(''); }} placeholder="e.g. alpha_trader" autoFocus error={fieldError} hint="3–16 chars · start with a letter · lowercase, digits, underscores" onKeyDown={e => e.key === 'Enter' && advance()} />
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 13px', borderRadius: 12, background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 15%, transparent)' }}>
                 <span style={{ color: 'var(--accent)', fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, lineHeight: 1.4, flexShrink: 0, marginTop: 1 }}>@</span>
                 <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>Your handle is registered <span style={{ color: 'var(--accent)', fontWeight: 700 }}>on-chain</span> in the Velo Name Registry and tied permanently to your wallet.</p>

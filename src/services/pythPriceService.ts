@@ -1,3 +1,4 @@
+import { firstChartPage } from './firstChartPage.mjs';
 /**
  * pythPriceService — single source of truth for displayed prices.
  *
@@ -318,7 +319,7 @@ const RESOLUTION_SECONDS: Record<string, number> = {
 };
 
 const PYTH_PAGE_CANDLES = 500;
-const INITIAL_HISTORY_CANDLES = 2000;
+const INITIAL_HISTORY_CANDLES = 300;
 const PYTH_MAX_HISTORY_SECONDS = 5 * 366 * 24 * 60 * 60;
 
 function parsePythHistory(data: any): KlineCandle[] {
@@ -344,7 +345,7 @@ function parsePythHistory(data: any): KlineCandle[] {
 async function fetchPythHistoryRange(symbol: string, resolution: string, from: number, to: number): Promise<KlineCandle[]> {
   const url = '/api/pyth/history'
     + `?symbol=${encodeURIComponent(symbol)}&resolution=${resolution}&from=${from}&to=${to}`;
-  const res = await fetchPyth(url);
+  const res = await fetchPyth(url, AbortSignal.timeout(8000));
   if (!res.ok) throw new Error(`Benchmarks ${res.status}`);
   return parsePythHistory(await res.json());
 }
@@ -385,39 +386,35 @@ function pythHistoryConfig(tf: string) {
  * real public exchange candles for signed-out/unavailable states. The caller
  * can label the source so exchange candles are never mistaken for the mark.
  */
-export async function fetchPythKlines(pairId: string, tf = '1H'): Promise<KlineCandle[]> {
-  const symbol = benchmarksSymbol(pairId);
-  if (!symbol) return [];
-
-  const { resolution, sourceSeconds, targetSeconds, barsPerTarget, pageCandles } = pythHistoryConfig(tf);
-  const to = Math.floor(Date.now() / 1000);
-  const maxFrom = to - PYTH_MAX_HISTORY_SECONDS;
-  const availableSourceCandles = Math.floor((to - maxFrom) / sourceSeconds);
-  const sourceCount = Math.floor(Math.min(INITIAL_HISTORY_CANDLES, availableSourceCandles) / barsPerTarget) * barsPerTarget;
-  const ranges: Array<{ from: number; to: number }> = [];
-  let cursor = to;
-  let remaining = sourceCount;
-  while (remaining > 0) {
-    const count = Math.min(pageCandles, remaining);
-    const from = cursor - sourceSeconds * count;
-    ranges.push({ from, to: cursor });
-    cursor = from;
-    remaining -= count;
-  }
-
-  try {
-    const pages = await Promise.allSettled(ranges.map(range => fetchPythHistoryRange(symbol, resolution, range.from, range.to)));
-    if (pages.every(page => page.status === 'fulfilled')) {
-      const sourceCandles = pages.flatMap(page => page.status === 'fulfilled' ? page.value : []);
-      const unique = [...new Map(sourceCandles.map(candle => [candle.time, candle])).values()].sort((a, b) => a.time - b.time);
-      if (unique.length) return targetSeconds > sourceSeconds ? aggregateCandles(unique, targetSeconds) : unique;
-    }
-  } catch (e) {
-    // Public exchange history below keeps the chart useful while signed out or
-    // when the authenticated oracle history service is temporarily unavailable.
-  }
-  const fallback = await fetchKlines(pairId, tf);
-  return fallback.map(candle => ({ ...candle, source: 'exchange' as const }));
+const historyCache = new Map<string, { at: number; rows: KlineCandle[] }>();
+const historyRequests = new Map<string, Promise<KlineCandle[]>>();
+export async function fetchPythKlines(pairId: string, tf = '1H', options: { authenticated?: boolean; force?: boolean } = {}): Promise<KlineCandle[]> {
+  const key = `${pairId}:${tf}:${options.authenticated !== false}`;
+  const cached = historyCache.get(key);
+  if (!options.force && cached && Date.now() - cached.at < 30000) return cached.rows;
+  if (historyRequests.has(key)) return historyRequests.get(key)!;
+  const fallback = async () => (await fetchKlines(pairId, tf)).map(c => ({ ...c, source: 'exchange' as const }));
+  const primary = async () => {
+    const symbol = benchmarksSymbol(pairId);
+    if (!symbol) return [];
+    const { resolution, sourceSeconds, targetSeconds, barsPerTarget } = pythHistoryConfig(tf);
+    const to = Math.floor(Date.now() / 1000);
+    const count = Math.floor(Math.min(INITIAL_HISTORY_CANDLES, PYTH_MAX_HISTORY_SECONDS / sourceSeconds - 1) / barsPerTarget) * barsPerTarget;
+    if (count < 1) return [];
+    const rows = await fetchPythHistoryRange(symbol, resolution, to - sourceSeconds * count, to);
+    const unique = [...new Map(rows.map(c => [c.time, c])).values()].sort((a,b) => a.time-b.time);
+    return targetSeconds > sourceSeconds ? aggregateCandles(unique, targetSeconds) : unique;
+  };
+  const request = (options.authenticated === false ? fallback() : firstChartPage(primary, fallback))
+    .then(rows => {
+      if (rows.length) {
+        if (historyCache.size >= 32) historyCache.delete(historyCache.keys().next().value!);
+        historyCache.set(key, { at: Date.now(), rows });
+      }
+      return rows;
+    }).finally(() => historyRequests.delete(key));
+  historyRequests.set(key, request);
+  return request;
 }
 
 export async function fetchOlderPythKlines(
