@@ -1,4 +1,5 @@
 import { boundedFetch } from './sessionLifecycle.mjs';
+import { createCommentWriter } from './commentPersistence.mjs';
 /**
  * supabaseStore.ts
  * ─────────────────────────────────────────────────────────────────
@@ -295,13 +296,15 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
   if (!posts || posts.length === 0) return [];
   const postIds = posts.map((p: any) => p.id);
 
-  const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }] = await Promise.all([
+  const results = await Promise.all([
     publicSupabase.from('likes').select('post_id, user_id').in('post_id', postIds),
     publicSupabase.from('comments')
       .select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(username, handle, avatar_url)')
       .in('post_id', postIds).order('created_at', { ascending: true }),
     publicSupabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
   ]);
+  if (results.some(result => result.error)) throw new Error('Could not load this conversation. Please retry.');
+  const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }] = results;
 
   // Comment likes — fetched after comments since we need their ids. Soft-fails
   // to an empty set on DBs where the comment_likes table isn't migrated yet,
@@ -382,7 +385,8 @@ export async function fetchPostById(postId: string): Promise<Post | null> {
     .select('*, profiles!author_id(username, handle, avatar_url)')
     .eq('id', postId)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error) throw new Error('Could not load this post. Please retry.');
+  if (!data) return null;
   const [post] = await _enrichPosts([data]);
   return post || null;
 }
@@ -434,13 +438,13 @@ export async function toggleRepost(userId: string, postId: string) {
   return { reposted: true };
 }
 
+const commentFields = 'id, post_id, author_id, content, created_at, parent_id';
+const writeComment = createCommentWriter(
+  row => supabase.from('comments').upsert(row, { onConflict: 'id', ignoreDuplicates: true }).select(commentFields).maybeSingle(),
+  id => publicSupabase.from('comments').select(commentFields).eq('id', id).maybeSingle(),
+);
 export async function addComment(postId: string, authorId: string, content: string, parentId?: string | null) {
-  const { data, error } = await supabase
-    .from('comments')
-    .insert({ post_id: postId, author_id: authorId, content, parent_id: parentId || null })
-    .select('id, post_id, author_id, content, created_at, parent_id')
-    .single();
-  return { data, error: error?.message || null };
+  return writeComment({ postId, authorId, content, parentId: parentId || null });
 }
 
 /** Toggle a like on a COMMENT (Twitter-style). Mirrors toggleLike for posts. */

@@ -15,6 +15,7 @@ The engineering review found serious contract accounting and legacy account-auth
 | [CLOUDFLARE.md](CLOUDFLARE.md) | Publish updates, manage secrets, monitor jobs and recover deployments |
 | [FEATURES.md](FEATURES.md) | Implemented, restricted, unverified and planned features |
 | [docs/AUDIT-2026-10-15.md](docs/AUDIT-2026-10-15.md) | Findings, evidence, test coverage and release gates |
+| [docs/RELIABILITY-2026-10-16.md](docs/RELIABILITY-2026-10-16.md) | Close-request recovery, shared replies and comment database integrity |
 | [contracts/README.md](contracts/README.md) | Contract addresses, accounting defects and reproduction tests |
 | [audit-plans/README.md](audit-plans/README.md) | Unapplied account/social cutover and its approval requirements |
 | [migration/STATUS.md](migration/STATUS.md) | Historical hosting migration and transaction evidence |

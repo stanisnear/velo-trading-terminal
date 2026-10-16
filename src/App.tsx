@@ -50,6 +50,8 @@ import { ProfileHeader } from './components/social/ProfileHeader';
 import { PostCard, LinkPreviewCard, renderContentWithMentions, extractFirstUrl, COMMENT_LIKE_HANDLER, setCommentLikeHandler } from './components/social/PostCard';
 import { LeaderboardView } from './components/ui/pages/LeaderboardView';
 import { Navbar, MobileSidebar, MobileBottomNav } from './components/Navigation';
+import { useSharedPost } from './services/useSharedPost';
+import { withoutCommentBranch } from './services/commentPersistence.mjs';
 import { EditProfileModal, DeletePostConfirmModal, UsersListModal, LoginModal, EditPositionModal, ResetPasswordModal } from './components/Modals';
 import { formatTime, ToastNotification, GlassCard, Button, Input, VeloAssetIcon } from './components/ui/shared';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
@@ -1072,19 +1074,9 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 };
 
 // ─── Single Post View (like Twitter /status/:id) ────────────────────────────
-const SinglePostView = ({ postId, commentId, posts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
-    const [fetchedPost, setFetchedPost] = useState<any>(null);
-    const post = posts.find((p: any) => p.id === postId) || fetchedPost;
-
-    useEffect(() => {
-        let active = true;
-        setFetchedPost(null);
-        if (posts.some((p: any) => p.id === postId)) return;
-        fetchPostById(postId).then(result => {
-            if (active && result) setFetchedPost(result);
-        }).catch(error => console.warn('[velo] shared post lookup failed:', error));
-        return () => { active = false; };
-    }, [postId]);
+const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
+    const shared = useSharedPost(postId, commentId, post => setPosts((prev: Post[]) => [...prev.filter(p => p.id !== post.id), post]));
+    const post = shared.status === 'ready' ? (posts.find((p: Post) => p.id === postId) || shared.post) : null;
 
     // Update page title and OG meta for this post
     useEffect(() => {
@@ -1100,6 +1092,14 @@ const SinglePostView = ({ postId, commentId, posts, user, traders, onLike, onRep
         display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
+
+    if (shared.status === 'loading' || shared.status === 'error') return (
+        <div role="status" style={{ maxWidth: 620, margin: '80px auto', textAlign: 'center' }}>
+            <p>{shared.status === 'loading' ? 'Loading conversation…' : 'Could not load this conversation. Check your connection and retry.'}</p>
+            {shared.status === 'error' && <button onClick={shared.retry}>Retry</button>}
+            <button onClick={onBack}>Back to feed</button>
+        </div>
+    );
 
     if (!post) return (
         <div style={{ maxWidth: 620, margin: '80px auto', textAlign: 'center', padding: '0 24px' }}>
@@ -3794,66 +3794,7 @@ const App = () => {
         // ── One-shot post loader ───────────────────────────────────────────
         const loadPosts = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('posts')
-                    .select('*, profiles!author_id(username, handle, avatar_url)')
-                    .order('created_at', { ascending: false })
-                    .limit(50);
-                if (error || !data) return;
-
-                const postIds = data.map((p: any) => p.id);
-                const [{ data: likesData }, { data: commentsData }, { data: repostsData }] = await Promise.all([
-                    publicSupabase.from('likes').select('post_id, user_id').in('post_id', postIds),
-                    publicSupabase.from('comments').select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(handle, avatar_url)').in('post_id', postIds).order('created_at', { ascending: true }),
-                    publicSupabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
-                ]);
-                // Comment likes (soft-fails to empty if table not migrated yet)
-                const cIds = (commentsData || []).map((c: any) => c.id);
-                let clData: any[] = [];
-                if (cIds.length > 0) {
-                    const { data: cl, error: clErr } = await publicSupabase.from('comment_likes').select('comment_id, user_id').in('comment_id', cIds);
-                    if (!clErr && cl) clData = cl;
-                }
-                const cLikesMap: Record<string, string[]> = {};
-                clData.forEach((cl: any) => { (cLikesMap[cl.comment_id] ||= []).push(cl.user_id); });
-
-                const likesMap:   Record<string, string[]>  = {};
-                const commentsMap: Record<string, any[]>    = {};
-                const repostsMap:  Record<string, string[]> = {};
-
-                (likesData   || []).forEach((l: any) => { (likesMap[l.post_id]   ||= []).push(l.user_id); });
-                (repostsData || []).forEach((r: any) => { (repostsMap[r.post_id] ||= []).push(r.user_id); });
-                (commentsData || []).forEach((c: any) => {
-                    (commentsMap[c.post_id] ||= []).push({
-                        id: c.id, authorId: c.author_id,
-                        authorHandle: c.profiles?.handle   || '@unknown',
-                        authorAvatar: c.profiles?.avatar_url || '',
-                        content: c.content, timestamp: c.created_at,
-                        parentId: c.parent_id || null,
-                        likes:   (cLikesMap[c.id] || []).length,
-                        likedBy:  cLikesMap[c.id] || [],
-                    });
-                });
-
-                const dbPosts = data.map((p: any) => ({
-                    id: p.id,
-                    authorId: p.author_id,
-                    authorHandle: p.profiles?.handle     || '@unknown',
-                    authorAvatar: p.profiles?.avatar_url || '',
-                    content: p.content,
-                    image: p.image_url,
-                    timestamp: p.created_at,
-                    likes:      (likesMap[p.id]   || []).length,
-                    reposts:    (repostsMap[p.id] || []).length,
-                    likedBy:     likesMap[p.id]   || [],
-                    repostedBy:  repostsMap[p.id] || [],
-                    comments:    commentsMap[p.id] || [],
-                    isTradeSignal: p.is_trade_signal,
-                    targetProfileId: p.target_profile_id || undefined,
-                    tradeDetails: p.is_trade_signal
-                        ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry }
-                        : undefined,
-                }));
+                const dbPosts = await fetchPosts(50);
 
                 if (!mounted) return;
                 setPosts(prev => {
@@ -4024,7 +3965,7 @@ const App = () => {
                     setPosts(prev => prev.map(p => {
                         const hit = p.comments.some((c: any) => c.id === del.id || c.parentId === del.id);
                         if (!hit) return p;
-                        return { ...p, comments: p.comments.filter((c: any) => c.id !== del.id && c.parentId !== del.id) };
+                        return { ...p, comments: withoutCommentBranch(p.comments, del.id) };
                     }));
                 })
 
@@ -6174,41 +6115,18 @@ const App = () => {
         }
     };
     const handleComment = async (pid: string, c: string, parentId?: string | null) => {
-        if (!user) return handleRequireAuth();
-        if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to comment', type: 'INFO' }); return; }
+        if (!user) { handleRequireAuth(); throw new Error('Sign in to send your reply.'); }
+        if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to comment', type: 'INFO' }); throw new Error('Connect your wallet to send your reply.'); }
         if (!c.trim()) return;
-        const tempId = `c_${Date.now()}`;
-        const tempComment: Comment = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), parentId: parentId || null, likes: 0, likedBy: [] };
         const targetPost = posts.find(p => p.id === pid);
         const postAuthorId = targetPost?.authorId;
-        // Thread reply → the person being replied to is the parent comment's author
-        const parentComment = parentId ? targetPost?.comments?.find((cm: any) => cm.id === parentId) : null;
-        // Optimistic add
+        const parentComment = parentId ? targetPost?.comments?.find(cm => cm.id === parentId) : null;
         try {
-        setPosts(prev => prev.map(p => p.id === pid ? {...p, comments: [...p.comments, tempComment]} : p));
-        if (isSupabaseConfigured()) {
-            // Settle-guarantee (parity with posts, v12): a stalled response —
-            // insert landed, reply never arrived — must not hang the submit
-            // chain; that is the only physical way the Reply button can strand
-            // on '…'. After 10s we keep the optimistic comment and move on.
-            const racedC: any = await Promise.race([
-                supabaseComment(pid, user.id, c, parentId || undefined).catch((e: any) => ({ __err: e })),
-                new Promise(resolve => setTimeout(() => resolve({ __timeout: true }), 10_000)),
-            ]);
-            if (racedC?.__timeout) {
-                console.warn('[velo] addComment did not respond within 10s — keeping optimistic comment');
-                return;
-            }
-            if (racedC?.__err) throw racedC.__err; // → catch below: rollback + toast + draft preserved
-            const { data: newComment, error: commentError } = racedC as any;
-            if (commentError || !newComment?.id) throw new Error(commentError || 'Comment was not confirmed');
-            if (newComment?.id) {
-                // Replace temp comment with real DB comment (fixes disappear-on-refresh)
-                setPosts(prev => prev.map(p => p.id === pid
-                    ? { ...p, comments: p.comments.map(cm => cm.id === tempId ? { ...cm, id: newComment.id, timestamp: newComment.created_at || cm.timestamp } : cm) }
-                    : p
-                ));
-            }
+            if (!isSupabaseConfigured()) throw new Error('Comments are temporarily unavailable.');
+            const { data: newComment } = await supabaseComment(pid, user.id, c, parentId);
+            const confirmed: Comment = { id: newComment.id, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: newComment.created_at, parentId: parentId || null, likes: 0, likedBy: [] };
+            setPosts(prev => prev.map(p => p.id === pid
+                ? { ...p, comments: [...p.comments.filter(cm => cm.id !== confirmed.id), confirmed] } : p));
             // Notify the right person: a threaded reply notifies the PARENT
             // comment's author; a top-level comment notifies the post author.
             // Cross-user notification rows are RLS-blocked on direct insert
@@ -6233,31 +6151,19 @@ const App = () => {
                         .catch(() => {});
                 }
             }
-        }
         } catch (e: any) {
-            // Roll back the optimistic comment, tell the person, and log the
-            // REAL error so the console names the cause precisely.
-            console.error('[velo] handleComment failed:', e);
-            setPosts(prev => prev.map(p => p.id === pid ? { ...p, comments: p.comments.filter((cm: any) => cm.id !== tempId) } : p));
-            setToast({ message: 'Comment failed — please try again', type: 'ERROR' });
+            setToast({ message: e?.message || 'Reply could not be confirmed. Your draft is preserved; please retry.', type: 'ERROR' });
             throw e; // lets the input keep the draft + reset its button
         }
     };
     const doDeleteComment = async (postId: string, commentId: string) => {
         if (!user) return;
-        setPosts(prev => prev.map(p =>
-            p.id === postId
-                // Drop the comment AND its threaded replies (DB cascades via
-                // the parent_id FK; this keeps local state consistent).
-                ? { ...p, comments: p.comments.filter((c: any) => c.id !== commentId && c.parentId !== commentId) }
-                : p
-        ));
-        if (isSupabaseConfigured()) {
+        try {
             const { error } = await supabaseDeleteComment(commentId, user.id);
-            if (error) {
-                console.error('[velo] deleteComment error:', error);
-                setToast({ message: 'Failed to delete comment', type: 'ERROR' });
-            }
+            if (error) throw new Error(error);
+            setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: withoutCommentBranch(p.comments, commentId) } : p));
+        } catch {
+            setToast({ message: 'Could not confirm deletion. Please retry.', type: 'ERROR' });
         }
     };
     const handleDeleteComment = (postId: string, commentId: string) => {
@@ -7256,7 +7162,7 @@ const App = () => {
                 </> }
                 {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
-                    <SinglePostView postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setSingleCommentId(null); setActiveSocialTicker(ticker); }}/>
+                    <SinglePostView setPosts={setPosts} postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setSingleCommentId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
                     <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
                 ))}

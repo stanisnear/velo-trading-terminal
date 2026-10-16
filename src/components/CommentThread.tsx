@@ -648,6 +648,12 @@ export function CommentThread({
                     <a href={`/social/post/${post.id}`}>View all comments</a>
                 </div>
             )}
+            {focusCommentId && !focusedComment && (
+                <div role="status" className="comment-thread-context">
+                    <span>This reply is unavailable or has been deleted.</span>
+                    <a href={`/social/post/${post.id}`}>View the conversation</a>
+                </div>
+            )}
 
             {/* Write comment */}
             {user && (

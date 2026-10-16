@@ -15,6 +15,7 @@ import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { baseSepolia, arbitrumSepolia, optimismSepolia, sepolia } from '@reown/appkit/networks';
 import { http } from 'wagmi';
+import { baseSepoliaTransport } from './baseTransport.mjs';
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? '';
 if (!projectId) {
@@ -33,7 +34,7 @@ export const wagmiAdapter = new WagmiAdapter({
   networks: [...networks],
   projectId,
   transports: {
-    [baseSepolia.id]:     http(BASE_RPC, { batch: { wait: 20 }, timeout: 12000, retryCount: 0 }),
+    [baseSepolia.id]:     baseSepoliaTransport(BASE_RPC),
     [arbitrumSepolia.id]: http(ARB_RPC),
     [optimismSepolia.id]: http(OP_RPC),
     [sepolia.id]:         http(ETH_RPC),

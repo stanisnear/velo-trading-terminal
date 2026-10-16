@@ -26,8 +26,8 @@ import {
   type Address,
   type Hex,
   createWalletClient,
-  http,
 } from 'viem';
+import { baseSepoliaTransport, transactionError } from './baseTransport.mjs';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import {
@@ -142,7 +142,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       return createWalletClient({
         account,
         chain: baseSepolia,
-        transport: http(BASE_SEPOLIA_RPC, { timeout: 12000, retryCount: 0 }),
+        transport: baseSepoliaTransport(BASE_SEPOLIA_RPC),
       });
     }
     return metaMaskWalletClient ?? null;
@@ -277,6 +277,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       void refresh();
       return { txHash };
     } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
       const msg = e?.shortMessage || e?.message || 'Mint failed';
       setLastError(msg);
@@ -319,6 +320,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Open failed';
         setLastError(msg);
@@ -341,6 +343,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Close failed';
         setLastError(msg);
@@ -364,6 +367,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Add margin failed';
         setLastError(msg); throw e;
@@ -386,6 +390,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Reduce margin failed';
         setLastError(msg); throw e;
@@ -407,6 +412,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Partial close failed';
         setLastError(msg); throw e;
@@ -425,6 +431,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Set triggers failed';
         setLastError(msg); throw e;
@@ -446,6 +453,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Deposit failed';
         setLastError(msg); throw e;
@@ -464,6 +472,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Withdraw failed';
         setLastError(msg); throw e;
@@ -485,6 +494,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Order placement failed';
         setLastError(msg); throw e;
@@ -503,6 +513,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
         void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        e = transactionError(e);
         if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Cancel failed';
         setLastError(msg); throw e;
