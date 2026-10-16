@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { firstChartPage } from '../src/services/firstChartPage.mjs';
 import {build} from 'esbuild';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdir,mkdtemp,rm} from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 
@@ -19,6 +19,7 @@ test('provider failure starts fallback immediately and total failure terminates'
  assert.deepEqual(await firstChartPage(()=>new Promise(()=>{}),()=>new Promise(()=>{}),1,10),[]);
 });
 
+await mkdir('audit',{recursive:true});
 const folder=await mkdtemp(path.resolve('audit/history-tests-'));const outfile=path.join(folder,'prices.mjs');
 await build({entryPoints:['src/services/pythPriceService.ts'],outfile,bundle:true,format:'esm',platform:'node',plugins:[{name:'providers',setup(b){
  b.onResolve({filter:/pythConnection$|\/priceService$/},a=>({path:a.path.endsWith('pythConnection')?'pyth':'exchange',namespace:'fixture'}));

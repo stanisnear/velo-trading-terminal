@@ -4,9 +4,10 @@ import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+await mkdir('audit', { recursive: true });
 const folder = await mkdtemp(path.resolve('audit/shared-post-'));
 const outfile = path.join(folder, 'hook.mjs');
 await build({ entryPoints: ['src/services/useSharedPost.ts'], bundle: true, platform: 'node', format: 'esm', outfile, external: ['react'], plugins: [{ name: 'store-fixture', setup(b) {

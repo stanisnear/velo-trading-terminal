@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { encodeEventTopics, encodeAbiParameters, parseAbi, zeroAddress } from 'viem';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 
+await mkdir('audit', { recursive: true });
 const folder = await mkdtemp(path.resolve('audit/receipt-tests-'));
 const file = path.join(folder, 'service.mjs');
 await build({stdin:{contents:"export * from './src/services/tradeReceipts'; export {fetchOpenPositions,fetchConditionalOrders,partialClose} from './src/services/veloPerpsService';",resolveDir:process.cwd(),loader:'ts'},outfile:file,bundle:true,platform:'node',format:'esm',define:{'import.meta.env':'{}'},plugins:[{name:'oracle-fixture',setup(b){b.onResolve({filter:/pythConnection$/},()=>({path:'oracle',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const fetchPyth=()=>{throw Error("Not used")};',loader:'js'}));}}]});
