@@ -1,3 +1,4 @@
+import { decodeConfirmedClose, waitForSuccessfulReceipt, tradeEventId, type ConfirmedClose } from './tradeReceipts';
 /**
  * veloPerpsService — wrapper around the VeloPerps contract (V3-primary).
  *
@@ -506,62 +507,33 @@ const pairIndexToLabel = (idx: number): VeloPairLabel => {
 /**
  * Fetch all open positions for `trader` from the contract.
  *
- * Tries V3 ABI first (with marginMode). Falls back to V2 then V1 ABI per-row,
- * so positions opened on legacy contracts still surface read-only. The frontend
- * pin to V3 means new positions are always V3 — fallbacks exist only for
- * mid-migration users with leftover legacy positions.
+ * Uses the selected deployment ABI and one block for both the index and rows.
+ * A network error rejects the entire snapshot; it never means a position closed.
  */
 export async function fetchOpenPositions(
   publicClient: PublicClient,
   trader: Address,
 ): Promise<VeloPosition[]> {
-  let tradeIds: readonly bigint[] = [];
-  try {
-    tradeIds = await publicClient.readContract({
+  const blockNumber = await publicClient.getBlockNumber();
+  const tradeIds = await publicClient.readContract({
       address: VELO_PERPS_ADDRESS,
       abi: GET_TRADER_TRADES_ABI,
       functionName: 'getTraderTrades',
-      args: [trader],
+      args: [trader], blockNumber,
     });
-  } catch (e) {
-    console.warn('[veloPerps] getTraderTrades failed', e);
-    return [];
-  }
 
   if (tradeIds.length === 0) return [];
 
-  const positions = await Promise.allSettled(
+  const positions = await Promise.all(
     tradeIds.map(async (id) => {
       let raw: any;
       let marginMode: VeloMarginMode = 'ISOLATED';
-      try {
-        raw = await publicClient.readContract({
-          address: VELO_PERPS_ADDRESS,
-          abi: VELO_PERPS_V3_ABI,
-          functionName: 'getPosition',
-          args: [id],
-        });
-        // V3 returns marginMode as uint8.
-        if (raw.marginMode != null) {
-          marginMode = U8_TO_MARGIN_MODE[Number(raw.marginMode)] || 'ISOLATED';
-        }
-      } catch {
-        try {
-          raw = await publicClient.readContract({
-            address: VELO_PERPS_ADDRESS,
-            abi: GET_POSITION_V2_ABI,
-            functionName: 'getPosition',
-            args: [id],
-          });
-        } catch {
-          raw = await publicClient.readContract({
-            address: VELO_PERPS_ADDRESS,
-            abi: GET_POSITION_V1_ABI,
-            functionName: 'getPosition',
-            args: [id],
-          });
-        }
-      }
+      raw = await publicClient.readContract({
+        address: VELO_PERPS_ADDRESS,
+        abi: IS_V3 ? VELO_PERPS_V3_ABI : IS_V2 ? GET_POSITION_V2_ABI : GET_POSITION_V1_ABI,
+        functionName: 'getPosition', args: [id], blockNumber,
+      });
+      if (raw.marginMode != null) marginMode = U8_TO_MARGIN_MODE[Number(raw.marginMode)] || 'ISOLATED';
       const pairIndex = Number(raw.pairIndex) as PairIndex;
       const tpRaw: bigint = raw.takeProfit_E18 != null ? BigInt(raw.takeProfit_E18) : 0n;
       const slRaw: bigint = raw.stopLoss_E18   != null ? BigInt(raw.stopLoss_E18)   : 0n;
@@ -584,9 +556,7 @@ export async function fetchOpenPositions(
     }),
   );
 
-  return positions
-    .filter((r): r is PromiseFulfilledResult<VeloPosition> => r.status === 'fulfilled')
-    .map((r) => r.value);
+  return positions;
 }
 
 /** Fetch active conditional orders for a trader (V3 only). */
@@ -595,27 +565,22 @@ export async function fetchConditionalOrders(
   trader: Address,
 ): Promise<VeloConditionalOrder[]> {
   if (!IS_V3) return [];
-  let orderIds: readonly bigint[] = [];
-  try {
-    orderIds = await publicClient.readContract({
+  const blockNumber = await publicClient.getBlockNumber();
+  const orderIds = await publicClient.readContract({
       address: VELO_PERPS_ADDRESS,
       abi: VELO_PERPS_V3_ABI,
       functionName: 'getTraderOrders',
-      args: [trader],
+      args: [trader], blockNumber,
     });
-  } catch (e) {
-    console.warn('[veloPerps] getTraderOrders failed', e);
-    return [];
-  }
   if (orderIds.length === 0) return [];
 
-  const orders = await Promise.allSettled(
+  const orders = await Promise.all(
     orderIds.map(async (id) => {
       const raw: any = await publicClient.readContract({
         address: VELO_PERPS_ADDRESS,
         abi: VELO_PERPS_V3_ABI,
         functionName: 'conditionalOrders',
-        args: [id],
+        args: [id], blockNumber,
       });
       const pairIndex = Number(raw.pairIndex) as PairIndex;
       return {
@@ -637,10 +602,7 @@ export async function fetchConditionalOrders(
     }),
   );
 
-  return orders
-    .filter((r): r is PromiseFulfilledResult<VeloConditionalOrder> => r.status === 'fulfilled')
-    .map((r) => r.value)
-    .filter((o) => o.active);
+  return orders.filter(o => o.active);
 }
 
 /** Cross-margin free balance for a trader (V3 only). 0 if not on V3. */
@@ -657,8 +619,8 @@ export async function fetchCrossFreeBalance(
       args: [trader],
     });
     return fromUsdc6(raw);
-  } catch {
-    return 0;
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -682,8 +644,8 @@ export async function fetchCrossTotalBalance(
     const total = fromUsdc6(total6);
     const locked = fromUsdc6(locked6);
     return { total, locked, free: Math.max(0, total - locked) };
-  } catch {
-    return { free: 0, locked: 0, total: 0 };
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -695,8 +657,8 @@ export async function fetchPoolBalance(publicClient: PublicClient): Promise<numb
       functionName: 'poolBalance',
     });
     return fromUsdc6(raw);
-  } catch {
-    return 0;
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -711,6 +673,7 @@ export interface OpenPositionArgs {
 }
 
 export interface OpenPositionResult {
+  id: string;
   txHash: `0x${string}`;
   tradeId: bigint;
   entryPrice: number;
@@ -738,10 +701,6 @@ export async function openPosition(
   const feedId = PYTH_FEED_IDS[args.pair];
   if (!feedId) throw new Error(`No Pyth feed for ${args.pair}`);
 
-  let { updateData, parsedPrice } = await fetchPriceUpdate([feedId]);
-  if (parsedPrice > 0) console.debug(`[velo] openPosition ${args.pair} Hermes price: $${parsedPrice.toFixed(4)}`);
-
-  let feeWei = await getExactPythFee(publicClient, updateData);
   const collateral_6 = parseUnits(args.collateralUSDC.toString(), USDC_DECIMALS);
 
   // ── Shared approve helper ─────────────────────────────────────────────────
@@ -765,10 +724,10 @@ export async function openPosition(
         abi: usdcAbi,
         functionName: 'approve',
         args: [VELO_PERPS_ADDRESS, amount * 10n], // approve 10× for UX
-        account,
+        account: account!,
         chain: walletClient.chain,
       });
-      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+      await waitForSuccessfulReceipt(publicClient, approveTx);
     }
   }
 
@@ -803,10 +762,12 @@ export async function openPosition(
           account,
           chain: walletClient.chain,
         });
-        await publicClient.waitForTransactionReceipt({ hash: depositHash });
+        await waitForSuccessfulReceipt(publicClient, depositHash);
       }
     }
 
+    const { updateData } = await fetchPriceUpdate([feedId]);
+    const feeWei = await getExactPythFee(publicClient, updateData);
     txHash = await walletClient.writeContract({
       address: VELO_PERPS_ADDRESS,
       abi: VELO_PERPS_V3_ABI,
@@ -831,6 +792,8 @@ export async function openPosition(
         outputs: [{ name: 'tradeId', type: 'uint256' }],
       },
     ] as const;
+    const { updateData } = await fetchPriceUpdate([feedId]);
+    const feeWei = await getExactPythFee(publicClient, updateData);
     txHash = await walletClient.writeContract({
       address: VELO_PERPS_ADDRESS,
       abi: legacyAbi,
@@ -842,15 +805,17 @@ export async function openPosition(
     });
   }
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await waitForSuccessfulReceipt(publicClient, txHash);
 
   let tradeId: bigint | null = null;
   let entryPrice = 0;
+  let logIndex = -1;
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) continue;
     try {
       const decoded = decodeEventLog({ abi: VELO_PERPS_V3_ABI, data: log.data, topics: log.topics });
-      if (decoded.eventName === 'PositionOpened') {
+      if (decoded.eventName === 'PositionOpened' && decoded.args.trader.toLowerCase() === account.address.toLowerCase()) {
+        logIndex = log.logIndex;
         tradeId = (decoded.args as any).tradeId;
         entryPrice = fromE18((decoded.args as any).entryPrice_E18);
         break;
@@ -866,15 +831,10 @@ export async function openPosition(
   if (entryPrice > 0 && entryPrice < 0.0001) {
     console.warn(`[velo] Corrupt entry price detected: $${entryPrice} — Pyth oracle cache was stale on-chain. Position opened but entry price is invalid.`);
   }
-  return { txHash, tradeId, entryPrice };
+  return { id: tradeEventId(VELO_PERPS_ADDRESS, txHash, logIndex), txHash, tradeId, entryPrice };
 }
 
-export interface ClosePositionResult {
-  txHash: `0x${string}`;
-  pnlUSDC: number;
-  payoutUSDC: number;
-  exitPrice: number;
-}
+export type ClosePositionResult = ConfirmedClose;
 
 export async function closePosition(
   walletClient: WalletClient,
@@ -899,22 +859,11 @@ export async function closePosition(
     account,
     chain: walletClient.chain,
   });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await waitForSuccessfulReceipt(publicClient, txHash);
 
-  let pnlUSDC = 0, payoutUSDC = 0, exitPrice = 0;
-  for (const log of receipt.logs) {
-    if (log.address.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) continue;
-    try {
-      const decoded = decodeEventLog({ abi: VELO_PERPS_V3_ABI, data: log.data, topics: log.topics });
-      if (decoded.eventName === 'PositionClosed') {
-        pnlUSDC    = Number((decoded.args as any).pnlUSDC_6) / 10 ** USDC_DECIMALS;
-        payoutUSDC = fromUsdc6((decoded.args as any).payoutUSDC_6);
-        exitPrice  = fromE18((decoded.args as any).exitPrice_E18);
-        break;
-      }
-    } catch { /* not our event */ }
-  }
-  return { txHash, pnlUSDC, payoutUSDC, exitPrice };
+  const result = decodeConfirmedClose(receipt, VELO_PERPS_ADDRESS, tradeId, account.address);
+  if (!result || result.action !== 'CLOSE') throw new Error('Confirmed transaction has no matching close event');
+  return result;
 }
 
 export const baseScanTxUrl = (txHash: string) => `https://sepolia.basescan.org/tx/${txHash}`;
@@ -964,7 +913,7 @@ export async function addMargin(
     args: [tradeId, amount_6],
     account, chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await waitForSuccessfulReceipt(publicClient, txHash);
   return { txHash };
 }
 
@@ -988,7 +937,7 @@ export async function reduceMargin(
     value: pythFee,
     account, chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await waitForSuccessfulReceipt(publicClient, txHash);
   return { txHash };
 }
 
@@ -999,7 +948,7 @@ export async function partialClose(
   fractionBps: number,
   pythUpdateData: `0x${string}`[],
   pythFee: bigint,
-): Promise<{ txHash: `0x${string}` }> {
+): Promise<ConfirmedClose> {
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
   if (fractionBps < 1 || fractionBps > 10_000) throw new Error('fractionBps out of range');
@@ -1012,8 +961,10 @@ export async function partialClose(
     value: pythFee,
     account, chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
-  return { txHash };
+  const receipt = await waitForSuccessfulReceipt(publicClient, txHash);
+  const result = decodeConfirmedClose(receipt, VELO_PERPS_ADDRESS, tradeId, account.address);
+  if (!result || result.action !== 'CLOSE') throw new Error('Confirmed transaction has no matching close event');
+  return result;
 }
 
 export async function setTriggers(
@@ -1035,7 +986,7 @@ export async function setTriggers(
     args: [tradeId, tp_E18, sl_E18],
     account, chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await waitForSuccessfulReceipt(publicClient, txHash);
   return { txHash };
 }
 
@@ -1084,7 +1035,7 @@ export async function depositCross(
     args: [amount_6],
     account, chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await waitForSuccessfulReceipt(publicClient, txHash);
   return { txHash };
 }
 
@@ -1105,7 +1056,7 @@ export async function withdrawCross(
     args: [amount_6],
     account, chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await waitForSuccessfulReceipt(publicClient, txHash);
   return { txHash };
 }
 
@@ -1185,7 +1136,7 @@ export async function placeConditionalOrder(
     }],
     account, chain: walletClient.chain,
   });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await waitForSuccessfulReceipt(publicClient, txHash);
 
   let orderId: bigint | null = null;
   for (const log of receipt.logs) {
@@ -1220,6 +1171,6 @@ export async function cancelConditionalOrder(
     args: [orderId],
     account, chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await waitForSuccessfulReceipt(publicClient, txHash);
   return { txHash };
 }

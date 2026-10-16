@@ -11,10 +11,8 @@
  * a stub is the safer move right now.
  */
 
-export interface OrderlyKeypair {
-  publicKey: string;
-  secretKey: Uint8Array;
-}
+import type { OrderlyKeypair } from './orderlyService';
+export type { OrderlyKeypair } from './orderlyService';
 
 export interface OrderlyPosition {
   symbol: string;

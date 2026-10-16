@@ -6,6 +6,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { VeloAssetIcon } from '@/components/ui/shared';
 import { SOCIAL_FEATURED_PAIRS } from '@/utils/types';
 
 export const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onHover }: any) => {
@@ -61,15 +62,7 @@ export const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onH
             .velo-mention-item.active {
                 background: var(--chip-bg-hover, rgba(0,0,0,0.06));
             }
-            .velo-mention-item img {
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                object-fit: cover;
-                flex-shrink: 0;
-                border: 1px solid var(--hairline, rgba(0,0,0,0.08));
-            }
-            .velo-mention-item .ticker-icon {
+            .velo-mention-item > img {
                 width: 32px;
                 height: 32px;
                 border-radius: 50%;
@@ -129,7 +122,7 @@ export const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onH
                         onMouseDown={e => { e.preventDefault(); onSelect(item); }}
                         onMouseEnter={() => onHover(i)}
                     >
-                        <img src={item.logo} alt={item.symbol} className="ticker-icon" />
+                        <VeloAssetIcon src={item.logo} symbol={item.symbol} size={32} />
                         <div>
                             <div className="velo-mention-name">{item.name}</div>
                             <div className="velo-mention-ticker-tag">${item.symbol}</div>
@@ -166,7 +159,7 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
 
     if (!user) return null;
 
-    const mentionResults: any[] = React.useMemo ? (() => {
+    const mentionResults: any[] = (() => {
         if (mentionQuery === null) return [];
         const q = mentionQuery.toLowerCase();
         if (mentionTrigger === '$') {
@@ -182,7 +175,7 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
             }).slice(0, 6);
         }
         return [];
-    })() : [];
+    })();
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
@@ -270,7 +263,7 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
                     <button
                         onClick={handlePost}
                         disabled={!text.trim() || posting}
-                        style={{ padding: '6px 16px', borderRadius: 20, background: 'var(--fg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--bg-base)', cursor: text.trim() && !posting ? 'pointer' : 'default', letterSpacing: '0.05em', opacity: !text.trim() || posting ? 0.4 : 1, textTransform: 'uppercase' as const, transition: 'opacity 0.15s' }}>
+                        style={{ padding: '6px 16px', borderRadius: 20, background: !text.trim() || posting ? 'var(--disabled-bg)' : 'var(--fg)', border: !text.trim() || posting ? '1px solid var(--control-border)' : 'none', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: !text.trim() || posting ? 'var(--disabled-fg)' : 'var(--bg-base)', cursor: text.trim() && !posting ? 'pointer' : 'default', letterSpacing: '0.05em', opacity: 1, textTransform: 'uppercase' as const, transition: 'background-color 0.15s, color 0.15s' }}>
                         {posting ? '…' : 'Post'}
                     </button>
                 </div>

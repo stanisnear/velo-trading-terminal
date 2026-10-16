@@ -1,3 +1,5 @@
+import type { ConfirmedClose } from './tradeReceipts';
+import { requireSafeTestnetAction } from './testnetReleaseGate';
 /**
  * useVeloPerpsTrading
  * ───────────────────
@@ -78,6 +80,8 @@ export interface UseVeloPerpsTradingState {
   isInitialLoading: boolean;
   isPending: boolean;
   lastError: string | null;
+  readError: string | null;
+  pendingTxHash: Hex | null;
   /** Wallet mUSDC balance (sittiing in trader's address, not in the cross account). */
   usdcBalance: number;
   /** Free cross-margin balance — usable as collateral for new CROSS positions. */
@@ -99,21 +103,16 @@ export interface UseVeloPerpsTradingActions {
   refresh: () => Promise<void>;
   mintTestUsdc: () => Promise<{ txHash: `0x${string}` }>;
   openPosition: (args: OpenPositionArgs) => Promise<{
+    id: string;
     txHash: `0x${string}`;
     tradeId: bigint;
     entryPrice: number;
     explorerUrl: string;
   }>;
-  closePosition: (tradeId: bigint, pair: VeloPairLabel) => Promise<{
-    txHash: `0x${string}`;
-    pnlUSDC: number;
-    payoutUSDC: number;
-    exitPrice: number;
-    explorerUrl: string;
-  }>;
+  closePosition: (tradeId: bigint, pair: VeloPairLabel) => Promise<ConfirmedClose & { explorerUrl: string }>;
   addMargin: (tradeId: bigint, amountUSDC: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
   reduceMargin: (tradeId: bigint, amountUSDC: number, pair: VeloPairLabel) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
-  partialClose: (tradeId: bigint, fractionBps: number, pair: VeloPairLabel) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
+  partialClose: (tradeId: bigint, fractionBps: number, pair: VeloPairLabel) => Promise<ConfirmedClose & { explorerUrl: string }>;
   setTriggers: (tradeId: bigint, takeProfit: number, stopLoss: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
   depositCross: (amountUSDC: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
   withdrawCross: (amountUSDC: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
@@ -125,7 +124,7 @@ export interface UseVeloPerpsTradingActions {
 export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTradingActions {
   const { address: mainAddress, isConnected } = useAccount();
   const chainId = useChainId();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: BASE_SEPOLIA_CHAIN_ID });
   const { data: metaMaskWalletClient } = useWalletClient();
 
   const [burnerNonce, setBurnerNonce] = useState(0);
@@ -143,7 +142,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       return createWalletClient({
         account,
         chain: baseSepolia,
-        transport: http(BASE_SEPOLIA_RPC),
+        transport: http(BASE_SEPOLIA_RPC, { timeout: 12000, retryCount: 0 }),
       });
     }
     return metaMaskWalletClient ?? null;
@@ -157,6 +156,28 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const [isInitialLoading, setInitialLoading] = useState(true);
   const [isPending, setPending] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
+  const writeLock = useRef(false);
+  const pendingTxRef = useRef<Hex | null>(null);
+  const [pendingTxHash, setPendingTxHash] = useState<Hex | null>(null);
+  const rememberPending = (hash: Hex | null) => {
+    pendingTxRef.current = hash; setPendingTxHash(hash);
+    if (traderAddress) try {
+      const key = `velo_pending_tx_84532_${traderAddress.toLowerCase()}`;
+      if (hash) localStorage.setItem(key, hash); else localStorage.removeItem(key);
+    } catch { /* memory guard still works */ }
+  };
+  useEffect(() => {
+    let hash: Hex | null = null;
+    try { const stored = traderAddress && localStorage.getItem(`velo_pending_tx_84532_${traderAddress.toLowerCase()}`); if (stored && /^0x[0-9a-f]{64}$/i.test(stored)) hash = stored as Hex; } catch {}
+    pendingTxRef.current = hash; setPendingTxHash(hash);
+  }, [traderAddress]);
+  const beginWrite = () => {
+    if (pendingTxRef.current) throw new Error('A submitted transaction is still awaiting confirmation. Check the transaction link before sending another.');
+    if (writeLock.current) throw new Error('Another wallet transaction is in progress. Wait for its confirmation.');
+    writeLock.current = true;
+    setPending(true);
+  };
   const [lastError, setLastError] = useState<string | null>(null);
   const [usdcBalance, setUsdcBalance] = useState(0);
   const [openPositions, setOpenPositions] = useState<VeloPosition[]>([]);
@@ -168,7 +189,10 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const [traderEthBalance, setTraderEthBalance] = useState<bigint>(0n);
 
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const identityRef = useRef(traderAddress);
+  identityRef.current = traderAddress;
+  const refreshInFlight = useRef<{ identity: Address; promise: Promise<void> } | null>(null);
 
   useEffect(() => {
     setInitialLoading(true);
@@ -183,29 +207,29 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const refresh = useCallback(async () => {
     if (!isReady || !traderAddress || !publicClient) return;
-    try {
-      const [positions, orders, balance, pool, cross, ethBal] = await Promise.all([
-        fetchOpenPositions(publicClient, traderAddress),
-        fetchConditionalOrders(publicClient, traderAddress),
-        fetchUsdcBalance(publicClient, VELO_USDC_BASE, traderAddress),
-        fetchPoolBalance(publicClient),
-        fetchCrossTotalBalance(publicClient, traderAddress),
-        publicClient.getBalance({ address: traderAddress }).catch(() => 0n),
-      ]);
-      if (!mountedRef.current) return;
-      setOpenPositions(positions);
-      setConditionalOrders(orders);
-      setUsdcBalance(balance);
-      setPoolBalance(pool);
-      setCrossFreeBalance(cross.free);
-      setCrossTotalBalance(cross.total);
-      setCrossLockedBalance(cross.locked);
-      setTraderEthBalance(ethBal);
-    } catch (e) {
-      console.warn('[useVeloPerpsTrading] poll failed', e);
-    } finally {
-      if (mountedRef.current) setInitialLoading(false);
-    }
+    if (refreshInFlight.current?.identity === traderAddress) return refreshInFlight.current.promise;
+    const identity = traderAddress;
+    const run = (async () => {
+      try {
+        const [positions, orders, balance, pool, cross, ethBal] = await Promise.all([
+          fetchOpenPositions(publicClient, identity), fetchConditionalOrders(publicClient, identity),
+          fetchUsdcBalance(publicClient, VELO_USDC_BASE, identity), fetchPoolBalance(publicClient),
+          fetchCrossTotalBalance(publicClient, identity), publicClient.getBalance({ address: identity }),
+        ]);
+        if (!mountedRef.current || identityRef.current !== identity) return;
+        setOpenPositions(positions); setConditionalOrders(orders); setUsdcBalance(balance);
+        setPoolBalance(pool); setCrossFreeBalance(cross.free); setCrossTotalBalance(cross.total);
+        setCrossLockedBalance(cross.locked); setTraderEthBalance(ethBal); setReadError(null);
+      } catch {
+        if (mountedRef.current && identityRef.current === identity)
+          setReadError('Account data could not refresh. Last confirmed values are shown; retry before trading.');
+      } finally {
+        if (mountedRef.current && identityRef.current === identity) setInitialLoading(false);
+        if (refreshInFlight.current?.identity === identity) refreshInFlight.current = null;
+      }
+    })();
+    refreshInFlight.current = { identity, promise: run };
+    return run;
   }, [isReady, traderAddress, publicClient]);
 
   useEffect(() => {
@@ -223,32 +247,52 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     return () => clearInterval(handle);
   }, [isReady, refresh]);
 
+  useEffect(() => {
+    if (!pendingTxHash || !publicClient) return;
+    let active = true, reading = false;
+    const check = async () => {
+      if (reading) return; reading = true;
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: pendingTxHash });
+        if (!active) return;
+        rememberPending(null);
+        if (receipt.status === 'reverted') setLastError('The pending transaction reverted on-chain. You can retry.');
+        void refresh();
+      } catch { /* Not mined or temporarily unreachable: keep the submission guard. */ }
+      finally { reading = false; }
+    };
+    void check(); const timer = setInterval(check, 5000);
+    return () => { active = false; clearInterval(timer); };
+  }, [pendingTxHash, traderAddress, publicClient, refresh]);
+
   // ── Writes ─────────────────────────────────────────────────────────────────
 
   const mintTestUsdc = useCallback(async () => {
     if (!metaMaskWalletClient || !publicClient) throw new Error('Wallet not connected');
-    setPending(true);
+    beginWrite();
     setLastError(null);
     try {
       const txHash = await mintMockUsdc(metaMaskWalletClient, VELO_USDC_BASE);
       await publicClient.waitForTransactionReceipt({ hash: txHash });
-      await refresh();
+      void refresh();
       return { txHash };
     } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
       const msg = e?.shortMessage || e?.message || 'Mint failed';
       setLastError(msg);
       throw e;
     } finally {
-      setPending(false);
+      writeLock.current = false; setPending(false);
     }
   }, [metaMaskWalletClient, publicClient, refresh]);
 
   const openPosition = useCallback(
     async (args: OpenPositionArgs) => {
+      requireSafeTestnetAction('open', args.marginMode);
       if (!tradingClient || !publicClient || !traderAddress) {
         throw new Error('Trading wallet not ready');
       }
-      setPending(true);
+      beginWrite();
       setLastError(null);
       try {
         const pairIndex = PAIR_INDEX[args.pair];
@@ -271,34 +315,16 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
         await ensureBurnerGas(publicClient, traderAddress);
 
-        // For ISOLATED, the contract pulls collateral on open — approve up-front.
-        // For CROSS, the collateral comes from the cross-account ledger, no
-        // approve is needed at open time (the deposit already moved the mUSDC in).
-        if ((args.marginMode || 'ISOLATED') === 'ISOLATED') {
-          await approveUsdcIfNeeded(
-            tradingClient as any,
-            publicClient,
-            VELO_USDC_BASE,
-            VELO_PERPS_ADDRESS,
-            traderAddress,
-            args.collateralUSDC,
-          );
-        } else {
-          // Sanity check: cross requires sufficient free cross balance.
-          const free = await fetchCrossFreeBalance(publicClient, traderAddress);
-          if (free < args.collateralUSDC) {
-            throw new Error(`Not enough free cross balance ($${free.toFixed(2)} < $${args.collateralUSDC.toFixed(2)}). Deposit to cross account first.`);
-          }
-        }
         const result = await openPositionTx(tradingClient as any, publicClient, args);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Open failed';
         setLastError(msg);
         throw e;
       } finally {
-        setPending(false);
+        writeLock.current = false; setPending(false);
       }
     },
     [tradingClient, publicClient, traderAddress, refresh],
@@ -307,19 +333,20 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const closePosition = useCallback(
     async (tradeId: bigint, pair: VeloPairLabel) => {
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
-      setPending(true);
+      beginWrite();
       setLastError(null);
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const result = await closePositionTx(tradingClient as any, publicClient, tradeId, pair);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Close failed';
         setLastError(msg);
         throw e;
       } finally {
-        setPending(false);
+        writeLock.current = false; setPending(false);
       }
     },
     [tradingClient, publicClient, refresh, traderAddress],
@@ -327,38 +354,42 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const addMargin = useCallback(
     async (tradeId: bigint, amountUSDC: number) => {
+      requireSafeTestnetAction('margin');
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         await approveUsdcIfNeeded(tradingClient as any, publicClient, VELO_USDC_BASE, VELO_PERPS_ADDRESS, traderAddress, amountUSDC);
         const result = await addMarginTx(tradingClient as any, publicClient, tradeId, amountUSDC);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Add margin failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, traderAddress, refresh],
   );
 
   const reduceMargin = useCallback(
     async (tradeId: bigint, amountUSDC: number, pair: VeloPairLabel) => {
+      requireSafeTestnetAction('margin');
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const feedId = (PYTH_FEED_IDS as any)[pair];
         const { updateData } = await fetchPriceUpdate([feedId]);
         const feeWei = await publicClient.readContract({ address: '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729' as `0x${string}`, abi: [{ type: 'function', name: 'getUpdateFee', stateMutability: 'view', inputs: [{ name: 'updateData', type: 'bytes[]' }], outputs: [{ name: 'feeAmount', type: 'uint256' }] }] as const, functionName: 'getUpdateFee', args: [updateData] }) as bigint;
         const result = await reduceMarginTx(tradingClient as any, publicClient, tradeId, amountUSDC, updateData, feeWei);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Reduce margin failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, refresh, traderAddress],
   );
@@ -366,19 +397,20 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const partialClose = useCallback(
     async (tradeId: bigint, fractionBps: number, pair: VeloPairLabel) => {
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const feedId = (PYTH_FEED_IDS as any)[pair];
         const { updateData } = await fetchPriceUpdate([feedId]);
         const feeWei = await publicClient.readContract({ address: '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729' as `0x${string}`, abi: [{ type: 'function', name: 'getUpdateFee', stateMutability: 'view', inputs: [{ name: 'updateData', type: 'bytes[]' }], outputs: [{ name: 'feeAmount', type: 'uint256' }] }] as const, functionName: 'getUpdateFee', args: [updateData] }) as bigint;
         const result = await partialCloseTx(tradingClient as any, publicClient, tradeId, fractionBps, updateData, feeWei);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Partial close failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, refresh, traderAddress],
   );
@@ -386,16 +418,17 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const setTriggers = useCallback(
     async (tradeId: bigint, takeProfit: number, stopLoss: number) => {
       if (!tradingClient || !publicClient) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const result = await setTriggersTx(tradingClient as any, publicClient, tradeId, takeProfit, stopLoss);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Set triggers failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, refresh, traderAddress],
   );
@@ -404,17 +437,19 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const depositCross = useCallback(
     async (amountUSDC: number) => {
+      requireSafeTestnetAction('crossDeposit');
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await depositCrossTx(tradingClient as any, publicClient, amountUSDC);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Deposit failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, traderAddress, refresh],
   );
@@ -422,16 +457,17 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const withdrawCross = useCallback(
     async (amountUSDC: number) => {
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await withdrawCrossTx(tradingClient as any, publicClient, amountUSDC);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Withdraw failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, traderAddress, refresh],
   );
@@ -440,17 +476,19 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
 
   const placeConditionalOrder = useCallback(
     async (args: PlaceConditionalOrderArgs) => {
+      requireSafeTestnetAction('order', args.marginMode, args.reduceOnly);
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await placeConditionalOrderTx(tradingClient as any, publicClient, args);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Order placement failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, traderAddress, refresh],
   );
@@ -458,16 +496,17 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const cancelConditionalOrder = useCallback(
     async (orderId: bigint) => {
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
-      setPending(true); setLastError(null);
+      beginWrite(); setLastError(null);
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await cancelConditionalOrderTx(tradingClient as any, publicClient, orderId);
-        await refresh();
+        void refresh();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
+        if (e?.txHash) rememberPending(e.txHash);
         const msg = e?.shortMessage || e?.message || 'Cancel failed';
         setLastError(msg); throw e;
-      } finally { setPending(false); }
+      } finally { writeLock.current = false; setPending(false); }
     },
     [tradingClient, publicClient, traderAddress, refresh],
   );
@@ -477,6 +516,8 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     isInitialLoading,
     isPending,
     lastError,
+    readError,
+    pendingTxHash,
     usdcBalance,
     crossFreeBalance,
     crossTotalBalance,

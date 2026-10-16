@@ -43,7 +43,7 @@ const cardStyle: React.CSSProperties = {
 
 const holoGradient: React.CSSProperties = {
   position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-  background: 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 35%, oklch(0.65 0.22 268) 70%, oklch(0.72 0.18 250) 100%)',
+  background: 'var(--brand-gradient)',
   opacity: 0.9, zIndex: 1,
 };
 
@@ -293,7 +293,7 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
         style={{
           ...S.mono, width: '100%', padding: '14px 0', marginTop: 20, borderRadius: 12, border: 'none',
           background: (availability === 'available' && !onCooldown && !alreadyOwnsRequested)
-            ? 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340))'
+            ? 'linear-gradient(100deg, var(--accent), var(--velo-sage-bright))'
             : 'var(--chip-bg)',
           color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
           textTransform: 'uppercase' as const,
@@ -389,6 +389,7 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
   return createPortal(
     <div
       role="dialog" aria-modal="true"
+      className="velo-modal-enter-backdrop"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0, 0, 0, 0.6)',
@@ -397,7 +398,7 @@ export const VeloUsernameModal: React.FC<Props> = ({ isOpen, onClose, lockedHand
       }}
       onClick={(e) => { if (e.target === e.currentTarget && step !== 'CLAIMING') onClose(); }}
     >
-      <div style={cardStyle}>
+      <div className="velo-modal-enter-card" style={cardStyle}>
         <div style={holoGradient} />
         <button
           onClick={onClose}

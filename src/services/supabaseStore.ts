@@ -1,3 +1,4 @@
+import { boundedFetch } from './sessionLifecycle.mjs';
 /**
  * supabaseStore.ts
  * ─────────────────────────────────────────────────────────────────
@@ -16,12 +17,20 @@ const SUPABASE_URL     = import.meta.env.VITE_SUPABASE_URL     || 'https://btgfo
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0Z2ZvZWtndnl2ZGZsempmZWh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NzU5NDIsImV4cCI6MjA5MjI1MTk0Mn0.8Z0Vce5RkSk2IS4tD4PAkCJ5XRtGeTMKHFx77we2_pU';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { fetch: boundedFetch },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storageKey: 'velo-auth-token',
   },
+});
+
+// Public browsing never waits on a private session refresh/auth lock.
+// RLS still applies: this client can read only what the anonymous role permits.
+export const publicSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'velo-public-reader' },
+  global: { fetch: boundedFetch },
 });
 
 export const isConfigured = () =>
@@ -106,7 +115,7 @@ export async function signUp(email: string, password: string, username: string) 
     const { error: profileErr } = await supabase.from('profiles').upsert({
       id: data.user.id, username, handle,
       avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-      banner_url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1000&q=80',
+      banner_url: '',
       balance: 0,
       auth_method: 'EMAIL',
     }, { onConflict: 'id' });
@@ -158,6 +167,7 @@ export async function getCurrentSession() {
 export async function getProfile(userId: string) {
   const { data, error } = await supabase
     .from('profiles').select('*').eq('id', userId).single();
+  if (data) data.email = null; // Contact reads use the private Settings API.
   return { profile: data, error };
 }
 
@@ -171,14 +181,14 @@ export async function fetchAllProfiles(limit = 50) {
   // can filter demo accounts and the UI can render the verified badge. Use
   // a column-explicit select with two fallbacks if the latest columns aren't
   // yet present (older DB schemas).
-  let { data, error } = await supabase
+  let { data, error } = await publicSupabase
     .from('profiles')
     .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, wallet_address, auth_method, verified_reason, created_at')
     .order('pnl_total', { ascending: false })
     .limit(limit);
   // If verified_reason is missing (pre-build-80), retry without it.
   if (isMissingColumnError(error as any)) {
-    const r2 = await supabase
+    const r2 = await publicSupabase
       .from('profiles')
       .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, wallet_address, auth_method, created_at')
       .order('pnl_total', { ascending: false })
@@ -188,7 +198,7 @@ export async function fetchAllProfiles(limit = 50) {
     if (!r2.error) console.warn('[supabase] profiles missing verified_reason column — run SUPABASE_MIGRATION_BUILD80.sql.');
     // If wallet_address / auth_method are ALSO missing (pre-build-79), retry once more.
     if (isMissingColumnError(r2.error as any)) {
-      const r3 = await supabase
+      const r3 = await publicSupabase
         .from('profiles')
         .select('id, username, handle, avatar_url, banner_url, bio, pnl_total, realized_pnl, win_rate, velo_rewards, copier_count, earned_fees, follower_count, following_count, copying, created_at')
         .order('pnl_total', { ascending: false })
@@ -196,20 +206,6 @@ export async function fetchAllProfiles(limit = 50) {
       data = r3.data as any;
       error = r3.error;
       if (!r3.error) console.warn('[supabase] profiles missing wallet-address/auth-method columns in schema cache — run SUPABASE_MIGRATION_BUILD79.sql and reload PostgREST schema.');
-    }
-  }
-  // If the direct table read returned empty (likely RLS blocking authenticated
-  // role due to policy drift), fall back to the security-definer RPC which
-  // bypasses RLS entirely. This is the guaranteed fallback path.
-  if ((!data || data.length === 0) && !error) {
-    try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_profiles', { lim: limit });
-      if (!rpcError && rpcData && rpcData.length > 0) {
-        console.warn('[supabase] fetchAllProfiles: direct table read returned empty, RPC fallback succeeded — run SUPABASE_MIGRATION_SOCIAL_FIX.sql to fix RLS.');
-        return { data: rpcData, error: null };
-      }
-    } catch (_) {
-      // RPC doesn't exist yet — migration not run. Return empty, withRetry will handle it.
     }
   }
   return { data, error };
@@ -300,11 +296,11 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
   const postIds = posts.map((p: any) => p.id);
 
   const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }] = await Promise.all([
-    supabase.from('likes').select('post_id, user_id').in('post_id', postIds),
-    supabase.from('comments')
+    publicSupabase.from('likes').select('post_id, user_id').in('post_id', postIds),
+    publicSupabase.from('comments')
       .select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(username, handle, avatar_url)')
       .in('post_id', postIds).order('created_at', { ascending: true }),
-    supabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
+    publicSupabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
   ]);
 
   // Comment likes — fetched after comments since we need their ids. Soft-fails
@@ -313,7 +309,7 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
   const commentIds = (commentsRaw || []).map((c: any) => c.id);
   let commentLikesRaw: any[] = [];
   if (commentIds.length > 0) {
-    const { data: clData, error: clErr } = await supabase
+    const { data: clData, error: clErr } = await publicSupabase
       .from('comment_likes').select('comment_id, user_id').in('comment_id', commentIds);
     if (!clErr && clData) commentLikesRaw = clData;
   }
@@ -370,13 +366,25 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
 }
 
 export async function fetchPosts(limit = 50): Promise<Post[]> {
-  const { data, error } = await supabase
+  const { data, error } = await publicSupabase
     .from('posts')
     .select('*, profiles!author_id(username, handle, avatar_url)')
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error || !data) return [];
+  if (error) throw new Error('Could not load posts. Please retry.');
+  if (!data) return [];
   return _enrichPosts(data);
+}
+
+export async function fetchPostById(postId: string): Promise<Post | null> {
+  const { data, error } = await publicSupabase
+    .from('posts')
+    .select('*, profiles!author_id(username, handle, avatar_url)')
+    .eq('id', postId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const [post] = await _enrichPosts([data]);
+  return post || null;
 }
 
 export async function createPost(
@@ -664,7 +672,7 @@ export async function fetchTradeHistory(userId: string, limit = 100): Promise<Tr
       .eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
     if (retry.error) {
       console.error('[supabase] fetchTradeHistory retry failed:', retry.error.message);
-      return [];
+      throw retry.error;
     }
     return (retry.data || []).map((r: any): TradeHistoryItem => ({
       id:               r.id,
@@ -719,6 +727,7 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
   //   3. If the enriched columns are also missing — retry with base legacy only
   // This way users never lose history even on stale databases.
   const basePayload: Record<string, any> = {
+    ...(/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(trade.id) ? { id: trade.id } : {}),
     user_id:        userId,
     pair:           trade.pair,
     side:           trade.side,
@@ -744,7 +753,7 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
     tx_hash:           trade.txHash || null,
   };
 
-  let { error } = await supabase.from('trade_history').insert(onChainPayload);
+  let { error } = await supabase.from('trade_history').upsert(onChainPayload, { onConflict: 'id', ignoreDuplicates: true });
 
   if (isMissingColumnError(error as any)) {
     // Missing on-chain columns — retry with enriched only
@@ -769,6 +778,7 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
       code: (error as any).code,
       hint: hintFromCode((error as any).code),
     });
+    throw error;
   }
 }
 
@@ -994,26 +1004,14 @@ export async function recordTransactionForUser(
   amount: number,
   onChainMeta?: { txHash?: string; counterparty?: string; onChain?: boolean },
 ): Promise<void> {
-  const { error } = await supabase.rpc('record_transaction_for_user', {
-    target_user_id: targetUserId,
-    p_type: type,
-    p_amount: amount,
-    p_tx_hash: onChainMeta?.txHash || null,
-    p_counterparty: onChainMeta?.counterparty || null,
-    p_on_chain: onChainMeta?.onChain ?? true,
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || type !== 'RECEIVE' || !onChainMeta?.txHash) throw new Error('A signed-in session and confirmed transfer are required');
+  const response = await fetch('/api/record-transfer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ targetUserId, txHash: onChainMeta.txHash }), signal: AbortSignal.timeout(20000),
   });
-  if (!error) return;
-  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
-    const { error: insertErr } = await supabase.from('transactions').insert({
-      user_id: targetUserId, type, amount, status: 'COMPLETED',
-      on_chain: onChainMeta?.onChain ?? true,
-      tx_hash: onChainMeta?.txHash || null,
-      counterparty: onChainMeta?.counterparty || null,
-    });
-    if (insertErr) throw new Error(`fallback transactions insert failed: ${insertErr.message}`);
-    return;
-  }
-  throw new Error(error.message);
+  if (!response.ok) throw new Error('Transfer succeeded on-chain; recipient activity could not be synchronized yet.');
+
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1456,7 +1454,7 @@ export function cacheGet<T>(key: string): T | null {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return (parsed && typeof parsed === 'object' && 'v' in parsed) ? (parsed.v as T) : null;
+    return (parsed && typeof parsed === 'object' && 'v' in parsed && Date.now() - Number(parsed.t || 0) < 5 * 60_000) ? (parsed.v as T) : null;
   } catch {
     return null;
   }
@@ -1464,8 +1462,7 @@ export function cacheGet<T>(key: string): T | null {
 
 export function cacheSet(key: string, value: any): void {
   try {
-    // Skip empties so a transient empty read never overwrites good cache.
-    if (Array.isArray(value) && value.length === 0) return;
+    // Cache only successful reads; an authoritative empty result clears deleted data.
     localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ v: value, t: Date.now() }));
   } catch {
     /* storage full / disabled — non-fatal */

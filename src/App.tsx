@@ -1,3 +1,8 @@
+import { findRecentPositionClose, findRecentOrderOutcome, type ConfirmedClose } from './services/tradeReceipts';
+import { validateUsername as validateRegistryUsername } from './services/usernameService';
+import { createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
+import { publicSupabase } from './services/supabaseStore';
+import { signInWithWallet, cancelWalletSignIn } from './services/walletAuth';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { VeloOnboardingModal, useOnboardingGuard } from './components/VeloOnboardingModal';
@@ -17,7 +22,7 @@ import { VeloAnimation, VeloAnimationKind } from './components/VeloAnimation';
 import { v4 as uuidv4 } from 'uuid';
 import { PortfolioChart } from './components/PortfolioChart';
 import { OrderBook } from './components/OrderBook';
-import { fetchPricesResilient, pythPriceStream, fetchPythKlines } from './services/pythPriceService';
+import { fetchPricesResilient, pythPriceStream, fetchPythKlines, fetchOlderPythKlines } from './services/pythPriceService';
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient, useSignMessage, useSwitchChain } from 'wagmi';
@@ -46,7 +51,7 @@ import { PostCard, LinkPreviewCard, renderContentWithMentions, extractFirstUrl, 
 import { LeaderboardView } from './components/ui/pages/LeaderboardView';
 import { Navbar, MobileSidebar, MobileBottomNav } from './components/Navigation';
 import { EditProfileModal, DeletePostConfirmModal, UsersListModal, LoginModal, EditPositionModal, ResetPasswordModal } from './components/Modals';
-import { formatTime, ToastNotification, GlassCard, Button, Input } from './components/ui/shared';
+import { formatTime, ToastNotification, GlassCard, Button, Input, VeloAssetIcon } from './components/ui/shared';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
@@ -63,6 +68,7 @@ import {
   dbProfileToUserProfile,
   updateProfile,
   fetchPosts,
+  fetchPostById,
   createPost as supabaseCreatePost,
   deletePost as supabaseDeletePost,
   toggleLike as supabaseLike,
@@ -116,7 +122,7 @@ import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 
-import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, SOCIAL_FEATURED_PAIRS, TOP_SOCIAL_PAIRS, VALID_TICKER_SYMBOLS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS } from './utils/types';
+import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, SOCIAL_FEATURED_PAIRS, TOP_SOCIAL_PAIRS, VALID_TICKER_SYMBOLS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS, isTradablePair } from './utils/types';
 
 // --- Sound Service (Refined) ---
 const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
@@ -272,80 +278,19 @@ function clearNotifCache(): void {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Logout sentinel — the critical piece that makes logout actually work.
-//
-// Why this exists, plainly: every prior build cleared localStorage,
-// disconnected wagmi, and called supabase.auth.signOut() before navigating.
-// All of that still wasn't enough. On the next page load:
-//   1. wagmi auto-reconnects to MetaMask (the wallet's dapp permission
-//      survives our cleanup — it lives in the extension, not in our
-//      storage). The user's address is back within ~100ms of mount.
-//   2. The silent socialLoginEffect uses that address as a deterministic
-//      Supabase password (`signInWithPassword` at this file's ~line 4608)
-//      and signs the user RIGHT back in.
-//   3. UI snaps from "Signed out" overlay → freshly authed dashboard
-//      faster than the user can react. They observe "logout is broken".
-//
-// The fix can't be at the source (we can't revoke MetaMask's permission
-// programmatically from a dapp; no wallet exposes that API consistently).
-// It has to be at the destination: a sentinel that blocks auto-restore
-// until the user EXPLICITLY opts back in by clicking Connect Wallet.
-//
-// Mechanism:
-//   - handleLogout navigates to `/?logout=1` (instead of `/`)
-//   - This IIFE runs once at module-import time, BEFORE the App component
-//     mounts and BEFORE Supabase's first getSession() call
-//   - On `?logout=1`: nuke storage again (defense-in-depth), set a
-//     window-level lock, strip the URL param so a refresh doesn't keep
-//     re-triggering this code path
-//   - restoreSession and socialLoginEffect each check the lock and bail
-//   - The wagmiStatus='connecting' handler clears the lock (only fires
-//     when the user explicitly opens AppKit and picks a wallet, never
-//     during a silent auto-reconnect)
-//
-// After this build, the only way for the user to be signed in again is
-// for them to click Connect Wallet. Auto-reconnect is harmless because
-// it can't drive auth state on its own — the lock catches it.
-// ─────────────────────────────────────────────────────────────────────────────
-declare global {
-  interface Window { __veloLogoutLock?: boolean; }
-}
-(function _handleLogoutSentinel() {
-  if (typeof window === 'undefined') return;
-  let params: URLSearchParams;
-  try { params = new URLSearchParams(window.location.search); }
-  catch { return; }
-  if (params.get('logout') !== '1') return;
-
-  // Lock FIRST so even if storage ops throw, downstream auth code sees it.
-  try { window.__veloLogoutLock = true; } catch {}
-
-  // Aggressive synchronous storage wipe — same allowlist as handleLogout.
-  // Deterministic data (burner sub-account, Orderly keypair) and UI prefs
-  // survive. Everything else (Supabase JWT, wagmi connector state,
-  // WalletConnect sessions, AppKit metadata, sb-*, etc.) gets purged.
+// Explicit logout survives refresh without wiping wallet backups or connector data.
+declare global { interface Window { __veloLogoutLock?: boolean; } }
+if (typeof window !== 'undefined') {
   try {
-    const KEEP_EXACT  = new Set(['velo_theme', 'velo_fav_markets']);
-    const KEEP_PREFIX = ['velo_burner_', 'orderly_kp_'];
-    const toWipe: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k) continue;
-      if (KEEP_EXACT.has(k)) continue;
-      if (KEEP_PREFIX.some(p => k.startsWith(p))) continue;
-      toWipe.push(k);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('logout') === '1') {
+      localStorage.setItem('velo_logged_out', '1');
+      window.history.replaceState({}, '', window.location.pathname);
     }
-    toWipe.forEach(k => { try { localStorage.removeItem(k); } catch {} });
-  } catch {}
-  try { sessionStorage.clear(); } catch {}
+    window.__veloLogoutLock = localStorage.getItem('velo_logged_out') === '1';
+  } catch { /* private browsing may disable storage */ }
+}
 
-  // Strip the param. A manual refresh now reloads as a normal logged-out
-  // page — IIFE doesn't re-fire, lock isn't set, the user can connect.
-  try {
-    window.history.replaceState({}, document.title, window.location.pathname);
-  } catch {}
-})();
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -423,26 +368,14 @@ async function recordTransactionForUser(
   amount: number,
   onChainMeta?: { txHash?: string; counterparty?: string; onChain?: boolean },
 ): Promise<void> {
-  const { error } = await supabase.rpc('record_transaction_for_user', {
-    target_user_id: targetUserId,
-    p_type: type,
-    p_amount: amount,
-    p_tx_hash: onChainMeta?.txHash || null,
-    p_counterparty: onChainMeta?.counterparty || null,
-    p_on_chain: onChainMeta?.onChain ?? true,
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session || type !== 'RECEIVE' || !onChainMeta?.txHash) throw new Error('A signed-in session and confirmed transfer are required');
+  const response = await fetch('/api/record-transfer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ targetUserId, txHash: onChainMeta.txHash }), signal: AbortSignal.timeout(20000),
   });
-  if (!error) return;
-  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
-    const { error: insertErr } = await supabase.from('transactions').insert({
-      user_id: targetUserId, type, amount, status: 'COMPLETED',
-      on_chain: onChainMeta?.onChain ?? true,
-      tx_hash: onChainMeta?.txHash || null,
-      counterparty: onChainMeta?.counterparty || null,
-    });
-    if (insertErr) throw new Error(`fallback transactions insert failed: ${insertErr.message}`);
-    return;
-  }
-  throw new Error(error.message);
+  if (!response.ok) throw new Error('Transfer succeeded on-chain; recipient activity could not be synchronized yet.');
+
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -506,26 +439,22 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {} }: any) => 
     if (!isOpen) return null;
     const filtered = PAIRS.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase()));
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-fade-in" onClick={onClose}>
-            <GlassCard className="w-full max-w-sm max-h-[600px] flex flex-col p-0 overflow-hidden !rounded-2xl" onClick={(e:any) => e.stopPropagation()}>
-                <div className="p-4 border-b border-gray-200 dark:border-white/5">
+        <div className="velo-modal-enter-backdrop fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+            <GlassCard className="velo-modal-enter-card w-full max-w-sm max-h-[600px] flex flex-col p-0 overflow-hidden !rounded-2xl" onClick={(e:any) => e.stopPropagation()}>
+                <div className="p-4 border-b border-[var(--hairline)]">
                     <div className="relative">
-                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-                        <input autoFocus placeholder="Search markets..." className="w-full bg-gray-100 dark:bg-white/5 rounded-xl py-3 pl-10 pr-4 outline-none text-gray-900 dark:text-white" value={search} onChange={(e) => setSearch(e.target.value)} />
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]"/>
+                        <input autoFocus placeholder="Search markets..." className="velo-input w-full rounded-xl py-3 pl-10 pr-4 outline-none" value={search} onChange={(e) => setSearch(e.target.value)} />
                     </div>
                 </div>
                 <div className="overflow-y-auto flex-1 p-2">
                     {filtered.map(p => (
-                        <button key={p.id} onClick={() => {onSelect(p); onClose();}} className="w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-colors group">
+                        <button key={p.id} onClick={() => {onSelect(p); onClose();}} className="velo-market-select-row w-full flex items-center justify-between p-3 rounded-xl transition-colors group">
                             <div className="flex items-center gap-3">
-                                {p.logo ? (
-                                    <img src={p.logo} alt={p.name} className="w-8 h-8 rounded-full group-hover:scale-110 transition-transform" />
-                                ) : (
-                                    <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 font-bold text-[10px] group-hover:bg-purple-500 group-hover:text-white transition-colors">{p.id.split('/')[0][0]}</div>
-                                )}
-                                <div className="text-left"><p className="font-bold text-gray-900 dark:text-white">{p.id}</p><p className="text-xs text-gray-500">{p.name}</p></div>
+                                <VeloAssetIcon src={p.logo} symbol={p.id.split('/')[0]} size={32} className="group-hover:scale-105 transition-transform" />
+                                <div className="text-left"><p className="font-bold text-[var(--fg)]">{p.id}</p><p className="text-xs text-[var(--fg-subtle)]">{p.name}</p></div>
                             </div>
-                            <div className="text-right"><span className="block text-sm font-medium text-gray-900 dark:text-white">${formatPrice(marketPrices[p.id] || p.basePrice)}</span><span className="text-[10px] text-gray-500">{p.name}</span></div>
+                            <div className="text-right"><span className="block text-sm font-medium text-[var(--fg)]">${formatPrice(marketPrices[p.id] || p.basePrice)}</span><span className="text-[10px] text-[var(--fg-subtle)]">{p.name}</span></div>
                         </button>
                     ))}
                 </div>
@@ -586,23 +515,23 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
     };
 
     return (
-        <div style={{ marginBottom: 12 }}>
+        <div className="social-token-rail" style={{ marginBottom: 12 }}>
             <div style={{ background: 'var(--glass-bg)', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+                <div className="social-token-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
                     {TOP_SOCIAL_PAIRS.map((p, i) => {
                         const price = prices[p.pairId];
                         const chg = changes[p.pairId] ?? 0;
                         const up = chg >= 0;
                         const spark = sparklines[p.symbol] || [];
                         return (
-                            <div key={p.symbol}
+                            <div key={p.symbol} className="social-token-card"
                                 onClick={() => onTickerClick(p.symbol)}
                                 style={{ background: 'transparent', borderLeft: i > 0 ? '1px solid var(--hairline)' : 'none', padding: '13px 15px', cursor: 'pointer', transition: 'background 0.15s', position: 'relative', overflow: 'hidden' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--fg) 5%, transparent)'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
-                                    <img src={p.logo} style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }} />
+                                    <VeloAssetIcon src={p.logo} symbol={p.symbol} size={24} />
                                     <div style={{ minWidth: 0 }}>
                                         <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', display: 'block', letterSpacing: '0.02em' }}>{p.symbol}</span>
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, color: 'var(--fg-subtle)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
@@ -724,38 +653,46 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 
     // Fetch 24h hourly sparkline from Binance
     React.useEffect(() => {
+        const controller = new AbortController();
         setSparkData([]);
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1h&limit=24`)
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1h&limit=24`, { signal: controller.signal })
             .then(r => r.json())
-            .then((d: any[]) => { if (Array.isArray(d)) setSparkData(d.map((c: any) => parseFloat(c[4]))); })
+            .then((d: any[]) => { if (!controller.signal.aborted && Array.isArray(d)) setSparkData(d.map((c: any) => parseFloat(c[4]))); })
             .catch(() => {});
+        return () => controller.abort();
     }, [ticker, binanceSym]);
 
     // Fetch token info from CoinGecko
     React.useEffect(() => {
+        setTokenInfo(null);
         if (!meta?.geckoId) return;
-        fetch(`https://api.coingecko.com/api/v3/coins/${meta.geckoId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`)
+        const controller = new AbortController();
+        fetch(`https://api.coingecko.com/api/v3/coins/${meta.geckoId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, { signal: controller.signal })
             .then(r => r.json())
-            .then(d => setTokenInfo(d))
+            .then(d => { if (!controller.signal.aborted) setTokenInfo(d); })
             .catch(() => {});
+        return () => controller.abort();
     }, [ticker, meta?.geckoId]);
 
     // Fetch news
     React.useEffect(() => {
         setNewsLoading(true);
         const categories = ticker === 'BTC' ? 'BTC' : ticker === 'ETH' ? 'ETH' : ticker === 'SOL' ? 'SOL' : ticker;
-        fetch(`https://min-api.cryptocompare.com/data/v2/news/?categories=${categories}&extraParams=Velo&sortOrder=latest`)
+        const controller = new AbortController();
+        fetch(`https://min-api.cryptocompare.com/data/v2/news/?categories=${categories}&extraParams=Velo&sortOrder=latest`, { signal: controller.signal })
             .then(r => r.json())
-            .then(d => { setNews((d.Data || []).slice(0, 8)); setNewsLoading(false); })
-            .catch(() => { setNews([]); setNewsLoading(false); });
+            .then(d => { if (!controller.signal.aborted) { setNews((d.Data || []).slice(0, 8)); setNewsLoading(false); } })
+            .catch(() => { if (!controller.signal.aborted) { setNews([]); setNewsLoading(false); } });
+        return () => controller.abort();
     }, [ticker]);
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
+        numeric: { fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: 'normal' } as React.CSSProperties,
         display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
-    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
+    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 18, backdropFilter: 'blur(16px) saturate(1.2)', WebkitBackdropFilter: 'blur(16px) saturate(1.2)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
 
     const handleViewProfileWrapper = (partial: { id: string }) => {
         const trader = traders.find((t: any) => t.id === partial.id);
@@ -780,6 +717,8 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 
     const mcap = tokenInfo?.market_data?.market_cap?.usd;
     const volume24h = tokenInfo?.market_data?.total_volume?.usd;
+    const high24h = tokenInfo?.market_data?.high_24h?.usd;
+    const low24h = tokenInfo?.market_data?.low_24h?.usd;
     const circulatingSupply = tokenInfo?.market_data?.circulating_supply;
     const ath = tokenInfo?.market_data?.ath?.usd;
     const athDate = tokenInfo?.market_data?.ath_date?.usd;
@@ -795,50 +734,57 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
         if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
         return `$${n.toFixed(2)}`;
     };
-
+    const formatQuote = (n?: number) => {
+        if (n == null || !Number.isFinite(n)) return '—';
+        if (n >= 1000) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+        if (n >= 1) return `$${n.toFixed(2)}`;
+        if (n >= 0.01) return `$${n.toFixed(4)}`;
+        if (n >= 0.0001) return `$${n.toFixed(6)}`;
+        return `$${n.toFixed(8)}`;
+    };
     const description = meta?.longDescription || meta?.description || tokenInfo?.description?.en?.split('. ').slice(0, 3).join('. ') || '';
     const descShort = description.length > 220 ? description.slice(0, 220).trimEnd() + '…' : description;
 
     return (
-        <div style={{ width: "100%", maxWidth: 1600, margin: "0 auto", paddingBottom: "max(80px, calc(env(safe-area-inset-bottom, 0px) + 80px))" }} className="animate-fade-in">
+        <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "18px 24px max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))" }} className="animate-fade-in token-page">
             {/* Back button */}
             <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 14, padding: 0 }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg)'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg-muted)'}>
-                ← BACK TO FEED
+                ← ALL MARKETS
             </button>
 
             {/* Token header */}
-            <div style={{ ...panel, padding: '14px 16px', marginBottom: 12 }}>
-                <div className="token-header-inner" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
-                    <div className="token-header-left" style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+            <div className="token-hero" style={{ ...panel, padding: '20px 22px', marginBottom: 14 }}>
+                <div className="token-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+                    <div className="token-header-left" style={{ display: 'grid', gridTemplateColumns: '48px minmax(0,1fr)', alignItems: 'center', columnGap: 13, flex: 1, minWidth: 0 }}>
                         {(pairInfo?.logo || tokenInfo?.image?.large) && (
-                            <img src={pairInfo?.logo || tokenInfo?.image?.large} style={{ width: 44, height: 44, borderRadius: '50%', border: '2px solid var(--hairline)', flexShrink: 0 }} />
+                            <VeloAssetIcon className="token-header-icon" src={pairInfo?.logo || tokenInfo?.image?.large} symbol={ticker} size={46} />
                         )}
                         <div style={{ minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                                <span style={{ ...S.display, fontSize: 22, color: 'var(--fg)' }}>${ticker}</span>
+                                <h1 style={{ ...S.display, fontSize: 28, fontWeight: 500, color: 'var(--fg)', lineHeight: 1, margin: 0 }}>${ticker}</h1>
                                 {(pairInfo?.name || tokenInfo?.name) && (
                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-subtle)' }}>{pairInfo?.name || tokenInfo?.name}</span>
                                 )}
-                                {rank && <span style={{ ...S.label, fontSize: 9, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 6, padding: '2px 7px', color: 'var(--iris-violet)' }}>#{rank}</span>}
-                                {meta?.category && <span style={{ ...S.label, fontSize: 9, background: 'oklch(0.68 0.22 295 / 0.08)', border: '1px solid oklch(0.68 0.22 295 / 0.2)', borderRadius: 6, padding: '2px 8px', color: 'var(--iris-violet)' }}>{meta.category}</span>}
+                                {rank && <span className="token-meta-chip">Rank #{rank}</span>}
+                                {meta?.category && <span className="token-meta-chip">{meta.category}</span>}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <span style={{ ...S.mono, fontSize: 20, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>
-                                    {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(3)}` : `$${price.toFixed(6)}`) : '—'}
+                            <div className="token-quote-line">
+                                <span style={{ ...S.numeric, fontSize: 22, fontWeight: 650, color: 'var(--fg)', lineHeight: 1 }}>
+                                    {formatQuote(price)}
                                 </span>
-                                <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 7px', flexShrink: 0 }}>
+                                <span className={`token-day-change ${up ? 'positive' : 'negative'}`}>
                                     {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}% 24h
                                 </span>
                                 {priceChange7d != null && (
-                                    <span className="hide-mobile" style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: priceChange7d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', opacity: 0.8 }}>
-                                        7d: {priceChange7d >= 0 ? '+' : ''}{priceChange7d.toFixed(2)}%
+                                    <span className="token-period-change" style={{ color: priceChange7d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
+                                        7D {priceChange7d >= 0 ? '+' : ''}{priceChange7d.toFixed(2)}%
                                     </span>
                                 )}
                                 {priceChange30d != null && (
-                                    <span className="hide-mobile" style={{ ...S.mono, fontSize: 11, fontWeight: 700, color: priceChange30d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', opacity: 0.8 }}>
-                                        30d: {priceChange30d >= 0 ? '+' : ''}{priceChange30d.toFixed(2)}%
+                                    <span className="token-period-change hide-mobile" style={{ color: priceChange30d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
+                                        30D {priceChange30d >= 0 ? '+' : ''}{priceChange30d.toFixed(2)}%
                                     </span>
                                 )}
                             </div>
@@ -854,32 +800,31 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                 <button
                                     onClick={() => onToggleWatchlist(pairId)}
                                     title={isFav ? 'Remove from watchlist' : 'Add to watchlist'}
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 10, border: `1px solid ${isFav ? 'oklch(0.80 0.16 60 / 0.5)' : 'var(--hairline-strong)'}`, background: isFav ? 'oklch(0.80 0.16 60 / 0.1)' : 'var(--chip-bg)', cursor: 'pointer', color: isFav ? 'oklch(0.80 0.16 60)' : 'var(--fg-subtle)', transition: 'all 0.15s' }}
-                                    onMouseEnter={e => { if (!isFav) { (e.currentTarget as HTMLElement).style.borderColor = 'oklch(0.80 0.16 60 / 0.4)'; (e.currentTarget as HTMLElement).style.color = 'oklch(0.80 0.16 60)'; }}}
-                                    onMouseLeave={e => { if (!isFav) { (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline-strong)'; (e.currentTarget as HTMLElement).style.color = 'var(--fg-subtle)'; }}}>
+                                    aria-label={isFav ? 'Remove from watchlist' : 'Add to watchlist'}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 11, border: `1px solid ${isFav ? 'color-mix(in oklab,var(--accent) 55%,var(--hairline))' : 'var(--hairline-strong)'}`, background: isFav ? 'color-mix(in oklab,var(--accent) 9%,transparent)' : 'var(--chip-bg)', cursor: 'pointer', color: isFav ? 'var(--accent-text)' : 'var(--fg-subtle)', transition: 'all 0.15s' }}>
                                     <Star size={16} fill={isFav ? 'currentColor' : 'none'} strokeWidth={1.5}/>
                                 </button>
                             );
                         })()}
-                        {onNavigateToTrade && (
+                        {onNavigateToTrade && isTradablePair(pairId) && (
                             <button
                                 className="token-trade-btn"
                                 onClick={() => onNavigateToTrade(ticker)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite', color: '#0B0B0E', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', boxShadow: '0 2px 12px oklch(0.68 0.22 295 / 0.25)', transition: 'transform 0.1s, box-shadow 0.1s', whiteSpace: 'nowrap' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px oklch(0.68 0.22 295 / 0.4)'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 12px oklch(0.68 0.22 295 / 0.25)'; }}>
-                                <TrendingUp size={13} strokeWidth={2.5}/> Trade ${ticker}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 40, padding: '0 16px', borderRadius: 11, border: '1px solid color-mix(in oklab,var(--accent) 60%,var(--hairline))', cursor: 'pointer', background: 'var(--accent)', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                                <TrendingUp size={13} strokeWidth={2.5}/> Trade
                             </button>
                         )}
+                        {!isTradablePair(pairId) && <span className="token-trade-unavailable">Perpetual not listed</span>}
                     </div>
                 </div>
             </div>
 
-            <div className="token-page-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 12 }}>
+            <div className="token-page-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 16, alignItems: 'start' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* Interactive chart */}
                     <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
                         <TokenInteractiveChart
+                            key={ticker}
                             priceData={sparkData}
                             up={up}
                             ticker={ticker}
@@ -889,52 +834,47 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     </div>
 
                     {/* Stats strip */}
-                    {(mcap || ath || circulatingSupply) && (
-                        <div style={{ ...panel, padding: '12px 16px' }}>
-                            <div className="token-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 14 }}>
+                    {(mcap || ath || circulatingSupply || high24h || low24h) && (
+                        <div className="token-data-panel" style={{ ...panel, padding: '17px 19px' }}>
+                            <div className="token-data-heading"><span>Market data</span></div>
+                            <div className="token-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0 }}>
                                 {mcap && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Market Cap</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{formatLarge(mcap)}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{formatLarge(mcap)}</div>
                                     </div>
                                 )}
                                 {volume24h && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Volume</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{formatLarge(volume24h)}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{formatLarge(volume24h)}</div>
+                                    </div>
+                                )}
+                                {(high24h || low24h) && (
+                                    <div className="token-stat">
+                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Range</div>
+                                        <div style={{ ...S.numeric, fontSize: 12, fontWeight: 650, color: 'var(--fg)' }}>{low24h ? formatQuote(low24h) : '—'} <span style={{ color: 'var(--fg-subtle)' }}>–</span> {high24h ? formatQuote(high24h) : '—'}</div>
                                     </div>
                                 )}
                                 {circulatingSupply && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Circulating</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>
                                             {circulatingSupply >= 1e12 ? `${(circulatingSupply / 1e12).toFixed(2)}T` : circulatingSupply >= 1e9 ? `${(circulatingSupply / 1e9).toFixed(2)}B` : circulatingSupply >= 1e6 ? `${(circulatingSupply / 1e6).toFixed(2)}M` : circulatingSupply.toFixed(0)}
                                         </div>
                                     </div>
                                 )}
                                 {ath && (
-                                    <div>
+                                    <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>All-Time High</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{ath >= 1000 ? `$${ath.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : `$${ath.toFixed(4)}`}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{ath >= 1000 ? `$${ath.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : `$${ath.toFixed(4)}`}</div>
                                         {athDate && <div style={{ ...S.label, fontSize: 8, marginTop: 2 }}>{new Date(athDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</div>}
                                     </div>
                                 )}
-                                {meta?.supply && (
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Max Supply</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{meta.supply}</div>
-                                    </div>
-                                )}
-                                {fdv && (
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>FDV</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{formatLarge(fdv)}</div>
-                                    </div>
-                                )}
-                                {meta?.launchYear && (
-                                    <div>
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Launched</div>
-                                        <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{meta.launchYear}</div>
+                                {(fdv || rank) && (
+                                    <div className="token-stat">
+                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>{fdv ? 'Fully diluted value' : 'Market rank'}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{fdv ? formatLarge(fdv) : `#${rank}`}</div>
                                     </div>
                                 )}
                             </div>
@@ -948,7 +888,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
                                 <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>About {pairInfo?.name || ticker}</span>
                                 {meta?.category && (
-                                    <span style={{ marginLeft: 'auto', ...S.label, fontSize: 9, color: 'var(--iris-violet)', background: 'oklch(0.68 0.22 295 / 0.08)', border: '1px solid oklch(0.68 0.22 295 / 0.2)', borderRadius: 6, padding: '2px 8px' }}>
+                                    <span style={{ marginLeft: 'auto', ...S.label, fontSize: 9, color: 'var(--iris-violet)', background: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 6, padding: '2px 8px' }}>
                                         {meta.category}
                                     </span>
                                 )}
@@ -1052,13 +992,13 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     )}
                 </div>
 
-                {/* Right sidebar — related tokens + top posters */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Related-market shortcuts */}
+                <div className="token-market-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div className="vp" style={panel}>
                         <div style={{ padding: '14px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
-                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Related tokens</span>
+                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Related markets</span>
                             </div>
                             {TOP_SOCIAL_PAIRS.filter(p => p.symbol !== ticker).map(p => {
                                 const pc = changes[p.pairId] ?? 0;
@@ -1069,7 +1009,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                                            <img src={p.logo} style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0 }}/>
+                                            <VeloAssetIcon src={p.logo} symbol={p.symbol} size={28} />
                                             <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{p.symbol}</span>
                                         </div>
                                         <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: pu ? 'var(--pnl-up)' : 'var(--pnl-down)', flexShrink: 0 }}>{pu ? '+' : ''}{pc.toFixed(2)}%</span>
@@ -1132,16 +1072,28 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
 };
 
 // ─── Single Post View (like Twitter /status/:id) ────────────────────────────
-const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
-    const post = posts.find((p: any) => p.id === postId);
+const SinglePostView = ({ postId, commentId, posts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
+    const [fetchedPost, setFetchedPost] = useState<any>(null);
+    const post = posts.find((p: any) => p.id === postId) || fetchedPost;
+
+    useEffect(() => {
+        let active = true;
+        setFetchedPost(null);
+        if (posts.some((p: any) => p.id === postId)) return;
+        fetchPostById(postId).then(result => {
+            if (active && result) setFetchedPost(result);
+        }).catch(error => console.warn('[velo] shared post lookup failed:', error));
+        return () => { active = false; };
+    }, [postId]);
 
     // Update page title and OG meta for this post
     useEffect(() => {
         if (!post) return;
         const prev = document.title;
-        document.title = `${post.authorHandle} on Velo — "${post.content.slice(0, 60)}${post.content.length > 60 ? '…' : ''}"`;
+        const subject = commentId ? `Reply by ${post.comments?.find((comment: any) => comment.id === commentId)?.authorHandle || 'trader'}` : post.authorHandle;
+        document.title = `${subject} on Velo — "${post.content.slice(0, 60)}${post.content.length > 60 ? '…' : ''}"`;
         return () => { document.title = prev; };
-    }, [post?.id]);
+    }, [post?.id, commentId]);
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
@@ -1216,7 +1168,7 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
 
                 {/* Trade signal card */}
                 {post.isTradeSignal && post.tradeDetails && (
-                    <div style={{ margin: '16px 24px 0', background: 'oklch(0.68 0.22 295 / 0.06)', border: '1px solid oklch(0.68 0.22 295 / 0.2)', borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ margin: '16px 24px 0', background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                 <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>{post.tradeDetails.pair}</span>
@@ -1272,6 +1224,7 @@ const SinglePostView = ({ postId, posts, user, traders, onLike, onRepost, onComm
                 onViewProfile={onViewProfile}
                 onTickerClick={onTickerClick}
                 compact={false}
+                focusCommentId={commentId}
             />
         </div>
     );
@@ -1431,7 +1384,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     user={user}
                     prices={prices}
                     changes={changes}
-                    onClose={(sym?: string) => { if (sym && typeof sym === 'string') setActiveTickerWithURL(sym); else setActiveTickerWithURL(null); }}
+                    onClose={(sym?: string) => { if (sym && typeof sym === 'string') setActiveTickerWithURL(sym); else { setActiveTickerWithURL(null); onNavigateToMarkets?.(); } }}
                     onLike={onLike}
                     onRepost={onRepost}
                     onComment={onComment}
@@ -1489,7 +1442,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                     </div>
                                 </div>
                                 <button onClick={() => handleFollow(t.id)}
-                                    style={{ padding: '4px 11px', borderRadius: 20, border: '1px solid var(--hairline-strong)', background: user?.following?.includes(t.id) ? 'var(--chip-bg)' : 'oklch(0.55 0.24 295/0.12)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: user?.following?.includes(t.id) ? 'var(--fg-muted)' : 'var(--iris-violet)', cursor: 'pointer', transition: 'all 0.1s' }}>
+                                    style={{ padding: '4px 11px', borderRadius: 20, border: '1px solid var(--hairline-strong)', background: user?.following?.includes(t.id) ? 'var(--chip-bg)' : 'color-mix(in oklab, var(--accent) 12%, transparent)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: user?.following?.includes(t.id) ? 'var(--fg-muted)' : 'var(--iris-violet)', cursor: 'pointer', transition: 'all 0.1s' }}>
                                     {user?.following?.includes(t.id) ? 'Following' : 'Follow'}
                                 </button>
                             </div>
@@ -1528,7 +1481,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             </div>
 
             {/* Right — tokens strip + compose + feed */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="social-feed-main" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* Top Tokens Bar */}
                 <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets} />
                 {/* Compose */}
@@ -1569,7 +1522,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     <div style={{ display: 'flex', gap: 0 }}>
                         {['LATEST','TRENDING','FOLLOWING','SIGNALS'].map(f => (
                             <button key={f} onClick={() => setFilter(f as any)}
-                                style={{ flex: 1, padding: '11px 8px', border: 'none', background: filter === f ? 'oklch(0.55 0.24 295/0.10)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--iris-violet)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s' }}>
+                                style={{ flex: 1, padding: '11px 8px', border: 'none', background: filter === f ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--iris-violet)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s' }}>
                                 {f}
                             </button>
                         ))}
@@ -1611,7 +1564,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
     const [activeTab, setActiveTab] = useState<'POSTS' | 'REPOSTS' | 'TRADES'>('POSTS');
     const stats = calculateStats(user.tradeHistory);
     // Show posts authored by OR posted on this user's wall
-    const userPosts = posts.filter((p: Post) => p.authorId === user.id || p.targetProfileId === user.id);
+    const userPosts = posts.filter((p: Post) => p.authorId === user.id);
     const userReposts = posts.filter((p: Post) => p.repostedBy.includes(user.id));
     const activePositions = positions.filter((p: Position) => !p.isCopyTrade);
     const S = {
@@ -1645,7 +1598,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                 {activeTab === 'POSTS' && (
                     <>
                         <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
-                            <WallCompose user={user} targetId={user.id} targetName="your wall" onPostCreate={onPostCreate} placeholder="Post on your wall\u2026 Use @handle to tag someone" traders={traders} />
+                            <WallCompose user={user} targetId={user.id} targetName="your wall" onPostCreate={onPostCreate} placeholder="Share an update… Use @handle to mention someone" traders={traders} />
                         </div>
                         {userPosts.length === 0 ? emptyMsg('No posts yet.') : userPosts.map((post: Post) => (
                             <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={() => {}} onViewProfile={onViewProfile} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={onTickerClick} onSinglePost={onSinglePost}/>
@@ -1664,7 +1617,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                             </div>
                             <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Size ${formatMoney(p.size)}</span>
                         </div>
-                        <span style={{ padding: '4px 10px', borderRadius: 8, background: 'oklch(0.68 0.22 295/0.1)', border: '1px solid oklch(0.68 0.22 295/0.25)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
+                        <span style={{ padding: '4px 10px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                     </div>
                 )))}
             </div>
@@ -1680,7 +1633,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
     const [traderPositions, setTraderPositions] = useState<Position[]>([]);
     const [loadingPositions, setLoadingPositions] = useState(false);
     // Show posts authored by this trader OR posted on their wall
-    const traderPosts = posts.filter((p: Post) => p.authorId === trader.id || p.targetProfileId === trader.id);
+    const traderPosts = posts.filter((p: Post) => p.authorId === trader.id);
     const traderReposts = posts.filter((p: Post) => p.repostedBy.includes(trader.id));
     const isFollowing = user?.following.includes(trader.id);
     const isCopying = user?.copying.includes(trader.id);
@@ -1738,11 +1691,6 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {activeTab === 'POSTS' && (
                     <>
-                        {user && (
-                            <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
-                                <WallCompose user={user} targetId={trader.id} targetName={trader.username} onPostCreate={onPostCreate} placeholder={`Write on ${trader.username}'s wall\u2026 Use @handle to tag someone`} traders={traders} />
-                            </div>
-                        )}
                         {traderPosts.length === 0 ? emptyMsg('No posts yet.') : traderPosts.map((post: Post) => (
                             <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={onViewProfile} showUsersModal={showUsersModal} traders={traders} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onTickerClick={onTickerClick} onSinglePost={onSinglePost}/>
                         ))}
@@ -1777,7 +1725,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                                             <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Mark ${formatPrice(curPrice)} · Size ${formatMoney(p.size)}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                                            <span style={{ padding: '3px 8px', borderRadius: 8, background: 'oklch(0.68 0.22 295/0.1)', border: '1px solid oklch(0.68 0.22 295/0.25)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
+                                            <span style={{ padding: '3px 8px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                                             <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: posUnreal >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
                                                 {posUnreal >= 0 ? '+' : '-'}${formatMoney(Math.abs(posUnreal))}
                                             </span>
@@ -2006,18 +1954,30 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
     );
 };
 
+const chartCandleKey = (pairId: string, timeframe: string) => `${pairId}::${timeframe}`;
+
 const App = () => {
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('velo_theme') as 'light' | 'dark') || 'dark');
     // Initialize from localStorage cache immediately — eliminates the "Log In" flash
     // on every page load while Supabase session restore runs in the background.
     // Supabase INITIAL_SESSION overwrites this with fresh data once it resolves.
-    const [user, setUser] = useState<UserProfile | null>(() => readSessionCache());
+    const [user, setUser] = useState<UserProfile | null>(null);
     // Tracks whether the initial auth check is complete — prevents flash of "not logged in" on refresh
     // If we have a cached user, skip the loading screen — Supabase refreshes in background.
     // If no cache, show loading until session restore completes.
-    const [authChecked, setAuthChecked] = useState(() => readSessionCache() !== null);
+    const [authChecked, setAuthChecked] = useState(false);
     // Bumped after intentional logout clears, to re-arm socialLoginEffect when wallet stays connected
     const [retryAuthTick, setRetryAuthTick] = useState(0);
+    const [signInBusy, setSignInBusy] = useState(false);
+    const signInBusyRef = useRef(false);
+    const [sessionNotice, setSessionNotice] = useState<'signed-out' | 'expired' | null>(null);
+    const [sessionWarning, setSessionWarning] = useState<number | null>(null);
+    const [sessionHardExpiry, setSessionHardExpiry] = useState(false);
+    const sessionActivityRef = useRef(Date.now());
+    const [publicLoadErrors, setPublicLoadErrors] = useState<{ profiles?: string; posts?: string }>({});
+    const [publicLoading, setPublicLoading] = useState(false);
+    const publicLoadRef = useRef<Promise<void> | null>(null);
+
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
 
     // ── Analytics: virtual page_view on tab change (SPA navigation) ──────────
@@ -2055,7 +2015,11 @@ const App = () => {
     const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
     const [marketChanges, setMarketChanges] = useState<Record<string, number>>({});
     const [candles, setCandles] = useState<Record<string, Candle[]>>({});
-    const [notifications, setNotifications] = useState<Notification[]>(() => readNotifCache());
+    const [chartHistoryStatus, setChartHistoryStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+    const [chartHistoryRetry, setChartHistoryRetry] = useState(0);
+    const olderHistoryRequestsRef = useRef(new Set<string>());
+    const exhaustedHistoryRef = useRef(new Set<string>());
+    const [notifications, setNotifications] = useState<Notification[]>([]);
     // Notification-driven focus for the Trade view. tradeFocus.tab forces the
     // PositionsPanel tab; tradeFocus.highlightId briefly outlines a matching row.
     const [tradeFocus, setTradeFocus] = useState<{ tab?: 'POSITIONS' | 'OPEN ORDERS' | 'HISTORY'; highlightId?: string; key: number } | null>(null);
@@ -2068,6 +2032,7 @@ const App = () => {
     const [socialOpenCommentsPostId, setSocialOpenCommentsPostId] = useState<string | null>(null);
     // Single post view — like Twitter's /status/:id
     const [singlePostId, setSinglePostId] = useState<string | null>(null);
+    const [singleCommentId, setSingleCommentId] = useState<string | null>(null);
     const [deletePostConfirm, setDeletePostConfirm] = useState<{ isOpen: boolean; postId: string | null; onConfirm: (() => void) | null; itemType: 'post' | 'comment' }>({ isOpen: false, postId: null, onConfirm: null, itemType: 'post' });
     const [createPostModalOpen, setCreatePostModalOpen] = useState(false);
     const [activePair, setActivePair] = useState(PAIRS[0]);
@@ -2077,33 +2042,12 @@ const App = () => {
             setSocialFocusPostId(null);
             setSocialOpenCommentsPostId(null);
             setSinglePostId(null);
+            setSingleCommentId(null);
         }
         if (activeTab !== TabView.TRADE) {
             setAutoOpenHistoryId(null);
         }
     }, [activeTab]);
-
-    // Public posts fetch — runs on first Social tab entry regardless of auth state.
-    // Without this, anonymous visitors (and brand-new accounts that haven't fully
-    // hydrated yet) see an empty feed because the original fetchPosts is gated
-    // behind the session-restore path.
-    useEffect(() => {
-        if (activeTab !== TabView.SOCIAL) return;
-        if (posts.length > 0) return; // don't refetch if already loaded
-        if (!isSupabaseConfigured()) return;
-        fetchPosts(50).then((loaded) => {
-            if (loaded.length > 0) setPosts(loaded);
-        }).catch((e) => console.warn('[velo] public posts fetch failed', e));
-    }, [activeTab, posts.length]);
-    // Fetch real candles whenever the active pair changes (covers URL routing + pair selector)
-    useEffect(() => {
-        const tf = chartPrefs.chartTf || '15m';
-        fetchPythKlines(activePair.id, tf).then(klineCandles => {
-            if (klineCandles.length > 0) {
-                setCandles(prev => ({ ...prev, [activePair.id]: klineCandles }));
-            }
-        });
-    }, [activePair.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Chart preferences — restored from Supabase on login
     const [chartPrefs, setChartPrefs] = useState<Pick<UserPreferences, 'chartTf' | 'chartStyle' | 'indicators' | 'overlays'>>({
@@ -2112,6 +2056,55 @@ const App = () => {
         indicators: DEFAULT_PREFERENCES.indicators,
         overlays:   DEFAULT_PREFERENCES.overlays,
     });
+    // Cache each interval independently so stale requests cannot replace the
+    // candles currently selected in the Trade chart.
+    useEffect(() => {
+        const tf = chartPrefs.chartTf || '15m';
+        const key = chartCandleKey(activePair.id, tf);
+        let cancelled = false;
+        setChartHistoryStatus('loading');
+        fetchPythKlines(activePair.id, tf, { authenticated: !!user, force: chartHistoryRetry > 0 }).then(klineCandles => {
+            if (cancelled) return;
+            if (klineCandles.length > 0) {
+                setCandles(prev => ({ ...prev, [key]: klineCandles }));
+                setChartHistoryStatus('ready');
+            } else {
+                setChartHistoryStatus('unavailable');
+            }
+        }).catch(() => {
+            if (!cancelled) setChartHistoryStatus('unavailable');
+        });
+        return () => { cancelled = true; };
+    }, [activePair.id, chartPrefs.chartTf, chartHistoryRetry, user?.id]);
+    const loadOlderChartHistory = async ({ pairId, timeframe, beforeTime, source }: {
+        pairId: string; timeframe: string; beforeTime: number; source: 'pyth' | 'exchange';
+    }) => {
+        const historyKey = chartCandleKey(pairId, timeframe);
+        const requestKey = `${historyKey}::${source}`;
+        if (exhaustedHistoryRef.current.has(requestKey)) return false;
+        if (olderHistoryRequestsRef.current.has(requestKey)) return true;
+        olderHistoryRequestsRef.current.add(requestKey);
+        try {
+            const older = await fetchOlderPythKlines(pairId, timeframe, beforeTime, source);
+            const page = older.filter(candle => candle.time < beforeTime);
+            if (!page.length) {
+                exhaustedHistoryRef.current.add(requestKey);
+                return false;
+            }
+            setCandles(prev => {
+                const current = prev[historyKey] || [];
+                if (current[0]?.source && current[0].source !== source) return prev;
+                const merged = new Map<number, Candle>();
+                for (const candle of page) merged.set(candle.time, candle);
+                for (const candle of current) merged.set(candle.time, candle);
+                const ordered = [...merged.values()].sort((a, b) => a.time - b.time);
+                return ordered.length === current.length ? prev : { ...prev, [historyKey]: ordered };
+            });
+            return true;
+        } finally {
+            olderHistoryRequestsRef.current.delete(requestKey);
+        }
+    };
     const prefsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLoginOpen, setLoginOpen] = useState(false);
     // Username for SUCCESS_RETURNING screen — set by silent login in socialLoginHandledRef effect
@@ -2156,7 +2149,7 @@ const App = () => {
     const { address: walletAddress, isConnected: isWalletConnected, status: wagmiStatus } = useAccount();
     const { switchChain } = useSwitchChain();
     const { open: openAppKitModal } = useAppKit();
-    const publicClient = usePublicClient();
+    const publicClient = usePublicClient({ chainId: 84532 });
     const { signMessageAsync } = useSignMessage();
     // Guard so the auto-recovery signature prompt fires at most once per session.
     const autoRecoverAttemptedRef = useRef(false);
@@ -2230,12 +2223,12 @@ const App = () => {
     // Without this, every page reload clears burnerAddress → keypair lookup
     // uses the wrong address → balance shows $0.00 and user must re-activate.
     useEffect(() => {
-      if (!walletAddress) return;
+      if (!walletAddress || !user?.id) { setBurnerAddress(null); return; }
       const cached = loadStoredBurner(walletAddress);
       if (cached?.veloAddress) {
         setBurnerAddress(cached.veloAddress as `0x${string}`);
       }
-    }, [walletAddress]);
+    }, [walletAddress, user?.id]);
 
     // When wagmi finishes its async reconnect after page load, walletAddress
     // becomes defined. If the user is already restored from Supabase but
@@ -2344,14 +2337,9 @@ const App = () => {
             // optimistic rows not yet confirmed by the server are kept until a
             // future refetch confirms them.
             const serverHistIds = new Set(history.map(h => h.id));
-            const matchesServerHist = (local: TradeHistoryItem) => history.some(s =>
-              s.pair === local.pair &&
-              s.side === local.side &&
-              (s.action || 'OPEN') === (local.action || 'OPEN') &&
-              Math.abs(s.timestamp - local.timestamp) < 10_000
-            );
             const localOnlyHist = prev.tradeHistory.filter(local =>
-              !serverHistIds.has(local.id) && !matchesServerHist(local)
+              !serverHistIds.has(local.id) && local.timestamp > Date.now() - 120000 &&
+              !history.some(row => row.txHash && row.txHash === local.txHash && row.action === local.action)
             );
             const mergedHist = [...localOnlyHist, ...history].sort((a, b) => b.timestamp - a.timestamp);
 
@@ -2442,78 +2430,33 @@ const App = () => {
       if (freshSignupRef.current) return;
       socialLoginHandledRef.current = true;
 
-      setTimeout(async () => {
+      const loginTimer = setTimeout(async () => {
         if (freshSignupRef.current) return;
         if (intentionalLogoutRef.current) return;
-        const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-        const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-
-        // Distinguish a genuine "no wallet account yet" from a transient
-        // failure. Supabase returns "Invalid login credentials" (status 400)
-        // ONLY when the email/password pair doesn't exist — that's the real
-        // onboarding signal. Network blips, 5xx, rate-limits, and JWT-timing
-        // races surface as other messages/statuses. Previously every error
-        // (including transient ones) dropped a returning user onto the login
-        // modal — the root cause of the "flaky sign-on": a momentary network
-        // hiccup looked identical to "you have no account". We now retry the
-        // transient cases a couple of times before giving up.
-        const isNoAccountError = (err: any): boolean => {
-          if (!err) return false;
-          const msg = (err.message || '').toLowerCase();
-          const status = err.status ?? err.code;
-          return status === 400 && (msg.includes('invalid login credentials') || msg.includes('invalid credentials'));
-        };
-
-        const MAX_ATTEMPTS = 3;
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-          if (freshSignupRef.current || intentionalLogoutRef.current) return;
-          try {
-            const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-            if (freshSignupRef.current) return;
-
-            if (data?.user && !signInErr) {
-              const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-              if (freshSignupRef.current) return;
-              if (profile?.username) {
-                intentionalLogoutRef.current = false;
-                freshSignupRef.current = false;
-                socialLoginHandledRef.current = true;
-                sessionRestoredRef.current = true;
-                silentLoginCallbackRef.current?.(data.user, profile);
-                return;
-              }
-              // Authenticated but no profile row yet — treat as new account.
-              break;
-            }
-
-            if (isNoAccountError(signInErr)) {
-              // Genuine: this wallet has never signed up. Stop and onboard.
-              break;
-            }
-
-            // Transient error — back off and retry (unless this was the last try).
-            if (attempt < MAX_ATTEMPTS) {
-              console.warn(`[velo] silent wallet sign-in transient error (attempt ${attempt}/${MAX_ATTEMPTS}):`, signInErr?.message);
-              await new Promise(r => setTimeout(r, attempt * 600));
-              continue;
-            }
-          } catch (e: any) {
-            // Thrown (network) error — same transient handling.
-            if (attempt < MAX_ATTEMPTS) {
-              console.warn(`[velo] silent wallet sign-in threw (attempt ${attempt}/${MAX_ATTEMPTS}):`, e?.message);
-              await new Promise(r => setTimeout(r, attempt * 600));
-              continue;
-            }
+        signInBusyRef.current = true; setSignInBusy(true);
+        try {
+          const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
+          if (intentionalLogoutRef.current || freshSignupRef.current) return;
+          const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
+          if (error) throw error;
+          if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
+            sessionRestoredRef.current = true;
+            silentLoginCallbackRef.current?.(data.user, profile);
+            return;
           }
-          break;
-        }
+        } catch (error: any) {
+          socialLoginHandledRef.current = false;
+          setToast({ message: error?.shortMessage || error?.message || 'Sign-in cancelled. Click Log In to retry.', type: 'ERROR' });
+          return;
+        } finally { signInBusyRef.current = false; setSignInBusy(false); }
 
         // No existing account (or retries exhausted) — open onboarding.
         if (freshSignupRef.current || intentionalLogoutRef.current) return;
         socialLoginHandledRef.current = false;
         setLoginReturningName('');
         setLoginOpen(true);
-      }, 400);
+      }, 0);
+      return () => clearTimeout(loginTimer);
     }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked, retryAuthTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Velo Welcome onboarding (Phase 3) ─────────────────────────────────
@@ -2616,140 +2559,66 @@ const App = () => {
       });
     }, [user, isWalletConnected, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
-    // ── Detect keeper-executed TP/SL closes ─────────────────────────────────
-    // When the on-chain cron fires closeIfTriggered, the position disappears from
-    // openPositions. We detect this and add a history entry + toast + notification.
-    useEffect(() => {
-      if (!user || !isWalletConnected) return;
-      if (veloPerpsTrading.isInitialLoading) return;
-
-      const currentIds = new Set(veloPerpsTrading.openPositions.map(p => p.tradeId.toString()));
-      const prev = prevVeloPositionsRef.current;
-
-      // Positions that were there before but are now gone → closed by keeper (TP/SL)
-      const closedEntries = [...prev.entries()].filter(([id]) => !currentIds.has(id));
-
-      if (closedEntries.length > 0) {
-        let openTxMap: Record<string, string> = {};
-        try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
-
-        closedEntries.forEach(([id, pos]) => {
-          // Skip if another close path (manual close / TP-SL handler) already
-          // recorded this tradeId — prevents the duplicate history row.
-          if (closedVeloTradeIdsRef.current.has(id)) return;
-
-          const exitPrice = marketPrices[pos.pair] || pos.entryPrice;
-
-          // A position can leave the on-chain list three ways: manual close
-          // (handled elsewhere and already claimed via closedVeloTradeIdsRef),
-          // a TP/SL keeper close, or a LIQUIDATION. The old code only recorded
-          // TP/SL closes and silently dropped everything else — so a liquidated
-          // position vanished with NO activity row, leaving the user unable to
-          // tell whether they were liquidated or the app bugged. We now ALWAYS
-          // record a closing row; we infer liquidation when no TP/SL was set.
-          const isTpHit = pos.takeProfit && (
-            (pos.side === 'LONG' && exitPrice >= pos.takeProfit) ||
-            (pos.side === 'SHORT' && exitPrice <= pos.takeProfit)
-          );
-          const isSlHit = pos.stopLoss && (
-            (pos.side === 'LONG' && exitPrice <= pos.stopLoss) ||
-            (pos.side === 'SHORT' && exitPrice >= pos.stopLoss)
-          );
-          // No TP/SL set, or price didn't reach them → treat as liquidation.
-          const isLiquidation = !isTpHit && !isSlHit;
-
-          // Claim this tradeId now so a manual-close handler firing in the same
-          // window doesn't also write a row.
-          if (!markVeloTradeClosed(id)) return;
-
-          const priceDiff = exitPrice - pos.entryPrice;
-          const pnl = (pos.side === 'LONG' ? priceDiff : -priceDiff) * (pos.size / pos.entryPrice);
-          const triggerType = isLiquidation ? 'Liquidation' : isTpHit ? 'Take Profit' : 'Stop Loss';
-
-          // We don't have the keeper's close tx on the client, but we do have the
-          // position's OPEN tx — link to it so the row is verifiably on-chain.
-          const openTx = pos.openTxHash || openTxMap[id];
-          const explorerUrl = openTx
-            ? (openTx.startsWith('http') ? openTx : `https://sepolia.basescan.org/tx/${openTx}`)
-            : undefined;
-          const liq = pos.side === 'LONG'
-            ? pos.entryPrice * (1 - 0.9 / pos.leverage)
-            : pos.entryPrice * (1 + 0.9 / pos.leverage);
-
-          // On liquidation the collateral is forfeited: realized loss ≈ the
-          // margin that was locked, and nothing is returned to balance.
-          const lockedMargin = pos.size / pos.leverage;
-          const effectivePnl = isLiquidation ? -lockedMargin : pnl;
-          const historyItem: TradeHistoryItem = {
-            id: `${isLiquidation ? 'liq' : 'close_tp'}_velo_${id}_${Date.now()}`,
-            pair: pos.pair,
-            side: pos.side as any,
-            entryPrice: pos.entryPrice,
-            exitPrice,
-            size: pos.size,
-            pnl: effectivePnl,
-            timestamp: Date.now(),
-            openedAt: pos.openedAt,
-            action: isLiquidation ? 'LIQUIDATION' : 'CLOSE',
-            leverage: pos.leverage,
-            marginMode: pos.marginMode,
-            liquidationPrice: liq,
-            onChain: !!explorerUrl,
-            orderlyOrderUrl: explorerUrl,
-          } as any;
-
-          setUser((prevUser: any) => {
-            if (!prevUser) return null;
-            // Liquidation: margin is gone, add nothing back. Normal close:
-            // return margin + realized pnl.
-            const balanceDelta = isLiquidation ? 0 : (pnl + lockedMargin);
-            return {
-              ...prevUser,
-              balance: prevUser.balance + balanceDelta,
-              realizedPnL: prevUser.realizedPnL + effectivePnl,
-              tradeHistory: [historyItem, ...prevUser.tradeHistory],
-            };
-          });
-
-          if (isSupabaseConfigured()) {
-            insertTradeHistory(user.id, historyItem).catch(e => console.warn('[velo] TP/SL keeper history failed:', e));
-          }
-
-          const pnlStr = effectivePnl >= 0 ? `+$${effectivePnl.toFixed(2)}` : `-$${Math.abs(effectivePnl).toFixed(2)}`;
-          const msg = isLiquidation
-            ? `Liquidated: ${pos.side} ${pos.pair} @ $${exitPrice.toFixed(2)} (${pnlStr})`
-            : `${triggerType} hit: ${pos.side} ${pos.pair} closed @ $${exitPrice.toFixed(2)} (${pnlStr})`;
-          setToast({ message: msg, type: isLiquidation || effectivePnl < 0 ? 'ERROR' : 'SUCCESS' });
-
-          if (isSupabaseConfigured()) {
-            createNotification(user.id, isLiquidation ? 'LIQUIDATION' : isTpHit ? 'TAKE_PROFIT' : 'STOP_LOSS', msg, historyItem.id)
-              .catch(e => console.warn('[velo] close notification failed:', e));
-          }
-        });
-      }
-
-      // Update the ref
-      const nextMap = new Map<string, { pair: string; side: string; entryPrice: number; size: number; leverage: number; takeProfit?: number; stopLoss?: number; openedAt?: number; marginMode?: string; openTxHash?: string }>();
-      let openTxMapForRef: Record<string, string> = {};
-      try { openTxMapForRef = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
-      veloPerpsTrading.openPositions.forEach(p => {
-        const tid = p.tradeId.toString();
-        nextMap.set(tid, {
-          pair: p.pair.replace('-', '/'),
-          side: p.isLong ? 'LONG' : 'SHORT',
-          entryPrice: p.entryPrice,
-          size: p.collateralUSDC * p.leverage,
-          leverage: p.leverage,
-          takeProfit: p.takeProfit,
-          stopLoss: p.stopLoss,
-          openedAt: p.openedAt ? p.openedAt * 1000 : undefined,
-          marginMode: (p as any).marginMode,
-          openTxHash: (p as any).openTxHash || openTxMapForRef[tid],
-        });
+    const closureLookups = useRef(new Set<string>());
+    const previousHistoryOwner = useRef(veloPerpsTrading.traderAddress);
+    const activeHistoryUser = useRef(user?.id);
+    activeHistoryUser.current = user?.id;
+    const recordConfirmedClose = (pos: any, result: ConfirmedClose) => {
+      if (!user || activeHistoryUser.current !== user.id) return;
+      const fraction = result.fractionBps / 10000;
+      if (fraction === 1) markVeloTradeClosed(result.tradeId.toString());
+      const historyItem: TradeHistoryItem = {
+        id: result.id, pair: pos.pair, side: pos.side, entryPrice: pos.entryPrice,
+        exitPrice: result.exitPrice, size: pos.size * fraction, pnl: result.pnlUSDC,
+        timestamp: Date.now(), openedAt: pos.timestamp || pos.openedAt,
+        leverage: pos.leverage, marginMode: pos.marginMode,
+        liquidationPrice: pos.liquidationPrice, action: result.action,
+        onChain: true, txHash: result.txHash,
+        orderlyOrderUrl: `https://sepolia.basescan.org/tx/${result.txHash}`,
+      };
+      setUser(prev => {
+        if (!prev || prev.id !== user.id || prev.tradeHistory.some(h => h.id === result.id || (h.txHash === result.txHash && h.action === result.action))) return prev;
+        return { ...prev, realizedPnL: prev.realizedPnL + result.pnlUSDC, tradeHistory: [historyItem, ...prev.tradeHistory] };
       });
-      prevVeloPositionsRef.current = nextMap;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
+      if (isSupabaseConfigured()) insertTradeHistory(user.id, historyItem).catch(() => {
+        setToast({ message: 'Trade confirmed on-chain, but history could not be saved. Please retry the refresh.', type: 'ERROR' });
+      });
+    };
+
+    // Disappearance is only a cue to look up a receipt, never evidence of liquidation.
+    // Keep unresolved entries so an RPC outage can recover on the next successful poll.
+    useEffect(() => {
+      const previous = prevVeloPositionsRef.current;
+      if (previousHistoryOwner.current !== veloPerpsTrading.traderAddress) {
+        previous.clear(); prevConditionalOrdersRef.current.clear(); closedVeloTradeIdsRef.current.clear();
+        previousHistoryOwner.current = veloPerpsTrading.traderAddress;
+      }
+      if (!user || !isWalletConnected || !veloPerpsTrading.traderAddress) { previous.clear(); return; }
+      if (veloPerpsTrading.isInitialLoading || veloPerpsTrading.readError || !publicClient) return;
+      const currentIds = new Set(veloPerpsTrading.openPositions.map(p => p.tradeId.toString()));
+      for (const [id, pos] of previous) {
+        if (currentIds.has(id) || closureLookups.current.has(id)) continue;
+        if (closedVeloTradeIdsRef.current.has(id)) { previous.delete(id); continue; }
+        closureLookups.current.add(id);
+        const owner = veloPerpsTrading.traderAddress;
+        const userId = user.id;
+        void findRecentPositionClose(publicClient, VELO_PERPS_ADDRESS, BigInt(id), owner, pos.size / pos.leverage, pos.marginMode || 'ISOLATED')
+          .then(result => {
+            if (!result || activeHistoryUser.current !== userId) return;
+            if (!closedVeloTradeIdsRef.current.has(id)) {
+              recordConfirmedClose(pos, result);
+              const label = result.reason === 'LIQUIDATION' ? 'Liquidated' : result.reason === 'TAKE_PROFIT' ? 'Take profit filled' : result.reason === 'STOP_LOSS' ? 'Stop loss filled' : 'Position closed';
+              setToast({ message: `${label}: ${pos.pair} · PnL $${result.pnlUSDC.toFixed(2)}`, type: result.action === 'LIQUIDATION' ? 'ERROR' : 'SUCCESS' });
+            }
+            previous.delete(id);
+          }).catch(() => { /* Retain last confirmed history; retry next poll. */ })
+          .finally(() => closureLookups.current.delete(id));
+      }
+      for (const p of veloPerpsTrading.openPositions) previous.set(p.tradeId.toString(), {
+        pair: p.pair.replace('-', '/'), side: p.isLong ? 'LONG' : 'SHORT', entryPrice: p.entryPrice,
+        size: p.collateralUSDC * p.leverage, leverage: p.leverage, openedAt: p.openedAt * 1000, marginMode: p.marginMode,
+      });
+    }, [user?.id, isWalletConnected, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading, veloPerpsTrading.readError]);
     // Mirror on-chain conditional orders (LIMIT/STOP) into the UI's openOrders
     // array so they render in the Open Orders panel. Keyed by `velo_ord_<id>`
     // so non-on-chain (off-chain demo) orders aren't touched.
@@ -2777,132 +2646,40 @@ const App = () => {
       });
     }, [user, isWalletConnected, veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading]);
 
-    // ── Detect filled conditional orders (LIMIT/STOP) ───────────────────────
-    // When a conditional order disappears from the on-chain list, the keeper
-    // executed it. We immediately trigger a positions refresh, then on the
-    // NEXT openPositions update we read the real on-chain entryPrice from the
-    // newly-appeared position and record history/toast with the correct price.
-    //
-    // pendingFilledOrdersRef holds orders that vanished from conditionalOrders
-    // but whose positions haven't been confirmed in the next positions poll yet.
-    const pendingFilledOrdersRef = useRef<Map<string, { pair: string; side: string; type: string; price: number; size: number; leverage: number }>>(new Map());
-
-    // Step 1 — detect vanished orders, park them as "pending", trigger refresh
+    const orderLookups = useRef(new Set<string>());
+    // A cancelled order also disappears. Only its receipt can identify a fill.
     useEffect(() => {
-      if (!user || !isWalletConnected) return;
-      if (veloPerpsTrading.isInitialLoading) return;
-
+      const previous = prevConditionalOrdersRef.current;
+      if (!user || !isWalletConnected || !veloPerpsTrading.traderAddress) { previous.clear(); return; }
+      if (veloPerpsTrading.isInitialLoading || veloPerpsTrading.readError || !publicClient) return;
       const currentIds = new Set(veloPerpsTrading.conditionalOrders.map(o => o.orderId.toString()));
-      const prev = prevConditionalOrdersRef.current;
-
-      const filledEntries = [...prev.entries()].filter(([id]) => !currentIds.has(id));
-
-      if (filledEntries.length > 0) {
-        // Park them — Step 2 will resolve them once positions refresh
-        filledEntries.forEach(([id, order]) => {
-          pendingFilledOrdersRef.current.set(id, order);
-        });
-        // Force an immediate positions refresh so we get the real entryPrice ASAP
-        veloPerpsTrading.refresh().catch(() => {});
+      for (const [id, order] of previous) {
+        if (currentIds.has(id) || orderLookups.current.has(id)) continue;
+        orderLookups.current.add(id);
+        const userId = user.id;
+        void findRecentOrderOutcome(publicClient, VELO_PERPS_ADDRESS, BigInt(id), veloPerpsTrading.traderAddress)
+          .then(result => {
+            if (!result || activeHistoryUser.current !== userId) return;
+            previous.delete(id);
+            if (result.kind !== 'opened') return;
+            const row: TradeHistoryItem = {
+              id: result.id, pair: order.pair, side: result.isLong ? 'LONG' : 'SHORT',
+              entryPrice: result.entryPrice, exitPrice: result.entryPrice, size: result.size,
+              pnl: 0, timestamp: Date.now(), action: 'OPEN', leverage: result.leverage,
+              marginMode: result.marginMode as MarginMode, onChain: true, txHash: result.txHash,
+              orderlyOrderUrl: `https://sepolia.basescan.org/tx/${result.txHash}`,
+            };
+            setUser(prev => !prev || prev.id !== userId || prev.tradeHistory.some(h => h.id === row.id) ? prev : { ...prev, tradeHistory: [row, ...prev.tradeHistory] });
+            void insertTradeHistory(userId, row).catch(() => setToast({ message: 'Order filled on-chain; history sync needs a retry.', type: 'ERROR' }));
+            setToast({ message: `${order.type} order filled: ${order.pair} @ $${result.entryPrice.toFixed(2)}`, type: 'SUCCESS' });
+          }).catch(() => { /* Missing evidence stays pending until a successful read. */ })
+          .finally(() => orderLookups.current.delete(id));
       }
-
-      // Update the ref to current orders
-      const nextMap = new Map<string, { pair: string; side: string; type: string; price: number; size: number; leverage: number }>();
-      veloPerpsTrading.conditionalOrders.forEach(o => {
-        nextMap.set(o.orderId.toString(), {
-          pair: o.pair.replace('-', '/'),
-          side: o.isLong ? 'LONG' : 'SHORT',
-          type: o.triggerKind,
-          price: o.triggerPrice,
-          size: o.collateralUSDC * o.leverage,
-          leverage: o.leverage,
-        });
+      for (const o of veloPerpsTrading.conditionalOrders) previous.set(o.orderId.toString(), {
+        pair: o.pair.replace('-', '/'), side: o.isLong ? 'LONG' : 'SHORT', type: o.triggerKind,
+        price: o.triggerPrice, size: o.collateralUSDC * o.leverage, leverage: o.leverage,
       });
-      prevConditionalOrdersRef.current = nextMap;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading]);
-
-    // Step 2 — when positions update, resolve any pending filled orders using
-    // the real on-chain entryPrice from the matched position
-    useEffect(() => {
-      if (!user || !isWalletConnected) return;
-      if (pendingFilledOrdersRef.current.size === 0) return;
-
-      let openTxMap: Record<string, string> = {};
-      try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
-
-      // Build lookup of current positions by pair+side, picking most recently opened
-      const positionsByKey = new Map<string, typeof veloPerpsTrading.openPositions[0]>();
-      veloPerpsTrading.openPositions.forEach(p => {
-        const key = `${p.pair.replace('-', '/')}:${p.isLong ? 'LONG' : 'SHORT'}`;
-        const existing = positionsByKey.get(key);
-        if (!existing || p.openedAt > existing.openedAt) {
-          positionsByKey.set(key, p);
-        }
-      });
-
-      const resolved: string[] = [];
-
-      pendingFilledOrdersRef.current.forEach((order, id) => {
-        const matchKey = `${order.pair}:${order.side}`;
-        const matchedPos = positionsByKey.get(matchKey);
-
-        // Only resolve once we have a real position with a valid entryPrice
-        if (!matchedPos || matchedPos.entryPrice <= 0) return;
-
-        resolved.push(id);
-
-        const fillPrice = matchedPos.entryPrice;
-        const tradeIdKey = matchedPos.tradeId.toString();
-        const rawTxHash = matchedPos.openTxHash || openTxMap[tradeIdKey];
-        const txHash = rawTxHash && !rawTxHash.startsWith('http') ? rawTxHash : undefined;
-        const explorerUrl = rawTxHash
-          ? (rawTxHash.startsWith('http') ? rawTxHash : `https://sepolia.basescan.org/tx/${rawTxHash}`)
-          : undefined;
-
-        const historyItem: TradeHistoryItem = {
-          id: `filled_limit_${id}_${Date.now()}`,
-          pair: order.pair,
-          side: order.side as any,
-          entryPrice: fillPrice,
-          exitPrice: fillPrice,
-          size: order.size,
-          pnl: 0,
-          timestamp: Date.now(),
-          action: 'OPEN',
-          leverage: order.leverage,
-          onChain: true,
-          txHash,
-          orderlyOrderUrl: explorerUrl,
-          openedAt: matchedPos.openedAt * 1000,
-        } as any;
-
-        setUser((prevUser: any) => {
-          if (!prevUser) return null;
-          return { ...prevUser, tradeHistory: [historyItem, ...prevUser.tradeHistory] };
-        });
-
-        if (isSupabaseConfigured()) {
-          insertTradeHistory(user.id, historyItem).catch(e => console.warn('[velo] filled limit order history failed:', e));
-        }
-
-        const msg = `${order.type} order filled: ${order.side} ${order.pair} @ $${fillPrice.toFixed(2)}`;
-        setToast({ message: msg, type: 'SUCCESS' });
-
-        if (isSupabaseConfigured()) {
-          // A filled limit/stop OPENS a position — notify accordingly (was
-          // mislabeled POSITION_CLOSED).
-          createNotification(user.id, 'POSITION_OPENED', msg, historyItem.id)
-            .catch(e => console.warn('[velo] filled order notification failed:', e));
-        }
-      });
-
-      // Remove resolved entries
-      resolved.forEach(id => pendingFilledOrdersRef.current.delete(id));
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [veloPerpsTrading.openPositions]);
-
+    }, [user?.id, isWalletConnected, veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading, veloPerpsTrading.readError]);
 
     // Reset the dismiss flag on logout so a different account triggers onboarding again.
     useEffect(() => { if (!user) setOnboardingDismissed(false); }, [user]);
@@ -3173,26 +2950,12 @@ const App = () => {
     const walletConnectRef = useRef<string | undefined>(undefined);
     const userIdRef = useRef<string | null>(null);
 
-    // ── Silent re-auth provider for the session manager ─────────────────────
-    // When the Supabase session dies (refresh token revoked / no session) the
-    // session manager calls this to silently re-establish a session using the
-    // wallet-derived deterministic credentials — the SAME identity, no prompt.
-    // This is what makes blanked data reappear on its own instead of forcing a
-    // manual logout/login. Respects the logout sentinel so it never re-signs-in
-    // a user who just logged out.
+    // Refresh an existing session only. A new session requires wallet proof.
     useEffect(() => {
         registerReauthProvider(async () => {
-            if (typeof window !== 'undefined' && (window as any).__veloLogoutLock) return false;
-            if (intentionalLogoutRef.current) return false;
-            if (!walletAddress) return false;
-            try {
-                const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-                const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-                const { data, error } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-                return !!(data?.session && !error);
-            } catch {
-                return false;
-            }
+            if (window.__veloLogoutLock || intentionalLogoutRef.current) return false;
+            const { data, error } = await supabase.auth.refreshSession();
+            return !error && !!data.session && data.user?.app_metadata?.velo_wallet_verified === walletAddress?.toLowerCase();
         });
         return () => registerReauthProvider(null);
     }, [walletAddress]);
@@ -3211,7 +2974,7 @@ const App = () => {
     // Keep silentLoginCallbackRef current — restores session from silent wallet reconnect
     useEffect(() => {
       silentLoginCallbackRef.current = async (authUser: any, profile: any) => {
-        if (!authUser) return;
+        if (!authUser || intentionalLogoutRef.current) return;
         try {
           const restoredUser = profile ? dbProfileToUserProfile(profile) : {
             id: authUser.id,
@@ -3224,13 +2987,16 @@ const App = () => {
             tradeHistory: [], transactionHistory: [], pnlHistory: [],
             joinedDate: new Date().toISOString(), likes: [], reposts: [],
           } as UserProfile;
+          if (intentionalLogoutRef.current) return;
+          setUser({ ...restoredUser });
+          setAuthChecked(true);
           const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
             fetchPositions(authUser.id),
             fetchOpenOrders(authUser.id),
             fetchTradeHistory(authUser.id),
             fetchTransactions(authUser.id),
             fetchNotifications(authUser.id),
-            fetchPosts(50),
+            fetchPosts(50).catch(() => []),
           ]);
           const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', authUser.id);
           restoredUser.following = (follows || []).map((f: any) => f.following_id);
@@ -3253,6 +3019,7 @@ const App = () => {
           // wallet_address so the UI always shows the correct address.
           if (walletAddress) restoredUser.walletAddress = walletAddress;
           else if (profile?.wallet_address) restoredUser.walletAddress = profile.wallet_address;
+          if (intentionalLogoutRef.current || window.__veloLogoutLock) return;
           setUser(restoredUser);
           recordSessionWallet();
           setPositions(positions);
@@ -3324,19 +3091,10 @@ const App = () => {
     // row no matter how many paths/poll-cycles observe the close. This is what
     // fixes "I set one stop loss and it filled twice" — the manual/TP-SL handler
     // wrote the full row and the fallback effect wrote a degraded duplicate.
-    const closedVeloTradeIdsRef = useRef<Set<string>>(
-      (() => { try { return new Set<string>(JSON.parse(localStorage.getItem('velo_closed_trades') || '[]')); } catch { return new Set<string>(); } })()
-    );
+    const closedVeloTradeIdsRef = useRef<Set<string>>(new Set());
     const markVeloTradeClosed = useCallback((tradeIdStr: string) => {
-      if (!tradeIdStr) return false;
-      if (closedVeloTradeIdsRef.current.has(tradeIdStr)) return false;
+      if (!tradeIdStr || closedVeloTradeIdsRef.current.has(tradeIdStr)) return false;
       closedVeloTradeIdsRef.current.add(tradeIdStr);
-      try {
-        // Keep only the most recent ~300 ids so localStorage doesn't grow forever.
-        const arr = [...closedVeloTradeIdsRef.current].slice(-300);
-        closedVeloTradeIdsRef.current = new Set(arr);
-        localStorage.setItem('velo_closed_trades', JSON.stringify(arr));
-      } catch {}
       return true;
     }, []);
 
@@ -3533,14 +3291,13 @@ const App = () => {
             // the standard behavior users expect from an exchange. If the stored
             // login timestamp is older than the TTL, force a clean logout.
             try {
-                const VELO_SESSION_TTL_DAYS = 7;
-                const ttlMs = VELO_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
+                const ttlMs = SESSION_MAX_MS;
                 const stamp = Number(localStorage.getItem('velo_session_started_at') || '0');
                 if (session?.user && stamp > 0 && (Date.now() - stamp) > ttlMs) {
-                    console.warn('[velo:auth] session exceeded', VELO_SESSION_TTL_DAYS, 'day TTL → auto-logout');
+                    setSessionNotice('expired');
                     localStorage.removeItem('velo_session_started_at');
                     clearSessionCache();
-                    try { await supabase.auth.signOut(); } catch {}
+                    try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
                     setUser(null);
                     setAuthChecked(true);
                     return;
@@ -3573,6 +3330,11 @@ const App = () => {
                 }
                 return;
             }
+            if (session.user.email?.endsWith('@wallet.velo') && !session.user.app_metadata?.velo_wallet_verified) {
+                await supabase.auth.signOut({ scope: 'local' });
+                clearSessionCache(); setUser(null); setAuthChecked(true); setSessionNotice('expired');
+                return;
+            }
             // Block restore if user explicitly logged out this session
             if (intentionalLogoutRef.current) { setAuthChecked(true); return; }
             // Prevent double-restore: INITIAL_SESSION fires first and sets sessionRestoredRef = true,
@@ -3593,7 +3355,7 @@ const App = () => {
                     profileData = await getProfile(session.user.id);
                 }
                 const profile = profileData?.profile;
-                if (!profile) { setAuthChecked(true); return; }
+                if (!profile) { sessionRestoredRef.current = false; setAuthChecked(true); setSessionNotice('expired'); return; }
                 const restoredUser = dbProfileToUserProfile(profile);
                 const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
                     fetchPositions(session.user.id),
@@ -3601,7 +3363,7 @@ const App = () => {
                     fetchTradeHistory(session.user.id),
                     fetchTransactions(session.user.id),
                     fetchNotifications(session.user.id),
-                    fetchPosts(50),
+                    fetchPosts(50).catch(() => []),
                 ]);
                 // DB stores free balance directly — no margin subtraction needed.
                 // Locked margins are implicitly tracked via the positions table.
@@ -3664,7 +3426,7 @@ const App = () => {
                     console.warn('[velo:auth] session/wallet mismatch — connected', liveWallet.slice(0,8), 'but session is', profileWallet.slice(0,8), '→ signing out stale session');
                     sessionRestoredRef.current = false;
                     clearSessionCache();
-                    try { await supabase.auth.signOut(); } catch {}
+                    try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
                     setUser(null);
                     setAuthChecked(true);
                     return;
@@ -3672,6 +3434,7 @@ const App = () => {
                 // Wallet matches (or hasn't reconnected — trust the shared session).
                 console.info('[velo:auth] session restored for', profile?.username, liveWallet ? `(wallet ${liveWallet.slice(0,8)})` : '(wallet pending)');
 
+                if (intentionalLogoutRef.current || window.__veloLogoutLock) return;
                 setUser(restoredUser);
                 recordSessionWallet();
                 setPositions(positions);
@@ -3684,15 +3447,15 @@ const App = () => {
                 } catch (_) { /* use defaults */ }
                 // Restore to the page the user was on — don't force /trade
                 // navigateFromPath is called separately on mount and handles the URL
-            } catch(e) { console.warn('Session restore error:', e); }
+            } catch(e) { sessionRestoredRef.current = false; setSessionNotice('expired'); console.warn('Session restore error:', e); }
             finally { setAuthChecked(true); }
         };
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        const authEvents = createDeferredAuthListener(async (event: string, session: any) => {
             if (event === 'PASSWORD_RECOVERY') {
                 setResetPasswordOpen(true);
             } else if (event === 'SIGNED_OUT') {
-                intentionalLogoutRef.current = true;
+                if (!intentionalLogoutRef.current) setSessionNotice('expired');
                 sessionRestoredRef.current = false;
                 userLoadedFromDB.current = false;
                 autoRecoverAttemptedRef.current = false;
@@ -3707,10 +3470,7 @@ const App = () => {
                 setUser(null);
                 setPositions([]);
                 setOpenOrders([]);
-                // NOTE: do NOT wipe notifications here. SIGNED_OUT also fires on
-                // transient session expiry, after which the app silently re-auths —
-                // wiping made notifications vanish until a manual refresh. Explicit
-                // logout and account deletion clear them in their own handlers.
+                setNotifications([]); clearNotifCache();
                 setChartPrefs({
                     chartTf:    DEFAULT_PREFERENCES.chartTf,
                     chartStyle: DEFAULT_PREFERENCES.chartStyle,
@@ -3719,16 +3479,6 @@ const App = () => {
                 });
                 setActiveTab(TabView.TRADE);
                 setAuthChecked(true);
-                // Logout is fully complete — clear the intentional-logout guard so
-                // the next manual wallet connect flows through normally.
-                // Use a longer delay (1200ms) to ensure wagmi's disconnect has fully
-                // propagated (isWalletConnected → false) before we re-arm the
-                // socialLogin effect, preventing an immediate re-login on logout.
-                setTimeout(() => {
-                    intentionalLogoutRef.current = false;
-                    socialLoginHandledRef.current = false;
-                    setRetryAuthTick(t => t + 1); // force socialLoginEffect to re-evaluate
-                }, 1200);
             } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                 // Fired on page load when a stored session exists — restore without double-loading
                 await restoreSession(session);
@@ -3737,7 +3487,9 @@ const App = () => {
                 // sessionRestoredRef guards against double-hydration if onAuth already ran first.
                 await restoreSession(session);
             }
-        });
+        }, (error: unknown) => { sessionRestoredRef.current = false; setAuthChecked(true); console.warn('Auth hydration failed:', error); });
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(authEvents.callback);
+
         
         // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession.
         // This is also the authoritative source — only this path marks authChecked on null session.
@@ -3795,6 +3547,7 @@ const App = () => {
         window.addEventListener('storage', onStorage);
 
         return () => {
+            authEvents.cancel();
             subscription.unsubscribe();
             clearTimeout(authTimeout);
             window.removeEventListener('storage', onStorage);
@@ -3897,6 +3650,7 @@ const App = () => {
             // Going back to the global feed — clear any active ticker or post
             setActiveSocialTicker(null);
             setSinglePostId(null);
+            setSingleCommentId(null);
             setActiveTab(TabView.SOCIAL);
             return;
         }
@@ -3905,6 +3659,7 @@ const App = () => {
             if (parts[1] === 'post' && parts[2]) {
                 // Single post view
                 setSinglePostId(parts[2]);
+                setSingleCommentId(parts[3] === 'comment' && parts[4] ? parts[4] : null);
                 setActiveSocialTicker(null);
                 setActiveTab(TabView.SOCIAL);
                 return;
@@ -3913,6 +3668,7 @@ const App = () => {
             const ticker = parts[1]?.toUpperCase();
             if (ticker) {
                 setSinglePostId(null);
+                setSingleCommentId(null);
                 setActiveSocialTicker(ticker);
             }
             setActiveTab(TabView.SOCIAL);
@@ -3926,6 +3682,7 @@ const App = () => {
                 const knownPair = SOCIAL_FEATURED_PAIRS.find(sp => sp.symbol === ticker);
                 if (knownPair) {
                     setSinglePostId(null);
+                    setSingleCommentId(null);
                     setActiveSocialTicker(ticker);
                     setActiveTab(TabView.SOCIAL);
                     return;
@@ -3987,7 +3744,7 @@ const App = () => {
             [TabView.DASHBOARD]: '/dashboard',
             [TabView.TRADE]: `/trade/${activePair?.id?.replace('/', '-') || 'ETH-USD'}`,
             [TabView.MARKETS]: '/markets',
-            [TabView.SOCIAL]: singlePostId ? `/social/post/${singlePostId}` : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
+            [TabView.SOCIAL]: singlePostId ? `/social/post/${singlePostId}${singleCommentId ? `/comment/${singleCommentId}` : ''}` : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
             [TabView.LEADERBOARD]: '/leaderboard',
             [TabView.PROFILE]: `/profile/${user?.handle?.replace('@', '') || ''}`,
             [TabView.PUBLIC_PROFILE]: `/profile/${viewingProfile?.handle?.replace('@', '') || ''}`,
@@ -3996,7 +3753,7 @@ const App = () => {
         if (newPath && newPath !== window.location.pathname) {
             window.history.pushState(null, '', newPath);
         }
-    }, [activeTab, activePair, user, viewingProfile, activeSocialTicker, singlePostId]);
+    }, [activeTab, activePair, user, viewingProfile, activeSocialTicker, singlePostId, singleCommentId]);
 
     // Dynamic document title: show pair + price when on trade view
     useEffect(() => {
@@ -4046,15 +3803,15 @@ const App = () => {
 
                 const postIds = data.map((p: any) => p.id);
                 const [{ data: likesData }, { data: commentsData }, { data: repostsData }] = await Promise.all([
-                    supabase.from('likes').select('post_id, user_id').in('post_id', postIds),
-                    supabase.from('comments').select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(handle, avatar_url)').in('post_id', postIds).order('created_at', { ascending: true }),
-                    supabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
+                    publicSupabase.from('likes').select('post_id, user_id').in('post_id', postIds),
+                    publicSupabase.from('comments').select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(handle, avatar_url)').in('post_id', postIds).order('created_at', { ascending: true }),
+                    publicSupabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
                 ]);
                 // Comment likes (soft-fails to empty if table not migrated yet)
                 const cIds = (commentsData || []).map((c: any) => c.id);
                 let clData: any[] = [];
                 if (cIds.length > 0) {
-                    const { data: cl, error: clErr } = await supabase.from('comment_likes').select('comment_id, user_id').in('comment_id', cIds);
+                    const { data: cl, error: clErr } = await publicSupabase.from('comment_likes').select('comment_id, user_id').in('comment_id', cIds);
                     if (!clErr && cl) clData = cl;
                 }
                 const cLikesMap: Record<string, string[]> = {};
@@ -4102,11 +3859,8 @@ const App = () => {
                 setPosts(prev => {
                     // Merge: DB is authoritative for like/comment counts; keep
                     // optimistic local posts (temp-id) that haven't been confirmed yet.
-                    const dbById = Object.fromEntries(dbPosts.map((p: any) => [p.id, p]));
-                    const merged = prev.map(p => dbById[p.id] ? { ...dbById[p.id] } : p);
-                    const mergedIds = new Set(merged.map(p => p.id));
-                    dbPosts.forEach((p: any) => { if (!mergedIds.has(p.id)) merged.unshift(p); });
-                    // Sort newest-first (DB timestamp wins over local optimistic order)
+                    const optimistic = prev.filter(p => p.id.startsWith('temp_') || p.id.startsWith('temp-') || p.id.startsWith('p_'));
+                    const merged = [...optimistic, ...dbPosts];
                     merged.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
                     return merged;
                 });
@@ -4137,7 +3891,7 @@ const App = () => {
                 // ── posts ─────────────────────────────────────────────────
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload: any) => {
                     const p = payload.new;
-                    const { data: profile } = await supabase.from('profiles').select('username, handle, avatar_url').eq('id', p.author_id).single();
+                    const { data: profile } = await publicSupabase.from('profiles').select('username, handle, avatar_url').eq('id', p.author_id).single();
                     const newPost = {
                         id: p.id, authorId: p.author_id,
                         authorHandle: profile?.handle     || '@unknown',
@@ -4237,7 +3991,7 @@ const App = () => {
                     let authorHandle = '@unknown';
                     let authorAvatar = '';
                     try {
-                        const { data: profile } = await supabase.from('profiles').select('handle, avatar_url').eq('id', c.author_id).single();
+                        const { data: profile } = await publicSupabase.from('profiles').select('handle, avatar_url').eq('id', c.author_id).single();
                         if (profile) { authorHandle = profile.handle || '@unknown'; authorAvatar = profile.avatar_url || ''; }
                     } catch {}
                     const newComment: Comment = { id: c.id, authorId: c.author_id, authorHandle, authorAvatar, content: c.content, timestamp: c.created_at, parentId: c.parent_id || null, likes: 0, likedBy: [] };
@@ -4283,7 +4037,7 @@ const App = () => {
                         loadPosts();
                     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                         console.warn(`[social] channel ${status}${err ? ': ' + err.message : ''} — reconnecting in ${reconnectDelay / 1000}s`);
-                        try { supabase.removeChannel(channelRef); } catch {}
+                        try { publicSupabase.removeChannel(channelRef); } catch {}
                         channelRef = null;
                         if (reconnectTimer) clearTimeout(reconnectTimer);
                         reconnectTimer = setTimeout(() => {
@@ -4301,7 +4055,7 @@ const App = () => {
             mounted = false;
             if (reconnectTimer) clearTimeout(reconnectTimer);
             if (resyncTimer) clearTimeout(resyncTimer);
-            if (channelRef) { try { supabase.removeChannel(channelRef); } catch {} }
+            if (channelRef) { try { publicSupabase.removeChannel(channelRef); } catch {} }
         };
     }, []);
 
@@ -4318,71 +4072,43 @@ const App = () => {
     // Shared social data loader — fetches traders + posts. Called on mount and
     // again after auth completes if data is still empty (fixes the race where
     // the initial fetch fires before the JWT is active).
-    const loadSocialData = useCallback(async () => {
-        if (!isSupabaseConfigured()) return;
-        // Keep the JWT fresh first — an expired token makes every RLS read
-        // resolve as the anon role and return [], which is exactly the
-        // "data wiped out, refresh doesn't help" symptom. Refreshing here
-        // means the retries below run with a valid authenticated token.
-        await ensureFreshSession();
-        withRetry(() => fetchAllProfiles(100), (r: any) => !r?.data || r.data.length === 0).then(async (result: any) => {
-            const profiles = result?.data;
-            if (profiles && profiles.length > 0) {
-                const { data: allFollows } = await supabase.from('follows').select('follower_id, following_id');
-                const followsData = allFollows || [];
-                const profileIds = profiles.map((p: any) => p.id);
-                const { data: allTradeHistory } = await supabase
-                    .from('trade_history')
-                    .select('user_id, pnl, action')
-                    .in('user_id', profileIds);
-                const tradeHistoryMap: Record<string, { pnl: number; action: string }[]> = {};
-                (allTradeHistory || []).forEach((t: any) => {
-                    if (!tradeHistoryMap[t.user_id]) tradeHistoryMap[t.user_id] = [];
-                    tradeHistoryMap[t.user_id].push(t);
-                });
-                const realTraders: Trader[] = profiles.map((p: any): Trader => {
-                    const followerIds = followsData.filter((f: any) => f.following_id === p.id).map((f: any) => f.follower_id);
-                    const followingIds = followsData.filter((f: any) => f.follower_id === p.id).map((f: any) => f.following_id);
-                    const trades = tradeHistoryMap[p.id] || [];
-                    const closedTrades = trades.filter((t: any) => (t.action === 'CLOSE' || t.action === 'LIQUIDATION'));
-                    const wins = closedTrades.filter((t: any) => t.pnl > 0).length;
-                    const computedWinRate = closedTrades.length > 0
-                        ? (wins / closedTrades.length) * 100
-                        : (p.win_rate || 0);
-                    return {
-                        id: p.id,
-                        handle:   p.handle     || `@${p.username}`,
-                        username: p.username   || 'Trader',
-                        bio:      p.bio        || '',
-                        avatar:   p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`,
-                        banner:   p.banner_url || '',
-                        pnl:      p.pnl_total  || 0,
-                        followers:       followerIds,
-                        following:       followingIds,
-                        veloRewards:     p.velo_rewards || 0,
-                        winRate:         computedWinRate,
-                        activePositions: [],
-                        isPrivate:       false,
-                        joinedDate:      p.created_at || new Date().toISOString(),
-                        walletAddress:   p.wallet_address || null,
-                        authMethod:      p.auth_method    || null,
-                        verifiedReason:  p.verified_reason || null,
-                    };
-                });
-                setTraders(realTraders);
-                cacheSet('traders', realTraders);
-            }
-        }).catch((e: any) => console.warn('Failed to load profiles:', e));
-
-        withRetry(() => fetchPosts(50), (p: any) => !p || p.length === 0).then((freshPosts: any) => {
-            if (freshPosts && freshPosts.length > 0) {
-                // Always overwrite — loadSocialData is called on heal/refocus so
-                // it must replace stale state, not just append to it.
-                setPosts(freshPosts);
-                cacheSet('posts', freshPosts);
-            }
-        }).catch((e: any) => console.warn('Failed to load posts:', e));
-    }, [withRetry]); // eslint-disable-line react-hooks/exhaustive-deps
+    const loadSocialData = useCallback((): Promise<void> => {
+        if (!isSupabaseConfigured()) return Promise.resolve();
+        if (publicLoadRef.current) return publicLoadRef.current;
+        setPublicLoading(true);
+        const profilesTask = (async () => {
+            try {
+                const [{ data: profiles, error }, follows] = await Promise.all([
+                    fetchAllProfiles(100),
+                    publicSupabase.from('follows').select('follower_id,following_id').limit(2000),
+                ]);
+                if (error || follows.error) throw error || follows.error;
+                const relations = follows.data || [];
+                const list: Trader[] = (profiles || []).map((p: any) => ({
+                    id: p.id, handle: p.handle || `@${p.username}`, username: p.username || 'Trader',
+                    bio: p.bio || '', avatar: p.avatar_url || '', banner: p.banner_url || '',
+                    pnl: p.pnl_total || 0, veloRewards: p.velo_rewards || 0, winRate: p.win_rate || 0,
+                    followers: relations.filter(f => f.following_id === p.id).map(f => f.follower_id),
+                    following: relations.filter(f => f.follower_id === p.id).map(f => f.following_id),
+                    activePositions: [], isPrivate: false, joinedDate: p.created_at,
+                    walletAddress: p.wallet_address || null, authMethod: p.auth_method || null,
+                    verifiedReason: p.verified_reason || null,
+                }));
+                setTraders(list); cacheSet('traders', list);
+                setPublicLoadErrors(prev => ({ ...prev, profiles: undefined }));
+            } catch { setPublicLoadErrors(prev => ({ ...prev, profiles: 'Profiles could not refresh. Showing any saved results.' })); }
+        })();
+        const postsTask = fetchPosts(50).then(fresh => {
+            setPosts(prev => [...prev.filter(p => p.id.startsWith('temp_') || p.id.startsWith('temp-') || p.id.startsWith('p_')), ...fresh]);
+            cacheSet('posts', fresh);
+            setPublicLoadErrors(prev => ({ ...prev, posts: undefined }));
+        }).catch(() => setPublicLoadErrors(prev => ({ ...prev, posts: 'Posts could not refresh. Showing any saved results.' })));
+        const operation = Promise.all([profilesTask, postsTask]).then(() => {}).finally(() => {
+            publicLoadRef.current = null; setPublicLoading(false);
+        });
+        publicLoadRef.current = operation;
+        return operation;
+    }, []);
 
     // ── Initial data load: prices, candles, and social ──
     useEffect(() => {
@@ -4394,11 +4120,6 @@ const App = () => {
             PAIRS.forEach(p => { merged[p.id] = livePrices[p.id] || p.basePrice; });
             setMarketPrices(merged);
             setMarketChanges(liveChanges || {});
-        });
-        fetchPythKlines(PAIRS[0].id, '15m').then(klineCandles => {
-            if (klineCandles.length > 0) {
-                setCandles(prev => ({ ...prev, [PAIRS[0].id]: klineCandles }));
-            }
         });
         if (isSupabaseConfigured()) {
             loadSocialData();
@@ -4496,6 +4217,7 @@ const App = () => {
 
         const liquidated: Position[] = [];
         positions.forEach(pos => {
+            if (pos.onChain || pos.id.startsWith('velo_')) return;
             if (!pos.liquidationPrice) return;
             const mark = marketPrices[pos.pair];
             if (!mark) return;
@@ -4594,47 +4316,8 @@ const App = () => {
         });
 
         if (filledOrders.length > 0) {
-            // ── On-chain positions: delegate to the contract close path ──────
-            // For positions backed by VeloPerps on-chain (id = "velo_<tradeId>"),
-            // the simulation layer must NOT wipe them from local state — that would
-            // clear the position before the on-chain close lands. Instead, fire the
-            // same on-chain close path the "Close 100%" button uses.
-            closedPositions.forEach(posId => {
-                if (posId.startsWith('velo_')) {
-                    setOpenOrders(prev => prev.filter(o => !filledOrders.includes(o.id) && o.relatedPositionId !== posId));
-                    const pos = positions.find(p => p.id === posId);
-                    if (pos) {
-                        const tradeIdStr = posId.slice('velo_'.length);
-                        const tradeId = BigInt(tradeIdStr);
-                        const veloPair = uiPairToVeloPair(pos.pair);
-                        if (veloPair) {
-                            // Claim this tradeId so the keeper-detection fallback
-                            // effect won't write a duplicate close-history row.
-                            markVeloTradeClosed(tradeIdStr);
-                            veloPerpsTrading.closePosition(tradeId, veloPair).then((result: any) => {
-                                const enrichedClose: TradeHistoryItem = {
-                                    id: `close_tp_${posId}_${Date.now()}`,
-                                    pair: pos.pair, side: pos.side,
-                                    entryPrice: pos.entryPrice,
-                                    exitPrice: result.exitPrice || marketPrices[pos.pair] || pos.entryPrice,
-                                    size: pos.size, pnl: result.pnlUSDC,
-                                    timestamp: Date.now(), openedAt: pos.timestamp,
-                                    leverage: pos.leverage, marginMode: pos.marginMode,
-                                    liquidationPrice: pos.liquidationPrice,
-                                    action: 'CLOSE', onChain: true,
-                                } as any;
-                                setUser((prevUser: any) => {
-                                    if (!prevUser) return null;
-                                    const margin = pos.size / pos.leverage;
-                                    return { ...prevUser, balance: prevUser.balance + result.pnlUSDC + margin, realizedPnL: prevUser.realizedPnL + result.pnlUSDC, tradeHistory: [enrichedClose, ...prevUser.tradeHistory] };
-                                });
-                                if (isSupabaseConfigured() && user) insertTradeHistory(user.id, enrichedClose).catch((e: any) => console.warn('[velo] TP/SL history failed:', e));
-                            }).catch((e: any) => console.warn('[velo] TP/SL on-chain close failed:', e?.shortMessage || e?.message));
-                        }
-                    }
-                }
-            });
-
+            // On-chain TP/SL execution belongs to the signed-oracle keeper.
+            // Browser display prices must never submit an unverified market close.
             // ── Simulation-only positions: close in local state ───────────────
             const simClosedPositions = closedPositions.filter(id => !id.startsWith('velo_'));
             if (simClosedPositions.length === 0) return;
@@ -5204,220 +4887,91 @@ const App = () => {
         };
     }, []);
 
-    // Smart auth entry point — used by all "Log In" buttons in the UI.
-    // If the wallet is already connected, silently sign in with wallet credentials
-    // instead of reopening AppKit (which just shows the already-connected wallet info).
-    // Only open AppKit if there is no wallet connected at all.
+    // Login is explicit: connect a wallet, sign a one-use challenge, restore the same profile.
     const handleRequireAuth = async () => {
-        console.info('[velo:auth] requireAuth click → user:', !!user, '| walletConnected:', isWalletConnected, '| addr:', walletAddress?.slice(0,8));
-        if (user) { console.info('[velo:auth] already have user — no-op'); return; }
-        // ── GUARANTEED-OUTCOME CONTRACT ──────────────────────────────────────
-        // Clicking Sign in / Log In must ALWAYS produce a visible surface — never
-        // a silent no-op. The whole body is wrapped so a throw anywhere still
-        // lands on the always-rendering onboarding modal, and the no-wallet path
-        // has an AppKit-failure fallback to that same modal.
-        try {
-        // Clear any stale modal flags that may have left the app in a locked
-        // `modal-open` state (the cause of "clicking does absolutely nothing").
+        if (user || signInBusyRef.current) return;
+        intentionalLogoutRef.current = false;
+        window.__veloLogoutLock = false;
+        try { localStorage.removeItem('velo_logged_out'); localStorage.removeItem('velo_session_started_at'); } catch {}
+        setSessionNotice(null);
         setVeloWelcomeOpen(false);
-        if (isWalletConnected && walletAddress) {
-            console.info('[velo:auth] wallet connected, attempting silent re-auth…');
-            // Manual click — clear all guards so this always succeeds.
-            intentionalLogoutRef.current = false;
-            socialLoginHandledRef.current = false;
-            socialLoginHandledRef.current = true; // lock against concurrent calls
-            const pseudoEmail = `${walletAddress.toLowerCase()}@wallet.velo`;
-            const password = `velo_w3_${walletAddress.toLowerCase().slice(2, 20)}_xK9`;
-            // Bounded retry so a transient blip on an expired-session re-auth
-            // doesn't bounce a returning user to onboarding (same rationale as
-            // the silent-login effect). Genuine "no account" (400) onboards.
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                    const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-                    if (data?.user && !signInErr) {
-                        const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-                        if (profile?.username) {
-                            console.info('[velo:auth] silent re-auth SUCCESS → restoring session for', profile.username);
-                            intentionalLogoutRef.current = false;
-                            sessionRestoredRef.current = true;
-                            if (!silentLoginCallbackRef.current) {
-                                // Hard fallback: callback not wired (shouldn't happen)
-                                console.error('[velo:auth] silentLoginCallbackRef is NULL — forcing reload to restore');
-                                window.location.reload();
-                                return;
-                            }
-                            silentLoginCallbackRef.current(data.user, profile);
-                            return;
-                        }
-                        console.info('[velo:auth] authed but no profile row → onboarding');
-                        break; // authed but no profile → onboarding
-                    }
-                    const msg = (signInErr?.message || '').toLowerCase();
-                    const status = (signInErr as any)?.status ?? (signInErr as any)?.code;
-                    const isNoAccount = status === 400 && msg.includes('invalid login credentials');
-                    if (isNoAccount) break; // genuine: never signed up
-                    if (attempt < 3) { await new Promise(r => setTimeout(r, attempt * 600)); continue; }
-                } catch (e: any) {
-                    if (attempt < 3) { await new Promise(r => setTimeout(r, attempt * 600)); continue; }
-                }
-                break;
+        try {
+            if (!isWalletConnected || !walletAddress) { await openAppKitModal(); return; }
+            socialLoginHandledRef.current = true;
+            signInBusyRef.current = true; setSignInBusy(true);
+            const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
+            const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
+            if (error) throw error;
+            if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
+                sessionRestoredRef.current = true;
+                silentLoginCallbackRef.current?.(data.user, profile);
+            } else {
+                setLoginReturningName('');
+                setLoginOpen(true);
             }
-            console.info('[velo:auth] silent re-auth did not resolve → opening onboarding modal');
+        } catch (error: any) {
             socialLoginHandledRef.current = false;
-            setLoginReturningName('');
-            setLoginOpen(true);
-        } else {
-            console.info('[velo:auth] no wallet connected → opening AppKit (with fallback)');
-            // AppKit's open() can silently fail (provider mid-init, version
-            // quirks). Guarantee an outcome: if the wallet isn't connected
-            // shortly after, open our own onboarding modal so the button is
-            // NEVER dead.
-            let appkitOpened = false;
-            try {
-                const r: any = openAppKitModal();
-                if (r && typeof r.then === 'function') { await r; }
-                appkitOpened = true;
-            } catch (e: any) {
-                console.warn('[velo:auth] openAppKitModal threw → falling back to onboarding modal:', e?.message || e);
-            }
-            // Give AppKit a beat to actually paint / connect. If nothing
-            // happened (no modal, no connection), show our modal.
-            setTimeout(() => {
-                const connectedNow = !!walletConnectRef.current;
-                const appkitVisible = !!document.querySelector('w3m-modal, wcm-modal, appkit-modal, [data-appkit], w3m-router');
-                if (!connectedNow && !appkitVisible) {
-                    console.warn('[velo:auth] AppKit did not surface → opening onboarding modal fallback');
-                    setLoginReturningName('');
-                    setLoginOpen(true);
-                }
-            }, 600);
-            void appkitOpened;
-        }
-        } catch (err: any) {
-            // Last-resort guarantee: any unexpected throw still yields a visible
-            // auth surface instead of a dead click.
-            console.error('[velo:auth] requireAuth failed → opening onboarding modal:', err?.message || err);
-            socialLoginHandledRef.current = false;
-            setLoginReturningName('');
-            setLoginOpen(true);
-        }
+            setToast({ message: error?.shortMessage || error?.message || 'Unable to sign in. Please try again.', type: 'ERROR' });
+        } finally { signInBusyRef.current = false; setSignInBusy(false); }
     };
-    const handleLogout = async () => {
-        const name = user?.username;
-        // Tell every other tab to log out NOW — before the navigation/teardown
-        // below, which would otherwise prevent the identity-change broadcast
-        // from ever firing. Other tabs receive this and converge immediately.
-        try { authBroadcastRef.current?.postMessage({ type: 'LOGOUT' }); } catch {}
-        try { localStorage.removeItem('velo_session_started_at'); } catch {}
-        triggerAnim('LOGOUT', name ? `See you, ${name}` : undefined);
-
-        // Schedule the hard navigation FIRST, before any awaits below. Some
-        // wagmi versions hang on disconnect; some Supabase setups have flaky
-        // signOut endpoints; either would prevent a setTimeout at the bottom
-        // of this function from ever being scheduled. The user MUST end up
-        // on a clean state regardless. Going to /?logout=1 (not just /) so
-        // the module-level IIFE at the top of this file fires and sets the
-        // window-level lock that blocks every auto-restore path.
-        setTimeout(() => {
-            try { window.location.replace('/?logout=1'); }
-            catch { window.location.href = '/?logout=1'; }
-        }, 1200);
-
-        // Block any in-flight session restore / socialLogin effect from
-        // immediately re-hydrating us into the account we're leaving.
+    const handleLogout = async (reason: 'manual' | 'idle' = 'manual') => {
         intentionalLogoutRef.current = true;
-
-        // ── Step 1: nuke client-side state synchronously. ────────────────────
-        // We do this before awaiting wagmi/supabase so that the UI flips to
-        // logged-out instantly even if either of those takes seconds to
-        // complete (or fails on the network).
-        clearSessionCache();
-        // Comprehensive localStorage purge — allowlist approach. Anything not
-        // in this set gets wiped, including wagmi.*, wc@*, appkit*, sb-*,
-        // walletconnect-* and every other session-shaped key the connectors
-        // and Supabase scatter across storage. The user explicitly asked for
-        // logout to clear ALL cache; we honor that, while preserving the
-        // bare-minimum that survives logout in every comparable product:
-        //   - velo_burner_*   — deterministic sub-account; nuking it forces
-        //                       a fresh personal_sign on every re-login,
-        //                       which neither Hyperliquid nor Lyra do.
-        //   - velo_theme      — UI pref, not session.
-        //   - velo_fav_markets — UI pref, not session.
-        //   - orderly_kp_*    — Orderly trading keypair (same logic as burner).
+        window.__veloLogoutLock = true;
+        cancelWalletSignIn();
+        signInBusyRef.current = false; setSignInBusy(false);
         try {
-            const KEEP_EXACT  = new Set(['velo_theme', 'velo_fav_markets']);
-            const KEEP_PREFIX = ['velo_burner_', 'orderly_kp_'];
-            const toWipe: string[] = [];
-            for (let i = 0; i < localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if (!k) continue;
-                if (KEEP_EXACT.has(k)) continue;
-                if (KEEP_PREFIX.some(p => k.startsWith(p))) continue;
-                toWipe.push(k);
-            }
-            for (const k of toWipe) {
-                try { localStorage.removeItem(k); } catch {}
-            }
+            localStorage.setItem('velo_logged_out', '1');
+            localStorage.removeItem('velo_session_started_at');
+            if (user?.id) localStorage.removeItem(`velo_activity_${user.id}`);
+            authBroadcastRef.current?.postMessage({ type: 'LOGOUT' });
         } catch {}
-        // sessionStorage is ephemeral by design but some connectors stash
-        // intermediate auth state there during OAuth/WalletConnect round-trips.
-        // Clear it wholesale — nothing in there is meant to outlive a session.
-        try { sessionStorage.clear(); } catch {}
-
-        // Wagmi disconnect — wagmi v2's disconnect returns a Promise that
-        // settles when the connector has finished tearing down. Earlier
-        // versions of this handler fire-and-forgot it; that left a tiny
-        // window where `useAccount().isConnected` was still true after
-        // setUser(null), and the socialLoginEffect re-armed by retryAuthTick
-        // could observe a live wallet and silently sign the user back in.
-        // Awaiting closes that window for good.
-        try {
-            const result = walletDisconnectRef.current?.() as unknown as Promise<unknown> | void;
-            if (result && typeof (result as any).then === 'function') {
-                await (result as Promise<unknown>);
-            }
-        } catch (e) {
-            console.warn('[velo] wagmi disconnect threw (continuing logout):', e);
-        }
-
-        // Supabase signOut. Wrapped so a network hiccup doesn't strand us in
-        // a half-logged-out state — the hard navigation at the end is the
-        // last-resort guarantee that any stuck state gets wiped.
-        if (isSupabaseConfigured()) {
-            try { await supabaseSignOut(); } catch (e) {
-                console.warn('[velo] signOut error (continuing logout):', e);
-            }
-        }
-
-        // ── Step 2: clear all session-bound React state. ────────────────────
-        userLoadedFromDB.current = false;
-        sessionRestoredRef.current = false;
-        autoRecoverAttemptedRef.current = false;
-        burnerRecoveredRef.current = false;
-        freshWalletConnectRef.current = false;
-        socialLoginHandledRef.current = false;
-        setLoginReturningName('');
-        setUser(null);
-        setPositions([]);
-        setOpenOrders([]);
-        setNotifications([]);
-        clearNotifCache();
-        setChartPrefs({
-            chartTf:    DEFAULT_PREFERENCES.chartTf,
-            chartStyle: DEFAULT_PREFERENCES.chartStyle,
-            indicators: DEFAULT_PREFERENCES.indicators,
-            overlays:   DEFAULT_PREFERENCES.overlays,
-        });
-        setAppOrderDetails(null);
-        setNotifOpen(false);
-        setActiveTab(TabView.TRADE);
-        playSound('CLOSE');
-
-        // Note: the hard-navigate timer was scheduled at the TOP of this
-        // function (line ~6485). It fires regardless of how the cleanup
-        // above goes — that's the entire point. Don't add another timer
-        // here; it'd just double-fire after a no-op.
+        clearSessionCache(); clearNotifCache();
+        userLoadedFromDB.current = false; sessionRestoredRef.current = false;
+        autoRecoverAttemptedRef.current = false; burnerRecoveredRef.current = false;
+        freshWalletConnectRef.current = false; socialLoginHandledRef.current = false;
+        setUser(null); setPositions([]); setOpenOrders([]); setNotifications([]);
+        setBurnerAddress(null); setSettingsOpen(false); setLoginOpen(false);
+        setVeloWelcomeOpen(false); setNotifOpen(false); setAppOrderDetails(null);
+        setSessionWarning(null); setAuthChecked(true);
+        setSessionNotice(reason === 'idle' ? 'expired' : 'signed-out');
+        // Preserve the owner wallet connection so Log In can request a signature directly.
+        // Local scope revokes this session; access JWT expiry remains a backend boundary.
+        try { const { error } = await supabase.auth.signOut({ scope: 'local' }); if (error) throw error; }
+        catch { try { localStorage.removeItem('velo-auth-token'); } catch {} setToast({ message: 'Signed out here. The server could not confirm revocation; reconnect when online.', type: 'INFO' }); }
     };
+
+    const keepSessionActive = () => {
+        if (!user?.id) return;
+        sessionActivityRef.current = Date.now();
+        try { localStorage.setItem(`velo_activity_${user.id}`, String(sessionActivityRef.current)); } catch {}
+        setSessionWarning(null);
+    };
+    useEffect(() => {
+        if (!user?.id) return;
+        const activityKey = `velo_activity_${user.id}`;
+        const read = (key: string) => { try { return Number(localStorage.getItem(key)) || 0; } catch { return 0; } };
+        const write = (key: string, value: number) => { try { localStorage.setItem(key, String(value)); } catch {} };
+        let last = read(activityKey) || Date.now();
+        sessionActivityRef.current = last;
+        const started = read('velo_session_started_at') || Date.now();
+        write('velo_session_started_at', started); write(activityKey, last);
+        const touch = () => {
+            if (document.visibilityState !== 'visible' || Date.now() - last < 5_000) return;
+            last = Date.now(); sessionActivityRef.current = last; write(activityKey, last);
+        };
+        const check = () => {
+            last = Math.max(last, read(activityKey), sessionActivityRef.current);
+            const remaining = sessionTimeLeft(Date.now(), last, started);
+            if (remaining <= 0) { void handleLogout('idle'); return; }
+            setSessionHardExpiry(started + SESSION_MAX_MS - Date.now() <= SESSION_WARNING_MS);
+            setSessionWarning(remaining <= SESSION_WARNING_MS ? Math.ceil(remaining / 1000) : null);
+        };
+        const timer = setInterval(check, 1000);
+        check();
+        for (const event of ['pointerdown', 'keydown', 'scroll']) window.addEventListener(event, touch, { passive: true });
+        document.addEventListener('visibilitychange', check);
+        return () => { clearInterval(timer); document.removeEventListener('visibilitychange', check); for (const event of ['pointerdown', 'keydown', 'scroll']) window.removeEventListener(event, touch); };
+    }, [user?.id]);
     const handleDeposit = async (a: number) => {
         if (!user || a <= 0) return;
         const prevBalance = user.balance;
@@ -5811,7 +5365,7 @@ const App = () => {
     };
 
     const handleOpenPosition = (pairId: string, side: any, size: number, leverage: number, type: OrderType, price: number, tp?: number, sl?: number, marginMode: MarginMode = 'ISOLATED') => {
-        if(!user) return openAppKitModal();
+        if(!user) return handleRequireAuth();
 
         const existingPosition = positions.find(p => p.pair === pairId && !p.isCopyTrade);
 
@@ -5912,7 +5466,7 @@ const App = () => {
                 // (Position list is sourced from the contract via the sync effect;
                 // trade history is a separate append-only log of actions taken.)
                 const openHistory: TradeHistoryItem = {
-                    id: `open_velo_${result.tradeId.toString()}`,
+                    id: result.id,
                     pair: pairId,
                     side,
                     entryPrice: result.entryPrice,
@@ -6203,76 +5757,16 @@ const App = () => {
                 return;
             }
 
-            // Optimistic local removal — sync effect will reconcile from contract.
-            setPositions(prev => prev.filter(x => x.id !== id));
-            setOpenOrders(prev => prev.filter(o => o.relatedPositionId !== id));
-            // Claim this tradeId so the keeper-detection fallback effect won't
-            // also write a (duplicate) close-history row for the same close.
-            markVeloTradeClosed(tradeIdStr);
-
+            setToast({ message: 'Closing position — waiting for on-chain confirmation…', type: 'SUCCESS' });
             veloPerpsTrading.closePosition(tradeId, veloPair).then((result) => {
-                const enrichedClose: TradeHistoryItem = {
-                    id: `close_${id}`,
-                    pair: p.pair,
-                    side: p.side,
-                    entryPrice: p.entryPrice,
-                    exitPrice: result.exitPrice,
-                    size: p.size,
-                    pnl: result.pnlUSDC,
-                    timestamp: Date.now(),
-                    openedAt: p.timestamp,
-                    leverage: p.leverage,
-                    marginMode: p.marginMode,
-                    liquidationPrice: p.liquidationPrice,
-                    action: 'CLOSE',
-                    copyTraderId: p.copyTraderId,
-                    onChain: true,
-                    orderlyOrderId:  undefined,
-                    orderlyOrderUrl: result.explorerUrl,
-                } as any;
-                if (isSupabaseConfigured() && user) {
-                    insertTradeHistory(user.id, enrichedClose).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
-                    ownDeletedPositionIds.current.add(id);
-                    setTimeout(() => ownDeletedPositionIds.current.delete(id), 15000);
-                    supabaseDeletePosition(id).catch(() => {});
-                    deleteOrdersForPosition(id).catch(() => {});
-                }
-                setUser(prev => {
-                    if (!prev) return prev;
-                    if (prev.tradeHistory.some(h => h.id === enrichedClose.id)) return prev;
-                    const newPnlEntry = {
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        value: veloPerpsTrading.usdcBalance + result.pnlUSDC,
-                        timestamp: Date.now(),
-                    };
-                    return {
-                        ...prev,
-                        realizedPnL:  prev.realizedPnL + result.pnlUSDC,
-                        tradeHistory: [enrichedClose, ...prev.tradeHistory],
-                        pnlHistory:   [...(prev.pnlHistory || []), newPnlEntry],
-                    };
-                });
-                triggerAnim('ORDER_CLOSE', `${p.pair}`, `${p.side === 'LONG' ? 'SELL' : 'BUY'} · $${formatMoney(p.size)} · PnL $${result.pnlUSDC >= 0 ? '+' : ''}${result.pnlUSDC.toFixed(2)}`);
-                setToast({ message: `Position closed · PnL ${result.pnlUSDC >= 0 ? '+' : ''}$${result.pnlUSDC.toFixed(2)}`, type: 'SUCCESS' });
+                recordConfirmedClose(p, result);
+                setPositions(prev => prev.filter(x => x.id !== id));
+                setOpenOrders(prev => prev.filter(o => o.relatedPositionId !== id));
+                setToast({ message: `Position closed · PnL $${result.pnlUSDC.toFixed(2)}`, type: 'SUCCESS' });
                 playSound('CLOSE');
-                processingIds.current.delete(id);
-
-                // Removed auto-popup share-to-feed prompt. Users complained about
-                // too many modals after a close. Share to social via the explicit
-                // share button on history rows.
-
-                // NOTE: deliberately NOT auto-opening the share-card PNG modal here.
-                // Users found too many modals popping up after a close. The share card
-                // is now only opened by the explicit Share button on the position row
-                // (for open positions) and on the history row (for closed ones).
             }).catch((e) => {
-                const msg = e?.shortMessage || e?.message || 'Close failed';
-                setToast({ message: `Close failed: ${msg}`, type: 'ERROR' });
-                // Restore the position locally — contract still has it. The sync
-                // effect will re-hydrate from the next poll anyway.
-                setPositions(prev => prev.some(x => x.id === id) ? prev : [p, ...prev]);
-                processingIds.current.delete(id);
-            });
+                setToast({ message: e?.txHash ? `Close submitted; confirmation delayed. Check ${e.txHash} before retrying.` : `Close not confirmed: ${e?.shortMessage || e?.message || 'Please retry'}`, type: 'ERROR' });
+            }).finally(() => processingIds.current.delete(id));
             return;
         }
 
@@ -6383,7 +5877,7 @@ const App = () => {
         });
     };
     const handleFollow = async (id: string) => { 
-        if(!user) return openAppKitModal();
+        if(!user) return handleRequireAuth();
         if(!walletAddress) { setToast({ message: 'Connect a crypto wallet to follow traders', type: 'INFO' }); return; }
         const isFollowing = user.following.includes(id);
         // Optimistic update: update current user's following list
@@ -6437,59 +5931,8 @@ const App = () => {
             } catch(e) { console.warn('Follow sync failed:', e); }
         }
     };
-    const handleCopyTrade = async (id: string) => { 
-        if (!user) return openAppKitModal();
-        if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to copy traders', type: 'INFO' }); return; }
-        if (user.copying.includes(id)) { 
-            // Stop Copying: close all copy positions
-            setPositions(prevPositions => {
-                const copyPositions = prevPositions.filter(p => p.copyTraderId === id);
-                let realized = 0; let margin = 0;
-                const newHist: TradeHistoryItem[] = [];
-                copyPositions.forEach(p => {
-                    const price = marketPrices[p.pair] || p.entryPrice;
-                    const pnl = (price - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size/p.entryPrice);
-                    realized += pnl; margin += (p.size/p.leverage);
-                    const h: TradeHistoryItem = { id: p.id, pair: p.pair, side: p.side, entryPrice: p.entryPrice, exitPrice: price, size: p.size, pnl, timestamp: Date.now(), action: 'CLOSE', copyTraderId: id };
-                    newHist.push(h);
-                    if (isSupabaseConfigured()) {
-                        supabaseDeletePosition(p.id).catch(() => {});
-                        insertTradeHistory(user.id, h).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
-                    }
-                });
-                const newCopying = user.copying.filter(c => c !== id);
-                setUser(prev => prev ? { ...prev, balance: prev.balance + margin + realized, realizedPnL: prev.realizedPnL + realized, tradeHistory: [...prev.tradeHistory, ...newHist], copying: newCopying } : null);
-                if (isSupabaseConfigured()) updateProfile(user.id, { copying: newCopying }).catch(() => {});
-                setOpenOrders(prevOrders => prevOrders.filter(o => o.copyTraderId !== id));
-                return prevPositions.filter(p => p.copyTraderId !== id);
-            });
-            setToast({message:'Stopped Copying & Closed Positions', type:'INFO'}); 
-        } else { 
-            const newCopying = [...user.copying, id];
-            setUser(prev => prev ? {...prev, copying: newCopying} : null);
-            if (isSupabaseConfigured()) updateProfile(user.id, { copying: newCopying }).catch(() => {});
-            // Mirror the trader's current open positions immediately
-            if (isSupabaseConfigured()) {
-                fetchPositions(id).then(async traderPos => {
-                    const openPos = traderPos.filter((p: Position) => !p.isCopyTrade);
-                    if (openPos.length === 0) return;
-                    const mirrored: Position[] = openPos.map((p: Position) => ({
-                        ...p,
-                        id: `copy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-                        isCopyTrade: true,
-                        copyTraderId: id,
-                        timestamp: Date.now(),
-                    }));
-                    setPositions(prev => [...prev, ...mirrored]);
-                    for (const mp of mirrored) {
-                        await savePosition(user.id, mp).catch(() => {});
-                    }
-                    setToast({ message: `Copying ${openPos.length} active position${openPos.length > 1 ? 's' : ''}`, type: 'SUCCESS' });
-                }).catch(() => {});
-            }
-            setToast({message:'Started Copying', type:'SUCCESS'}); 
-        } 
-        playSound('CLICK'); 
+    const handleCopyTrade = async (_id: string) => {
+        setToast({ message: 'Copy trading is planned and is not available in this testnet release.', type: 'INFO' });
     };
     const handleUpdateProfile = async (updatedData: Partial<UserProfile>): Promise<{ ok: boolean; error?: string }> => {
         if (!user) return { ok: false, error: 'Not signed in' };
@@ -6497,7 +5940,9 @@ const App = () => {
         // If username is being changed, enforce case-insensitive uniqueness
         // against the DB *before* touching local state, matching the signUp rule.
         if (updatedData.username && updatedData.username.trim() !== user.username) {
-            const candidate = updatedData.username.trim();
+            const candidate = updatedData.username.trim().toLowerCase();
+            const invalid = validateRegistryUsername(candidate);
+            if (invalid) return { ok: false, error: invalid };
             if (isSupabaseConfigured()) {
                 const { data: clash } = await supabase.from('profiles')
                     .select('id').ilike('username', candidate).neq('id', user.id).maybeSingle();
@@ -6512,10 +5957,6 @@ const App = () => {
             updatedData.username = candidate;
         }
 
-        setUser(prev => prev ? { ...prev, ...updatedData } : null);
-        setToast({ message: 'Profile Updated', type: 'SUCCESS' });
-        playSound('SUCCESS');
-
         if (isSupabaseConfigured()) {
             // Map to DB column names
             const dbUpdates: Record<string, any> = {};
@@ -6525,9 +5966,18 @@ const App = () => {
             if (updatedData.username !== undefined) dbUpdates.username   = updatedData.username;
             if (updatedData.handle   !== undefined) dbUpdates.handle     = updatedData.handle;
             if (Object.keys(dbUpdates).length > 0) {
-                try { await updateProfile(user.id, dbUpdates); } catch (_) {}
+                try {
+                    const { error } = await updateProfile(user.id, dbUpdates);
+                    if (error) throw error;
+                } catch {
+                    setToast({ message: 'Profile could not be saved. Please try again.', type: 'ERROR' });
+                    return { ok: false, error: 'Profile could not be saved. Please try again.' };
+                }
             }
         }
+        setUser(prev => prev ? { ...prev, ...updatedData } : null);
+        setToast({ message: 'Profile updated', type: 'SUCCESS' });
+        playSound('SUCCESS');
         return { ok: true };
     };
     // Source-level spam guards: a click race or a modal that fails to close can
@@ -6535,7 +5985,7 @@ const App = () => {
     const postInFlightRef = useRef(false);
     const lastPostRef = useRef<{ c: string; ts: number } | null>(null);
     const handleCreatePost = async (c: string, tradeSignal?: any, targetProfileId?: string): Promise<string | null> => { 
-        if(!user) { openAppKitModal(); return null; }
+        if(!user) { void handleRequireAuth(); return null; }
         if(!walletAddress) { setToast({ message: 'Connect a crypto wallet to post', type: 'INFO' }); return null; }
         if (!c.trim()) return null;
         if (postInFlightRef.current) return null; // a post is already mid-flight
@@ -6547,6 +5997,7 @@ const App = () => {
         try {
         const tempId = `p_${Date.now()}`;
         // Optimistic local update with temp id
+        if (targetProfileId && targetProfileId !== user.id) { setToast({ message: 'Publish on your own profile and mention the trader instead.', type: 'INFO' }); return null; }
         const tempPost: Post = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[], isTradeSignal: !!tradeSignal, tradeDetails: tradeSignal, targetProfileId };
         setPosts(prev => [tempPost, ...prev]); 
         // Tentative dedupe registration — cleared in the catch so a genuine
@@ -6634,6 +6085,7 @@ const App = () => {
         if (!postId) throw new Error('post not created');
         setToast({ message: 'Post published!', type: 'SUCCESS' });
         setActiveSocialTicker(null);
+        setSingleCommentId(null);
         setSinglePostId(postId);          // → SinglePostView
         setActiveTab(TabView.SOCIAL);     // URL sync pushes /social/post/<id>
         // Guaranteed close: the modal animates itself shut on success, but if
@@ -6644,7 +6096,7 @@ const App = () => {
     };
 
     const handleLike = async (id: string) => {
-        if (!user) return openAppKitModal();
+        if (!user) return handleRequireAuth();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to like posts', type: 'INFO' }); return; }
         // Read post data BEFORE setPosts to avoid stale closure issues
         const targetPost = posts.find(p => p.id === id);
@@ -6670,7 +6122,7 @@ const App = () => {
     };
     // ── Comment likes (Twitter-style) ────────────────────────────────────
     const handleLikeComment = async (postId: string, commentId: string) => {
-        if (!user) return openAppKitModal();
+        if (!user) return handleRequireAuth();
         const targetPost = posts.find(p => p.id === postId);
         const targetComment = targetPost?.comments?.find((cm: any) => cm.id === commentId);
         const wasLiked = !!targetComment?.likedBy?.includes(user.id);
@@ -6698,7 +6150,7 @@ const App = () => {
     setCommentLikeHandler(handleLikeComment);
 
     const handleRepost = async (id: string) => {
-        if (!user) return openAppKitModal();
+        if (!user) return handleRequireAuth();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to repost', type: 'INFO' }); return; }
         // Read post data BEFORE setPosts
         const targetPost = posts.find(p => p.id === id);
@@ -6722,7 +6174,7 @@ const App = () => {
         }
     };
     const handleComment = async (pid: string, c: string, parentId?: string | null) => {
-        if (!user) return openAppKitModal();
+        if (!user) return handleRequireAuth();
         if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to comment', type: 'INFO' }); return; }
         if (!c.trim()) return;
         const tempId = `c_${Date.now()}`;
@@ -6748,7 +6200,8 @@ const App = () => {
                 return;
             }
             if (racedC?.__err) throw racedC.__err; // → catch below: rollback + toast + draft preserved
-            const { data: newComment } = racedC as any;
+            const { data: newComment, error: commentError } = racedC as any;
+            if (commentError || !newComment?.id) throw new Error(commentError || 'Comment was not confirmed');
             if (newComment?.id) {
                 // Replace temp comment with real DB comment (fixes disappear-on-refresh)
                 setPosts(prev => prev.map(p => p.id === pid
@@ -6899,19 +6352,43 @@ const App = () => {
         isCrossAccountOpen || isSettingsOpen || orderlyDWModal.open ||
         usersListModal.isOpen || sidebarOpen || leverageModalOpen;
 
-    // Sync body class so CSS can push navbar behind modal backdrops
-    // This also covers TradeView's internal PairSelector (z:60) and other unlisted modals
+    // Watch the DOM as well as app state so dialogs owned by leaf components
+    // (such as chart settings) suppress the floating navigation consistently.
     React.useEffect(() => {
-        if (anyModalOpen) {
-            document.body.classList.add('modal-open');
-        } else {
+        const syncModalLayer = () => {
+            const hasDialog = !!document.querySelector(
+                '.velo-modal-enter-backdrop, .velo-modal-overlay, .velo-modal-card, [role="dialog"][aria-modal="true"], [aria-modal="true"], [data-modal-layer="true"], w3m-modal.open, appkit-modal.open'
+            );
+            document.body.classList.toggle('modal-open', anyModalOpen || hasDialog);
+        };
+        const observer = new MutationObserver(syncModalLayer);
+        observer.observe(document.body, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            attributeFilter: ['class', 'aria-modal', 'data-modal-layer'],
+        });
+        syncModalLayer();
+        return () => {
+            observer.disconnect();
             document.body.classList.remove('modal-open');
-        }
-        return () => { document.body.classList.remove('modal-open'); };
+        };
     }, [anyModalOpen]);
 
     return (
         <>
+        {(sessionNotice || sessionWarning !== null || signInBusy) && (
+          <div role="dialog" aria-modal="true" aria-label={signInBusy ? 'Wallet sign-in' : 'Session status'} style={{ position: 'fixed', inset: 0, zIndex: 30000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.6)', padding: 20 }}>
+            <div style={{ background: 'var(--glass-bg-strong)', color: 'var(--fg)', border: '1px solid var(--hairline)', borderRadius: 18, padding: 28, maxWidth: 410, width: '100%' }}>
+              <h2 style={{ fontSize: 22, marginBottom: 12 }}>{signInBusy ? 'Complete sign-in in your wallet' : sessionWarning !== null ? 'Still here?' : sessionNotice === 'expired' ? 'Sign in again' : 'You’re signed out'}</h2>
+              <p style={{ color: 'var(--fg-muted)', lineHeight: 1.6, marginBottom: 18 }}>{signInBusy ? 'Approve the VELO sign-in message. It does not submit a trade.' : sessionWarning !== null ? `This app session will sign out in ${sessionWarning}s. Sessions end after 30 minutes without activity or eight hours after sign-in.` : 'Your wallet and open on-chain positions are unchanged. Scheduled trading jobs continue. Sign in to manage your account, or continue browsing public posts and markets.'}</p>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {signInBusy ? <button onClick={() => { cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); }} style={{ padding: '10px 16px' }}>Cancel sign-in</button> : sessionWarning !== null ? <button autoFocus onClick={() => sessionHardExpiry ? void handleLogout('idle') : keepSessionActive()} style={{ padding: '10px 16px' }}>{sessionHardExpiry ? 'Sign in again' : 'Stay signed in'}</button> : <button autoFocus onClick={() => { setSessionNotice(null); void handleRequireAuth(); }} style={{ padding: '10px 16px' }}>Log in</button>}
+                {!signInBusy && <button onClick={() => { if (sessionWarning !== null) void handleLogout(); else setSessionNotice(null); }} style={{ padding: '10px 16px' }}>{sessionWarning !== null ? 'Sign out' : 'Continue browsing'}</button>}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Wallet session alert — shown when user switches MetaMask account or network mid-session */}
         {walletSessionAlert && (
             <div style={{ position: 'fixed', inset: 0, zIndex: 20000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)' }}>
@@ -6991,9 +6468,9 @@ const App = () => {
                     <svg viewBox="0 0 28 28" width="28" height="28" style={{ animation: 'veloLoadSpin 1.1s linear infinite' }}>
                         <defs>
                             <linearGradient id="veloLoadG" x1="0" y1="0" x2="1" y2="0">
-                                <stop offset="0%"   stopColor="oklch(0.68 0.22 295)" />
-                                <stop offset="50%"  stopColor="oklch(0.80 0.14 205)" />
-                                <stop offset="100%" stopColor="oklch(0.68 0.22 295)" stopOpacity="0" />
+                                <stop offset="0%"   stopColor="var(--accent)" />
+                                <stop offset="50%"  stopColor="var(--velo-sage-bright)" />
+                                <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
                             </linearGradient>
                         </defs>
                         <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1.5" />
@@ -7033,7 +6510,7 @@ const App = () => {
                   <button
                     onClick={handleRederive}
                     disabled={rederiving}
-                    style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: rederiving ? 'wait' : 'pointer', background: 'var(--velo-violet, oklch(0.55 0.24 295))', color: '#fff', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontSize: 12, opacity: rederiving ? 0.7 : 1, transition: 'opacity 0.15s' }}>
+                    style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', cursor: rederiving ? 'wait' : 'pointer', background: 'var(--velo-violet, var(--accent))', color: '#fff', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontSize: 12, opacity: rederiving ? 0.7 : 1, transition: 'opacity 0.15s' }}>
                     {rederiving ? 'Waiting for signature…' : 'Authorize & restore wallet'}
                   </button>
                   <button
@@ -7092,7 +6569,7 @@ const App = () => {
                             fetchTradeHistory(authUser.id),
                             fetchTransactions(authUser.id),
                             fetchNotifications(authUser.id),
-                            fetchPosts(50),
+                            fetchPosts(50).catch(() => []),
                         ]);
                         const { data: follows } = await supabase.from('follows').select('following_id').eq('follower_id', authUser.id);
                         restoredUser.following = (follows || []).map((f: any) => f.following_id);
@@ -7158,7 +6635,7 @@ const App = () => {
                   const faucetRef = txHash ? `faucet:${txHash}` : `faucet:welcome:${user.id}`;
                   try {
                     await recordTransaction(user.id, 'DEPOSIT', amount, { onChain: !!txHash, txHash: faucetRef });
-                    await createNotification(user.id, 'DEPOSIT', `Welcome bonus: $${amount.toFixed(2)} mUSDC credited to your trading wallet`, txHash);
+                    await createNotification(user.id, 'DEPOSIT', `Welcome bonus: $${amount.toFixed(2)} mUSDC credited to your trading wallet`, txHash ?? undefined);
                     const txns = await fetchTransactions(user.id);
                     setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
                   } catch (e) {
@@ -7231,9 +6708,9 @@ const App = () => {
                 // Optimistically prepend the send to recent activity immediately
                 const optimisticTx = {
                   id: `send-${Date.now()}`,
-                  type: 'SEND',
+                  type: 'SEND' as const,
                   amount,
-                  status: 'COMPLETED',
+                  status: 'COMPLETED' as const,
                   timestamp: Date.now(),
                   on_chain: true,
                   tx_hash: txHash,
@@ -7300,7 +6777,7 @@ const App = () => {
                       : (user.username ? `@${user.username}` : 'a Velo user');
                     try {
                       await createNotificationForUser(
-                        recipientProfile.id,
+                        (recipientProfile as { id: string }).id,
                         'TRANSFER_RECEIVED',
                         `${fromLabel} sent you $${amount.toFixed(2)} mUSDC`,
                         txHash,
@@ -7311,7 +6788,7 @@ const App = () => {
                     }
                     try {
                       await recordTransactionForUser(
-                        recipientProfile.id,
+                        (recipientProfile as { id: string }).id,
                         'RECEIVE',
                         amount,
                         { txHash, onChain: true, counterparty: fromLabel },
@@ -7386,59 +6863,14 @@ const App = () => {
                   return r;
                 },
                 partialClose: async (tradeId, fracBps, pair) => {
-                  const pos = managingPosition; // capture before async/modal close
-                  const veloPair = (pair.replace('/', '-')) as any;
-                  const r = await veloPerpsTrading.partialClose(tradeId, fracBps, veloPair);
-                  setToast({ message: `Closed ${(fracBps / 100).toFixed(0)}% of position`, type: 'SUCCESS' });
-
-                  // Record the (partial) close so it shows in History + recent activity.
-                  // The contract settles realized PnL on-chain, but partialClose() only
-                  // returns a tx hash (unlike closePosition, which returns exitPrice/pnl),
-                  // so we derive the closed-portion PnL from the live mark price — the same
-                  // linear-perp formula the position row uses for its live PnL. The 5s
-                  // contract poll reconciles exact balances afterward. This was the gap:
-                  // partial closes (and 100% closes done through this modal) never wrote a
-                  // trade_history row, so they were missing from History and the dashboard.
-                  try {
-                    if (pos && user && isSupabaseConfigured()) {
-                      const fraction = Math.min(1, Math.max(0, fracBps / 10000));
-                      const exitPrice = marketPrices[pos.pair] || pos.entryPrice;
-                      const closedSize = pos.size * fraction;
-                      const dir = pos.side === 'LONG' ? 1 : -1;
-                      const pnl = pos.entryPrice > 0
-                        ? closedSize * ((exitPrice - pos.entryPrice) / pos.entryPrice) * dir
-                        : 0;
-                      const partialHistory: TradeHistoryItem = {
-                        id: `pclose_${pos.id}_${Date.now()}`,
-                        pair: pos.pair, side: pos.side,
-                        entryPrice: pos.entryPrice, exitPrice,
-                        size: closedSize, pnl, timestamp: Date.now(),
-                        openedAt: pos.timestamp, leverage: pos.leverage,
-                        marginMode: pos.marginMode, liquidationPrice: pos.liquidationPrice,
-                        action: 'CLOSE', copyTraderId: pos.copyTraderId,
-                        onChain: true, orderlyOrderUrl: r.explorerUrl,
-                      } as any;
-                      insertTradeHistory(user.id, partialHistory).catch((e: any) => console.warn('[velo] partial-close history failed:', e));
-                      setUser(prev => {
-                        if (!prev || prev.tradeHistory.some(h => h.id === partialHistory.id)) return prev;
-                        return {
-                          ...prev,
-                          realizedPnL: prev.realizedPnL + pnl,
-                          tradeHistory: [partialHistory, ...prev.tradeHistory],
-                          pnlHistory: [...(prev.pnlHistory || []), {
-                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            value: veloPerpsTrading.usdcBalance + pnl,
-                            timestamp: Date.now(),
-                          }],
-                        };
-                      });
-                      // Reflect the reduced (or fully closed) position immediately;
-                      // the next contract poll reconciles exact size/margin.
-                      setPositions(prev => fraction >= 0.999
-                        ? prev.filter(x => x.id !== pos.id)
-                        : prev.map(x => x.id === pos.id ? { ...x, size: x.size * (1 - fraction) } : x));
-                    }
-                  } catch (e) { console.warn('[velo] partial-close bookkeeping failed:', e); }
+                  const pos = managingPosition;
+                  const r = await veloPerpsTrading.partialClose(tradeId, fracBps, pair.replace('/', '-') as any);
+                  if (pos) {
+                    recordConfirmedClose(pos, r);
+                    setPositions(prev => fracBps === 10000 ? prev.filter(p => p.id !== pos.id)
+                      : prev.map(p => p.id === pos.id ? { ...p, size: p.size * (1 - r.fractionBps / 10000) } : p));
+                  }
+                  setToast({ message: `Closed ${(r.fractionBps / 100).toFixed(0)}% · PnL $${r.pnlUSDC.toFixed(2)}`, type: 'SUCCESS' });
                   return r;
                 },
                 setTriggers: async (tradeId, tp, sl) => {
@@ -7521,7 +6953,7 @@ const App = () => {
               // not a separate top-level concept.
               onOpenUsername={() => { setSettingsOpen(false); setVeloUsernameOpen(true); }}
               onOpenSend={() => { setSettingsOpen(false); setVeloSendOpen(true); }}
-              profile={user ? { id: user.id, email: user.email || '', username: user.username } : null}
+              profile={user ? { id: user.id, email: user.email || '', username: user.username, veloWalletAddress: user.veloWalletAddress } : null}
               onEmailSaved={(email: string) => setUser(prev => prev ? { ...prev, email } : null)}
               onBurnerRecovered={(veloAddress) => {
                 // The user re-derived their trading wallet on this device. Hydrate
@@ -7576,7 +7008,7 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }}/>
+            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
             <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
@@ -7608,14 +7040,11 @@ const App = () => {
                                             side: data.side,
                                             action: data.action,
                                             size: data.size,
-                                            price: data.price,
                                             pnl: data.pnl,
-                                            fee: data.fee,
                                             timestamp: data.timestamp,
                                             leverage: data.leverage,
                                             entryPrice: data.entry_price,
                                             exitPrice: data.exit_price,
-                                            margin: data.margin,
                                         };
                                         setAppOrderDetails({ kind: 'HISTORY', item });
                                     } else {
@@ -7734,6 +7163,13 @@ const App = () => {
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
             <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+                {user && veloPerpsTrading.pendingTxHash && <div role="status" style={{ padding: '10px 16px' }}>
+                  Transaction submitted. Waiting for confirmation; another submission is paused.
+                  {' '}<a href={`https://sepolia.basescan.org/tx/${veloPerpsTrading.pendingTxHash}`} target="_blank" rel="noopener noreferrer">Check transaction</a>
+                </div>}
+                {user && veloPerpsTrading.readError && <div role="alert" style={{ padding: '10px 16px', color: 'var(--pnl-down)' }}>
+                  {veloPerpsTrading.readError} <button onClick={() => void veloPerpsTrading.refresh()}>Retry account data</button>
+                </div>}
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
@@ -7769,7 +7205,7 @@ const App = () => {
                 {activeTab === TabView.TRADE && <>
 
 
-                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
+                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} chartHistoryStatus={chartHistoryStatus} onRetryChartHistory={() => setChartHistoryRetry(retry => retry + 1)} onLoadOlderHistory={loadOlderChartHistory} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
                     const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
                     const collateral = p.size / p.leverage;
@@ -7802,15 +7238,10 @@ const App = () => {
                       pnl: t.pnl,
                       pnlPct,
                       traderHandle: user?.handle,
-                      status: t.pnl < -collateral * 0.9 ? 'LIQUIDATED' : 'CLOSED',
+                      status: t.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
                     });
                   }} appTheme={theme} onTimeframeChange={(tf: ChartTimeframe) => {
-                    // Fetch real OHLCV candles for the active pair at the new timeframe.
-                    fetchPythKlines(activePair.id, tf).then(klineCandles => {
-                        if (klineCandles.length > 0) {
-                            setCandles(prev => ({ ...prev, [activePair.id]: klineCandles }));
-                        }
-                    });
+                    setChartPrefs(prev => ({ ...prev, chartTf: tf }));
                     updatePrefs({ chartTf: tf });
                 }}
                 savedChartPrefs={chartPrefs}
@@ -7823,18 +7254,24 @@ const App = () => {
                 orderlyPositions={[]}
                 />
                 </> }
-                {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
-                    <SinglePostView postId={singlePostId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setActiveSocialTicker(ticker); }}/>
+                    <SinglePostView postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setSingleCommentId(null); setActiveSocialTicker(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); fetchPythKlines(pair.id, '15m').then(klineCandles => { if (klineCandles.length > 0) setCandles(prev => ({ ...prev, [pair.id]: klineCandles })); }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSinglePostId(id); }}/>
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
                 ))}
+                {(activeTab === TabView.SOCIAL || activeTab === TabView.LEADERBOARD || activeTab === TabView.PUBLIC_PROFILE) && (publicLoading || publicLoadErrors.posts || publicLoadErrors.profiles) && (
+                  <div role="status" style={{ padding: '10px 16px', color: 'var(--fg-muted)', background: 'var(--chip-bg)', borderRadius: 10, marginBottom: 12 }}>
+                    {publicLoading ? 'Refreshing public data…' : [publicLoadErrors.profiles, publicLoadErrors.posts].filter(Boolean).join(' ')}
+                    {!publicLoading && <button onClick={() => void loadSocialData()} style={{ marginLeft: 12 }}>Retry</button>}
+                  </div>
+                )}
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} walletAddress={walletAddress} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
                 {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
-            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} />
+            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }} />
             {/* App-level order details modal — opened from notifications without tab switch */}
             {appOrderDetails && (
                 <OrderDetailsModal

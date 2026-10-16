@@ -159,23 +159,26 @@ class BinancePriceStream {
 export const binancePriceStream = new BinancePriceStream();
 
 // ── Real OHLCV candle fetcher ─────────────────────────────────────────────────
-// Maps our internal ChartTimeframe strings to Binance kline intervals + candle counts.
-const TF_TO_BINANCE: Record<string, { interval: string; limit: number }> = {
-  '1m':  { interval: '1m',  limit: 200 },
-  '3m':  { interval: '3m',  limit: 200 },
-  '5m':  { interval: '5m',  limit: 200 },
-  '15m': { interval: '15m', limit: 200 },
-  '30m': { interval: '30m', limit: 200 },
-  '1H':  { interval: '1h',  limit: 200 },
-  '2H':  { interval: '2h',  limit: 200 },
-  '4H':  { interval: '4h',  limit: 200 },
-  '6H':  { interval: '6h',  limit: 200 },
-  '12H': { interval: '12h', limit: 200 },
-  '1D':  { interval: '1d',  limit: 365 },
-  '3D':  { interval: '3d',  limit: 200 },
-  '1W':  { interval: '1w',  limit: 104 },
-  '1M':  { interval: '1M',  limit: 60  },
+// Binance returns at most 1,000 candles per request. Load a useful initial
+// window, then the chart requests older pages as the user pans left.
+const TF_TO_BINANCE: Record<string, { interval: string; history: number }> = {
+  '1m':  { interval: '1m',  history: 2000 },
+  '3m':  { interval: '3m',  history: 2000 },
+  '5m':  { interval: '5m',  history: 2000 },
+  '15m': { interval: '15m', history: 2000 },
+  '30m': { interval: '30m', history: 2000 },
+  '1H':  { interval: '1h',  history: 2000 },
+  '2H':  { interval: '2h',  history: 2000 },
+  '4H':  { interval: '4h',  history: 2000 },
+  '6H':  { interval: '6h',  history: 2000 },
+  '12H': { interval: '12h', history: 2000 },
+  '1D':  { interval: '1d',  history: 2000 },
+  '3D':  { interval: '3d',  history: 2000 },
+  '1W':  { interval: '1w',  history: 520  },
+  '1M':  { interval: '1M',  history: 120  },
 };
+
+const BINANCE_PAGE_LIMIT = 1000;
 
 export interface KlineCandle {
   time: number;   // Unix seconds (lightweight-charts format)
@@ -194,29 +197,59 @@ export interface KlineCandle {
  * @param tf       e.g. "1H", "4H", "1D"
  * @returns        Array of KlineCandle sorted oldest→newest
  */
+async function fetchBinancePage(symbol: string, interval: string, limit: number, endTime?: number): Promise<any[][]> {
+  const params = new URLSearchParams({ symbol: symbol.toUpperCase(), interval, limit: String(limit) });
+  if (endTime !== undefined) params.set('endTime', String(endTime));
+  const res = await fetch(`https://api.binance.com/api/v3/klines?${params}`, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function parseBinanceKlines(raw: any[][]): KlineCandle[] {
+  return raw.map(k => ({
+    time: Math.floor(Number(k[0]) / 1000),
+    open: parseFloat(k[1]),
+    high: parseFloat(k[2]),
+    low: parseFloat(k[3]),
+    close: parseFloat(k[4]),
+    volume: parseFloat(k[5]),
+  }));
+}
+
 export async function fetchKlines(pairId: string, tf = '1H'): Promise<KlineCandle[]> {
   const binanceSym = BINANCE_SYMBOLS[pairId];
   if (!binanceSym) return [];
 
-  const { interval, limit } = TF_TO_BINANCE[tf] ?? TF_TO_BINANCE['1H'];
+  const { interval, history: requestedHistory } = TF_TO_BINANCE[tf] ?? TF_TO_BINANCE['1H'];
+  const history = Math.min(requestedHistory, 300);
 
   try {
-    const res = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${binanceSym.toUpperCase()}&interval=${interval}&limit=${limit}`
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const raw: any[][] = await res.json();
-
-    return raw.map(k => ({
-      time:   Math.floor(Number(k[0]) / 1000), // ms → seconds
-      open:   parseFloat(k[1]),
-      high:   parseFloat(k[2]),
-      low:    parseFloat(k[3]),
-      close:  parseFloat(k[4]),
-      volume: parseFloat(k[5]),
-    }));
+    const pages: any[][] = [];
+    let endTime: number | undefined;
+    while (pages.length < history) {
+      const limit = Math.min(BINANCE_PAGE_LIMIT, history - pages.length);
+      const page = await fetchBinancePage(binanceSym, interval, limit, endTime);
+      if (!page.length) break;
+      pages.push(...page);
+      if (page.length < limit) break;
+      endTime = Number(page[0][0]) - 1;
+    }
+    return parseBinanceKlines(pages).sort((a, b) => a.time - b.time);
   } catch (e) {
     console.warn(`[velo] fetchKlines(${pairId}, ${tf}) failed:`, e);
     return [];
+  }
+}
+
+export async function fetchKlinesBefore(pairId: string, tf: string, beforeTime: number): Promise<KlineCandle[]> {
+  const binanceSym = BINANCE_SYMBOLS[pairId];
+  if (!binanceSym || !Number.isFinite(beforeTime)) return [];
+  const { interval } = TF_TO_BINANCE[tf] ?? TF_TO_BINANCE['1H'];
+  try {
+    const raw = await fetchBinancePage(binanceSym, interval, BINANCE_PAGE_LIMIT, Math.floor(beforeTime * 1000) - 1);
+    return parseBinanceKlines(raw).sort((a, b) => a.time - b.time);
+  } catch (e) {
+    console.warn(`[velo] fetchKlinesBefore(${pairId}, ${tf}) failed:`, e);
+    throw e;
   }
 }

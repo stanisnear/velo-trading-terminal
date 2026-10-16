@@ -37,9 +37,10 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const colors = {
-      text: theme === 'dark' ? '#9ca3af' : '#50506a',
-    };
+    const palette = getComputedStyle(document.documentElement);
+    const accent = palette.getPropertyValue('--accent').trim() || (theme === 'dark' ? '#91b99f' : '#557a62');
+    const textColor = palette.getPropertyValue('--fg-2').trim() || (theme === 'dark' ? '#a2afa6' : '#516257');
+    const colors = { text: textColor, accent };
 
     const resizeObserver = new ResizeObserver((entries) => {
       window.requestAnimationFrame(() => {
@@ -69,7 +70,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       timeScale: { visible: false, borderVisible: false },
       rightPriceScale: { visible: false, borderVisible: false },
       crosshair: {
-        vertLine: { visible: true, labelVisible: false, style: 2, color: theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)' },
+        vertLine: { visible: true, labelVisible: false, style: 2, color: theme === 'dark' ? 'rgba(226, 238, 229, 0.2)' : 'rgba(44, 75, 53, 0.2)' },
         horzLine: { visible: false, labelVisible: false },
         mode: CrosshairMode.Magnet,
       },
@@ -77,13 +78,11 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       handleScroll: false,
     });
 
-    // lightweight-charts does not parse modern OKLCH color syntax — it expects
-    // hex / rgb / rgba and throws "Failed to parse color" otherwise. We hardcode
-    // the rgba equivalent of `oklch(0.68 0.22 295)` (Velo iris violet).
+    // lightweight-charts expects concrete color strings rather than CSS vars.
     const series = chart.addSeries(AreaSeries, {
-      lineColor: 'rgb(140, 90, 255)',
-      topColor: theme === 'dark' ? 'rgba(140, 90, 255, 0.38)' : 'rgba(120, 70, 240, 0.20)',
-      bottomColor: theme === 'dark' ? 'rgba(120, 70, 240, 0.0)' : 'rgba(140, 90, 255, 0.0)',
+      lineColor: colors.accent,
+      topColor: theme === 'dark' ? 'rgba(145, 185, 159, 0.28)' : 'rgba(85, 122, 98, 0.2)',
+      bottomColor: theme === 'dark' ? 'rgba(145, 185, 159, 0)' : 'rgba(85, 122, 98, 0)',
       lineWidth: 2,
     });
 

@@ -30,10 +30,10 @@ const ETH_RPC  = import.meta.env.VITE_ETH_SEPOLIA_RPC_URL   || 'https://ethereum
 export const networks = [baseSepolia, arbitrumSepolia, optimismSepolia, sepolia] as const;
 
 export const wagmiAdapter = new WagmiAdapter({
-  networks,
+  networks: [...networks],
   projectId,
   transports: {
-    [baseSepolia.id]:     http(BASE_RPC),
+    [baseSepolia.id]:     http(BASE_RPC, { batch: { wait: 20 }, timeout: 12000, retryCount: 0 }),
     [arbitrumSepolia.id]: http(ARB_RPC),
     [optimismSepolia.id]: http(OP_RPC),
     [sepolia.id]:         http(ETH_RPC),
@@ -82,10 +82,10 @@ createAppKit({
   defaultNetwork: baseSepolia,
   projectId,
   metadata: {
-    name: 'Velo Trading Terminal',
-    description: 'SocialFi perpetual futures trading on Base Sepolia.',
+    name: 'Velo',
+    description: 'Pyth-priced perpetuals. Positions in the feed.',
     url: 'https://app.velotrading.live',
-    icons: ['https://app.velotrading.live/favicon.ico'],
+    icons: ['https://app.velotrading.live/icons/velo-mark.svg'],
   },
   // Force EOA-only accounts (no ERC-4337 smart account layer).
   defaultAccountTypes: { eip155: 'eoa' },
@@ -108,13 +108,13 @@ createAppKit({
   tokens: {
     'eip155:84532': {
       address: '0x5EFaF3F69b09bC2abF3439bDC0C93bf611026699',
-      image: 'https://app.velotrading.live/favicon.ico',
+      image: 'https://app.velotrading.live/icons/velo-mark.svg',
     },
   },
   themeMode: 'dark',
   themeVariables: {
-    '--w3m-accent': 'oklch(0.68 0.22 295)',
-    '--w3m-border-radius-master': '2px',
+    '--w3m-accent': '#91b99f',
+    '--w3m-border-radius-master': '12px',
   },
 });
 

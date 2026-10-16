@@ -210,8 +210,8 @@ export const DepositWithdrawModal: React.FC<Props> = ({
   const max       = isDeposit ? walletUsdcNum : orderlyBalance;
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.88)', backdropFilter: 'blur(24px)' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', borderRadius: 22, overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(40px)' }}>
+    <div className="velo-modal-enter-backdrop" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.88)', backdropFilter: 'blur(24px)' }}>
+      <div className="velo-modal-enter-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', borderRadius: 22, overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(40px)' }}>
 
         <div style={{ height: 3, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }} />
 
@@ -313,7 +313,7 @@ export const DepositWithdrawModal: React.FC<Props> = ({
 
           {/* Status / error */}
           {status && !error && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'oklch(0.68 0.22 295/0.08)', border: '1px solid oklch(0.68 0.22 295/0.2)', borderRadius: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 10 }}>
               <Loader2 size={14} style={{ color: 'var(--iris-violet)', flexShrink: 0, marginTop: 1, animation: 'spin 1s linear infinite' }} />
               <span style={{ ...S.sans, fontSize: 12 }}>{status}</span>
             </div>

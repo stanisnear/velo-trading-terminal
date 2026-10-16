@@ -21,8 +21,8 @@ const ChainLink = ({ href, label }: { href: string; label: string }) => (
       fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
       color: 'var(--iris-violet)', textDecoration: 'none',
       padding: '3px 8px', borderRadius: 6,
-      border: '1px solid oklch(0.68 0.22 295/0.35)',
-      background: 'oklch(0.68 0.22 295/0.08)',
+      border: '1px solid color-mix(in oklab, var(--accent) 35%, transparent)',
+      background: 'color-mix(in oklab, var(--accent) 8%, transparent)',
     }}
   >
     {label} <ExternalLink size={9} />
@@ -60,7 +60,7 @@ const Row = ({
   };
   const hide = () => {
     if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
-    hideTimer.current = setTimeout(() => { setRect(null); setHovered(false); }, 100);
+    hideTimer.current = setTimeout(() => { setRect(null); setHovered(false); }, 250);
   };
 
   React.useEffect(() => () => {
@@ -75,6 +75,10 @@ const Row = ({
     <div
       onMouseEnter={tip ? show : undefined}
       onMouseLeave={tip ? hide : undefined}
+      tabIndex={tip ? 0 : undefined}
+      onFocus={tip ? show : undefined}
+      onBlur={tip ? hide : undefined}
+      onKeyDown={e => { if (e.key === 'Escape') { setRect(null); setHovered(false); } }}
       style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -209,8 +213,7 @@ export const OrderDetailsModal = ({
     return `${d.toLocaleDateString()} · ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
   };
 
-  const R = (props: { label: string; value: React.ReactNode; valueColor?: string; tip?: string }) =>
-    <Row {...props} isSmall={isSmall} />;
+
 
   // ── Header text per kind ────────────────────────────────────────────────
   // Transactions show one of four labels: Deposit / Withdrawal / Sent / Received.
@@ -247,7 +250,7 @@ export const OrderDetailsModal = ({
     const pnlUp      = t.pnl >= 0;
 
     hero = (
-      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: isOpenEntry ? 'rgba(99,102,241,0.06)' : (pnlUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)') }}>
+      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: isOpenEntry ? 'color-mix(in oklab, var(--accent) 6%, transparent)' : (pnlUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)') }}>
         {isOpenEntry ? (
           <>
             <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Position Opened</div>
@@ -272,18 +275,18 @@ export const OrderDetailsModal = ({
     );
     body = (
       <>
-        <R label="Entry Price"   value={`$${formatPrice(t.entryPrice)}`}   tip="The average price at which this position was opened." />
-        {!isOpenEntry && <R label="Exit Price"    value={`$${formatPrice(t.exitPrice)}`}    tip="The price at which the position was closed." />}
-        {!isOpenEntry && <R label="Price Change"  value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in price from entry to exit." />}
-        <R label="Position Size" value={`$${formatMoney(t.size)}`}         tip="Total notional value of the position (margin × leverage)." />
-        {leverage > 0 && <R label="Leverage"    value={`${leverage}×`}                   tip="Multiplier applied to your margin. Higher leverage = larger position but faster liquidation." />}
-        {leverage > 0 && <R label="Margin Used" value={`$${formatMoney(marginUsed)}`}    tip="The collateral committed to this trade (size ÷ leverage)." />}
-        {t.marginMode && <R label="Margin Mode" value={t.marginMode} tip={t.marginMode === 'CROSS' ? 'CROSS: your entire account balance backs this position. Losses can draw from other funds.' : 'ISOLATED: only the margin you set is at risk. Max loss = margin used.'} />}
-        {t.liquidationPrice ? <R label="Liquidation Price" value={`$${formatPrice(t.liquidationPrice)}`} valueColor="var(--pnl-down)" tip="The price at which the position would have been force-closed." /> : null}
-        <R label={isOpenEntry ? "Opened" : "Opened"}   value={fmtDateTime(t.openedAt)} tip="When this position was first opened." />
-        {!isOpenEntry && <R label="Closed"   value={fmtDateTime(t.timestamp)} tip="When this position was closed." />}
-        {!isOpenEntry && <R label="Duration" value={fmtDuration(durationMs)} tip="How long the position was open." />}
-        <R label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{t.id}</span>} tip="Unique identifier for this trade." />
+        <Row isSmall={isSmall} label="Entry Price"   value={`$${formatPrice(t.entryPrice)}`}   tip="The average price at which this position was opened." />
+        {!isOpenEntry && <Row isSmall={isSmall} label="Exit Price"    value={`$${formatPrice(t.exitPrice)}`}    tip="The price at which the position was closed." />}
+        {!isOpenEntry && <Row isSmall={isSmall} label="Price Change"  value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in price from entry to exit." />}
+        <Row isSmall={isSmall} label="Position Size" value={`$${formatMoney(t.size)}`}         tip="Total notional value of the position (margin × leverage)." />
+        {leverage > 0 && <Row isSmall={isSmall} label="Leverage"    value={`${leverage}×`}                   tip="Multiplier applied to your margin. Higher leverage = larger position but faster liquidation." />}
+        {leverage > 0 && <Row isSmall={isSmall} label="Margin Used" value={`$${formatMoney(marginUsed)}`}    tip="The collateral committed to this trade (size ÷ leverage)." />}
+        {t.marginMode && <Row isSmall={isSmall} label="Margin Mode" value={t.marginMode} tip={t.marginMode === 'CROSS' ? 'CROSS: your entire account balance backs this position. Losses can draw from other funds.' : 'ISOLATED: only the margin you set is at risk. Max loss = margin used.'} />}
+        {t.liquidationPrice ? <Row isSmall={isSmall} label="Liquidation Price" value={`$${formatPrice(t.liquidationPrice)}`} valueColor="var(--pnl-down)" tip="The price at which the position would have been force-closed." /> : null}
+        <Row isSmall={isSmall} label={isOpenEntry ? "Opened" : "Opened"}   value={fmtDateTime(t.openedAt)} tip="When this position was first opened." />
+        {!isOpenEntry && <Row isSmall={isSmall} label="Closed"   value={fmtDateTime(t.timestamp)} tip="When this position was closed." />}
+        {!isOpenEntry && <Row isSmall={isSmall} label="Duration" value={fmtDuration(durationMs)} tip="How long the position was open." />}
+        <Row isSmall={isSmall} label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{t.id}</span>} tip="Unique identifier for this trade." />
         {t.onChain && (t.orderlyOrderUrl || t.txHash) && (
           <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -297,7 +300,7 @@ export const OrderDetailsModal = ({
           </div>
         )}
         {t.orderlyOrderId && (
-          <R label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{t.orderlyOrderId}</span>} tip="Velo Perps trade ID." />
+          <Row isSmall={isSmall} label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{t.orderlyOrderId}</span>} tip="Velo Perps trade ID." />
         )}
       </>
     );
@@ -349,29 +352,29 @@ export const OrderDetailsModal = ({
     );
     body = (
       <>
-        <R label="Entry Price"       value={p.entryPrice < 0.001 ? 'Corrupt (stale oracle)' : `$${formatPrice(p.entryPrice)}`} valueColor={p.entryPrice < 0.001 ? 'var(--pnl-down)' : 'var(--fg)'} tip="Entry price. A warning means the position was opened with stale Pyth data — close it." />
-        <R label="Mark Price"        value={`$${formatPrice(mark)}`}          tip="Current fair-value price used to calculate PnL and liquidation. Updates every tick." />
-        <R label="Price Change"      value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in mark price since entry." />
-        <R label="Liquidation Price" value={`$${formatPrice(displayLiqPrice)}`} valueColor={bufferColor}
+        <Row isSmall={isSmall} label="Entry Price"       value={p.entryPrice < 0.001 ? 'Corrupt (stale oracle)' : `$${formatPrice(p.entryPrice)}`} valueColor={p.entryPrice < 0.001 ? 'var(--pnl-down)' : 'var(--fg)'} tip="Entry price. A warning means the position was opened with stale Pyth data — close it." />
+        <Row isSmall={isSmall} label="Mark Price"        value={`$${formatPrice(mark)}`}          tip="Current fair-value price used to calculate PnL and liquidation. Updates every tick." />
+        <Row isSmall={isSmall} label="Price Change"      value={`${priceMove >= 0 ? '+' : ''}${priceMove.toFixed(3)}%`} valueColor={priceMove >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="% move in mark price since entry." />
+        <Row isSmall={isSmall} label="Liquidation Price" value={`$${formatPrice(displayLiqPrice)}`} valueColor={bufferColor}
            tip={isCross
              ? `CROSS mode: estimated price at which your shared margin pool would be exhausted. Your entire account balance protects this position — the liq. price shifts as other positions' PnL changes.`
              : `ISOLATED mode: if mark price reaches this level, your position is force-closed and you lose the margin committed (${formatMoney(marginUsed)} USDT). Only this position's margin is at risk.`} />
-        <R label="Liq. Buffer"       value={`${buffer.toFixed(2)}%`} valueColor={bufferColor}
+        <Row isSmall={isSmall} label="Liq. Buffer"       value={`${buffer.toFixed(2)}%`} valueColor={bufferColor}
            tip={isCross
              ? `Distance between current price and estimated liquidation price as a % of mark price. CROSS: reflects shared pool health — all cross positions contribute. ${buffer < 10 ? 'Consider reducing exposure.' : ''}`
              : `How far price must move before liquidation triggers. ${buffer < 5 ? 'Very close — consider adding margin or closing.' : buffer < 10 ? 'Moderate risk.' : 'Safe distance.'}`} />
-        <R label="Position Size"     value={`$${formatMoney(p.size)}`}        tip="Total notional value of your position (margin × leverage). This is the actual exposure, not just the collateral." />
-        <R label="Leverage"          value={`${p.leverage}×`}                 tip={`${p.leverage}× leverage means a 1% price move = ${p.leverage}% gain or loss on your margin.`} />
-        <R label="Margin Used"       value={`$${formatMoney(marginUsed)}`}    tip={isCross ? "Margin committed from your account to back this position. In CROSS mode, your full balance can cover losses beyond this amount." : "Maximum you can lose on this position. In ISOLATED mode, losses are capped at this amount."} />
-        <R label="Margin Mode"       value={<span style={{ color: isCross ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)' }}>{p.marginMode}</span>}
+        <Row isSmall={isSmall} label="Position Size"     value={`$${formatMoney(p.size)}`}        tip="Total notional value of your position (margin × leverage). This is the actual exposure, not just the collateral." />
+        <Row isSmall={isSmall} label="Leverage"          value={`${p.leverage}×`}                 tip={`${p.leverage}× leverage means a 1% price move = ${p.leverage}% gain or loss on your margin.`} />
+        <Row isSmall={isSmall} label="Margin Used"       value={`$${formatMoney(marginUsed)}`}    tip={isCross ? "Margin committed from your account to back this position. In CROSS mode, your full balance can cover losses beyond this amount." : "Maximum you can lose on this position. In ISOLATED mode, losses are capped at this amount."} />
+        <Row isSmall={isSmall} label="Margin Mode"       value={<span style={{ color: isCross ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)' }}>{p.marginMode}</span>}
            tip={isCross
              ? "CROSS: your entire account balance backs this position. Gains on other positions help avoid liquidation here, but losses can consume your whole balance."
              : "ISOLATED: only the margin you assigned is at risk. This position can't draw on your other funds — max loss is capped at the margin used."} />
-        <R label="Take Profit"       value={p.takeProfit && p.takeProfit > 0.00001 ? `$${formatPrice(p.takeProfit)}` : '—'} valueColor={p.takeProfit && p.takeProfit > 0.00001 ? 'var(--pnl-up)' : 'var(--fg)'} tip="Your position auto-closes in profit when mark price hits this level." />
-        <R label="Stop Loss"         value={p.stopLoss && p.stopLoss > 0.00001   ? `$${formatPrice(p.stopLoss)}`   : '—'} valueColor={p.stopLoss && p.stopLoss > 0.00001   ? 'var(--pnl-down)' : 'var(--fg)'} tip="Your position auto-closes at a loss when mark price hits this level, protecting against further downside." />
-        <R label="Opened"            value={fmtDateTime(p.timestamp)} tip="When this position was opened." />
-        <R label="Open Duration"     value={fmtDuration(openDurMs)} tip="How long this position has been open." />
-        <R label="Position ID"       value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{p.id}</span>} tip="Unique identifier for this position." />
+        <Row isSmall={isSmall} label="Take Profit"       value={p.takeProfit && p.takeProfit > 0.00001 ? `$${formatPrice(p.takeProfit)}` : '—'} valueColor={p.takeProfit && p.takeProfit > 0.00001 ? 'var(--pnl-up)' : 'var(--fg)'} tip="Your position auto-closes in profit when mark price hits this level." />
+        <Row isSmall={isSmall} label="Stop Loss"         value={p.stopLoss && p.stopLoss > 0.00001   ? `$${formatPrice(p.stopLoss)}`   : '—'} valueColor={p.stopLoss && p.stopLoss > 0.00001   ? 'var(--pnl-down)' : 'var(--fg)'} tip="Your position auto-closes at a loss when mark price hits this level, protecting against further downside." />
+        <Row isSmall={isSmall} label="Opened"            value={fmtDateTime(p.timestamp)} tip="When this position was opened." />
+        <Row isSmall={isSmall} label="Open Duration"     value={fmtDuration(openDurMs)} tip="How long this position has been open." />
+        <Row isSmall={isSmall} label="Position ID"       value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{p.id}</span>} tip="Unique identifier for this position." />
         {p.onChain && (
           <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -386,7 +389,7 @@ export const OrderDetailsModal = ({
           </div>
         )}
         {p.id?.startsWith('velo_') && (
-          <R label="Trade ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{p.id.slice(5)}</span>} tip="Velo Perps on-chain trade ID." />
+          <Row isSmall={isSmall} label="Trade ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>#{p.id.slice(5)}</span>} tip="Velo Perps on-chain trade ID." />
         )}
       </>
     );
@@ -413,7 +416,7 @@ export const OrderDetailsModal = ({
     const isTpSl      = o.type === 'TAKE_PROFIT' || o.type === 'STOP_LOSS';
 
     hero = (
-      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'rgba(107,70,255,0.06)' }}>
+      <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'color-mix(in oklab, var(--accent) 7%, transparent)' }}>
         <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>{o.type.replace('_', ' ')} Trigger</div>
         <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: 'var(--fg)' }}>
           ${formatPrice(o.price)}
@@ -425,18 +428,18 @@ export const OrderDetailsModal = ({
     );
     body = (
       <>
-        <R label="Order Type"    value={o.type.replace('_', ' ')} tip={isTpSl ? "Conditional order that triggers automatically when mark price reaches the trigger price." : "Limit or stop order waiting to be filled at the specified price."} />
-        <R label="Trigger Price" value={`$${formatPrice(o.price)}`} tip="The price at which this order will execute." />
-        <R label="Mark Price"    value={`$${formatPrice(mark)}`} tip="Current fair-value price. When mark reaches the trigger price, this order fires." />
-        <R label="Distance"      value={`${distance >= 0 ? '+' : ''}${distance.toFixed(3)}%`} valueColor={distance >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="How far mark price is from the trigger. Negative = price needs to fall to trigger." />
-        <R label="Size"          value={`$${formatMoney(o.size)}`} tip="Notional size of the order that will execute." />
-        {leverage > 0  && <R label="Leverage"    value={`${leverage}×`} tip={`${leverage}× leverage on this order.`} />}
-        {!isTpSl && leverage > 0 && <R label="Margin Reserved" value={`$${formatMoney(marginUsed)}`} tip="Margin that will be locked when this order fills." />}
-        {isTpSl && <R label="Margin Reserved" value="—" tip="TP/SL orders close an existing position — no additional margin is reserved." />}
-        <R label="Placed"  value={fmtDateTime(o.timestamp)} tip="When this order was placed." />
-        <R label="Waiting" value={fmtDuration(placedDurMs)} tip="How long this order has been waiting to fill." />
-        {o.relatedPositionId && <R label="Linked Position" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{o.relatedPositionId}</span>} tip="The position this TP/SL order is linked to." />}
-        <R label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{o.id}</span>} tip="Unique identifier for this order." />
+        <Row isSmall={isSmall} label="Order Type"    value={o.type.replace('_', ' ')} tip={isTpSl ? "Conditional order that triggers automatically when mark price reaches the trigger price." : "Limit or stop order waiting to be filled at the specified price."} />
+        <Row isSmall={isSmall} label="Trigger Price" value={`$${formatPrice(o.price)}`} tip="The price at which this order will execute." />
+        <Row isSmall={isSmall} label="Mark Price"    value={`$${formatPrice(mark)}`} tip="Current fair-value price. When mark reaches the trigger price, this order fires." />
+        <Row isSmall={isSmall} label="Distance"      value={`${distance >= 0 ? '+' : ''}${distance.toFixed(3)}%`} valueColor={distance >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="How far mark price is from the trigger. Negative = price needs to fall to trigger." />
+        <Row isSmall={isSmall} label="Size"          value={`$${formatMoney(o.size)}`} tip="Notional size of the order that will execute." />
+        {leverage > 0  && <Row isSmall={isSmall} label="Leverage"    value={`${leverage}×`} tip={`${leverage}× leverage on this order.`} />}
+        {!isTpSl && leverage > 0 && <Row isSmall={isSmall} label="Margin Reserved" value={`$${formatMoney(marginUsed)}`} tip="Margin that will be locked when this order fills." />}
+        {isTpSl && <Row isSmall={isSmall} label="Margin Reserved" value="—" tip="TP/SL orders close an existing position — no additional margin is reserved." />}
+        <Row isSmall={isSmall} label="Placed"  value={fmtDateTime(o.timestamp)} tip="When this order was placed." />
+        <Row isSmall={isSmall} label="Waiting" value={fmtDuration(placedDurMs)} tip="How long this order has been waiting to fill." />
+        {o.relatedPositionId && <Row isSmall={isSmall} label="Linked Position" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{o.relatedPositionId}</span>} tip="The position this TP/SL order is linked to." />}
+        <Row isSmall={isSmall} label="Order ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{o.id}</span>} tip="Unique identifier for this order." />
       </>
     );
     footer = (
@@ -489,16 +492,16 @@ export const OrderDetailsModal = ({
     );
     body = (
       <>
-        <R label="Type"      value={tx.type}                  tip={typeTip} />
-        <R label="Amount"    value={`$${formatMoney(tx.amount)}`} valueColor={isInflow ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="The amount transferred." />
+        <Row isSmall={isSmall} label="Type"      value={tx.type}                  tip={typeTip} />
+        <Row isSmall={isSmall} label="Amount"    value={`$${formatMoney(tx.amount)}`} valueColor={isInflow ? 'var(--pnl-up)' : 'var(--pnl-down)'} tip="The amount transferred." />
         {counterpartyLabel && tx.counterparty && (
-          <R label={counterpartyLabel} value={
+          <Row isSmall={isSmall} label={counterpartyLabel} value={
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg)' }}>{tx.counterparty}</span>
           } tip={isSend ? 'Recipient address or @handle.' : 'Sender address or @handle.'} />
         )}
-        <R label="Status"    value={tx.status || 'COMPLETED'} valueColor="var(--pnl-up)" tip="Current status of this transaction." />
-        <R label="Time"      value={fmtDateTime(tx.timestamp)} tip="When this transaction was processed." />
-        <R label="Transaction ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{tx.id}</span>} tip="Unique identifier for this transaction." />
+        <Row isSmall={isSmall} label="Status"    value={tx.status || 'COMPLETED'} valueColor="var(--pnl-up)" tip="Current status of this transaction." />
+        <Row isSmall={isSmall} label="Time"      value={fmtDateTime(tx.timestamp)} tip="When this transaction was processed." />
+        <Row isSmall={isSmall} label="Transaction ID" value={<span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-muted)' }}>{tx.id}</span>} tip="Unique identifier for this transaction." />
         {tx.onChain && tx.txHash && (() => {
           // Faucet credits use the format `faucet:<address>` (no real BaseScan tx
           // — the faucet is server-side). Link to BaseScan's address page for
@@ -537,7 +540,8 @@ export const OrderDetailsModal = ({
 
   const overlay = (
     <div
-      className="animate-fade-in"
+      role="presentation"
+      className="velo-modal-enter-backdrop"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 120,
@@ -547,6 +551,10 @@ export const OrderDetailsModal = ({
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="velo-order-details-title"
+        className="velo-modal-enter-card"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: isSmall ? '100%' : 460,
@@ -572,13 +580,13 @@ export const OrderDetailsModal = ({
           paddingTop: isSmall ? 20 : 18,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' as const }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: isSmall ? 20 : 22, color: 'var(--fg)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+            <span id="velo-order-details-title" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: isSmall ? 20 : 22, color: 'var(--fg)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
               {headerPair}
             </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: sideUp ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)', border: `1px solid ${sideUp ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)'}` }}>{headerSide}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: `color-mix(in oklab, ${sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)'} 10%, transparent)`, color: sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)', border: `1px solid color-mix(in oklab, ${sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)'} 30%, transparent)` }}>{headerSide}</span>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'var(--chip-bg)', color: 'var(--fg-muted)', border: '1px solid var(--hairline-strong)' }}>{payload.kind === 'HISTORY' ? ((payload.item as any)?.action === 'OPEN' ? 'OPENED' : (payload.item as any)?.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED') : payload.kind === 'POSITION' ? 'OPEN' : payload.kind === 'TRANSACTION' ? payload.item.type : 'PENDING'}</span>
             {copyId && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'rgba(107,70,193,0.12)', color: 'var(--iris-violet)', border: '1px solid rgba(107,70,193,0.3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Copy size={9}/> COPY
               </span>
             )}
@@ -592,11 +600,11 @@ export const OrderDetailsModal = ({
 
         {hero}
 
-        <div className="custom-scrollbar" style={{ overflowY: 'auto', flex: 1, minHeight: 0, background: 'transparent', paddingBottom: 4 }}>
+        <div className="custom-scrollbar" style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, minHeight: 0, background: 'transparent', paddingBottom: 16 }}>
           {body}
         </div>
 
-        <div style={{ padding: isSmall ? '12px 14px calc(12px + env(safe-area-inset-bottom))' : '12px 18px', borderTop: '1px solid var(--hairline-strong)', display: 'flex', gap: 8, flexShrink: 0, background: 'var(--bg-base-2)' }}>
+        <div style={{ padding: isSmall ? '12px 14px calc(12px + env(safe-area-inset-bottom))' : '12px 18px', borderTop: '1px solid var(--hairline-strong)', display: 'flex', gap: 8, flexShrink: 0, background: 'var(--surface-raised)', boxShadow: '0 -12px 28px -24px rgba(0,0,0,.42)' }}>
           {footer}
         </div>
       </div>

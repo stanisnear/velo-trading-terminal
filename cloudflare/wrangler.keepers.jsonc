@@ -1,0 +1,19 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "velo-keeper-scheduler",
+  "main": "keeper-scheduler.js",
+  "compatibility_date": "2026-10-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "workers_dev": false,
+  "vars": {
+    "VELO_KEEPERS_ENABLED": "true",
+    "VELO_KEEPERS_DRY_RUN": "false",
+    "VELO_KEEPER_BASE_URL": "https://btgfoekgvyvdflzjfehz.supabase.co/functions/v1/velo-keepers"
+  },
+  "triggers": {
+    // Execution mode: owner confirmed Vercel paused on 2026-10-14.
+    // Never resume the old Vercel writers while this timer is enabled.
+    "crons": ["* * * * *"]
+  }
+}

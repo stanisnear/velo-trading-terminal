@@ -1,60 +1,25 @@
-import React, { useEffect, useRef, useState, memo, useCallback, useMemo } from 'react';
+import { pythPriceStream } from '../services/pythPriceService';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AreaSeries,
+  BarSeries,
+  CandlestickSeries,
+  ColorType,
+  CrosshairMode,
+  HistogramSeries,
+  LineSeries,
+  LineStyle,
+  TickMarkType,
+  createTextWatermark,
+  createChart,
+  type Time,
+} from 'lightweight-charts';
+import { RefreshCw } from 'lucide-react';
 import { Position } from '../utils/types';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TradingView free widget adapter
-// ───────────────────────────────────────────────────────────────────────────
-// The free embed (`s3.tradingview.com/tv.js`) only accepts configuration via
-// the widget constructor. It does NOT expose `activeChart()`, `createStudy`,
-// `createShape`, or `removeEntity` — those are paid Advanced Charting Library
-// APIs. Previous builds tried to call them and silently swallowed the errors,
-// which is why "indicators" and "overlays" never showed up on the chart.
-//
-// Fix: we pass `studies` via the constructor, and recreate the widget when
-// the indicator list or symbol/timeframe/style changes. For entry/TP/SL/liq
-// overlays we render pinned HTML price badges absolutely positioned over the
-// chart container — no drawings API required, renders identically in every
-// theme, and is 100% reliable.
-// ═══════════════════════════════════════════════════════════════════════════
-
-// TradingView ticker symbols for our pair list. For pairs that Orderly
-// supports (Velo's live-mode universe) we use COINBASE feeds because they
-// track the spot index closely and don't carry the Tether premium that
-// shows up on BINANCE charts. For demo-only pairs we fall back to whichever
-// venue has the deepest book.
-// Chart data source: Pyth (PYTH:* symbols on TradingView). This is the SAME
-// oracle the VeloPerps contract settles trades against and that now drives the
-// live mark price, so the chart, the ticker, and on-chain fills all agree.
-// (Previously these were COINBASE:/BINANCE: symbols, which left the chart a few
-// cents off from every fill — a different exchange, not a different time.)
-const TV_SYMBOLS: Record<string,string> = {
-  // On-chain tradable pairs (VELO_PAIRS) — all verified on TradingView's PYTH source
-  'BTC/USD':    'PYTH:BTCUSD',
-  'ETH/USD':    'PYTH:ETHUSD',
-  'SOL/USD':    'PYTH:SOLUSD',
-  'AVAX/USD':   'PYTH:AVAXUSD',
-  'LINK/USD':   'PYTH:LINKUSD',
-  'DOGE/USD':   'PYTH:DOGEUSD',
-  'NEAR/USD':   'PYTH:NEARUSD',
-  'INJ/USD':    'PYTH:INJUSD',
-  'APT/USD':    'PYTH:APTUSD',
-  'ARB/USD':    'PYTH:ARBUSD',
-  'OP/USD':     'PYTH:OPUSD',
-  'SUI/USD':    'PYTH:SUIUSD',
-  'TIA/USD':    'PYTH:TIAUSD',
-  'SEI/USD':    'PYTH:SEIUSD',
-  'RENDER/USD': 'PYTH:RENDERUSD',
-  'WLFI/USD':   'PYTH:WLFIUSD',
-  'POL/USD':    'PYTH:POLUSD',
-  // Display-only pairs from the broad PAIRS list
-  'RNDR/USD':   'PYTH:RENDERUSD',
-  'WIF/USD':    'PYTH:WIFUSD',
-  'JUP/USD':    'PYTH:JUPUSD',
-  'BONK/USD':   'PYTH:BONKUSD',
-  'PEPE/USD':   'PYTH:PEPEUSD',
-  'PYTH/USD':   'PYTH:PYTHUSD',
-};
-
+// The Trade chart uses Lightweight Charts with Velo's own data feed. Unlike
+// TradingView's hosted widget, this keeps type, spacing, colors, and overlays
+// inside the app's design system.
 export const TV_INTERVALS_QUICK: Record<string, string> = {
   '1m': '1', '5m': '5', '15m': '15', '1H': '60', '4H': '240', '1D': 'D',
 };
@@ -68,44 +33,59 @@ export const TV_INTERVALS: Record<string, string> = {
 export type ChartStyleCode = '0' | '1' | '2' | '3' | '4' | '5' | '8' | '9' | '10';
 
 export const CHART_STYLES: { label: string; code: ChartStyleCode; icon: string }[] = [
-  { label: 'Candles',        code: '1',  icon: '▮'  },
-  { label: 'Hollow Candles', code: '9',  icon: '□'  },
-  { label: 'Heikin Ashi',    code: '8',  icon: '▦'  },
-  { label: 'Bars',           code: '0',  icon: '▥'  },
-  { label: 'Line',           code: '2',  icon: '╱'  },
-  { label: 'Area',           code: '3',  icon: '△'  },
-  { label: 'Baseline',       code: '10', icon: '⌇'  },
-  { label: 'Renko',          code: '4',  icon: '◼'  },
-  { label: 'Kagi',           code: '5',  icon: '⏢'  },
+  { label: 'Candles',        code: '1', icon: '▮' },
+  { label: 'Hollow candles', code: '9', icon: '□' },
+  { label: 'Heikin Ashi',    code: '8', icon: '▦' },
+  { label: 'Bars',           code: '0', icon: '▥' },
+  { label: 'Line',           code: '2', icon: '╱' },
+  { label: 'Area',           code: '3', icon: '△' },
 ];
 
-// The 12 most-used indicators, grouped. The free TradingView embed only
-// accepts the `studies: [...]` constructor param (no createStudy API), so
-// we keep this list tight to reduce the UI noise the user sees when picking.
+// Only expose indicators that can be calculated from the oracle OHLC feed.
+// Pyth candles do not contain exchange volume, so volume studies are omitted.
 export const INDICATORS = [
-  // Trend
-  { id: 'MASimple@tv-basicstudies',    label: 'MA',        group: 'Trend'      },
-  { id: 'MAExp@tv-basicstudies',       label: 'EMA',       group: 'Trend'      },
-  { id: 'BB@tv-basicstudies',          label: 'Bollinger', group: 'Trend'      },
-  { id: 'IchimokuCloud@tv-basicstudies', label: 'Ichimoku', group: 'Trend'     },
-  // Momentum
-  { id: 'RSI@tv-basicstudies',         label: 'RSI',       group: 'Momentum'   },
-  { id: 'MACD@tv-basicstudies',        label: 'MACD',      group: 'Momentum'   },
-  { id: 'Stochastic@tv-basicstudies',  label: 'Stochastic',group: 'Momentum'   },
-  // Volatility
-  { id: 'ATR@tv-basicstudies',         label: 'ATR',       group: 'Volatility' },
-  // Volume
-  { id: 'Volume@tv-basicstudies',      label: 'Volume',    group: 'Volume'     },
-  { id: 'VWAP@tv-basicstudies',        label: 'VWAP',      group: 'Volume'     },
-  { id: 'OBV@tv-basicstudies',         label: 'OBV',       group: 'Volume'     },
-  { id: 'MFI@tv-basicstudies',         label: 'MFI',       group: 'Volume'     },
+  { id: 'MASimple@tv-basicstudies', label: 'Moving average', group: 'Trend' },
+  { id: 'MAExp@tv-basicstudies', label: 'Exponential average', group: 'Trend' },
+  { id: 'DoubleEMA@tv-basicstudies', label: 'Double EMA (DEMA)', group: 'Trend' },
+  { id: 'TripleEMA@tv-basicstudies', label: 'Triple EMA (TEMA)', group: 'Trend' },
+  { id: 'HullMA@tv-basicstudies', label: 'Hull moving average', group: 'Trend' },
+  { id: 'IchimokuCloud@tv-basicstudies', label: 'Ichimoku cloud', group: 'Trend' },
+  { id: 'PSAR@tv-basicstudies', label: 'Parabolic SAR', group: 'Trend' },
+  { id: 'SuperTrend@tv-basicstudies', label: 'Supertrend', group: 'Trend' },
+  { id: 'ATR@tv-basicstudies', label: 'Average true range (ATR)', group: 'Volatility' },
+  { id: 'HistoricalVolatility@tv-basicstudies', label: 'Historical volatility', group: 'Volatility' },
+  { id: 'KeltnerChannels@velo', label: 'Keltner channels', group: 'Volatility' },
+  { id: 'DonchianChannels@velo', label: 'Donchian channels', group: 'Volatility' },
+  { id: 'RSI@tv-basicstudies', label: 'Relative strength index (RSI)', group: 'Momentum' },
+  { id: 'Stochastic@tv-basicstudies', label: 'Stochastic oscillator', group: 'Momentum' },
+  { id: 'StochasticRSI@tv-basicstudies', label: 'Stochastic RSI', group: 'Momentum' },
+  { id: 'MACD@tv-basicstudies', label: 'MACD', group: 'Momentum' },
+  { id: 'MOM@tv-basicstudies', label: 'Momentum', group: 'Momentum' },
+  { id: 'ROC@tv-basicstudies', label: 'Rate of change (ROC)', group: 'Momentum' },
+  { id: 'CCI@tv-basicstudies', label: 'Commodity channel index', group: 'Momentum' },
+  { id: 'WilliamsPctR@tv-basicstudies', label: 'Williams %R', group: 'Momentum' },
+  { id: 'BB@tv-basicstudies', label: 'Bollinger bands', group: 'Volatility' },
 ];
+
+interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+  source?: 'pyth' | 'exchange';
+}
 
 interface TradingViewChartProps {
-  initialData?: any[];
+  initialData?: Candle[];
+  historyStatus?: 'loading' | 'ready' | 'unavailable';
+  onRetryHistory?: () => void;
+  onLoadOlderHistory?: (request: { pairId: string; timeframe: string; beforeTime: number; source: 'pyth' | 'exchange' }) => Promise<boolean>;
   theme: 'light' | 'dark';
   pairName: string;
   currentPrice: number;
+  isLivePrice?: boolean;
   activePosition?: Position | null;
   onTimeframeChange?: (tf: string) => void;
   externalTimeframe?: string;
@@ -118,506 +98,1197 @@ interface TradingViewChartProps {
   liqPrice?: number;
 }
 
+const TF_SECONDS: Record<string, number> = {
+  '1m': 60, '3m': 180, '5m': 300, '15m': 900, '30m': 1800,
+  '1H': 3600, '2H': 7200, '4H': 14400, '6H': 21600, '12H': 43200,
+  '1D': 86400, '3D': 259200, '1W': 604800, '1M': 2592000,
+};
+const INITIAL_VISIBLE_CANDLES = 600;
+
+const COLORS = {
+  up: '#91b99f',
+  upStrong: '#b4d5bf',
+  down: '#c47b76',
+  average: '#d3bc87',
+  band: '#91a9b6',
+};
+
+function cleanCandles(data: Candle[] = []): Candle[] {
+  const sorted = new Map<number, Candle>();
+  for (const candle of data) {
+    const rawTime = Number(candle.time);
+    const time = Math.floor(rawTime > 1e12 ? rawTime / 1000 : rawTime);
+    const open = Number(candle.open);
+    const high = Number(candle.high);
+    const low = Number(candle.low);
+    const close = Number(candle.close);
+    if (![time, open, high, low, close].every(Number.isFinite) || time <= 0 || close <= 0) continue;
+    sorted.set(time, {
+      time, open, close,
+      high: Math.max(high, open, close),
+      low: Math.min(low, open, close),
+      volume: Number(candle.volume) || 0,
+      source: candle.source,
+    });
+  }
+  return [...sorted.values()].sort((a, b) => a.time - b.time);
+}
+
+function heikinAshi(data: Candle[]): Candle[] {
+  let previousOpen = 0;
+  let previousClose = 0;
+  return data.map((candle, index) => {
+    const close = (candle.open + candle.high + candle.low + candle.close) / 4;
+    const open = index === 0 ? (candle.open + candle.close) / 2 : (previousOpen + previousClose) / 2;
+    previousOpen = open;
+    previousClose = close;
+    return { ...candle, open, close, high: Math.max(candle.high, open, close), low: Math.min(candle.low, open, close) };
+  });
+}
+
+function toLineData(data: Candle[]) {
+  return data.map(candle => ({ time: candle.time as Time, value: candle.close }));
+}
+
+function addSimpleAverage(data: Candle[], period: number, source: unknown) {
+  return data.map((candle, index) => {
+    const slice = data.slice(Math.max(0, index - period + 1), index + 1);
+    return slice.length < period ? null : {
+      time: candle.time as Time,
+      value: slice.reduce((sum, item) => sum + candleSourceValue(item, source), 0) / period,
+    };
+  }).filter(Boolean) as { time: Time; value: number }[];
+}
+
+function addExponentialAverage(data: Candle[], period: number, source: unknown) {
+  const multiplier = 2 / (period + 1);
+  let value = 0;
+  return data.map((candle, index) => {
+    const input = candleSourceValue(candle, source);
+    value = index === 0 ? input : input * multiplier + value * (1 - multiplier);
+    return index < period - 1 ? null : { time: candle.time as Time, value };
+  }).filter(Boolean) as { time: Time; value: number }[];
+}
+
+function emaValues(data: Candle[], period: number, source: unknown) {
+  const multiplier = 2 / (period + 1);
+  let value = 0;
+  return data.map((candle, index) => {
+    const input = candleSourceValue(candle, source);
+    value = index === 0 ? input : input * multiplier + value * (1 - multiplier);
+    return { time: candle.time as Time, value };
+  });
+}
+
+function addDoubleExponentialAverage(data: Candle[], period: number, source: unknown) {
+  const first = emaValues(data, period, source);
+  const second = emaValues(first.map((point, index) => ({ ...data[index], close: point.value })), period, 'close');
+  return data.slice(period * 2 - 2).map((candle, offset) => {
+    const index = offset + period * 2 - 2;
+    return { time: candle.time as Time, value: 2 * first[index].value - second[index].value };
+  });
+}
+
+function addTripleExponentialAverage(data: Candle[], period: number, source: unknown) {
+  const first = emaValues(data, period, source);
+  const second = emaValues(first.map((point, index) => ({ ...data[index], close: point.value })), period, 'close');
+  const third = emaValues(second.map((point, index) => ({ ...data[index], close: point.value })), period, 'close');
+  return data.slice(period * 3 - 3).map((candle, offset) => {
+    const index = offset + period * 3 - 3;
+    return { time: candle.time as Time, value: 3 * first[index].value - 3 * second[index].value + third[index].value };
+  });
+}
+
+function weightedAverage(values: number[]) {
+  const weightTotal = values.length * (values.length + 1) / 2;
+  return values.reduce((total, value, index) => total + value * (index + 1), 0) / weightTotal;
+}
+
+function addHullMovingAverage(data: Candle[], period: number, source: unknown) {
+  const half = Math.max(1, Math.floor(period / 2));
+  const root = Math.max(1, Math.floor(Math.sqrt(period)));
+  const raw = data.map(candle => candleSourceValue(candle, source));
+  const diff = raw.map((_, index) => {
+    if (index < period - 1) return null;
+    const full = weightedAverage(raw.slice(index - period + 1, index + 1));
+    const halfValue = index < half - 1 ? full : weightedAverage(raw.slice(index - half + 1, index + 1));
+    return 2 * halfValue - full;
+  });
+  return data.map((candle, index) => {
+    if (index < period + root - 2) return null;
+    const values = diff.slice(index - root + 1, index + 1);
+    if (values.some(value => value === null)) return null;
+    return { time: candle.time as Time, value: weightedAverage(values as number[]) };
+  }).filter(Boolean) as { time: Time; value: number }[];
+}
+
+function addBollingerBands(data: Candle[], period: number, deviations: number, source: unknown) {
+  const points = data.map((candle, index) => {
+    const slice = data.slice(Math.max(0, index - period + 1), index + 1);
+    if (slice.length < period) return null;
+    const mean = slice.reduce((sum, item) => sum + candleSourceValue(item, source), 0) / period;
+    const variance = slice.reduce((sum, item) => sum + (candleSourceValue(item, source) - mean) ** 2, 0) / period;
+    const delta = Math.sqrt(variance) * deviations;
+    return { time: candle.time as Time, upper: mean + delta, middle: mean, lower: mean - delta };
+  }).filter(Boolean) as { time: Time; upper: number; middle: number; lower: number }[];
+  return points;
+}
+
+function rollingMidpoint(data: Candle[], period: number) {
+  return data.map((candle, index) => {
+    if (index < period - 1) return null;
+    const window = data.slice(index - period + 1, index + 1);
+    return { time: candle.time as Time, value: (Math.max(...window.map(item => item.high)) + Math.min(...window.map(item => item.low))) / 2 };
+  }).filter(Boolean) as { time: Time; value: number }[];
+}
+
+function addIchimoku(data: Candle[], conversion: number, base: number, span: number, displacement: number, fallbackStep: number) {
+  const tenkan = rollingMidpoint(data, conversion);
+  const kijun = rollingMidpoint(data, base);
+  const spanB = rollingMidpoint(data, span);
+  const step = data.length > 1 ? data[data.length - 1].time - data[data.length - 2].time : fallbackStep;
+  const valueAt = (points: { time: Time; value: number }[], index: number) => points.find(point => Number(point.time) === data[index].time)?.value;
+  const tenkanByTime = new Map(tenkan.map(point => [Number(point.time), point.value]));
+  const kijunByTime = new Map(kijun.map(point => [Number(point.time), point.value]));
+  const spanBByTime = new Map(spanB.map(point => [Number(point.time), point.value]));
+  const conversionLine = data.flatMap((candle, index) => {
+    const value = valueAt(tenkan, index);
+    return value === undefined ? [] : [{ time: candle.time as Time, value }];
+  });
+  const baseLine = data.flatMap((candle, index) => {
+    const value = kijunByTime.get(candle.time);
+    return value === undefined ? [] : [{ time: candle.time as Time, value }];
+  });
+  const leadingA = data.flatMap((candle, index) => {
+    const a = tenkanByTime.get(candle.time);
+    const b = kijunByTime.get(candle.time);
+    return a === undefined || b === undefined ? [] : [{ time: (candle.time + displacement * step) as Time, value: (a + b) / 2 }];
+  });
+  const leadingB = data.flatMap(candle => {
+    const value = spanBByTime.get(candle.time);
+    return value === undefined ? [] : [{ time: (candle.time + displacement * step) as Time, value }];
+  });
+  const lagging = data.flatMap((candle, index) => index < displacement ? [] : [{ time: data[index - displacement].time as Time, value: candle.close }]);
+  return { conversionLine, baseLine, leadingA, leadingB, lagging };
+}
+
+function addParabolicSar(data: Candle[], start: number, increment: number, maximum: number) {
+  if (data.length < 2) return [];
+  let rising = data[1].close >= data[0].close;
+  let sar = rising ? data[0].low : data[0].high;
+  let extreme = rising ? data[0].high : data[0].low;
+  let acceleration = start;
+  const points: { time: Time; value: number }[] = [];
+  for (let index = 1; index < data.length; index++) {
+    const previousSar = sar;
+    sar = previousSar + acceleration * (extreme - previousSar);
+    if (rising) {
+      sar = Math.min(sar, data[index - 1].low, data[Math.max(0, index - 2)].low);
+      if (data[index].low < sar) {
+        rising = false; sar = extreme; extreme = data[index].low; acceleration = start;
+      } else if (data[index].high > extreme) {
+        extreme = data[index].high; acceleration = Math.min(maximum, acceleration + increment);
+      }
+    } else {
+      sar = Math.max(sar, data[index - 1].high, data[Math.max(0, index - 2)].high);
+      if (data[index].high > sar) {
+        rising = true; sar = extreme; extreme = data[index].high; acceleration = start;
+      } else if (data[index].low < extreme) {
+        extreme = data[index].low; acceleration = Math.min(maximum, acceleration + increment);
+      }
+    }
+    points.push({ time: data[index].time as Time, value: sar });
+  }
+  return points;
+}
+
+function addSuperTrend(data: Candle[], period: number, factor: number) {
+  const atr = addAverageTrueRange(data, period);
+  const atrByTime = new Map(atr.map(point => [Number(point.time), point.value]));
+  let finalUpper: number | null = null;
+  let finalLower: number | null = null;
+  let previousClose: number | null = null;
+  let direction = 1;
+  const points: { time: Time; value: number }[] = [];
+  for (const candle of data) {
+    const range = atrByTime.get(candle.time);
+    if (range === undefined) continue;
+    const midpoint = (candle.high + candle.low) / 2;
+    const basicUpper = midpoint + factor * range;
+    const basicLower = midpoint - factor * range;
+    if (finalUpper === null || finalLower === null || previousClose === null) {
+      finalUpper = basicUpper;
+      finalLower = basicLower;
+      direction = candle.close >= midpoint ? 1 : -1;
+    } else {
+      finalUpper = basicUpper < finalUpper || previousClose > finalUpper ? basicUpper : finalUpper;
+      finalLower = basicLower > finalLower || previousClose < finalLower ? basicLower : finalLower;
+      if (direction > 0 && candle.close < finalLower) direction = -1;
+      else if (direction < 0 && candle.close > finalUpper) direction = 1;
+    }
+    points.push({ time: candle.time as Time, value: direction > 0 ? finalLower : finalUpper });
+    previousClose = candle.close;
+  }
+  return points;
+}
+
+function addKeltnerChannels(data: Candle[], period: number, factor: number, source: unknown) {
+  const center = emaValues(data, period, source);
+  const atr = addAverageTrueRange(data, period);
+  const atrByTime = new Map(atr.map(point => [Number(point.time), point.value]));
+  return center.flatMap(point => {
+    const range = atrByTime.get(Number(point.time));
+    return range === undefined ? [] : [{ time: point.time, upper: point.value + range * factor, middle: point.value, lower: point.value - range * factor }];
+  });
+}
+
+function addDonchianChannels(data: Candle[], period: number) {
+  return data.flatMap((candle, index) => {
+    if (index < period - 1) return [];
+    const window = data.slice(index - period + 1, index + 1);
+    const upper = Math.max(...window.map(item => item.high));
+    const lower = Math.min(...window.map(item => item.low));
+    return [{ time: candle.time as Time, upper, middle: (upper + lower) / 2, lower }];
+  });
+}
+
+function candleSourceValue(candle: Candle, source: unknown) {
+  switch (source) {
+    case 'open': return candle.open;
+    case 'high': return candle.high;
+    case 'low': return candle.low;
+    case 'hl2': return (candle.high + candle.low) / 2;
+    case 'hlc3': return (candle.high + candle.low + candle.close) / 3;
+    default: return candle.close;
+  }
+}
+
+function addRelativeStrengthIndex(data: Candle[], period: number, source: unknown) {
+  if (data.length <= period) return [];
+  const values = data.map(candle => candleSourceValue(candle, source));
+  let gains = 0;
+  let losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const change = values[i] - values[i - 1];
+    gains += Math.max(change, 0);
+    losses += Math.max(-change, 0);
+  }
+  let averageGain = gains / period;
+  let averageLoss = losses / period;
+  const points: { time: Time; value: number }[] = [];
+  const rsi = () => averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+  points.push({ time: data[period].time as Time, value: rsi() });
+  for (let i = period + 1; i < data.length; i++) {
+    const change = values[i] - values[i - 1];
+    averageGain = (averageGain * (period - 1) + Math.max(change, 0)) / period;
+    averageLoss = (averageLoss * (period - 1) + Math.max(-change, 0)) / period;
+    points.push({ time: data[i].time as Time, value: rsi() });
+  }
+  return points;
+}
+
+function addStochastic(data: Candle[], period: number, smoothK: number, smoothD: number) {
+  const rawK = data.map((candle, index) => {
+    if (index < period - 1) return null;
+    const window = data.slice(index - period + 1, index + 1);
+    const high = Math.max(...window.map(item => item.high));
+    const low = Math.min(...window.map(item => item.low));
+    return { time: candle.time as Time, value: high === low ? 50 : ((candle.close - low) / (high - low)) * 100 };
+  });
+  const k = rawK.map((point, index) => {
+    if (!point || index < smoothK - 1) return null;
+    const window = rawK.slice(index - smoothK + 1, index + 1);
+    if (window.some(value => !value)) return null;
+    return { time: point.time, value: window.reduce((sum, value) => sum + value!.value, 0) / smoothK };
+  });
+  const d = k.map((point, index) => {
+    if (!point || index < smoothD - 1) return null;
+    const window = k.slice(index - smoothD + 1, index + 1);
+    if (window.some(value => !value)) return null;
+    return { time: point.time, value: window.reduce((sum, value) => sum + value!.value, 0) / smoothD };
+  });
+  return {
+    k: k.filter(Boolean) as { time: Time; value: number }[],
+    d: d.filter(Boolean) as { time: Time; value: number }[],
+  };
+}
+
+function smoothPoints(points: { time: Time; value: number }[], period: number) {
+  return points.flatMap((point, index) => {
+    if (index < period - 1) return [];
+    const window = points.slice(index - period + 1, index + 1);
+    return [{ time: point.time, value: window.reduce((sum, item) => sum + item.value, 0) / period }];
+  });
+}
+
+function addStochasticRsi(data: Candle[], rsiPeriod: number, stochPeriod: number, smoothK: number, smoothD: number, source: unknown) {
+  const rsi = addRelativeStrengthIndex(data, rsiPeriod, source);
+  const raw = rsi.flatMap((point, index) => {
+    if (index < stochPeriod - 1) return [];
+    const window = rsi.slice(index - stochPeriod + 1, index + 1);
+    const min = Math.min(...window.map(value => value.value));
+    const max = Math.max(...window.map(value => value.value));
+    return [{ time: point.time, value: max === min ? 50 : ((point.value - min) / (max - min)) * 100 }];
+  });
+  const k = smoothPoints(raw, smoothK);
+  return { k, d: smoothPoints(k, smoothD) };
+}
+
+function addMomentum(data: Candle[], period: number, source: unknown, percent: boolean) {
+  return data.flatMap((candle, index) => {
+    if (index < period) return [];
+    const current = candleSourceValue(candle, source);
+    const previous = candleSourceValue(data[index - period], source);
+    return [{ time: candle.time as Time, value: percent && previous !== 0 ? ((current - previous) / previous) * 100 : current - previous }];
+  });
+}
+
+function addCommodityChannelIndex(data: Candle[], period: number) {
+  const typical = data.map(candle => (candle.high + candle.low + candle.close) / 3);
+  return data.flatMap((candle, index) => {
+    if (index < period - 1) return [];
+    const values = typical.slice(index - period + 1, index + 1);
+    const mean = values.reduce((sum, value) => sum + value, 0) / period;
+    const meanDeviation = values.reduce((sum, value) => sum + Math.abs(value - mean), 0) / period;
+    return [{ time: candle.time as Time, value: meanDeviation === 0 ? 0 : (typical[index] - mean) / (0.015 * meanDeviation) }];
+  });
+}
+
+function addWilliamsPercentR(data: Candle[], period: number) {
+  return data.flatMap((candle, index) => {
+    if (index < period - 1) return [];
+    const window = data.slice(index - period + 1, index + 1);
+    const high = Math.max(...window.map(item => item.high));
+    const low = Math.min(...window.map(item => item.low));
+    return [{ time: candle.time as Time, value: high === low ? -50 : ((high - candle.close) / (high - low)) * -100 }];
+  });
+}
+
+function addHistoricalVolatility(data: Candle[], period: number, timeframeSeconds: number) {
+  if (data.length <= period) return [];
+  const returns = data.map((candle, index) => index === 0 ? 0 : Math.log(candle.close / data[index - 1].close));
+  const barsPerYear = (365 * 24 * 60 * 60) / timeframeSeconds;
+  return data.flatMap((candle, index) => {
+    if (index < period) return [];
+    const window = returns.slice(index - period + 1, index + 1);
+    const mean = window.reduce((sum, value) => sum + value, 0) / period;
+    const variance = window.reduce((sum, value) => sum + (value - mean) ** 2, 0) / period;
+    return [{ time: candle.time as Time, value: Math.sqrt(variance * barsPerYear) * 100 }];
+  });
+}
+
+function addAverageTrueRange(data: Candle[], period: number) {
+  if (data.length < period) return [];
+  const ranges = data.map((candle, index) => index === 0
+    ? candle.high - candle.low
+    : Math.max(candle.high - candle.low, Math.abs(candle.high - data[index - 1].close), Math.abs(candle.low - data[index - 1].close)));
+  let average = ranges.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  const points = [{ time: data[period - 1].time as Time, value: average }];
+  for (let index = period; index < data.length; index++) {
+    average = ((average * (period - 1)) + ranges[index]) / period;
+    points.push({ time: data[index].time as Time, value: average });
+  }
+  return points;
+}
+
+function addMacd(data: Candle[], fastPeriod: number, slowPeriod: number, signalPeriod: number, source: unknown) {
+  if (fastPeriod >= slowPeriod || data.length < slowPeriod + signalPeriod - 1) {
+    return { macd: [], signal: [], histogram: [] };
+  }
+  const prices = data.map(candle => candleSourceValue(candle, source));
+  const fastMultiplier = 2 / (fastPeriod + 1);
+  const slowMultiplier = 2 / (slowPeriod + 1);
+  let fast = prices[0];
+  let slow = prices[0];
+  const values: { time: Time; value: number }[] = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i > 0) {
+      fast = prices[i] * fastMultiplier + fast * (1 - fastMultiplier);
+      slow = prices[i] * slowMultiplier + slow * (1 - slowMultiplier);
+    }
+    if (i >= slowPeriod - 1) values.push({ time: data[i].time as Time, value: fast - slow });
+  }
+  const signalMultiplier = 2 / (signalPeriod + 1);
+  let signalValue = values[0]?.value ?? 0;
+  const signal: { time: Time; value: number }[] = [];
+  const histogram: { time: Time; value: number }[] = [];
+  values.forEach((point, index) => {
+    signalValue = index === 0 ? point.value : point.value * signalMultiplier + signalValue * (1 - signalMultiplier);
+    if (index >= signalPeriod - 1) {
+      signal.push({ time: point.time, value: signalValue });
+      histogram.push({ time: point.time, value: point.value - signalValue });
+    }
+  });
+  return { macd: values.slice(signalPeriod - 1), signal, histogram };
+}
+
+function indicatorSettings(entries: string[], id: string, defaults: Record<string, number | string>) {
+  const entry = entries.find(value => value.split('|', 1)[0] === id);
+  if (!entry) return null;
+  try {
+    const parsed = JSON.parse(entry.slice(id.length + 1));
+    return parsed && typeof parsed === 'object' ? { ...defaults, ...parsed } : defaults;
+  } catch {
+    return defaults;
+  }
+}
+
+function safePeriod(value: unknown, fallback: number) {
+  const number = Math.floor(Number(value));
+  return Number.isFinite(number) ? Math.min(500, Math.max(1, number)) : fallback;
+}
+
+function safeColor(value: unknown, fallback: string) {
+  return typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : fallback;
+}
+
+function translucentColor(hex: string, alpha: number) {
+  const value = hex.slice(1);
+  const channels = [0, 2, 4].map(index => parseInt(value.slice(index, index + 2), 16));
+  return `rgba(${channels[0]},${channels[1]},${channels[2]},${alpha})`;
+}
+
 export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
-  theme, pairName, currentPrice, activePosition, initialData,
-  externalTimeframe, externalChartStyle, externalIndicators,
-  showEntryLine = true, showTPLine = true, showSLLine = true, showLiqLine = true,
+  theme,
+  pairName,
+  currentPrice,
+  isLivePrice = false,
+  activePosition,
+  initialData = [],
+  historyStatus = 'loading',
+  onRetryHistory,
+  onLoadOlderHistory,
+  externalTimeframe = '15m',
+  externalChartStyle = '1',
+  externalIndicators = [],
+  showEntryLine = true,
+  showTPLine = true,
+  showSLLine = true,
+  showLiqLine = true,
   liqPrice,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [timeframe, setTimeframe] = useState(externalTimeframe || '15m');
-  const [chartStyle, setChartStyle] = useState<ChartStyleCode>(externalChartStyle || '1');
-  const scriptLoadedRef = useRef(false);
-  const widgetRef = useRef<any>(null);
+  const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>(null);
+  const watermarkRef = useRef<any>(null);
+  const indicatorSeriesRef = useRef<any[]>([]);
+  const indicatorRefreshRef = useRef<(data: Candle[]) => void>(() => {});
+  const riskLinesRef = useRef<any[]>([]);
+  const candlesRef = useRef<Candle[]>([]);
+  const loadOlderHistoryRef = useRef(onLoadOlderHistory);
+  const loadingOlderRef = useRef(false);
+  const canLoadOlderRef = useRef(true);
+  const lastOlderCursorRef = useRef<number | null>(null);
+  const chartDataRef = useRef<{ key: string; firstTime: number; length: number } | null>(null);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const liveCandleRef = useRef<Candle | null>(null);
+  const pricePrecisionRef = useRef<number | null>(null);
+  const indicatorKey = useMemo(() => [...externalIndicators].sort().join('|'), [externalIndicators]);
   const isDark = theme === 'dark';
+  const background = isDark ? '#0e1511' : '#dfe8e0';
+  const foreground = isDark ? '#a2afa6' : '#516257';
+  const grid = isDark ? 'rgba(224,238,228,0.075)' : 'rgba(38,69,47,0.085)';
+  const candleUp = isDark ? COLORS.up : '#638a6d';
+  const candleUpStrong = isDark ? COLORS.upStrong : '#52765f';
+  const candleDown = isDark ? COLORS.down : '#b96863';
+  const averageColor = isDark ? COLORS.average : '#8a6c3d';
+  const bandColor = isDark ? COLORS.band : '#607f8c';
+  const timeframeSeconds = TF_SECONDS[externalTimeframe] ?? 900;
+  const historySource = initialData[0]?.source === 'exchange' ? 'Exchange candles' : 'Oracle candles';
 
-  // Branded chart surface — never pure white/black. Matches the obsidian dark
-  // and soft-lavender light panel tokens so the chart sits in the brand rather
-  // than punching a white hole in the page.
-  const BG = isDark ? '#0b0d12' : '#f7f6fc';
+  loadOlderHistoryRef.current = onLoadOlderHistory;
 
-  const tvSymbol = TV_SYMBOLS[pairName] || 'PYTH:BTCUSD';
-  const tvInterval = TV_INTERVALS[timeframe] || '15';
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const chartFont = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'ui-monospace, SFMono-Regular, monospace';
 
-  // Estimate the chart's visible price band from the real Pyth candles we were
-  // handed (initialData). The TradingView embed runs in a cross-origin iframe,
-  // so we can't read its price scale in production — without this, overlay lines
-  // were placed by a ±28% guess and landed far from where they should. Using the
-  // recent candles' high/low (plus TradingView-like auto-scale padding) puts the
-  // entry / TP / SL / liq lines in roughly the right place reliably.
-  const visibleRange = useMemo(() => {
-    const data = Array.isArray(initialData) ? initialData : [];
-    if (data.length < 2) return null;
-    const recent = data.slice(-60);
-    let hi = -Infinity, lo = Infinity;
-    for (const c of recent as any[]) {
-      const h = Number(c?.high ?? c?.h ?? c?.close ?? c?.c);
-      const l = Number(c?.low ?? c?.l ?? c?.close ?? c?.c);
-      if (isFinite(h)) hi = Math.max(hi, h);
-      if (isFinite(l)) lo = Math.min(lo, l);
-    }
-    if (!isFinite(hi) || !isFinite(lo) || hi <= lo) return null;
-    const pad = (hi - lo) * 0.12; // ~12% total, mimics TradingView auto-scale padding
-    return { high: hi + pad, low: lo - pad };
-  }, [initialData]);
+    const chart = createChart(element, {
+      width: element.clientWidth || 600,
+      height: element.clientHeight || 360,
+      layout: {
+        background: { type: ColorType.Solid, color: background },
+        textColor: foreground,
+        fontFamily: chartFont,
+        fontSize: 11,
+        attributionLogo: true,
+      },
+      grid: {
+        vertLines: { color: grid, style: LineStyle.Solid },
+        horzLines: { color: grid, style: LineStyle.Solid },
+      },
+      rightPriceScale: {
+        borderColor: grid,
+        minimumWidth: 76,
+        scaleMargins: { top: 0.08, bottom: 0.12 },
+      },
+      timeScale: {
+        borderColor: grid,
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 4,
+        minBarSpacing: 2,
+        tickMarkFormatter: (time, tickMarkType, locale) => {
+          const date = typeof time === 'number'
+            ? new Date(time * 1000)
+            : typeof time === 'string'
+              ? new Date(`${time}T00:00:00Z`)
+              : new Date(Date.UTC(time.year, time.month - 1, time.day));
+          const year = date.getUTCFullYear();
+          if (!Number.isFinite(date.getTime()) || year < 2000 || year > 2100) return '';
+          const format: Intl.DateTimeFormatOptions = tickMarkType === TickMarkType.Year
+            ? { year: 'numeric', timeZone: 'UTC' }
+            : tickMarkType === TickMarkType.Month
+              ? { month: 'short', timeZone: 'UTC' }
+              : tickMarkType === TickMarkType.DayOfMonth
+                ? { day: '2-digit', timeZone: 'UTC' }
+                : tickMarkType === TickMarkType.TimeWithSeconds
+                  ? { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC' }
+                  : { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' };
+          return new Intl.DateTimeFormat(locale, format).format(date);
+        },
+      },
+      crosshair: {
+        mode: CrosshairMode.Magnet,
+        vertLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', style: LineStyle.Dashed, labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
+        horzLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', style: LineStyle.Dashed, labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
+      },
+      localization: {
+        locale: 'en-US',
+        timeFormatter: time => {
+          const date = typeof time === 'number'
+            ? new Date(time * 1000)
+            : typeof time === 'string'
+              ? new Date(`${time}T00:00:00Z`)
+              : new Date(Date.UTC(time.year, time.month - 1, time.day));
+          const year = date.getUTCFullYear();
+          if (!Number.isFinite(date.getTime()) || year < 2000 || year > 2100) return '';
+          return new Intl.DateTimeFormat('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
+          }).format(date);
+        },
+      },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+    });
 
-  useEffect(() => { if (externalTimeframe) setTimeframe(externalTimeframe); }, [externalTimeframe]);
-  useEffect(() => { if (externalChartStyle) setChartStyle(externalChartStyle); }, [externalChartStyle]);
-
-  // Sorted+joined indicator-list fingerprint — dedupes rapid toggles from
-  // causing multiple widget rebuilds with identical content
-  const indicatorKey = (externalIndicators || []).slice().sort().join('|');
-
-  const createWidget = useCallback(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = '';
-
-    const widgetDiv = document.createElement('div');
-    widgetDiv.id = 'tv_' + Date.now();
-    widgetDiv.style.width = '100%';
-    widgetDiv.style.height = '100%';
-    containerRef.current.appendChild(widgetDiv);
-
-    const localBG = BG;
-    const localBG2 = isDark ? '#12141b' : '#eeecf8';
-    const localGRID = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,14,0.06)';
-    const localTICK = isDark ? 'rgba(154,154,164,0.6)' : 'rgba(84,85,100,0.75)';
-
-    // Clear cached TradingView settings that would override our theme overrides
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith('tradingview.') || key.startsWith('tv-chart-'))) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(k => localStorage.removeItem(k));
-    } catch (_) {}
-
-    const bgOverrides = {
-      'paneProperties.background':                   localBG,
-      'paneProperties.backgroundGradientStartColor': localBG,
-      'paneProperties.backgroundGradientEndColor':   localBG,
-      'paneProperties.backgroundType':               'solid',
-      'paneProperties.vertGridProperties.color':     localGRID,
-      'paneProperties.horzGridProperties.color':     localGRID,
-      'paneProperties.vertGridProperties.style':     1,
-      'paneProperties.horzGridProperties.style':     1,
-      'scalesProperties.textColor':       localTICK,
-      'scalesProperties.backgroundColor': localBG,
-      'scalesProperties.lineColor':       localGRID,
-      'scalesProperties.fontSize':        11,
+    const seriesOptions = {
+      lastValueVisible: true,
+      priceLineVisible: true,
+      priceLineColor: candleUpStrong,
+      priceLineStyle: LineStyle.Dotted,
+      priceLineWidth: 1 as const,
+      priceFormat: { type: 'price' as const, precision: currentPrice < 1 ? 6 : currentPrice < 100 ? 4 : 2, minMove: currentPrice < 1 ? 0.000001 : currentPrice < 100 ? 0.0001 : 0.01 },
     };
+    const candleOptions = {
+      upColor: candleUp,
+      downColor: candleDown,
+      borderUpColor: candleUp,
+      borderDownColor: candleDown,
+      wickUpColor: candleUp,
+      wickDownColor: candleDown,
+    };
+    let series: any;
+    switch (externalChartStyle) {
+      case '0':
+        series = chart.addSeries(BarSeries, { ...seriesOptions, upColor: candleUp, downColor: candleDown });
+        break;
+      case '2':
+        series = chart.addSeries(LineSeries, { color: candleUpStrong, lineWidth: 2, crosshairMarkerRadius: 3, ...seriesOptions });
+        break;
+      case '3':
+        series = chart.addSeries(AreaSeries, {
+          lineColor: candleUpStrong,
+          topColor: isDark ? 'rgba(145,185,159,0.24)' : 'rgba(82,118,95,0.17)',
+          bottomColor: isDark ? 'rgba(145,185,159,0.015)' : 'rgba(82,118,95,0.015)',
+          lineWidth: 2,
+          ...seriesOptions,
+        });
+        break;
+      case '9':
+        series = chart.addSeries(CandlestickSeries, {
+          ...seriesOptions,
+          ...candleOptions,
+          upColor: background,
+          borderUpColor: candleUpStrong,
+          wickUpColor: candleUpStrong,
+        });
+        break;
+      default:
+        series = chart.addSeries(CandlestickSeries, { ...seriesOptions, ...candleOptions });
+    }
 
-    try {
-      const widget = new (window as any).TradingView.widget({
-        container_id: widgetDiv.id,
-        symbol: tvSymbol,
-        interval: tvInterval,
-        timezone: 'Etc/UTC',
-        theme: isDark ? 'dark' : 'light',
-        toolbar_bg: localBG2,
-        style: chartStyle,
-        locale: 'en',
-        enable_publishing: false,
-        allow_symbol_change: false,
-        hide_top_toolbar: true,
-        hide_legend: false,
-        hide_side_toolbar: true,
-        save_image: false,
-        withdateranges: false,
-        details: false,
-        hotlist: false,
-        calendar: false,
-        show_popup_button: false,
-        studies: externalIndicators || [],
-        disabled_features: [
-          'header_symbol_search', 'header_compare', 'header_undo_redo',
-          'header_screenshot', 'header_saveload', 'symbol_search_hot_key',
-          'display_market_status', 'compare_symbol', 'border_around_the_chart',
-          'remove_library_container_border', 'go_to_date', 'timeframes_toolbar',
-        ],
-        enabled_features: [
-          'side_toolbar_in_fullscreen_mode',
-          'study_templates',
-          'create_volume_indicator_by_default',
-          'items_favoriting',
-        ],
-        overrides: {
-          'mainSeriesProperties.candleStyle.upColor':               '#4ade80',
-          'mainSeriesProperties.candleStyle.downColor':             '#f87171',
-          'mainSeriesProperties.candleStyle.borderUpColor':         '#4ade80',
-          'mainSeriesProperties.candleStyle.borderDownColor':       '#f87171',
-          'mainSeriesProperties.candleStyle.wickUpColor':           '#4ade80',
-          'mainSeriesProperties.candleStyle.wickDownColor':         '#f87171',
-          'mainSeriesProperties.hollowCandleStyle.upColor':         '#4ade80',
-          'mainSeriesProperties.hollowCandleStyle.downColor':       '#f87171',
-          'mainSeriesProperties.hollowCandleStyle.borderUpColor':   '#4ade80',
-          'mainSeriesProperties.hollowCandleStyle.borderDownColor': '#f87171',
-          'mainSeriesProperties.hollowCandleStyle.wickUpColor':     '#4ade80',
-          'mainSeriesProperties.hollowCandleStyle.wickDownColor':   '#f87171',
-          'mainSeriesProperties.haStyle.upColor':                   '#4ade80',
-          'mainSeriesProperties.haStyle.downColor':                 '#f87171',
-          'mainSeriesProperties.haStyle.borderUpColor':             '#4ade80',
-          'mainSeriesProperties.haStyle.borderDownColor':           '#f87171',
-          'mainSeriesProperties.haStyle.wickUpColor':               '#4ade80',
-          'mainSeriesProperties.haStyle.wickDownColor':             '#f87171',
-          'mainSeriesProperties.barStyle.upColor':                  '#4ade80',
-          'mainSeriesProperties.barStyle.downColor':                '#f87171',
-          'mainSeriesProperties.lineStyle.color':     '#8b5cf6',
-          'mainSeriesProperties.lineStyle.linewidth': 2,
-          'mainSeriesProperties.areaStyle.color1':    'rgba(139,92,246,0.22)',
-          'mainSeriesProperties.areaStyle.color2':    'rgba(139,92,246,0.01)',
-          'mainSeriesProperties.areaStyle.lineColor': '#8b5cf6',
-          'mainSeriesProperties.areaStyle.linewidth': 2,
-          'mainSeriesProperties.baselineStyle.topLineColor':    '#4ade80',
-          'mainSeriesProperties.baselineStyle.bottomLineColor': '#f87171',
-          'mainSeriesProperties.priceLineColor': '#8b5cf6',
-          'mainSeriesProperties.priceLineWidth': 1,
-          ...bgOverrides,
-        },
-        studies_overrides: {
-          'volume.volume.color.0':      'rgba(248,113,113,0.35)',
-          'volume.volume.color.1':      'rgba(74,222,128,0.35)',
-          'volume.volume ma.color':     '#8b5cf6',
-          'volume.volume ma.linewidth': 1,
-          'volume.show ma':             false,
-        },
-        loading_screen: { backgroundColor: localBG, foregroundColor: '#8b5cf6' },
-        autosize: true,
+    chartRef.current = chart;
+    seriesRef.current = series;
+    watermarkRef.current = createTextWatermark(chart.panes()[0], {
+      horzAlign: 'center',
+      vertAlign: 'bottom',
+      lines: [{
+        text: 'Velo',
+        color: isDark ? 'rgba(180,213,191,0.10)' : 'rgba(82,118,95,0.11)',
+        fontSize: 50,
+        fontStyle: 'italic',
+        fontFamily: 'Fraunces, Georgia, serif',
+      }],
+    });
+    pricePrecisionRef.current = currentPrice < 1 ? 6 : currentPrice < 100 ? 4 : 2;
+    const resizeObserver = new ResizeObserver(entries => {
+      const rect = entries[0]?.contentRect;
+      if (rect && rect.width > 0 && rect.height > 0) {
+        requestAnimationFrame(() => chart.applyOptions({ width: rect.width, height: rect.height }));
+      }
+    });
+    resizeObserver.observe(element);
+
+    const timeScale = chart.timeScale();
+    const onVisibleRangeChange = (range: { from: number; to: number } | null) => {
+      const history = chartDataRef.current;
+      const loadOlder = loadOlderHistoryRef.current;
+      if (!range || !history || history.length < 100 || range.from > 24 || !loadOlder || !canLoadOlderRef.current || loadingOlderRef.current) return;
+      if (lastOlderCursorRef.current === history.firstTime) return;
+      lastOlderCursorRef.current = history.firstTime;
+      loadingOlderRef.current = true;
+      setIsLoadingOlder(true);
+      const source = candlesRef.current[0]?.source === 'exchange' ? 'exchange' : 'pyth';
+      loadOlder({ pairId: pairName, timeframe: externalTimeframe, beforeTime: history.firstTime, source })
+        .then(hasMore => { if (!hasMore) canLoadOlderRef.current = false; })
+        .catch(() => { lastOlderCursorRef.current = null; })
+        .finally(() => {
+          loadingOlderRef.current = false;
+          setIsLoadingOlder(false);
+        });
+    };
+    timeScale.subscribeVisibleLogicalRangeChange(onVisibleRangeChange);
+
+    return () => {
+      timeScale.unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange);
+      resizeObserver.disconnect();
+      watermarkRef.current?.detach();
+      watermarkRef.current = null;
+      indicatorSeriesRef.current = [];
+      riskLinesRef.current = [];
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+  }, [externalChartStyle, externalTimeframe, pairName]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return;
+    chart.applyOptions({
+      layout: { background: { type: ColorType.Solid, color: background }, textColor: foreground },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
+      rightPriceScale: { borderColor: grid },
+      timeScale: { borderColor: grid },
+      crosshair: {
+        vertLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
+        horzLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
+      },
+    });
+    const priceColor = candleUpStrong;
+    series.applyOptions({ priceLineColor: priceColor });
+    if (externalChartStyle === '2') series.applyOptions({ color: priceColor });
+    if (externalChartStyle === '3') series.applyOptions({ lineColor: priceColor, topColor: isDark ? 'rgba(145,185,159,0.24)' : 'rgba(82,118,95,0.17)', bottomColor: isDark ? 'rgba(145,185,159,0.015)' : 'rgba(82,118,95,0.015)' });
+    if (externalChartStyle === '0') series.applyOptions({ upColor: candleUp, downColor: candleDown });
+    if (externalChartStyle !== '0' && externalChartStyle !== '2' && externalChartStyle !== '3') {
+      series.applyOptions({
+        upColor: externalChartStyle === '9' ? background : candleUp,
+        downColor: candleDown,
+        borderUpColor: externalChartStyle === '9' ? priceColor : candleUp,
+        wickUpColor: externalChartStyle === '9' ? priceColor : candleUp,
+        borderDownColor: candleDown,
+        wickDownColor: candleDown,
       });
-      widgetRef.current = widget;
-    } catch (e) {
-      console.warn('TradingView widget error:', e);
     }
-  }, [tvSymbol, tvInterval, isDark, chartStyle, indicatorKey]);
+    watermarkRef.current?.applyOptions({
+      lines: [{
+        text: 'Velo',
+        color: isDark ? 'rgba(180,213,191,0.10)' : 'rgba(82,118,95,0.11)',
+        fontSize: 50,
+        fontStyle: 'italic',
+        fontFamily: 'Fraunces, Georgia, serif',
+      }],
+    });
+  }, [background, externalChartStyle, foreground, grid, isDark]);
 
-  // Widget lifecycle — recreate on any of: symbol, timeframe, theme, style,
-  // or indicator-set changes. Free widget has no hot-patch API so this is
-  // the only reliable path.
   useEffect(() => {
-    if (scriptLoadedRef.current && (window as any).TradingView) {
-      createWidget();
+    const series = seriesRef.current;
+    const chart = chartRef.current;
+    if (!series || !chart) return;
+
+    const source = cleanCandles(initialData);
+    const dataKey = `${pairName}::${externalTimeframe}`;
+    const previousData = chartDataRef.current;
+    const sameDataKey = previousData?.key === dataKey;
+    const visibleRange = chart.timeScale().getVisibleLogicalRange();
+    const isPrepend = !!(sameDataKey && source.length > previousData.length && source[0]?.time < previousData.firstTime);
+    const addedBars = isPrepend && previousData ? source.findIndex(candle => candle.time >= previousData.firstTime) : 0;
+    if (!sameDataKey) {
+      canLoadOlderRef.current = true;
+      lastOlderCursorRef.current = null;
+    }
+    const rendered = externalChartStyle === '8' ? heikinAshi(source) : source;
+    candlesRef.current = source;
+    chartDataRef.current = source.length ? { key: dataKey, firstTime: source[0].time, length: source.length } : { key: dataKey, firstTime: 0, length: 0 };
+    liveCandleRef.current = null;
+    indicatorRefreshRef.current = () => {};
+
+    if (externalChartStyle === '2' || externalChartStyle === '3') {
+      series.setData(toLineData(rendered));
     } else {
-      const existing = document.querySelector('script[src*="tradingview.com/tv.js"]');
-      if (existing && (window as any).TradingView) {
-        scriptLoadedRef.current = true;
-        createWidget();
-      } else if (existing) {
-        const poll = setInterval(() => {
-          if ((window as any).TradingView) {
-            clearInterval(poll);
-            scriptLoadedRef.current = true;
-            createWidget();
-          }
-        }, 100);
-        return () => clearInterval(poll);
+      series.setData(rendered.map(c => ({ ...c, time: c.time as Time })));
+    }
+    if (source.length) {
+      if (isPrepend && visibleRange && addedBars > 0) {
+        chart.timeScale().setVisibleLogicalRange({ from: visibleRange.from + addedBars, to: visibleRange.to + addedBars });
+      } else if (!sameDataKey || !visibleRange) {
+        const visibleBars = Math.min(INITIAL_VISIBLE_CANDLES, source.length);
+        chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, source.length - visibleBars), to: source.length + 4 });
       } else {
-        const script = document.createElement('script');
-        script.src = 'https://s3.tradingview.com/tv.js';
-        script.async = true;
-        script.onload = () => { scriptLoadedRef.current = true; createWidget(); };
-        document.head.appendChild(script);
+        chart.timeScale().setVisibleLogicalRange(visibleRange);
       }
     }
-    return () => { widgetRef.current = null; };
-  }, [createWidget]);
-
-  // Keep the embedded iframe fully opaque; the pane background is now branded
-  // directly via overrides, so no blend hack is needed.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const apply = () => {
-      const iframe = container.querySelector('iframe');
-      if (iframe) {
-        (iframe as HTMLElement).style.mixBlendMode = 'normal';
-        (iframe as HTMLElement).style.opacity = '1';
-      }
-    };
-    apply();
-    const obs = new MutationObserver(apply);
-    obs.observe(container, { childList: true, subtree: true });
-    return () => obs.disconnect();
-  }, [isDark]);
-
-  // ─── Overlay price lines ────────────────────────────────────────────────
-  // We render horizontal price lines + right-side labels over the chart.
-  // These are absolutely-positioned HTML elements — no createShape API needed.
-  // Y position is estimated from a visible price range derived from the
-  // current price and known position prices.
-  const fmt = (n?: number) => {
-    if (n == null || !isFinite(n)) return '';
-    if (n < 1)    return n.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 });
-    if (n < 100)  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  const badge = (bg: string, color: string, border: string): React.CSSProperties => ({
-    background: bg,
-    color,
-    padding: '3px 9px',
-    borderRadius: 6,
-    fontSize: 10,
-    fontWeight: 700,
-    fontFamily: 'var(--font-mono)',
-    backdropFilter: 'blur(6px)',
-    WebkitBackdropFilter: 'blur(6px)',
-    border: `1px solid ${border}`,
-    whiteSpace: 'nowrap',
-    letterSpacing: '0.02em',
-  });
-
-  // ── Price-axis scraper ──────────────────────────────────────────────────
-  // We poll the TradingView iframe's DOM every 300 ms to read the actual
-  // price-scale labels and their pixel Y positions. This gives us a real
-  // price→pixel mapping that tracks zooming/panning correctly.
-  // Falls back to a heuristic when cross-origin blocks DOM access.
-  const axisPointsRef = useRef<{ price: number; yPx: number }[]>([]);
-  const containerHeightRef = useRef<number>(0);
+  }, [externalChartStyle, externalTimeframe, initialData, pairName]);
 
   useEffect(() => {
-    const scrape = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      containerHeightRef.current = container.getBoundingClientRect().height;
-
-      try {
-        const iframe = container.querySelector('iframe') as HTMLIFrameElement | null;
-        if (!iframe) return;
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (!doc) return;
-
-        // TradingView renders price labels as text nodes inside the right-side
-        // price scale. We walk all text nodes, filter those that look like prices,
-        // and record their bounding-rect Y relative to the overlay container.
-        const containerRect = container.getBoundingClientRect();
-        const iframeRect = iframe.getBoundingClientRect();
-        const points: { price: number; yPx: number }[] = [];
-
-        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
-        let node: Text | null;
-        while ((node = walker.nextNode() as Text | null)) {
-          const text = node.textContent?.trim() ?? '';
-          const clean = text.replace(/,/g, '');
-          const num = parseFloat(clean);
-          if (!isFinite(num) || num <= 0) continue;
-          if (!/^\d[\d,.]*(\.\d+)?$/.test(text)) continue;
-
-          const parent = node.parentElement;
-          if (!parent) continue;
-          // getBoundingClientRect() on elements inside an iframe returns
-          // coordinates in the IFRAME's own viewport space (not the main page).
-          const rect = parent.getBoundingClientRect();
-          if (rect.width === 0 && rect.height === 0) continue;
-
-          // iframeRect gives us the iframe's position in the MAIN page.
-          // rect.left/top are in IFRAME-local coords.
-          // To check if element is in the right 25% of iframe:
-          const iframeW = iframeRect.width;
-          if (rect.left < iframeW * 0.75) continue; // right 25% price scale
-
-          const yCenterLocal = rect.top + rect.height / 2;
-          const iframeH = iframeRect.height;
-          // Exclude volume pane at bottom ~18%
-          if (yCenterLocal > iframeH * 0.82) continue;
-          if (yCenterLocal < 10) continue;
-
-          // Convert iframe-local Y to overlay-container Y:
-          // overlay container top = iframeRect.top - containerRect.top (since iframe starts at same place)
-          const yRelContainer = (iframeRect.top - containerRect.top) + yCenterLocal;
-          points.push({ price: num, yPx: yRelContainer });
-        }
-
-        if (points.length >= 2) {
-          // Sort by price descending (high price = low Y pixel)
-          points.sort((a, b) => b.price - a.price);
-          // Deduplicate prices within 0.01% of each other
-          const deduped: typeof points = [points[0]];
-          for (let i = 1; i < points.length; i++) {
-            const prev = deduped[deduped.length - 1];
-            if (Math.abs(points[i].price - prev.price) / prev.price > 0.0001) {
-              deduped.push(points[i]);
-            }
-          }
-          if (deduped.length >= 2) {
-            axisPointsRef.current = deduped;
-          }
-        }
-      } catch (_) {
-        // Cross-origin — iframe DOM is blocked in production. Fall through to
-        // heuristic below; axisPointsRef stays empty/stale.
-      }
-    };
-
-    const id = setInterval(scrape, 300);
-    return () => clearInterval(id);
-  }, []); // runs once; containerRef stable
-
-  // Map a price to a Y pixel position using scraped axis points.
-  // Falls back to a heuristic if not enough points are available.
-  const getPriceYpx = (price: number, refPrice: number): number | null => {
-    if (!price || !refPrice || refPrice <= 0) return null;
-    const h = containerHeightRef.current || containerRef.current?.getBoundingClientRect().height || 400;
-
-    const pts = axisPointsRef.current;
-    if (pts.length >= 2) {
-      // pts is sorted descending by price: pts[0] = highest price (lowest Y px)
-      const visibleHigh = pts[0].price;
-      const visibleLow  = pts[pts.length - 1].price;
-
-      // Price is outside the visible chart range — don't extrapolate, hide the line
-      if (price > visibleHigh || price < visibleLow) return null;
-
-      // Find the two surrounding axis points and interpolate
-      let above = pts[0];
-      let below = pts[pts.length - 1];
-      for (let i = 0; i < pts.length - 1; i++) {
-        if (pts[i].price >= price && pts[i + 1].price <= price) {
-          above = pts[i];
-          below = pts[i + 1];
-          break;
-        }
-      }
-      const priceRange = above.price - below.price;
-      if (priceRange <= 0) return null;
-      const t = (above.price - price) / priceRange;
-      const yPx = above.yPx + t * (below.yPx - above.yPx);
-      // Clamp to visible area with a small margin
-      if (yPx < 10 || yPx > h - 30) return null;
-      return yPx;
+    const chart = chartRef.current;
+    if (!chart) return;
+    const source = candlesRef.current;
+    for (const oldSeries of indicatorSeriesRef.current) {
+      try { chart.removeSeries(oldSeries); } catch { /* chart may be replacing its series */ }
     }
+    indicatorSeriesRef.current = [];
+    while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
+    const liveRefreshers: ((data: Candle[]) => void)[] = [];
+    const chartHeight = containerRef.current?.clientHeight || 360;
+    const oscillatorIds = new Set(['RSI@tv-basicstudies', 'Stochastic@tv-basicstudies', 'StochasticRSI@tv-basicstudies', 'ATR@tv-basicstudies', 'MACD@tv-basicstudies', 'MOM@tv-basicstudies', 'ROC@tv-basicstudies', 'CCI@tv-basicstudies', 'WilliamsPctR@tv-basicstudies', 'HistoricalVolatility@tv-basicstudies']);
+    const oscillatorCount = Math.max(1, externalIndicators.filter(entry => oscillatorIds.has(entry.split('|', 1)[0])).length);
+    const oscillatorHeight = Math.max(48, Math.min(88, Math.floor(chartHeight * 0.46 / oscillatorCount)));
+    const addIndicator = (color: string, title: string, data: { time: Time; value: number }[], lineWidth: 1 | 2 = 1, liveData?: (candles: Candle[]) => { time: Time; value: number }[]) => {
+      const overlay = chart.addSeries(LineSeries, {
+        color,
+        title,
+        lineWidth,
+        crosshairMarkerVisible: false,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        priceFormat: { type: 'price', precision: currentPrice < 1 ? 6 : currentPrice < 100 ? 4 : 2, minMove: currentPrice < 1 ? 0.000001 : currentPrice < 100 ? 0.0001 : 0.01 },
+      });
+      overlay.setData(data);
+      indicatorSeriesRef.current.push(overlay);
+      if (liveData) liveRefreshers.push(candles => overlay.setData(liveData(candles)));
+    };
+    const addOscillatorPane = () => {
+      const pane = chart.addPane();
+      pane.setHeight(oscillatorHeight);
+      return pane.paneIndex();
+    };
+    const addOscillatorLine = (paneIndex: number, color: string, title: string, data: { time: Time; value: number }[], liveData?: (candles: Candle[]) => { time: Time; value: number }[], range?: [number, number]) => {
+      const oscillator = chart.addSeries(LineSeries, {
+        color,
+        title,
+        lineWidth: 2,
+        crosshairMarkerVisible: false,
+        lastValueVisible: true,
+        priceLineVisible: false,
+        priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+        ...(range ? { autoscaleInfoProvider: () => ({ priceRange: { minValue: range[0], maxValue: range[1] } }) } : {}),
+      }, paneIndex);
+      oscillator.setData(data);
+      indicatorSeriesRef.current.push(oscillator);
+      if (liveData) liveRefreshers.push(candles => oscillator.setData(liveData(candles)));
+      return oscillator;
+    };
 
-    // ── Range fallback (cross-origin iframe / not yet scraped) ──────────
-    // Prefer the real candle-derived band; otherwise a tight ±3% around the
-    // reference price (never the old ±28% which threw lines off-screen).
-    let high: number, low: number;
-    if (visibleRange) {
-      high = visibleRange.high;
-      low = visibleRange.low;
+    const sma = indicatorSettings(externalIndicators, 'MASimple@tv-basicstudies', { length: 20, color: averageColor });
+    if (sma) {
+      const period = safePeriod(sma.length, 20);
+      addIndicator(safeColor(sma.color, averageColor), `SMA ${period}`, addSimpleAverage(source, period, sma.source), 1, candles => addSimpleAverage(candles, period, sma.source));
+    }
+    const ema = indicatorSettings(externalIndicators, 'MAExp@tv-basicstudies', { length: 21, color: candleUpStrong });
+    if (ema) {
+      const period = safePeriod(ema.length, 21);
+      addIndicator(safeColor(ema.color, candleUpStrong), `EMA ${period}`, addExponentialAverage(source, period, ema.source), 1, candles => addExponentialAverage(candles, period, ema.source));
+    }
+    const dema = indicatorSettings(externalIndicators, 'DoubleEMA@tv-basicstudies', { length: 21, color: candleUpStrong });
+    if (dema) {
+      const period = safePeriod(dema.length, 21);
+      addIndicator(safeColor(dema.color, candleUpStrong), `DEMA ${period}`, addDoubleExponentialAverage(source, period, dema.source), 1, candles => addDoubleExponentialAverage(candles, period, dema.source));
+    }
+    const tema = indicatorSettings(externalIndicators, 'TripleEMA@tv-basicstudies', { length: 21, color: averageColor });
+    if (tema) {
+      const period = safePeriod(tema.length, 21);
+      addIndicator(safeColor(tema.color, averageColor), `TEMA ${period}`, addTripleExponentialAverage(source, period, tema.source), 1, candles => addTripleExponentialAverage(candles, period, tema.source));
+    }
+    const hull = indicatorSettings(externalIndicators, 'HullMA@tv-basicstudies', { length: 9, color: bandColor });
+    if (hull) {
+      const period = safePeriod(hull.length, 9);
+      addIndicator(safeColor(hull.color, bandColor), `HMA ${period}`, addHullMovingAverage(source, period, hull.source), 2, candles => addHullMovingAverage(candles, period, hull.source));
+    }
+    const bollinger = indicatorSettings(externalIndicators, 'BB@tv-basicstudies', { length: 20, mult: 2, color: bandColor });
+    if (bollinger) {
+      const period = safePeriod(bollinger.length, 20);
+      const deviations = Math.min(5, Math.max(0.1, Number(bollinger.mult) || 2));
+      const color = safeColor(bollinger.color, bandColor);
+      const bands = addBollingerBands(source, period, deviations, bollinger.source);
+      addIndicator(color, `BB ${period} upper`, bands.map(p => ({ time: p.time, value: p.upper })), 1, candles => addBollingerBands(candles, period, deviations, bollinger.source).map(p => ({ time: p.time, value: p.upper })));
+      addIndicator(translucentColor(color, 0.58), `BB ${period} basis`, bands.map(p => ({ time: p.time, value: p.middle })), 1, candles => addBollingerBands(candles, period, deviations, bollinger.source).map(p => ({ time: p.time, value: p.middle })));
+      addIndicator(color, `BB ${period} lower`, bands.map(p => ({ time: p.time, value: p.lower })), 1, candles => addBollingerBands(candles, period, deviations, bollinger.source).map(p => ({ time: p.time, value: p.lower })));
+    }
+    const ichimoku = indicatorSettings(externalIndicators, 'IchimokuCloud@tv-basicstudies', { conversionPeriod: 9, basePeriod: 26, laggingSpan2Period: 52, displacement: 26 });
+    if (ichimoku) {
+      const conversion = safePeriod(ichimoku.conversionPeriod, 9);
+      const base = safePeriod(ichimoku.basePeriod, 26);
+      const span = safePeriod(ichimoku.laggingSpan2Period, 52);
+      const displacement = safePeriod(ichimoku.displacement, 26);
+      const values = addIchimoku(source, conversion, base, span, displacement, timeframeSeconds);
+      addIndicator(isDark ? '#86b9cf' : '#497b8e', 'Tenkan-sen', values.conversionLine, 1, candles => addIchimoku(candles, conversion, base, span, displacement, timeframeSeconds).conversionLine);
+      addIndicator(isDark ? '#d6b77f' : '#967239', 'Kijun-sen', values.baseLine, 1, candles => addIchimoku(candles, conversion, base, span, displacement, timeframeSeconds).baseLine);
+      addIndicator(isDark ? '#91b99f' : '#52765f', 'Senkou span A', values.leadingA, 1, candles => addIchimoku(candles, conversion, base, span, displacement, timeframeSeconds).leadingA);
+      addIndicator(isDark ? '#c47b76' : '#b96863', 'Senkou span B', values.leadingB, 1, candles => addIchimoku(candles, conversion, base, span, displacement, timeframeSeconds).leadingB);
+      addIndicator(isDark ? '#b4d5bf' : '#638a6d', 'Chikou span', values.lagging, 1, candles => addIchimoku(candles, conversion, base, span, displacement, timeframeSeconds).lagging);
+    }
+    const psar = indicatorSettings(externalIndicators, 'PSAR@tv-basicstudies', { start: 0.02, increment: 0.02, maximum: 0.2, color: isDark ? COLORS.average : '#967239' });
+    if (psar) {
+      const start = Math.min(1, Math.max(0.001, Number(psar.start) || 0.02));
+      const increment = Math.min(1, Math.max(0.001, Number(psar.increment) || 0.02));
+      const maximum = Math.max(start, Math.min(1, Number(psar.maximum) || 0.2));
+      addIndicator(safeColor(psar.color, isDark ? COLORS.average : '#967239'), 'Parabolic SAR', addParabolicSar(source, start, increment, maximum), 1, candles => addParabolicSar(candles, start, increment, maximum));
+    }
+    const supertrend = indicatorSettings(externalIndicators, 'SuperTrend@tv-basicstudies', { period: 10, factor: 3, color: isDark ? COLORS.upStrong : '#52765f' });
+    if (supertrend) {
+      const period = safePeriod(supertrend.period, 10);
+      const factor = Math.min(10, Math.max(0.1, Number(supertrend.factor) || 3));
+      addIndicator(safeColor(supertrend.color, isDark ? COLORS.upStrong : '#52765f'), `Supertrend ${period}`, addSuperTrend(source, period, factor), 2, candles => addSuperTrend(candles, period, factor));
+    }
+    const keltner = indicatorSettings(externalIndicators, 'KeltnerChannels@velo', { length: 20, mult: 2, source: 'close', color: bandColor });
+    if (keltner) {
+      const period = safePeriod(keltner.length, 20);
+      const factor = Math.min(10, Math.max(0.1, Number(keltner.mult) || 2));
+      const color = safeColor(keltner.color, bandColor);
+      const values = addKeltnerChannels(source, period, factor, keltner.source);
+      const live = (candles: Candle[]) => addKeltnerChannels(candles, period, factor, keltner.source);
+      addIndicator(color, `KC ${period} upper`, values.map(p => ({ time: p.time, value: p.upper })), 1, candles => live(candles).map(p => ({ time: p.time, value: p.upper })));
+      addIndicator(translucentColor(color, 0.58), `KC ${period} basis`, values.map(p => ({ time: p.time, value: p.middle })), 1, candles => live(candles).map(p => ({ time: p.time, value: p.middle })));
+      addIndicator(color, `KC ${period} lower`, values.map(p => ({ time: p.time, value: p.lower })), 1, candles => live(candles).map(p => ({ time: p.time, value: p.lower })));
+    }
+    const donchian = indicatorSettings(externalIndicators, 'DonchianChannels@velo', { length: 20, color: bandColor });
+    if (donchian) {
+      const period = safePeriod(donchian.length, 20);
+      const color = safeColor(donchian.color, bandColor);
+      const values = addDonchianChannels(source, period);
+      const live = (candles: Candle[]) => addDonchianChannels(candles, period);
+      addIndicator(color, `Donchian ${period} high`, values.map(p => ({ time: p.time, value: p.upper })), 1, candles => live(candles).map(p => ({ time: p.time, value: p.upper })));
+      addIndicator(translucentColor(color, 0.58), `Donchian ${period} mid`, values.map(p => ({ time: p.time, value: p.middle })), 1, candles => live(candles).map(p => ({ time: p.time, value: p.middle })));
+      addIndicator(color, `Donchian ${period} low`, values.map(p => ({ time: p.time, value: p.lower })), 1, candles => live(candles).map(p => ({ time: p.time, value: p.lower })));
+    }
+    const rsi = indicatorSettings(externalIndicators, 'RSI@tv-basicstudies', { length: 14, overbought: 70, oversold: 30, color: isDark ? COLORS.upStrong : '#52765f' });
+    if (rsi) {
+      const period = safePeriod(rsi.length, 14);
+      const points = addRelativeStrengthIndex(source, period, rsi.source);
+      if (points.length) {
+        const paneIndex = addOscillatorPane();
+        const color = safeColor(rsi.color, isDark ? COLORS.upStrong : '#52765f');
+        const rsiSeries = chart.addSeries(LineSeries, {
+          color,
+          title: `RSI ${period}`,
+          lineWidth: 2,
+          crosshairMarkerVisible: false,
+          lastValueVisible: true,
+          priceLineVisible: false,
+          priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+          autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+        }, paneIndex);
+        rsiSeries.setData(points);
+        liveRefreshers.push(candles => rsiSeries.setData(addRelativeStrengthIndex(candles, period, rsi.source)));
+        const guideColor = translucentColor(color, 0.5);
+        rsiSeries.createPriceLine({ price: Math.min(100, Math.max(0, Number(rsi.overbought) || 70)), color: guideColor, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' });
+        rsiSeries.createPriceLine({ price: Math.min(100, Math.max(0, Number(rsi.oversold) || 30)), color: guideColor, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' });
+        indicatorSeriesRef.current.push(rsiSeries);
+      }
+    }
+    const stochastic = indicatorSettings(externalIndicators, 'Stochastic@tv-basicstudies', { length: 14, smoothK: 3, smoothD: 3, overbought: 80, oversold: 20, color: isDark ? COLORS.upStrong : '#52765f' });
+    if (stochastic) {
+      const period = safePeriod(stochastic.length, 14);
+      const kSmoothing = safePeriod(stochastic.smoothK, 3);
+      const dSmoothing = safePeriod(stochastic.smoothD, 3);
+      const values = addStochastic(source, period, kSmoothing, dSmoothing);
+      if (values.k.length && values.d.length) {
+        const paneIndex = addOscillatorPane();
+        const color = safeColor(stochastic.color, isDark ? COLORS.upStrong : '#52765f');
+        const kSeries = chart.addSeries(LineSeries, {
+          color,
+          title: `%K ${period}`,
+          lineWidth: 2,
+          crosshairMarkerVisible: false,
+          lastValueVisible: true,
+          priceLineVisible: false,
+          priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+          autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+        }, paneIndex);
+        kSeries.setData(values.k);
+        liveRefreshers.push(candles => kSeries.setData(addStochastic(candles, period, kSmoothing, dSmoothing).k));
+        const dSeries = chart.addSeries(LineSeries, {
+          color: isDark ? '#d3bc87' : '#8a6c3d',
+          title: `%D ${dSmoothing}`,
+          lineWidth: 1,
+          crosshairMarkerVisible: false,
+          lastValueVisible: true,
+          priceLineVisible: false,
+          priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+          autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
+        }, paneIndex);
+        dSeries.setData(values.d);
+        liveRefreshers.push(candles => dSeries.setData(addStochastic(candles, period, kSmoothing, dSmoothing).d));
+        const guideColor = translucentColor(color, 0.5);
+        for (const price of [stochastic.overbought, stochastic.oversold]) {
+          kSeries.createPriceLine({ price: Math.min(100, Math.max(0, Number(price) || 0)), color: guideColor, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' });
+        }
+        indicatorSeriesRef.current.push(kSeries, dSeries);
+      }
+    }
+    const stochasticRsi = indicatorSettings(externalIndicators, 'StochasticRSI@tv-basicstudies', { lengthRSI: 14, lengthStoch: 14, smoothK: 3, smoothD: 3, overbought: 80, oversold: 20, color: isDark ? COLORS.upStrong : '#52765f' });
+    if (stochasticRsi) {
+      const rsiPeriod = safePeriod(stochasticRsi.lengthRSI, 14);
+      const stochPeriod = safePeriod(stochasticRsi.lengthStoch, 14);
+      const smoothK = safePeriod(stochasticRsi.smoothK, 3);
+      const smoothD = safePeriod(stochasticRsi.smoothD, 3);
+      const values = addStochasticRsi(source, rsiPeriod, stochPeriod, smoothK, smoothD, stochasticRsi.source);
+      if (values.k.length) {
+        const paneIndex = addOscillatorPane();
+        const color = safeColor(stochasticRsi.color, isDark ? COLORS.upStrong : '#52765f');
+        const live = (candles: Candle[]) => addStochasticRsi(candles, rsiPeriod, stochPeriod, smoothK, smoothD, stochasticRsi.source);
+        const kLine = addOscillatorLine(paneIndex, color, `Stoch RSI %K`, values.k, candles => live(candles).k, [0, 100]);
+        addOscillatorLine(paneIndex, isDark ? COLORS.average : '#967239', `Stoch RSI %D`, values.d, candles => live(candles).d, [0, 100]);
+        for (const level of [stochasticRsi.overbought, stochasticRsi.oversold]) {
+          const numericLevel = Number(level);
+          kLine.createPriceLine({ price: Math.min(100, Math.max(0, Number.isFinite(numericLevel) ? numericLevel : 50)), color: translucentColor(color, 0.45), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' });
+        }
+      }
+    }
+    const atrSettings = indicatorSettings(externalIndicators, 'ATR@tv-basicstudies', { length: 14, color: isDark ? COLORS.average : '#8a6c3d' });
+    if (atrSettings) {
+      const period = safePeriod(atrSettings.length, 14);
+      const points = addAverageTrueRange(source, period);
+      if (points.length) {
+        const paneIndex = addOscillatorPane();
+        const atrSeries = chart.addSeries(LineSeries, {
+          color: safeColor(atrSettings.color, isDark ? COLORS.average : '#8a6c3d'),
+          title: `ATR ${period}`,
+          lineWidth: 2,
+          crosshairMarkerVisible: false,
+          lastValueVisible: true,
+          priceLineVisible: false,
+          priceFormat: { type: 'price', precision: currentPrice < 1 ? 6 : currentPrice < 100 ? 4 : 2, minMove: currentPrice < 1 ? 0.000001 : currentPrice < 100 ? 0.0001 : 0.01 },
+        }, paneIndex);
+        atrSeries.setData(points);
+        indicatorSeriesRef.current.push(atrSeries);
+        liveRefreshers.push(candles => atrSeries.setData(addAverageTrueRange(candles, period)));
+      }
+    }
+    const macdSettings = indicatorSettings(externalIndicators, 'MACD@tv-basicstudies', { fastLength: 12, slowLength: 26, signalLength: 9, color: isDark ? COLORS.upStrong : '#52765f' });
+    if (macdSettings) {
+      const fast = safePeriod(macdSettings.fastLength, 12);
+      const slow = Math.max(fast + 1, safePeriod(macdSettings.slowLength, 26));
+      const signalPeriod = safePeriod(macdSettings.signalLength, 9);
+      const values = addMacd(source, fast, slow, signalPeriod, macdSettings.source);
+      if (values.histogram.length) {
+        const paneIndex = addOscillatorPane();
+        const color = safeColor(macdSettings.color, isDark ? COLORS.upStrong : '#52765f');
+        const histogram = chart.addSeries(HistogramSeries, {
+          title: 'MACD histogram',
+          base: 0,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          priceFormat: { type: 'price', precision: 4, minMove: 0.0001 },
+        }, paneIndex);
+        const histogramData = (candles: Candle[]) => addMacd(candles, fast, slow, signalPeriod, macdSettings.source).histogram.map(point => ({ ...point, color: point.value >= 0 ? candleUp : candleDown }));
+        histogram.setData(histogramData(source));
+        indicatorSeriesRef.current.push(histogram);
+        liveRefreshers.push(candles => histogram.setData(histogramData(candles)));
+        addOscillatorLine(paneIndex, color, 'MACD', values.macd, candles => addMacd(candles, fast, slow, signalPeriod, macdSettings.source).macd);
+        addOscillatorLine(paneIndex, isDark ? '#d3bc87' : '#8a6c3d', 'Signal', values.signal, candles => addMacd(candles, fast, slow, signalPeriod, macdSettings.source).signal);
+      }
+    }
+    const momentum = indicatorSettings(externalIndicators, 'MOM@tv-basicstudies', { length: 10, color: isDark ? COLORS.upStrong : '#52765f' });
+    if (momentum) {
+      const period = safePeriod(momentum.length, 10);
+      const values = addMomentum(source, period, momentum.source, false);
+      if (values.length) {
+        const paneIndex = addOscillatorPane();
+        addOscillatorLine(paneIndex, safeColor(momentum.color, isDark ? COLORS.upStrong : '#52765f'), `Momentum ${period}`, values, candles => addMomentum(candles, period, momentum.source, false));
+      }
+    }
+    const roc = indicatorSettings(externalIndicators, 'ROC@tv-basicstudies', { length: 9, color: isDark ? COLORS.average : '#967239' });
+    if (roc) {
+      const period = safePeriod(roc.length, 9);
+      const values = addMomentum(source, period, roc.source, true);
+      if (values.length) {
+        const paneIndex = addOscillatorPane();
+        addOscillatorLine(paneIndex, safeColor(roc.color, isDark ? COLORS.average : '#967239'), `ROC ${period}`, values, candles => addMomentum(candles, period, roc.source, true));
+      }
+    }
+    const cci = indicatorSettings(externalIndicators, 'CCI@tv-basicstudies', { length: 20, color: isDark ? COLORS.upStrong : '#52765f' });
+    if (cci) {
+      const period = safePeriod(cci.length, 20);
+      const values = addCommodityChannelIndex(source, period);
+      if (values.length) {
+        const paneIndex = addOscillatorPane();
+        const color = safeColor(cci.color, isDark ? COLORS.upStrong : '#52765f');
+        const line = addOscillatorLine(paneIndex, color, `CCI ${period}`, values, candles => addCommodityChannelIndex(candles, period));
+        for (const level of [-100, 100]) line.createPriceLine({ price: level, color: translucentColor(color, 0.45), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' });
+      }
+    }
+    const williams = indicatorSettings(externalIndicators, 'WilliamsPctR@tv-basicstudies', { length: 14, overbought: -20, oversold: -80, color: isDark ? COLORS.average : '#967239' });
+    if (williams) {
+      const period = safePeriod(williams.length, 14);
+      const values = addWilliamsPercentR(source, period);
+      if (values.length) {
+        const paneIndex = addOscillatorPane();
+        const color = safeColor(williams.color, isDark ? COLORS.average : '#967239');
+        const line = addOscillatorLine(paneIndex, color, `Williams %R ${period}`, values, candles => addWilliamsPercentR(candles, period), [-100, 0]);
+        for (const level of [williams.overbought, williams.oversold]) {
+          const numericLevel = Number(level);
+          line.createPriceLine({ price: Math.min(0, Math.max(-100, Number.isFinite(numericLevel) ? numericLevel : -50)), color: translucentColor(color, 0.45), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: '' });
+        }
+      }
+    }
+    const historicalVolatility = indicatorSettings(externalIndicators, 'HistoricalVolatility@tv-basicstudies', { length: 20, color: isDark ? COLORS.band : '#497b8e' });
+    if (historicalVolatility) {
+      const period = safePeriod(historicalVolatility.length, 20);
+      const values = addHistoricalVolatility(source, period, timeframeSeconds);
+      if (values.length) {
+        const paneIndex = addOscillatorPane();
+        addOscillatorLine(paneIndex, safeColor(historicalVolatility.color, isDark ? COLORS.band : '#497b8e'), `Volatility ${period}`, values, candles => addHistoricalVolatility(candles, period, timeframeSeconds));
+      }
+    }
+    indicatorRefreshRef.current = data => liveRefreshers.forEach(refresh => refresh(data));
+  }, [averageColor, bandColor, candleDown, candleUp, candleUpStrong, externalChartStyle, externalIndicators, externalTimeframe, initialData, indicatorKey, isDark, pairName]);
+
+  // Append each fresh oracle mark to the active interval candle. The stream
+  // supplies prices only; candle OHLC remains derived from those marks and the
+  // real Pyth history, with no fabricated volume.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series || !isLivePrice || !Number.isFinite(currentPrice) || currentPrice <= 0) return;
+    // An oracle mark must not rewrite exchange candles, or use stale fallback ticks.
+    const meta = pythPriceStream.getMeta(pairName);
+    if (initialData[0]?.source !== 'pyth' || !meta || Date.now() / 1000 - meta.publishTime > 30) return;
+    // Calendar bars are not fixed-duration Unix buckets.
+    if (externalTimeframe === '1M' || externalTimeframe === '1W') return;
+    const nextPrecision = currentPrice < 1 ? 6 : currentPrice < 100 ? 4 : 2;
+    if (pricePrecisionRef.current !== nextPrecision) {
+      const priceFormat = { type: 'price' as const, precision: nextPrecision, minMove: 10 ** -nextPrecision };
+      series.applyOptions({ priceFormat });
+      for (const indicatorSeries of indicatorSeriesRef.current) indicatorSeries.applyOptions({ priceFormat });
+      pricePrecisionRef.current = nextPrecision;
+    }
+    const source = candlesRef.current;
+    const previous = liveCandleRef.current;
+    const last = source[source.length - 1];
+    if (!last && !previous) return;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const bucket = Math.floor(nowSeconds / timeframeSeconds) * timeframeSeconds;
+    if (last && bucket < last.time) return;
+    const time = Math.max(bucket, previous?.time || 0);
+    const isSameBar = previous?.time === time;
+    const existing = isSameBar ? previous : last?.time === time ? last : null;
+    const baseOpen = existing?.open ?? previous?.close ?? last?.close ?? currentPrice;
+    const candle: Candle = {
+      time,
+      open: baseOpen,
+      high: Math.max(existing?.high ?? baseOpen, currentPrice),
+      low: Math.min(existing?.low ?? baseOpen, currentPrice),
+      close: currentPrice,
+    };
+    liveCandleRef.current = candle;
+    const liveData = source.slice();
+    if (previous) {
+      const previousIndex = liveData.findIndex(item => item.time === previous.time);
+      if (previousIndex >= 0) liveData[previousIndex] = previous;
+      else liveData.push(previous);
+    }
+    const currentIndex = liveData.findIndex(item => item.time === candle.time);
+    if (currentIndex >= 0) liveData[currentIndex] = candle;
+    else liveData.push(candle);
+    indicatorRefreshRef.current(liveData);
+
+    if (externalChartStyle === '2' || externalChartStyle === '3') {
+      series.update({ time: candle.time as Time, value: candle.close });
+    } else if (externalChartStyle === '8') {
+      const previousHa = heikinAshi(source).at(-1);
+      const open = previousHa ? (previousHa.open + previousHa.close) / 2 : (candle.open + candle.close) / 2;
+      const close = (candle.open + candle.high + candle.low + candle.close) / 4;
+      series.update({ ...candle, open, close, high: Math.max(candle.high, open, close), low: Math.min(candle.low, open, close), time: candle.time as Time });
     } else {
-      const halfRange = refPrice * 0.03;
-      high = refPrice + halfRange;
-      low = refPrice - halfRange;
+      series.update({ ...candle, time: candle.time as Time });
     }
-    if (price > high || price < low) return null;
-    const chartTop    = h * 0.04;
-    const chartBottom = h * 0.84; // keep inside the price pane, above the time axis
-    const chartH = chartBottom - chartTop;
-    const pct = (high - price) / (high - low);
-    const yPx = chartTop + pct * chartH;
-    if (yPx < chartTop || yPx > chartBottom) return null;
-    return yPx;
-  };
+  }, [currentPrice, externalChartStyle, isLivePrice, timeframeSeconds, pairName, initialData, externalTimeframe]);
 
-  const PriceLine = ({ price, refPrice, lineColor, labelBg, labelColor, labelBorder, label }: {
-    price: number; refPrice: number;
-    lineColor: string; labelBg: string; labelColor: string; labelBorder: string;
-    label: string;
-  }) => {
-    const yPx = getPriceYpx(price, refPrice);
-    if (yPx === null) return null;
-    return (
-      <div style={{
-        position: 'absolute', left: 0, right: 52, top: yPx,
-        zIndex: 20, pointerEvents: 'none',
-        transform: 'translateY(-50%)',
-      }}>
-        {/* Dashed horizontal line */}
-        <div style={{
-          position: 'absolute', left: 0, right: 0, top: '50%',
-          height: 1, transform: 'translateY(-50%)',
-          borderTop: `1.5px dashed ${lineColor}`,
-          opacity: 0.7,
-        }} />
-        {/* Single left-side label — "LABEL · $price". The old right-side badge
-            sat in the price-axis gutter and collided with TradingView's own
-            price labels, so it's gone. */}
-        <div style={{
-          position: 'absolute', left: 6, top: '50%',
-          transform: 'translateY(-50%)',
-          ...badge(labelBg + 'cc', labelColor, labelBorder),
-          fontSize: 9, padding: '2px 7px',
-        }}>
-          {label} · ${fmt(price)}
-        </div>
-      </div>
-    );
-  };
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    const lines: any[] = [];
+    const normalizePair = (value: string) => value.replace(/[^A-Z]/gi, '').replace(/USD[TC]?$/i, '').toUpperCase();
+    if (activePosition?.pair && normalizePair(activePosition.pair) === normalizePair(pairName)) {
+      const addRiskLine = (price: number, title: string, color: string) => {
+        if (!Number.isFinite(price) || price <= 0) return;
+        lines.push(series.createPriceLine({
+          price,
+          color,
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title,
+        }));
+      };
+      if (showEntryLine) addRiskLine(Number(activePosition.entryPrice), 'Entry', candleUpStrong);
+      if (showTPLine) addRiskLine(Number(activePosition.takeProfit), 'TP', '#77c995');
+      if (showSLLine) addRiskLine(Number(activePosition.stopLoss), 'SL', '#df7774');
+      if (showLiqLine) addRiskLine(Number(activePosition.liquidationPrice || liqPrice), 'Liq', '#d6a56e');
+    }
+    riskLinesRef.current = lines;
+    return () => {
+      for (const line of lines) {
+        try { series.removePriceLine(line); } catch { /* series may be disposed */ }
+      }
+    };
+  }, [activePosition, candleUpStrong, externalChartStyle, isDark, liqPrice, pairName, showEntryLine, showLiqLine, showSLLine, showTPLine, theme]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', background: BG }}>
-      {/* VELO watermark */}
-      <div style={{
-        position: 'absolute', bottom: '18%', left: '50%', transform: 'translateX(-50%)',
-        zIndex: 10, pointerEvents: 'none', userSelect: 'none',
-        fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 400,
-        fontSize: 'clamp(64px, 9vw, 128px)', letterSpacing: '-0.04em', lineHeight: 1,
-        color: isDark ? 'rgba(255,255,255,0.032)' : 'rgba(10,10,14,0.05)',
-        whiteSpace: 'nowrap',
-      }}>VELO</div>
-
-      {/* Chart widget container */}
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: BG }} />
-
-      {/* No overlay tint on the chart — the page background is kept light enough
-          that the chart's own surface blends in without masking it (masking hurt
-          candle/text legibility). A faint inner ring just frames the panel. */}
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 16, pointerEvents: 'none',
-        boxShadow: `inset 0 0 0 1px ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(90,70,160,0.08)'}`,
-        borderRadius: 'inherit',
-      }} />
-
-      {/* Overlay price LINES (entry / TP / SL / liquidation) */}
-      {(() => {
-        if (!activePosition) return null;
-        const entry = Number(activePosition.entryPrice);
-        if (!activePosition.pair || !activePosition.side || !isFinite(entry) || entry <= 0) return null;
-        const normPair = (s: string) => s.replace(/[^A-Z]/gi, '').replace(/USD[TC]?$/i, '').toUpperCase();
-        if (normPair(activePosition.pair) !== normPair(pairName)) return null;
-
-        const resolvedLiq = (() => {
-          const posLiq = Number(activePosition.liquidationPrice);
-          if (isFinite(posLiq) && posLiq > 0) return posLiq;
-          if (liqPrice && isFinite(liqPrice) && liqPrice > 0) return liqPrice;
-          return null;
-        })();
-
-        const ref = currentPrice > 0 ? currentPrice : entry;
-
-        return (
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 20, overflow: 'hidden' }}>
-            {showEntryLine && (
-              <PriceLine price={entry} refPrice={ref}
-                lineColor="#a78bfa" labelBg="rgba(139,92,246,0.22)" labelColor="#a78bfa" labelBorder="rgba(139,92,246,0.35)"
-                label={activePosition.side} />
-            )}
-            {showTPLine && (() => {
-              const tp = Number(activePosition.takeProfit);
-              return isFinite(tp) && tp > 0 ? (
-                <PriceLine price={tp} refPrice={ref}
-                  lineColor="#4ade80" labelBg="rgba(74,222,128,0.18)" labelColor="#4ade80" labelBorder="rgba(74,222,128,0.35)"
-                  label="TP" />
-              ) : null;
-            })()}
-            {showSLLine && (() => {
-              const sl = Number(activePosition.stopLoss);
-              return isFinite(sl) && sl > 0 ? (
-                <PriceLine price={sl} refPrice={ref}
-                  lineColor="#f87171" labelBg="rgba(248,113,113,0.18)" labelColor="#f87171" labelBorder="rgba(248,113,113,0.35)"
-                  label="SL" />
-              ) : null;
-            })()}
-            {showLiqLine && resolvedLiq != null && (
-              <PriceLine price={resolvedLiq} refPrice={ref}
-                lineColor="#f97316" labelBg="rgba(249,115,22,0.18)" labelColor="#f97316" labelBorder="rgba(249,115,22,0.35)"
-                label="Liq" />
-            )}
-          </div>
-        );
-      })()}
+    <div style={{ height: '100%', minHeight: 0, position: 'relative', background, overflow: 'hidden' }}>
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+      {initialData.length > 0 && (
+        <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: isDark ? 'rgba(10,14,12,0.82)' : 'rgba(237,242,238,0.92)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: isLivePrice ? candleUp : foreground, opacity: isLivePrice ? 1 : 0.65 }} />
+          {historySource}{isLivePrice && initialData[0]?.source === 'pyth' ? ' · mark updates when fresh' : ''}
+        </div>
+      )}
+      {isLoadingOlder && (
+        <div role="status" aria-live="polite" style={{ position: 'absolute', top: 10, right: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', borderRadius: 999, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.16)'}`, background: isDark ? 'rgba(10,14,12,0.86)' : 'rgba(221,232,223,0.94)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', pointerEvents: 'none' }}>
+          <span className="chart-history-spinner"><RefreshCw size={11} /></span> Loading older candles
+        </div>
+      )}
+      {!initialData.length && (
+        <div className="chart-history-state" aria-live="polite">
+          {historyStatus === 'loading' ? (
+            <>
+              <span className="chart-history-spinner"><RefreshCw size={14} /></span>
+              <span>Loading historical candles</span>
+            </>
+          ) : (
+            <>
+              <span>Market history is temporarily unavailable</span>
+              <button className="chart-history-retry" type="button" onClick={onRetryHistory}>
+                <RefreshCw size={13} /> Retry
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 });

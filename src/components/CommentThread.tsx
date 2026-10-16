@@ -6,9 +6,10 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Heart, Trash2, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Heart, Trash2, MessageCircle, ChevronDown, ChevronUp, Link2, Check } from 'lucide-react';
 import { Comment } from '../utils/types';
 import { PAIRS } from '../utils/types';
+import { VeloAssetIcon } from './ui/shared';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ export function renderContent(
             return (
                 <a key={i} href={part} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    style={{ color: 'var(--iris-violet)', textDecoration: 'underline', textDecorationColor: 'oklch(0.68 0.22 295 / 0.4)', wordBreak: 'break-all' }}>
+                    style={{ color: 'var(--iris-violet)', textDecoration: 'underline', textDecorationColor: 'color-mix(in oklab, var(--accent) 40%, transparent)', wordBreak: 'break-all' }}>
                     {disp}
                 </a>
             );
@@ -109,7 +110,7 @@ function MentionDropdown({ results, anchorRef, activeIndex, onSelect, onHover }:
                         onMouseDown={e => { e.preventDefault(); onSelect(item); }}
                         onMouseEnter={() => onHover(i)}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: i === activeIndex ? 'var(--chip-bg)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const }}>
-                        <img src={item.logo} alt={item.symbol} style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
+                        <VeloAssetIcon src={item.logo} symbol={item.symbol} size={28} />
                         <div>
                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>${item.symbol}</div>
                             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--fg-subtle)' }}>{item.name}</div>
@@ -293,7 +294,7 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.05em' }}>@mention · $TICKER · ⌘↵</span>
                         <button onClick={submit} disabled={!text.trim() || loading}
-                            style={{ padding: compact ? '4px 14px' : '6px 18px', borderRadius: 16, background: text.trim() ? 'var(--iris-violet)' : 'var(--chip-bg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: text.trim() ? '#fff' : 'var(--fg-subtle)', cursor: text.trim() && !loading ? 'pointer' : 'default', letterSpacing: '0.05em', transition: 'all 0.15s', boxShadow: text.trim() ? '0 3px 12px oklch(0.68 0.22 295 / 0.3)' : 'none' }}>
+                            style={{ padding: compact ? '4px 14px' : '6px 18px', borderRadius: 16, background: text.trim() ? 'var(--iris-violet)' : 'var(--chip-bg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: text.trim() ? '#fff' : 'var(--fg-subtle)', cursor: text.trim() && !loading ? 'pointer' : 'default', letterSpacing: '0.05em', transition: 'all 0.15s', boxShadow: text.trim() ? '0 3px 12px color-mix(in oklab, var(--accent) 30%, transparent)' : 'none' }}>
                             {loading ? '…' : 'Reply'}
                         </button>
                     </div>
@@ -318,13 +319,15 @@ interface CommentRowProps {
     onLikeComment: (commentId: string) => void;
     onDeleteComment: (postId: string, commentId: string) => void;
     allComments: Comment[];      // flat list for building reply threads
+    focusCommentId?: string | null;
 }
 
 function CommentRow({
     comment, postId, postAuthorId, user, traders, depth,
-    onViewProfile, onTickerClick, onReply, onLikeComment, onDeleteComment, allComments,
+    onViewProfile, onTickerClick, onReply, onLikeComment, onDeleteComment, allComments, focusCommentId,
 }: CommentRowProps) {
     const [showReplies, setShowReplies] = useState(true);
+    const [linkCopied, setLinkCopied] = useState(false);
     const hasLiked = user ? comment.likedBy.includes(user.id) : false;
     // Author-only delete — mirrors the backend RLS exactly (comments delete
     // policy is author_id = auth.uid()). Showing the trash to the post author
@@ -354,9 +357,25 @@ function CommentRow({
     };
 
     const previewUrl = extractFirstUrl(comment.content);
+    const commentUrl = `${window.location.origin}/social/post/${postId}/comment/${comment.id}`;
+    const shareComment = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: `Reply by ${comment.authorHandle} on Velo`, text: comment.content.slice(0, 180), url: commentUrl });
+                return;
+            } catch (error) {
+                if ((error as DOMException)?.name === 'AbortError') return;
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(commentUrl);
+            setLinkCopied(true);
+            window.setTimeout(() => setLinkCopied(false), 1800);
+        } catch { /* Clipboard access can be unavailable outside secure contexts. */ }
+    };
 
     return (
-        <div style={{ display: 'flex', gap: 10, position: 'relative' }}>
+        <div id={`comment-${comment.id}`} className={focusCommentId === comment.id ? 'comment-focus-target' : undefined} style={{ display: 'flex', gap: 10, position: 'relative', scrollMarginTop: 110 }}>
             {/* Thread line for replies */}
             {depth > 0 && (
                 <div style={{ position: 'absolute', left: -20, top: 0, bottom: 0, width: 2, background: 'var(--hairline)', borderRadius: 1 }} />
@@ -383,7 +402,7 @@ function CommentRow({
                         style={{ ...S.display, fontSize: depth === 0 ? 14 : 13, color: 'var(--fg)', cursor: 'pointer', fontWeight: 600 }}>
                         {comment.authorHandle}
                     </span>
-                    <span style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)' }} title={new Date(comment.timestamp).toLocaleString()}>{timeStr}</span>
+                    <a href={`/social/post/${postId}/comment/${comment.id}`} style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', textDecoration: 'none' }} title="Open this reply">{timeStr}</a>
                     {canDelete && (
                         <button
                             onClick={() => onDeleteComment(postId, comment.id)}
@@ -420,6 +439,17 @@ function CommentRow({
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = hasLiked ? 'var(--iris-magenta)' : 'var(--fg-subtle)'; }}>
                         <Heart size={12} fill={hasLiked ? 'currentColor' : 'none'} />
                         {comment.likes > 0 && <span>{comment.likes}</span>}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={shareComment}
+                        aria-label={linkCopied ? 'Reply link copied' : 'Share reply link'}
+                        title={linkCopied ? 'Reply link copied' : 'Share reply link'}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: linkCopied ? 'var(--pnl-up)' : 'var(--fg-subtle)', ...S.mono, fontSize: 11, padding: 0 }}
+                    >
+                        {linkCopied ? <Check size={12} /> : <Link2 size={12} />}
+                        <span className="sr-only">{linkCopied ? 'Link copied' : 'Copy reply link'}</span>
                     </button>
 
                     {/* Reply — on every row: replying to a reply is normal logic.
@@ -466,6 +496,7 @@ function CommentRow({
                                 onLikeComment={onLikeComment}
                                 onDeleteComment={onDeleteComment}
                                 allComments={allComments}
+                                focusCommentId={focusCommentId}
                             />
                         ))}
                     </div>
@@ -486,17 +517,56 @@ export interface CommentThreadProps {
     onViewProfile: (p: any) => void;
     onTickerClick?: (t: string) => void;
     compact?: boolean;           // true = PostCard inline view, false = SinglePostView
+    focusCommentId?: string | null;
 }
 
 export function CommentThread({
     post, user, traders, onComment, onDeleteComment, onLikeComment,
-    onViewProfile, onTickerClick, compact = false,
+    onViewProfile, onTickerClick, compact = false, focusCommentId = null,
 }: CommentThreadProps) {
     const [replyTo, setReplyTo] = useState<{ parentId: string; parentHandle: string } | null>(null);
 
     const allComments: Comment[] = post.comments || [];
-    // Only top-level comments (no parentId) rendered at root
-    const rootComments = allComments.filter((c: Comment) => !c.parentId);
+    const visibleComments = useMemo(() => {
+        if (compact || !focusCommentId) return allComments;
+        const byId = new Map(allComments.map(comment => [comment.id, comment]));
+        const target = byId.get(focusCommentId);
+        if (!target) return allComments;
+
+        const visibleIds = new Set<string>();
+        let ancestor: Comment | undefined = target;
+        while (ancestor && !visibleIds.has(ancestor.id)) {
+            visibleIds.add(ancestor.id);
+            ancestor = ancestor.parentId ? byId.get(ancestor.parentId) : undefined;
+        }
+
+        const addDescendants = (parentId: string) => {
+            allComments.filter(comment => comment.parentId === parentId).forEach(comment => {
+                if (visibleIds.has(comment.id)) return;
+                visibleIds.add(comment.id);
+                addDescendants(comment.id);
+            });
+        };
+        addDescendants(target.id);
+        return allComments.filter(comment => visibleIds.has(comment.id));
+    }, [allComments, compact, focusCommentId]);
+    const rootComments = visibleComments.filter((c: Comment) => !c.parentId);
+    const focusedComment = focusCommentId ? allComments.find(comment => comment.id === focusCommentId) : undefined;
+    const isFocusedThread = !compact && Boolean(focusedComment);
+
+    useEffect(() => {
+        if (compact) return;
+        setReplyTo(focusedComment ? { parentId: focusedComment.id, parentHandle: focusedComment.authorHandle } : null);
+    }, [compact, focusedComment?.id, focusedComment?.authorHandle]);
+
+    useEffect(() => {
+        if (!focusCommentId) return;
+        const timer = window.setTimeout(() => {
+            const target = document.getElementById(`comment-${focusCommentId}`);
+            target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 160);
+        return () => window.clearTimeout(timer);
+    }, [focusCommentId, allComments.length]);
 
     const handleReply = (parentId: string, parentHandle: string) => {
         setReplyTo({ parentId, parentHandle });
@@ -534,7 +604,8 @@ export function CommentThread({
                                 onReply={handleReply}
                                 onLikeComment={onLikeComment}
                                 onDeleteComment={onDeleteComment}
-                                allComments={allComments}
+                                allComments={visibleComments}
+                                focusCommentId={focusCommentId}
                             />
                         ))}
                     </div>
@@ -543,7 +614,7 @@ export function CommentThread({
                 {user && (
                     <div>
                         {replyTo && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '4px 10px', background: 'oklch(0.68 0.22 295 / 0.06)', borderRadius: 6, border: '1px solid oklch(0.68 0.22 295 / 0.2)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '4px 10px', background: 'color-mix(in oklab, var(--accent) 6%, transparent)', borderRadius: 6, border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)' }}>
                                 <span style={{ ...S.mono, fontSize: 10, color: 'var(--iris-violet)' }}>Replying to {replyTo.parentHandle}</span>
                                 <button onClick={() => setReplyTo(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', fontSize: 12, padding: 0 }}>✕</button>
                             </div>
@@ -568,14 +639,21 @@ export function CommentThread({
     return (
         <div style={{ marginTop: 16 }}>
             <div style={{ ...S.label, fontSize: 11, marginBottom: 14, paddingLeft: 2 }}>
-                {allComments.length} {allComments.length === 1 ? 'Comment' : 'Comments'}
+                {isFocusedThread ? 'Reply thread' : `${allComments.length} ${allComments.length === 1 ? 'Comment' : 'Comments'}`}
             </div>
+
+            {isFocusedThread && (
+                <div className="comment-thread-context">
+                    <span>Showing this reply and its conversation</span>
+                    <a href={`/social/post/${post.id}`}>View all comments</a>
+                </div>
+            )}
 
             {/* Write comment */}
             {user && (
                 <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '16px 18px', marginBottom: 12 }}>
                     {replyTo && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '5px 10px', background: 'oklch(0.68 0.22 295 / 0.06)', borderRadius: 8, border: '1px solid oklch(0.68 0.22 295 / 0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '5px 10px', background: 'color-mix(in oklab, var(--accent) 6%, transparent)', borderRadius: 8, border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)' }}>
                             <MessageCircle size={12} style={{ color: 'var(--iris-violet)' }} />
                             <span style={{ ...S.mono, fontSize: 10, color: 'var(--iris-violet)' }}>Replying to {replyTo.parentHandle}</span>
                             <button onClick={() => setReplyTo(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', fontSize: 12, padding: 0 }}>✕</button>
@@ -622,7 +700,8 @@ export function CommentThread({
                                 onReply={handleReply}
                                 onLikeComment={onLikeComment}
                                 onDeleteComment={onDeleteComment}
-                                allComments={allComments}
+                                allComments={visibleComments}
+                                focusCommentId={focusCommentId}
                             />
                         </div>
                     ))}

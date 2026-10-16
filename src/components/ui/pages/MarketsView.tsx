@@ -1,70 +1,49 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Search, TrendingUp, TrendingDown, Star, BarChart2, Activity,
-  ArrowUpRight, ArrowDownRight, ChevronRight,
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Activity, ArrowDownRight, ArrowUpRight, ChevronRight, Search, Star } from 'lucide-react';
 import { PAIRS, isTradablePair } from '@/utils/types';
+import { VeloAssetIcon } from '@/components/ui/shared';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-const formatPrice = (price: number | undefined | null) => {
-  if (price == null) return '—';
+type SortKey = 'volume' | 'change' | 'price' | 'name';
+type MarketStats = { volume: number; marketCap: number };
+
+const pairSymbols: Record<string, string> = {
+  'BTC/USD': 'BTCUSDT', 'ETH/USD': 'ETHUSDT', 'SOL/USD': 'SOLUSDT', 'WIF/USD': 'WIFUSDT',
+  'JUP/USD': 'JUPUSDT', 'BONK/USD': 'BONKUSDT', 'AVAX/USD': 'AVAXUSDT', 'LINK/USD': 'LINKUSDT',
+  'DOGE/USD': 'DOGEUSDT', 'PEPE/USD': 'PEPEUSDT', 'RNDR/USD': 'RNDRUSDT', 'NEAR/USD': 'NEARUSDT',
+  'TIA/USD': 'TIAUSDT', 'INJ/USD': 'INJUSDT', 'PYTH/USD': 'PYTHUSDT',
+};
+
+const categories: Record<string, string> = {
+  'BTC/USD': 'Layer 1', 'ETH/USD': 'Layer 1', 'SOL/USD': 'Layer 1', 'AVAX/USD': 'Layer 1', 'NEAR/USD': 'Layer 1',
+  'LINK/USD': 'Oracle', 'PYTH/USD': 'Oracle', 'RNDR/USD': 'AI & compute', 'TIA/USD': 'Modular',
+  'INJ/USD': 'DeFi', 'JUP/USD': 'DeFi', 'DOGE/USD': 'Meme', 'WIF/USD': 'Meme', 'PEPE/USD': 'Meme', 'BONK/USD': 'Meme',
+};
+const categoryOptions = ['All markets', 'Layer 1', 'DeFi', 'Meme', 'Oracle', 'AI & compute', 'Modular'];
+
+const formatPrice = (price?: number | null) => {
+  if (price == null || !Number.isFinite(price)) return '—';
   if (price < 0.0001) return price.toFixed(8);
   if (price < 0.01) return price.toFixed(6);
   if (price < 1) return price.toFixed(5);
-  if (price < 10) return price.toFixed(4);
   if (price >= 1000) return price.toLocaleString('en-US', { maximumFractionDigits: 0 });
   return price.toFixed(2);
 };
 
-const formatLarge = (n?: number) => {
-  if (!n) return '—';
-  if (n >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T';
-  if (n >= 1e9)  return '$' + (n / 1e9).toFixed(2) + 'B';
-  if (n >= 1e6)  return '$' + (n / 1e6).toFixed(2) + 'M';
-  return '$' + n.toFixed(0);
+const formatMoney = (value?: number) => {
+  if (!value || !Number.isFinite(value)) return '—';
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
+  return `$${value.toFixed(0)}`;
 };
 
-const drawSparkline = (data: number[], up: boolean) => {
-  const w = 72, h = 28;
-  if (!data || data.length < 2) return null;
-  const min = Math.min(...data), max = Math.max(...data);
-  const range = max - min || 1;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / range) * (h - 2) - 1;
-    return x.toFixed(1) + ',' + y.toFixed(1);
-  }).join(' ');
-  const color = up ? 'var(--pnl-up)' : 'var(--pnl-down)';
-  const uid = 'sp-' + (up ? 'u' : 'd');
-  return React.createElement('svg', { width: w, height: h, viewBox: '0 0 ' + w + ' ' + h, style: { display: 'block', flexShrink: 0 } },
-    React.createElement('defs', null,
-      React.createElement('linearGradient', { id: uid, x1: '0', y1: '0', x2: '0', y2: '1' },
-        React.createElement('stop', { offset: '0%', stopColor: color, stopOpacity: '0.22' }),
-        React.createElement('stop', { offset: '100%', stopColor: color, stopOpacity: '0' })
-      )
-    ),
-    React.createElement('polygon', { points: '0,' + h + ' ' + pts + ' ' + w + ',' + h, fill: 'url(#' + uid + ')' }),
-    React.createElement('polyline', { points: pts, fill: 'none', stroke: color, strokeWidth: '1.5', strokeLinecap: 'round', strokeLinejoin: 'round' })
-  );
-};
-
-const PAIR_CATEGORIES: Record<string, string> = {
-  'BTC/USD': 'Layer 1', 'ETH/USD': 'Layer 1', 'SOL/USD': 'Layer 1',
-  'AVAX/USD': 'Layer 1', 'NEAR/USD': 'Layer 1',
-  'LINK/USD': 'Oracle', 'PYTH/USD': 'Oracle',
-  'RNDR/USD': 'AI / DePIN', 'TIA/USD': 'Modular', 'INJ/USD': 'DeFi', 'JUP/USD': 'DeFi',
-  'DOGE/USD': 'Meme Coin', 'WIF/USD': 'Meme Coin', 'PEPE/USD': 'Meme Coin', 'BONK/USD': 'Meme Coin',
-};
-
-const ALL_CATEGORIES = ['All', 'Layer 1', 'DeFi', 'Meme Coin', 'Oracle', 'AI / DePIN', 'Modular'];
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Layer 1': 'oklch(0.68 0.22 295)',
-  'DeFi': 'oklch(0.78 0.18 150)',
-  'Meme Coin': 'oklch(0.80 0.16 60)',
-  'Oracle': 'oklch(0.72 0.16 220)',
-  'AI / DePIN': 'oklch(0.68 0.18 180)',
-  'Modular': 'oklch(0.75 0.14 30)',
+const Sparkline = ({ values }: { values: number[] }) => {
+  if (values.length < 2) return <span className="markets-spark-empty">—</span>;
+  const width = 82, height = 26;
+  const min = Math.min(...values), range = Math.max(...values) - min || 1;
+  const points = values.map((value, index) => `${(index / (values.length - 1) * width).toFixed(1)},${(height - 2 - ((value - min) / range) * (height - 4)).toFixed(1)}`).join(' ');
+  return <svg className="markets-spark" viewBox={`0 0 ${width} ${height}`} aria-hidden="true"><polyline points={points} /></svg>;
 };
 
 interface MarketsViewProps {
@@ -80,296 +59,219 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
   marketPrices, marketChanges, watchlist, onToggleWatchlist, onNavigateToTrade, onNavigateToSocial,
 }) => {
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All');
-  const [sortBy, setSortBy] = useState<'volume' | 'change' | 'price' | 'name'>('volume');
+  const [category, setCategory] = useState('All markets');
+  const [sortBy, setSortBy] = useState<SortKey>('volume');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [showFavOnly, setShowFavOnly] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
-  const [volumes, setVolumes] = useState<Record<string, number>>({});
-  const [marketCaps, setMarketCaps] = useState<Record<string, number>>({});
-
-  const S: Record<string, React.CSSProperties> = {
-    mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' },
-    display: { fontFamily: 'var(--font-display)', fontStyle: 'italic', letterSpacing: '-0.02em' },
-    label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-subtle)' },
-  };
+  const [marketStats, setMarketStats] = useState<Record<string, MarketStats>>({});
 
   useEffect(() => {
-    const binanceMap: Record<string, string> = {
-      'BTC/USD': 'BTCUSDT', 'ETH/USD': 'ETHUSDT', 'SOL/USD': 'SOLUSDT',
-      'WIF/USD': 'WIFUSDT', 'JUP/USD': 'JUPUSDT', 'BONK/USD': 'BONKUSDT',
-      'AVAX/USD': 'AVAXUSDT', 'LINK/USD': 'LINKUSDT', 'DOGE/USD': 'DOGEUSDT',
-      'PEPE/USD': 'PEPEUSDT', 'RNDR/USD': 'RNDRUSDT', 'NEAR/USD': 'NEARUSDT',
-      'TIA/USD': 'TIAUSDT', 'INJ/USD': 'INJUSDT', 'PYTH/USD': 'PYTHUSDT',
-    };
-    PAIRS.forEach(async (p) => {
-      const sym = binanceMap[p.id];
-      if (!sym) return;
+    const controller = new AbortController();
+    const load = async () => {
+      const geckoIds = PAIRS.map(pair => pair.geckoId).filter(Boolean).join(',');
       try {
-        const res = await fetch('https://api.binance.com/api/v3/klines?symbol=' + sym + '&interval=1h&limit=24');
-        if (!res.ok) return;
-        const raw: any[] = await res.json();
-        setSparklines(prev => ({ ...prev, [p.id]: raw.map((c: any) => parseFloat(c[4])) }));
-        setVolumes(prev => ({ ...prev, [p.id]: raw.reduce((acc, c) => acc + parseFloat(c[7]), 0) }));
-      } catch (_) {}
-    });
+        const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${geckoIds}&order=market_cap_desc&per_page=100&page=1&sparkline=false`, { signal: controller.signal });
+        if (response.ok) {
+          const rows: any[] = await response.json();
+          const next: Record<string, MarketStats> = {};
+          rows.forEach(coin => {
+            const pair = PAIRS.find(item => item.geckoId === coin.id);
+            if (pair) next[pair.id] = { volume: Number(coin.total_volume) || 0, marketCap: Number(coin.market_cap) || 0 };
+          });
+          if (!controller.signal.aborted) setMarketStats(next);
+        }
+      } catch { /* Keep unavailable external metrics quiet; live prices still render. */ }
+
+      const results = await Promise.all(PAIRS.map(async pair => {
+        const symbol = pairSymbols[pair.id];
+        if (!symbol) return [pair.id, []] as const;
+        try {
+          const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=4h&limit=42`, { signal: controller.signal });
+          if (!response.ok) return [pair.id, []] as const;
+          const rows: any[] = await response.json();
+          return [pair.id, Array.isArray(rows) ? rows.map(row => Number(row?.[4])).filter(value => Number.isFinite(value) && value > 0) : []] as const;
+        } catch { return [pair.id, []] as const; }
+      }));
+      if (!controller.signal.aborted) setSparklines(Object.fromEntries(results));
+    };
+    void load();
+    return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    const geckoIds = PAIRS.filter(p => p.geckoId).map(p => p.geckoId).join(',');
-    fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=' + geckoIds + '&order=market_cap_desc&per_page=20&page=1&sparkline=false')
-      .then(r => r.json())
-      .then((data: any[]) => {
-        if (!Array.isArray(data)) return;
-        const map: Record<string, number> = {};
-        data.forEach(coin => {
-          const pair = PAIRS.find(p => p.geckoId === coin.id);
-          if (pair && coin.market_cap) map[pair.id] = coin.market_cap;
-        });
-        setMarketCaps(map);
-      }).catch(() => {});
-  }, []);
-
-  const handleSort = (col: typeof sortBy) => {
-    if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
-    else { setSortBy(col); setSortDir('desc'); }
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) setSortDir(value => value === 'desc' ? 'asc' : 'desc');
+    else { setSortBy(key); setSortDir('desc'); }
   };
+
+  const listedVolume = Object.values(marketStats).reduce((sum, stats) => sum + stats.volume, 0);
+  const listedCap = Object.values(marketStats).reduce((sum, stats) => sum + stats.marketCap, 0);
+  const advancing = PAIRS.filter(pair => (marketChanges[pair.id] ?? 0) > 0).length;
+  const tradableCount = PAIRS.filter(pair => isTradablePair(pair.id)).length;
 
   const filtered = useMemo(() => {
-    let list = PAIRS.filter(p => {
-      const q = search.toLowerCase();
-      return (!q || p.id.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
-        && (category === 'All' || PAIR_CATEGORIES[p.id] === category)
-        && (!showFavOnly || watchlist.includes(p.id));
+    const query = search.trim().toLowerCase();
+    return PAIRS.filter(pair => {
+      const matchesQuery = !query || pair.id.toLowerCase().includes(query) || pair.name.toLowerCase().includes(query);
+      const matchesCategory = category === 'All markets' || categories[pair.id] === category;
+      return matchesQuery && matchesCategory && (!favoritesOnly || watchlist.includes(pair.id));
+    }).sort((a, b) => {
+      let result = 0;
+      if (sortBy === 'name') result = a.name.localeCompare(b.name);
+      else if (sortBy === 'price') result = (marketPrices[a.id] || 0) - (marketPrices[b.id] || 0);
+      else if (sortBy === 'change') result = (marketChanges[a.id] || 0) - (marketChanges[b.id] || 0);
+      else result = (marketStats[a.id]?.volume || 0) - (marketStats[b.id]?.volume || 0);
+      return sortDir === 'desc' ? -result : result;
     });
-    list = [...list].sort((a, b) => {
-      if (sortBy === 'name') return sortDir === 'desc' ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name);
-      const va = sortBy === 'price' ? (marketPrices[a.id] || 0) : sortBy === 'change' ? (marketChanges[a.id] || 0) : (volumes[a.id] || 0);
-      const vb = sortBy === 'price' ? (marketPrices[b.id] || 0) : sortBy === 'change' ? (marketChanges[b.id] || 0) : (volumes[b.id] || 0);
-      return sortDir === 'desc' ? vb - va : va - vb;
-    });
-    if (!showFavOnly) {
-      const favs = list.filter(p => watchlist.includes(p.id));
-      const rest = list.filter(p => !watchlist.includes(p.id));
-      list = [...favs, ...rest];
-    }
-    return list;
-  }, [search, category, sortBy, sortDir, watchlist, showFavOnly, marketPrices, marketChanges, volumes]);
+  }, [search, category, favoritesOnly, watchlist, sortBy, sortDir, marketPrices, marketChanges, marketStats]);
 
-  const SortInd = ({ col }: { col: typeof sortBy }) => (
-    <span style={{ marginLeft: 3, opacity: sortBy === col ? 1 : 0.3, fontSize: 8 }}>
-      {sortBy === col ? (sortDir === 'desc' ? '▼' : '▲') : '↕'}
-    </span>
-  );
-
-  const totalVol = Object.values(volumes).reduce((a, b) => a + b, 0);
-  const totalMcap = Object.values(marketCaps).reduce((a, b) => a + b, 0);
-  const gainers = PAIRS.filter(p => (marketChanges[p.id] || 0) > 0).length;
-  const losers  = PAIRS.filter(p => (marketChanges[p.id] || 0) < 0).length;
-
-  const thBtn = (align: 'left' | 'right', col: typeof sortBy): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', justifyContent: align === 'right' ? 'flex-end' : 'flex-start',
-    background: 'none', border: 'none', cursor: 'pointer',
-    fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em',
-    color: 'var(--fg-subtle)', padding: 0,
-  });
+  const sortLabel = (key: SortKey, label: string) => <button className="markets-sort" onClick={() => handleSort(key)} aria-label={`Sort by ${label}`}>{label}<span>{sortBy === key ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span></button>;
 
   return (
-    <div style={{ width: '100%', maxWidth: 1360, margin: '0 auto', paddingBottom: 80, paddingLeft: 16, paddingRight: 16 }} className="animate-fade-in">
-
-      {/* Responsive styles */}
+    <main className="markets-page animate-fade-in">
       <style>{`
-        .mk-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 20px; }
-        .mk-row   { display: grid; grid-template-columns: 26px 1fr 88px 84px 90px 72px 76px; align-items: center; padding: 13px 16px; gap: 8px; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background 0.1s; }
-        .mk-hdr   { display: grid; grid-template-columns: 26px 1fr 88px 84px 90px 72px 76px; align-items: center; padding: 9px 16px; gap: 8px; border-bottom: 1px solid var(--hairline); }
-        .mk-row:last-child { border-bottom: none; }
-        .mk-row:hover { background: var(--chip-bg); }
-        .mk-row:hover .mk-trade-btn { background: var(--iris-violet) !important; border-color: transparent !important; color: #fff !important; }
-        .mk-hide { display: block; }
-        .mk-spark { display: block; }
-        @media (max-width: 680px) {
-          .mk-stats { grid-template-columns: 1fr 1fr; }
-          .mk-row { grid-template-columns: 26px 1fr 80px 68px 76px; padding: 12px 12px; }
-          .mk-hdr { grid-template-columns: 26px 1fr 80px 68px 76px; }
-          .mk-hide { display: none !important; }
-          .mk-spark { display: none !important; }
-          .mk-trade-btn { padding: 5px 8px !important; font-size: 10px !important; }
+        .markets-page { width:min(1320px,100%); margin:0 auto; padding:clamp(22px,4vw,44px) clamp(16px,3.2vw,42px) 112px; color:var(--fg); }
+        .markets-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:24px; }
+        .markets-eyebrow,.markets-label { color:var(--fg-subtle); font:600 10px/1.3 var(--font-mono); letter-spacing:.13em; text-transform:uppercase; }
+        .markets-title { margin:7px 0 0; font:500 clamp(32px,5vw,48px)/1.02 var(--font-display); color:var(--fg); }
+        .markets-title em { font-weight:400; }
+        .markets-subtitle { margin:9px 0 0; color:var(--fg-muted); font:14px/1.45 var(--font-sans); }
+        .markets-live { display:inline-flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid var(--hairline); border-radius:999px; color:var(--fg-muted); font:600 10px/1 var(--font-mono); letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+        .markets-live i { width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px color-mix(in oklab,var(--accent) 14%,transparent); }
+        .markets-overview { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin:0 0 23px; padding:14px 0; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline); }
+        .markets-overview > div { padding:0 18px; border-left:1px solid var(--hairline); }
+        .markets-overview > div:first-child { padding-left:0; border-left:0; }
+        .markets-overview strong { display:block; margin-top:6px; color:var(--fg); font:600 17px/1.1 var(--font-mono); font-variant-numeric:tabular-nums; }
+        .markets-overview small { display:block; margin-top:4px; color:var(--fg-subtle); font:11px/1.3 var(--font-sans); }
+        .markets-tools { display:grid; grid-template-columns:minmax(200px,1fr) auto; gap:12px; align-items:center; margin-bottom:12px; }
+        .markets-search { display:flex; align-items:center; gap:10px; min-width:0; height:42px; padding:0 13px; border:1px solid var(--hairline); border-radius:11px; background:var(--chip-bg); color:var(--fg-subtle); }
+        .markets-search:focus-within { border-color:color-mix(in oklab,var(--accent) 65%,var(--hairline)); box-shadow:0 0 0 3px color-mix(in oklab,var(--accent) 12%,transparent); }
+        .markets-search input { width:100%; min-width:0; border:0; outline:0; background:transparent; color:var(--fg); font:13px var(--font-sans); }
+        .markets-search input::placeholder { color:var(--fg-subtle); }
+        .markets-watch { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:0 14px; border:1px solid var(--hairline); border-radius:11px; background:transparent; color:var(--fg-muted); font:600 10px var(--font-mono); letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
+        .markets-watch[aria-pressed="true"] { color:var(--accent-text); border-color:color-mix(in oklab,var(--accent) 50%,var(--hairline)); background:color-mix(in oklab,var(--accent) 9%,transparent); }
+        .markets-categories { display:flex; gap:4px; overflow:auto; padding:0 0 12px; scrollbar-width:none; }
+        .markets-categories::-webkit-scrollbar { display:none; }
+        .markets-category { flex:none; padding:8px 11px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--fg-subtle); font:600 10px var(--font-mono); letter-spacing:.04em; white-space:nowrap; cursor:pointer; }
+        .markets-category:hover { color:var(--fg); background:var(--chip-bg); }
+        .markets-category[aria-pressed="true"] { color:var(--fg); border-color:var(--hairline); background:var(--chip-bg); box-shadow:0 1px 0 var(--glass-ring) inset; }
+        .markets-table { overflow:hidden; border:1px solid var(--hairline); border-radius:16px; background:color-mix(in oklab,var(--glass-bg) 90%,transparent); box-shadow:var(--glass-shadow); }
+        .markets-row,.markets-table-head { display:grid; grid-template-columns:34px minmax(190px,1fr) minmax(100px,.68fr) minmax(88px,.55fr) minmax(96px,.65fr) 96px 78px; gap:12px; align-items:center; }
+        .markets-table-head { min-height:40px; padding:0 18px; border-bottom:1px solid var(--hairline); background:color-mix(in oklab,var(--chip-bg) 65%,transparent); }
+        .markets-sort { display:flex; align-items:center; gap:6px; padding:0; border:0; background:none; color:var(--fg-subtle); font:600 9px var(--font-mono); letter-spacing:.12em; text-transform:uppercase; cursor:pointer; }
+        .markets-sort span { opacity:.58; }
+        .markets-sort.right { justify-content:flex-end; }
+        .markets-row { min-height:68px; padding:9px 18px; border-bottom:1px solid var(--hairline); transition:background .16s ease; }
+        .markets-row:last-child { border-bottom:0; }
+        .markets-row:hover { background:var(--chip-bg); }
+        .markets-star { display:grid; place-items:center; width:30px; height:34px; border:0; background:transparent; color:var(--fg-subtle); cursor:pointer; }
+        .markets-star[aria-pressed="true"] { color:var(--accent-text); }
+        .markets-asset { display:flex; align-items:center; gap:11px; min-width:0; padding:0; border:0; background:none; color:inherit; text-align:left; cursor:pointer; }
+        .markets-asset .velo-asset-icon { width:34px; height:34px; flex:none; }
+        .markets-asset-copy { display:grid; gap:3px; min-width:0; }
+        .markets-asset-copy strong { overflow:hidden; color:var(--fg); font:600 13px/1.1 var(--font-sans); text-overflow:ellipsis; white-space:nowrap; }
+        .markets-asset-copy span { overflow:hidden; color:var(--fg-subtle); font:11px/1.1 var(--font-sans); text-overflow:ellipsis; white-space:nowrap; }
+        .markets-quote { display:grid; justify-items:end; gap:3px; min-width:0; }
+        .markets-price { text-align:right; color:var(--fg); font:600 12px var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
+        .markets-change { display:flex; align-items:center; justify-content:flex-end; gap:3px; color:var(--fg-muted); font:600 11px var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
+        .markets-mobile-change { display:none; }
+        .markets-change.positive { color:var(--pnl-up); }
+        .markets-change.negative { color:var(--pnl-down); }
+        .markets-volume { text-align:right; color:var(--fg-muted); font:500 11px var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
+        .markets-spark { display:block; width:82px; height:26px; overflow:visible; }
+        .markets-spark polyline { fill:none; stroke:var(--accent); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; opacity:.86; }
+        .markets-spark-empty { color:var(--fg-subtle); text-align:center; font:11px var(--font-mono); }
+        .markets-trade { justify-self:end; display:inline-flex; align-items:center; gap:4px; min-height:32px; padding:0 9px; border:1px solid var(--hairline); border-radius:8px; background:var(--chip-bg); color:var(--fg-muted); font:600 10px var(--font-mono); cursor:pointer; white-space:nowrap; }
+        .markets-trade:hover { border-color:color-mix(in oklab,var(--accent) 55%,var(--hairline)); color:var(--fg); }
+        .markets-soon { justify-self:end; color:var(--fg-subtle); font:600 9px var(--font-mono); letter-spacing:.08em; text-transform:uppercase; }
+        .markets-empty { padding:48px 18px; color:var(--fg-muted); text-align:center; font:14px var(--font-sans); }
+        @media(max-width:900px) { .markets-row,.markets-table-head { grid-template-columns:32px minmax(150px,1fr) minmax(90px,.65fr) minmax(84px,.58fr) 76px; } .markets-col-volume,.markets-col-spark { display:none!important; } }
+        @media(max-width:600px) {
+          .markets-page { padding:22px 14px 108px; }
+          .markets-heading { align-items:flex-start; flex-direction:column; gap:13px; margin-bottom:19px; }
+          .markets-live { padding:8px 10px; }
+          .markets-overview { margin-bottom:17px; padding:12px 0; }
+          .markets-overview > div { padding:0 10px; }
+          .markets-overview strong { font-size:14px; }
+          .markets-overview small { font-size:10px; }
+          .markets-tools { grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+          .markets-search { height:40px; padding:0 10px; }
+          .markets-watch { min-height:40px; padding:0 10px; font-size:9px; }
+          .markets-row,.markets-table-head { grid-template-columns:28px minmax(0,1fr) minmax(82px,.62fr) 70px; gap:7px; padding-left:9px; padding-right:9px; }
+          .markets-table-head { min-height:36px; }
+          .markets-row { min-height:62px; }
+          .markets-col-change { display:none!important; }
+          .markets-mobile-change { display:flex; font-size:9px; }
+          .markets-asset { gap:8px; }
+          .markets-asset .velo-asset-icon { width:30px; height:30px; }
+          .markets-asset-copy strong { font-size:12px; }
+          .markets-asset-copy span { font-size:10px; }
+          .markets-price { font-size:11px; }
+          .markets-trade { min-height:30px; padding:0 7px; font-size:9px; }
         }
-        @media (max-width: 420px) {
-          .mk-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
-          .mk-row { grid-template-columns: 26px 1fr 72px 72px; padding: 11px 10px; gap: 6px; }
-          .mk-hdr { grid-template-columns: 26px 1fr 72px 72px; padding: 8px 10px; gap: 6px; }
-          .mk-col-vol { display: none !important; }
-          .mk-col-change { display: none !important; }
-          .mk-trade-btn { padding: 5px 6px !important; font-size: 9px !important; }
+        @media(max-width:360px) {
+          .markets-row,.markets-table-head { grid-template-columns:25px minmax(0,1fr) minmax(75px,.62fr) 56px; gap:5px; padding-left:7px; padding-right:7px; }
+          .markets-trade { padding:0 5px; }
+          .markets-trade svg { display:none; }
         }
-        .mk-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-bottom: 14px; }
-        .mk-cats::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* Header */}
-      <div style={{ marginBottom: 22 }}>
-        <h1 style={{ ...S.display, fontSize: 'clamp(34px,6vw,50px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 6px', letterSpacing: '-0.03em' }}>
-          All <em>Markets</em>
-        </h1>
-        <p style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>
-          {PAIRS.length} perpetual markets · Up to 50× leverage
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="mk-stats">
-        {[
-          { label: 'Total Mkt Cap', value: formatLarge(totalMcap), icon: <BarChart2 size={13}/>, color: 'var(--fg)' },
-          { label: '24H Volume',    value: formatLarge(totalVol),  icon: <Activity size={13}/>,  color: 'var(--fg)' },
-          { label: 'Gainers',       value: String(gainers),        icon: <TrendingUp size={13}/>,   color: 'var(--pnl-up)' },
-          { label: 'Losers',        value: String(losers),         icon: <TrendingDown size={13}/>, color: 'var(--pnl-down)' },
-        ].map(s => (
-          <div key={s.label} className="vp" style={{ borderRadius: 14, padding: '10px 14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4, color: s.color }}>{s.icon}<span style={{ ...S.label, fontSize: 9, color: 'inherit' }}>{s.label}</span></div>
-            <div style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: s.color }}>{s.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter row */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ position: 'relative', flex: '1 1 160px', minWidth: 130 }}>
-          <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
-            style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 9, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg)', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
-            onFocus={e => (e.target.style.borderColor = 'var(--iris-violet)')}
-            onBlur={e => (e.target.style.borderColor = 'var(--hairline)')}
-          />
+      <header className="markets-heading">
+        <div>
+          <div className="markets-eyebrow">VELO · MARKET DESK</div>
+          <h1 className="markets-title">All <em>markets</em></h1>
+          <p className="markets-subtitle">Track prices, compare momentum, and open a market.</p>
         </div>
-        <button
-          onClick={() => setShowFavOnly(f => !f)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9, border: showFavOnly ? '1px solid oklch(0.80 0.16 60/0.6)' : '1px solid var(--hairline)', background: showFavOnly ? 'oklch(0.80 0.16 60/0.1)' : 'var(--chip-bg)', ...S.label, fontSize: 10, color: showFavOnly ? 'oklch(0.80 0.16 60)' : 'var(--fg-muted)', cursor: 'pointer', transition: 'all 0.12s', whiteSpace: 'nowrap' }}
-        >
-          <Star size={11} fill={showFavOnly ? 'currentColor' : 'none'} />
-          Watchlist{watchlist.length > 0 ? ' (' + watchlist.length + ')' : ''}
-        </button>
+        <div className="markets-live"><i aria-hidden="true" />{tradableCount} live perpetuals <span aria-hidden="true">·</span> Base</div>
+      </header>
+
+      <section className="markets-overview" aria-label="Market overview">
+        <div><span className="markets-label">Listed market cap</span><strong>{formatMoney(listedCap)}</strong><small>Combined tracked assets</small></div>
+        <div><span className="markets-label">24h spot volume</span><strong>{formatMoney(listedVolume)}</strong><small>Across tracked assets</small></div>
+        <div><span className="markets-label">Market breadth</span><strong>{advancing}<span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> / {PAIRS.length}</span></strong><small>Assets advancing today</small></div>
+      </section>
+
+      <div className="markets-tools">
+        <label className="markets-search"><Search size={15} aria-hidden="true" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search assets" aria-label="Search markets" /></label>
+        <button className="markets-watch" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(value => !value)}><Star size={13} fill={favoritesOnly ? 'currentColor' : 'none'} />Watchlist{watchlist.length ? ` · ${watchlist.length}` : ''}</button>
       </div>
+      <nav className="markets-categories" aria-label="Filter markets by category">
+        {categoryOptions.map(option => <button key={option} className="markets-category" aria-pressed={category === option} onClick={() => setCategory(option)}>{option}</button>)}
+      </nav>
 
-      {/* Category pills */}
-      <div className="mk-cats">
-        {ALL_CATEGORIES.map(cat => (
-          <button key={cat} onClick={() => setCategory(cat)} style={{ padding: '6px 12px', borderRadius: 8, border: category === cat ? '1px solid var(--iris-violet)' : '1px solid var(--hairline)', background: category === cat ? 'oklch(0.68 0.22 295/0.12)' : 'var(--chip-bg)', ...S.label, fontSize: 10, color: category === cat ? 'var(--iris-violet)' : 'var(--fg-muted)', cursor: 'pointer', transition: 'all 0.12s', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div className="vp" style={{ borderRadius: 18, overflow: 'clip' }}>
-
-        {/* Header */}
-        <div className="mk-hdr">
-          <div/>
-          <button onClick={() => handleSort('name')} style={thBtn('left','name')}>Market<SortInd col="name"/></button>
-          <button onClick={() => handleSort('price')} style={thBtn('right','price')}>Price<SortInd col="price"/></button>
-          <button onClick={() => handleSort('change')} className="mk-col-change" style={thBtn('right','change')}>24h<SortInd col="change"/></button>
-          <button onClick={() => handleSort('volume')} className="mk-hide" style={thBtn('right','volume')}>Volume<SortInd col="volume"/></button>
-          <div className="mk-spark" style={{ ...S.label, textAlign: 'center' }}>7D</div>
-          <div style={{ ...S.label, textAlign: 'right' }}>Trade</div>
+      <section className="markets-table" aria-label="Markets">
+        <div className="markets-table-head">
+          <span />{sortLabel('name', 'Asset')}
+          <span className="markets-sort right">Price</span>
+          <span className="markets-sort right markets-col-change">24h</span>
+          <span className="markets-sort right markets-col-volume">Volume</span>
+          <span className="markets-sort markets-col-spark" style={{ justifyContent: 'center' }}>7D</span>
+          <span />
         </div>
-
-        {filtered.length === 0 ? (
-          <div style={{ padding: '48px 20px', textAlign: 'center' }}>
-            <p style={{ ...S.display, fontSize: 20, color: 'var(--fg)', margin: '0 0 6px' }}>No markets found</p>
-            <p style={{ ...S.label, fontSize: 10 }}>Try a different search or category</p>
-          </div>
-        ) : filtered.map(pair => {
-          const price  = marketPrices[pair.id];
-          const change = marketChanges[pair.id] ?? 0;
-          const up     = change >= 0;
-          const spark  = sparklines[pair.id] || [];
-          const vol    = volumes[pair.id];
-          const cat    = PAIR_CATEGORIES[pair.id];
-          const catColor = cat ? CATEGORY_COLORS[cat] : 'var(--fg-subtle)';
-          const isFav  = watchlist.includes(pair.id);
+        {filtered.length === 0 ? <div className="markets-empty">No matching markets. Try another asset, category, or watchlist filter.</div> : filtered.map(pair => {
           const ticker = pair.id.split('/')[0];
-
-          return (
-            <div key={pair.id} className="mk-row" onClick={() => onNavigateToSocial(ticker)}>
-
-              {/* Star */}
-              <button onClick={e => { e.stopPropagation(); onToggleWatchlist(pair.id); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: isFav ? 'oklch(0.80 0.16 60)' : 'var(--fg-subtle)', padding: 0, display: 'flex', alignItems: 'center', transition: 'color 0.12s', flexShrink: 0 }}>
-                <Star size={13} fill={isFav ? 'currentColor' : 'none'} />
-              </button>
-
-              {/* Name */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                <img src={pair.logo} alt={pair.name} style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--hairline)', flexShrink: 0, background: 'var(--chip-bg)' }} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                    <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{ticker}</span>
-                    {cat && (
-                      <span className="mk-hide" style={{ padding: '1px 5px', borderRadius: 5, background: catColor + '18', border: '1px solid ' + catColor + '44', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', color: catColor, textTransform: 'uppercase', flexShrink: 0 }}>
-                        {cat}
-                      </span>
-                    )}
-                  </div>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{pair.name}</span>
-                </div>
-              </div>
-
-              {/* Price */}
-              <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)', textAlign: 'right' }}>
-                {price != null ? '$' + formatPrice(price) : '—'}
-              </div>
-
-              {/* Change */}
-              <div className="mk-col-change" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
-                {up
-                  ? <ArrowUpRight size={11} style={{ color: 'var(--pnl-up)', flexShrink: 0 }} />
-                  : <ArrowDownRight size={11} style={{ color: 'var(--pnl-down)', flexShrink: 0 }} />}
-                <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                  {up ? '+' : ''}{change.toFixed(2)}%
-                </span>
-              </div>
-
-              {/* Volume */}
-              <div className="mk-hide" style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', textAlign: 'right' }}>
-                {vol ? formatLarge(vol) : '—'}
-              </div>
-
-              {/* Sparkline */}
-              <div className="mk-spark" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {spark.length > 1
-                  ? drawSparkline(spark, up)
-                  : <div style={{ width: 72, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ ...S.label, fontSize: 8 }}>…</span></div>}
-              </div>
-
-              {/* Trade button — only render if the pair is registered on-chain.
-                  Pairs in PAIRS but not in VELO_PAIR_IDS render a quiet "Soon"
-                  chip instead. The row remains clickable through to the token
-                  page (the parent's onNavigateToSocial still fires), but there's
-                  no entry point to the trade UI for an untradable market. */}
-              <div className="mk-trade-col" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                {isTradablePair(pair.id) ? (
-                  <button
-                    className="mk-trade-btn"
-                    onClick={e => { e.stopPropagation(); const po = PAIRS.find(p => p.id === pair.id); if (po) onNavigateToTrade(po); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap' }}
-                  >
-                    Trade<ChevronRight size={11}/>
-                  </button>
-                ) : (
-                  <span
-                    title="Not yet listed on-chain. Trading opens once the protocol owner registers this market."
-                    style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '6px 10px', borderRadius: 8, border: '1px dashed var(--hairline)', background: 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--fg-subtle)', whiteSpace: 'nowrap', letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'help' }}
-                  >
-                    Soon
-                  </span>
-                )}
-              </div>
+          const price = marketPrices[pair.id];
+          const change = marketChanges[pair.id] ?? 0;
+          const favorite = watchlist.includes(pair.id);
+          const tradable = isTradablePair(pair.id);
+          return <div className="markets-row" key={pair.id} role="link" tabIndex={0} aria-label={`Open ${pair.name} market details`} onClick={() => onNavigateToSocial(ticker)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigateToSocial(ticker); } }}>
+            <button className="markets-star" aria-label={favorite ? `Remove ${ticker} from watchlist` : `Add ${ticker} to watchlist`} aria-pressed={favorite} onClick={event => { event.stopPropagation(); onToggleWatchlist(pair.id); }}><Star size={15} fill={favorite ? 'currentColor' : 'none'} /></button>
+            <button className="markets-asset" onClick={event => { event.stopPropagation(); onNavigateToSocial(ticker); }}>
+              <VeloAssetIcon src={pair.logo} symbol={ticker} size={34} />
+              <span className="markets-asset-copy"><strong>{ticker} <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>/ USD</span></strong><span>{pair.name} <span aria-hidden="true">·</span> {categories[pair.id]}</span></span>
+            </button>
+            <div className="markets-quote">
+              <span className="markets-price">{price == null ? '—' : `$${formatPrice(price)}`}</span>
+              <span className={`markets-change markets-mobile-change ${change >= 0 ? 'positive' : 'negative'}`}>{change >= 0 ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}{change >= 0 ? '+' : ''}{change.toFixed(2)}%</span>
             </div>
-          );
+            <span className={`markets-change markets-col-change ${change >= 0 ? 'positive' : 'negative'}`}>{change >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{change >= 0 ? '+' : ''}{change.toFixed(2)}%</span>
+            <span className="markets-volume markets-col-volume">{formatMoney(marketStats[pair.id]?.volume)}</span>
+            <span className="markets-col-spark"><Sparkline values={sparklines[pair.id] || []} /></span>
+            {tradable ? <button className="markets-trade" onClick={event => { event.stopPropagation(); onNavigateToTrade(pair); }}>Trade<ChevronRight size={13} /></button> : <span className="markets-soon" title="This asset is tracked, but its perpetual market is not enabled yet.">Tracked</span>}
+          </div>;
         })}
-      </div>
-    </div>
+      </section>
+      <p className="markets-label" style={{ margin: '11px 2px 0', fontSize: 9, textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}><Activity size={11} style={{ verticalAlign: '-2px', marginRight: 5 }} />Prices and market data are reference information. Perpetual availability is shown per market.</p>
+    </main>
   );
 };

@@ -675,16 +675,16 @@ const TxLink: React.FC<{ label: string; hash: `0x${string}` }> = ({ label, hash 
 const styleString = `
 @keyframes velo-spin { to { transform: rotate(360deg); } }
 @keyframes velo-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes velo-pulse-ring { 0% { box-shadow: 0 0 0 0 oklch(0.68 0.22 295 / 0.45); } 100% { box-shadow: 0 0 0 22px oklch(0.68 0.22 295 / 0); } }
+@keyframes velo-pulse-ring { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 45%, transparent); } 100% { box-shadow: 0 0 0 22px color-mix(in oklab, var(--accent) 0%, transparent); } }
 @keyframes velo-aurora-rotate { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes velo-check-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes velo-holo-shift { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
 
 .velo-onb-backdrop {
   position: fixed; inset: 0; z-index: 9999;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  background: var(--overlay);
+  backdrop-filter: blur(22px) saturate(1.28);
+  -webkit-backdrop-filter: blur(22px) saturate(1.28);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
   animation: velo-fade-up 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -693,13 +693,17 @@ const styleString = `
 .velo-onb-card {
   position: relative;
   width: 100%; max-width: 460px;
-  background: oklch(0.10 0.005 280);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 24px;
+  background: var(--modal-surface);
+  color: var(--fg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
   overflow: hidden;
   box-shadow:
-    0 30px 90px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    0 1px 0 var(--gl-edge) inset,
+    0 28px 76px -34px rgba(0, 0, 0, 0.56),
+    0 8px 24px -18px color-mix(in oklab, var(--accent) 22%, transparent);
+  -webkit-backdrop-filter: blur(36px) saturate(1.3);
+  backdrop-filter: blur(36px) saturate(1.3);
   font-family: var(--font-sans);
 }
 
@@ -707,9 +711,8 @@ const styleString = `
   content: '';
   position: absolute; inset: -50%;
   background:
-    radial-gradient(40% 40% at 30% 30%, oklch(0.68 0.22 295 / 0.18) 0%, transparent 70%),
-    radial-gradient(35% 35% at 70% 70%, oklch(0.80 0.14 205 / 0.14) 0%, transparent 70%),
-    radial-gradient(30% 30% at 50% 80%, oklch(0.74 0.18 30 / 0.10) 0%, transparent 70%);
+    radial-gradient(40% 40% at 30% 30%, color-mix(in oklab, var(--accent) 12%, transparent) 0%, transparent 70%),
+    radial-gradient(35% 35% at 70% 70%, color-mix(in oklab, var(--velo-sage-bright) 9%, transparent) 0%, transparent 70%);
   filter: blur(40px);
   animation: velo-aurora-rotate 22s linear infinite;
   pointer-events: none;
@@ -718,30 +721,21 @@ const styleString = `
 
 .velo-onb-edge {
   height: 2px;
-  background: linear-gradient(100deg,
-    oklch(0.68 0.22 295) 0%,
-    oklch(0.70 0.22 340) 22%,
-    oklch(0.74 0.18 30) 42%,
-    oklch(0.82 0.16 75) 58%,
-    oklch(0.84 0.18 130) 74%,
-    oklch(0.80 0.14 205) 90%,
-    oklch(0.68 0.18 250) 100%);
-  background-size: 200% 100%;
-  animation: velo-holo-shift 9s linear infinite;
-  opacity: 0.85;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--velo-sage-bright), transparent);
+  opacity: 0.72;
   position: relative; z-index: 1;
 }
 
 .velo-onb-close {
   position: absolute; top: 18px; right: 18px; z-index: 2;
   width: 32px; height: 32px; border-radius: 16px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.55); cursor: pointer;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: var(--fg-muted); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all 160ms;
 }
-.velo-onb-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.velo-onb-close:hover { background: var(--control-bg-hover); color: var(--fg); }
 
 .velo-onb-body {
   position: relative; z-index: 1;
@@ -750,22 +744,14 @@ const styleString = `
 
 .velo-onb-mark {
   width: 92px; height: 92px; border-radius: 28px;
-  background: linear-gradient(100deg,
-    oklch(0.68 0.22 295) 0%,
-    oklch(0.70 0.22 340) 22%,
-    oklch(0.74 0.18 30) 42%,
-    oklch(0.82 0.16 75) 58%,
-    oklch(0.84 0.18 130) 74%,
-    oklch(0.80 0.14 205) 90%,
-    oklch(0.68 0.18 250) 100%);
-  background-size: 200% 100%;
-  animation: velo-holo-shift 9s linear infinite, velo-pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  background: linear-gradient(145deg, var(--velo-sage-deep), var(--accent), var(--velo-sage-bright));
+  animation: velo-pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 24px 60px oklch(0.68 0.22 295 / 0.45);
+  box-shadow: 0 24px 60px color-mix(in oklab, var(--accent) 45%, transparent);
 }
 .velo-onb-mark-inner {
   width: 84px; height: 84px; border-radius: 24px;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--surface-inset);
   display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(8px);
 }
@@ -775,29 +761,29 @@ const styleString = `
   display: flex; align-items: center; justify-content: center;
 }
 .velo-onb-ring {
-  background: linear-gradient(135deg, oklch(0.68 0.22 295), oklch(0.80 0.14 205));
+  background: linear-gradient(145deg, var(--velo-sage-deep), var(--accent), var(--velo-sage-bright));
   animation: velo-pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  box-shadow: 0 16px 40px oklch(0.68 0.22 295 / 0.4);
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--accent) 40%, transparent);
 }
 .velo-onb-ring-err {
-  background: linear-gradient(135deg, oklch(0.66 0.22 25), oklch(0.66 0.22 25 / 0.6));
-  box-shadow: 0 16px 40px oklch(0.66 0.22 25 / 0.4);
+  background: linear-gradient(135deg, var(--pnl-down), color-mix(in oklab, var(--pnl-down) 65%, transparent));
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--pnl-down) 30%, transparent);
 }
 .velo-onb-ring-inner { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 
 .velo-onb-check {
   width: 96px; height: 96px; border-radius: 28px;
-  background: linear-gradient(135deg, oklch(0.78 0.18 150), oklch(0.78 0.18 150 / 0.7));
+  background: linear-gradient(135deg, var(--pnl-up), color-mix(in oklab, var(--pnl-up) 72%, transparent));
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 20px 50px oklch(0.78 0.18 150 / 0.5);
+  box-shadow: 0 20px 50px color-mix(in oklab, var(--pnl-up) 35%, transparent);
   animation: velo-check-pop 540ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .velo-onb-rail {
   width: 100%;
   display: flex; flex-direction: column; gap: 6px;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: var(--surface);
+  border: 1px solid var(--control-border);
   border-radius: 14px;
   padding: 14px 16px;
 }
@@ -805,28 +791,28 @@ const styleString = `
   display: flex; align-items: center; gap: 12px;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: rgba(255,255,255,0.34);
+  color: var(--fg-subtle);
   transition: color 240ms;
 }
-.velo-onb-rail-step.active { color: rgba(255,255,255,0.88); }
-.velo-onb-rail-step.done   { color: oklch(0.78 0.18 150); }
+.velo-onb-rail-step.active { color: var(--fg); }
+.velo-onb-rail-step.done   { color: var(--pnl-up); }
 .velo-onb-rail-dot {
   width: 18px; height: 18px; border-radius: 9px;
-  background: rgba(255,255,255,0.05);
+  background: var(--control-bg);
   display: flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 700;
   flex-shrink: 0;
   transition: all 240ms;
 }
-.velo-onb-rail-step.active .velo-onb-rail-dot { background: oklch(0.68 0.22 295); color: #fff; box-shadow: 0 0 0 4px oklch(0.68 0.22 295 / 0.18); }
-.velo-onb-rail-step.done   .velo-onb-rail-dot { background: oklch(0.78 0.18 150); color: #fff; }
+.velo-onb-rail-step.active .velo-onb-rail-dot { background: var(--accent); color: var(--primary-fg); box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent); }
+.velo-onb-rail-step.done   .velo-onb-rail-dot { background: var(--pnl-up); color: var(--primary-fg); }
 .velo-onb-rail-label { letter-spacing: 0.04em; font-weight: 500; }
 
 .velo-onb-error {
   width: 100%;
-  background: oklch(0.66 0.22 25 / 0.1);
-  border: 1px solid oklch(0.66 0.22 25 / 0.3);
-  color: oklch(0.85 0.18 25);
+  background: color-mix(in oklab, var(--pnl-down) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--pnl-down) 32%, transparent);
+  color: var(--pnl-down);
   border-radius: 12px;
   padding: 12px 14px;
   font-family: var(--font-sans);
@@ -839,28 +825,19 @@ const styleString = `
   width: 100%;
   padding: 17px 22px;
   border-radius: 16px;
-  background: linear-gradient(100deg,
-    oklch(0.68 0.22 295) 0%,
-    oklch(0.70 0.22 340) 22%,
-    oklch(0.74 0.18 30) 42%,
-    oklch(0.82 0.16 75) 58%,
-    oklch(0.84 0.18 130) 74%,
-    oklch(0.80 0.14 205) 90%,
-    oklch(0.68 0.18 250) 100%);
-  background-size: 200% 100%;
-  animation: velo-holo-shift 9s linear infinite;
-  color: #fff;
-  border: none;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  border: 1px solid var(--control-border);
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  box-shadow: 0 14px 40px oklch(0.68 0.22 295 / 0.45);
+  box-shadow: 0 10px 28px -12px color-mix(in oklab, var(--accent) 42%, transparent), 0 1px 0 rgba(255,255,255,.12) inset;
   transition: transform 140ms, box-shadow 140ms;
 }
-.velo-onb-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 18px 48px oklch(0.68 0.22 295 / 0.6); }
+.velo-onb-btn-primary:hover { transform: translateY(-1px); background: var(--primary-bg-hover); box-shadow: 0 14px 34px -12px color-mix(in oklab, var(--accent) 50%, transparent), 0 1px 0 rgba(255,255,255,.16) inset; }
 .velo-onb-btn-primary:active { transform: translateY(0); }
 .velo-onb-btn-primary.is-disabled { opacity: 0.45; cursor: wait; transform: none; box-shadow: none; }
 
@@ -868,9 +845,9 @@ const styleString = `
   width: 100%;
   padding: 13px 18px;
   border-radius: 12px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: var(--fg, #f4f4f7);
+  background: var(--secondary-bg);
+  border: 1px solid var(--control-border);
+  color: var(--secondary-fg);
   cursor: pointer;
   font-family: var(--font-sans);
   font-size: 13px;
@@ -879,20 +856,20 @@ const styleString = `
   transition: all 140ms;
   margin-top: 8px;
 }
-.velo-onb-btn-secondary:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.16); }
+.velo-onb-btn-secondary:hover { background: var(--control-bg-hover); border-color: var(--hr-2); }
 .velo-onb-btn-secondary.is-disabled { opacity: 0.4; cursor: wait; }
 
 .velo-onb-chip {
   display: flex; align-items: center; gap: 5px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.7);
+  color: var(--fg-muted);
   text-transform: uppercase;
 }
 
@@ -907,14 +884,14 @@ const styleString = `
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.14em;
-  color: rgba(255,255,255,0.4);
+  color: var(--fg-subtle);
   transition: color 140ms;
 }
-.velo-onb-adv-toggle:hover { color: rgba(255,255,255,0.7); }
+.velo-onb-adv-toggle:hover { color: var(--fg); }
 
 .velo-onb-adv-panel {
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: var(--surface);
+  border: 1px solid var(--control-border);
   border-radius: 14px;
   padding: 14px;
   display: flex; flex-direction: column; gap: 8px;
@@ -928,19 +905,19 @@ const styleString = `
 
 .velo-onb-copy {
   width: 28px; height: 28px; border-radius: 8px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: var(--fg-muted);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all 140ms;
 }
-.velo-onb-copy:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.velo-onb-copy:hover { background: var(--control-bg-hover); color: var(--fg); }
 
 .velo-onb-status {
   font-family: var(--font-sans);
   font-size: 11.5px;
-  color: rgba(255,255,255,0.55);
+  color: var(--fg-muted);
   text-align: center;
   padding: 4px 0;
 }
@@ -949,14 +926,20 @@ const styleString = `
   display: flex; align-items: center; justify-content: space-between;
   font-family: var(--font-mono);
   font-size: 10.5px;
-  color: rgba(255,255,255,0.55);
+  color: var(--fg-muted);
   text-decoration: none;
   padding: 6px 8px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.02);
+  background: var(--surface-inset);
   transition: color 140ms, background 140ms;
 }
-.velo-onb-txlink:hover { color: oklch(0.68 0.22 295); background: rgba(255,255,255,0.05); }
+.velo-onb-txlink:hover { color: var(--accent-text); background: var(--control-bg-hover); }
+
+@media (prefers-reduced-motion: reduce) {
+  .velo-onb-backdrop, .velo-onb-body, .velo-onb-edge, .velo-onb-mark,
+  .velo-onb-ring, .velo-onb-check { animation: none !important; }
+  .velo-onb-btn-primary, .velo-onb-btn-secondary, .velo-onb-close { transition: none !important; }
+}
 `;
 
 export default OrderlyOnboardingModal;

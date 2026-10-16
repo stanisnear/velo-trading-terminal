@@ -1,41 +1,43 @@
-/* VELO v3 — Editorial calm, prismatic depth */
+/* VELO — quiet precision, soft glass, restrained sage */
 
 :root {
   --font-display: "Fraunces", "Editorial New", "Tiempos Headline", ui-serif, Georgia, serif;
   --font-sans: "Geist", "Sohne", "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --font-mono: "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
 
-  --velo-blue: oklch(0.62 0.22 268);
-  --velo-blue-deep: oklch(0.42 0.24 270);
-  --velo-blue-ice: oklch(0.86 0.10 248);
-  --velo-violet: oklch(0.58 0.22 292);
-  --velo-mauve: oklch(0.74 0.15 318);
-  --velo-bone: #f4f1e8;
-  --velo-paper: #f2f0fa;
-  --velo-ink: #0a0b18;
-  --velo-obsidian: #060709;
+  --velo-sage: #91b99f;
+  --velo-sage-bright: #b4d5bf;
+  --velo-sage-deep: #557a64;
+  --velo-blue: #91b99f;
+  --velo-blue-deep: #557a64;
+  --velo-blue-ice: #dce9df;
+  --velo-violet: #91b99f;
+  --velo-mauve: #b4d5bf;
+  --velo-bone: #f1f5f1;
+  --velo-paper: #f1f5f1;
+  --velo-ink: #131a16;
+  --velo-obsidian: #090d0b;
 
-  --pnl-up: oklch(0.80 0.17 152);
-  --pnl-down: oklch(0.66 0.22 25);
+  --pnl-up: #77c995;
+  --pnl-down: #df7774;
 
   /* Brand gradient — used sparingly: thin hairline accents, the wordmark
      sweep, small 3D accents. Never a full-bleed background. */
-  --brand-gradient: linear-gradient(140deg, oklch(0.70 0.20 290), oklch(0.64 0.16 244));
+  --brand-gradient: linear-gradient(140deg, #91b99f, #b4d5bf);
 
-  /* Prism survives only as thin accents now (modal top-bar, verified tick,
-     prism chips). Retuned to the violet→blue brand hues. */
+  /* Prism survives only as a restrained sage accent for tiny highlights. */
   --prism: linear-gradient(
     135deg,
-    oklch(0.58 0.22 292) 0%,
-    oklch(0.62 0.22 268) 50%,
-    oklch(0.80 0.12 240) 100%
+    #557a64 0%,
+    #91b99f 52%,
+    #dce9df 100%
   );
   --prism-vivid: linear-gradient(
     135deg,
-    oklch(0.55 0.23 292) 0%,
-    oklch(0.58 0.22 285) 30%,
-    oklch(0.62 0.22 268) 60%,
-    oklch(0.80 0.13 242) 100%
+    #557a64 0%,
+    #759c82 30%,
+    #91b99f 62%,
+    #dce9df 100%
   );
 
   --r-xs: 7px;
@@ -49,53 +51,63 @@
 html.dark,
 body.dark,
 .dark {
-  --bg: #060709;
-  --bg-2: #0c0e13;
-  --bg-3: #13151c;
-  --fg: #edeef2;
-  --fg-2: #9a9ea9;
-  --fg-3: #5c5f6a;
-  --hr: rgba(255, 255, 255, 0.08);
-  --hr-2: rgba(255, 255, 255, 0.14);
-  --accent: oklch(0.62 0.18 280);
-  --accent-text: oklch(0.80 0.12 278);
+  --bg: #0a0e0c;
+  --bg-2: #111714;
+  --bg-3: #19211c;
+  --surface: rgba(225, 238, 228, 0.055);
+  --surface-raised: rgba(22, 30, 25, 0.92);
+  --surface-inset: rgba(4, 9, 6, 0.28);
+  --surface-hover: rgba(225, 238, 228, 0.09);
+  --fg: #edf2ee;
+  --fg-2: #a2afa6;
+  --fg-3: #717d75;
+  --hr: rgba(224, 238, 228, 0.09);
+  --hr-2: rgba(224, 238, 228, 0.16);
+  --accent: #91b99f;
+  --accent-text: #b4d5bf;
+  --control-bg: rgba(225, 238, 228, 0.055);
+  --control-bg-hover: rgba(225, 238, 228, 0.10);
+  --control-border: rgba(225, 238, 228, 0.15);
+  --focus-ring: rgba(145, 185, 159, 0.3);
+  --primary-bg: #28322b;
+  --primary-bg-hover: #333e36;
+  --primary-fg: #f4f8f4;
+  --disabled-bg: #27312b;
+  --disabled-fg: #c1cbc4;
+  --secondary-bg: rgba(225, 238, 228, 0.075);
+  --secondary-fg: #e2ebe4;
+  --form-bg: rgba(4, 9, 6, 0.26);
+  --form-border: rgba(225, 238, 228, 0.16);
+  --overlay: rgba(3, 7, 5, 0.72);
+  --modal-surface: rgba(19, 27, 22, 0.96);
   /* Real frosted glass — neutral white transparency over obsidian, not a
      tinted gray box. The blur + hairline + inset highlight carry the surface. */
-  --glass: rgba(255, 255, 255, 0.045);
+  --glass: rgba(226, 238, 229, 0.055);
   /* Strong glass stays near-opaque obsidian so modals, dropdowns and dialogs
      read crisply over the dark scrim (the frosted --glass alone is too sheer). */
-  --glass-2: rgba(14, 16, 24, 0.86);
-  --gl-edge: rgba(255, 255, 255, 0.14);
-  --glass-ring: rgba(255, 255, 255, 0.06);
-  --chip: rgba(255, 255, 255, 0.05);
-  --chip-h: rgba(255, 255, 255, 0.1);
-  /* Ambient glow — restrained brand violet/blue blooms. Warmer than a flat
-     neutral (the product surface should feel a touch alive), but well short of
-     the old crypto-casino saturation. */
-  --ambient:
-    radial-gradient(72% 56% at 12% 12%, oklch(0.50 0.16 288 / 0.22), transparent 62%),
-    radial-gradient(64% 50% at 90% 8%,  oklch(0.56 0.13 250 / 0.16), transparent 64%),
-    radial-gradient(72% 54% at 92% 92%, oklch(0.46 0.15 296 / 0.18), transparent 64%),
-    radial-gradient(58% 46% at 6% 94%,  oklch(0.55 0.12 235 / 0.13), transparent 60%);
-  /* App-shell background. Dark keeps its flat obsidian base (the --ambient
-     overlay provides the faint glow); light paints a whisper-neutral wash
-     here because the shell div sits ON TOP of <body>. */
+  --glass-2: rgba(20, 27, 23, 0.91);
+  --gl-edge: rgba(223, 239, 227, 0.18);
+  --glass-ring: rgba(223, 239, 227, 0.07);
+  --chip: rgba(223, 239, 227, 0.055);
+  --chip-h: rgba(223, 239, 227, 0.10);
+  /* Stable app canvas; glass comes from the surfaces, not a page-wide wash. */
+  --ambient: none;
   --app-bg: var(--bg);
   --glass-shadow:
     0 12px 34px -24px rgba(0, 0, 0, 0.5);
-  --modal-bg: rgba(10, 11, 16, 0.72);
-  --podium-gold-bg: linear-gradient(160deg, rgba(42, 23, 68, 0.9), rgba(26, 16, 48, 0.95));
-  --podium-silver-bg: linear-gradient(160deg, rgba(19, 21, 30, 0.92), rgba(12, 14, 20, 0.98));
-  --podium-bronze-bg: linear-gradient(160deg, rgba(18, 22, 34, 0.92), rgba(10, 13, 20, 0.98));
-  --podium-gold-text: var(--velo-blue-ice);
-  --podium-silver-text: #c8ccd8;
-  --podium-bronze-text: #9fd3ff;
-  --podium-gold-border: 1px solid oklch(0.55 0.24 295 / 0.45);
-  --podium-silver-border: 1px solid rgba(255, 255, 255, 0.12);
-  --podium-bronze-border: 1px solid rgba(123, 169, 217, 0.28);
-  --podium-stats-bg: rgba(255, 255, 255, 0.035);
-  --podium-stats-border: rgba(255, 255, 255, 0.06);
-  --podium-btn-hover-bg: rgba(255, 255, 255, 0.05);
+  --modal-bg: rgba(9, 13, 11, 0.78);
+  --podium-gold-bg: rgba(145, 185, 159, 0.09);
+  --podium-silver-bg: rgba(226, 238, 229, 0.04);
+  --podium-bronze-bg: rgba(145, 185, 159, 0.055);
+  --podium-gold-text: #c2dfca;
+  --podium-silver-text: #c4cec7;
+  --podium-bronze-text: #a9cbb3;
+  --podium-gold-border: 1px solid rgba(145, 185, 159, 0.38);
+  --podium-silver-border: 1px solid rgba(223, 239, 227, 0.12);
+  --podium-bronze-border: 1px solid rgba(145, 185, 159, 0.23);
+  --podium-stats-bg: rgba(223, 239, 227, 0.035);
+  --podium-stats-border: rgba(223, 239, 227, 0.06);
+  --podium-btn-hover-bg: rgba(223, 239, 227, 0.05);
 
   --bg-base: var(--bg);
   --bg-base-2: var(--bg-2);
@@ -112,9 +124,9 @@ body.dark,
   --iris-violet: var(--velo-violet);
   --iris-magenta: var(--velo-mauve);
   --iris-coral: var(--pnl-down);
-  --iris-amber: oklch(0.76 0.14 84);
+  --iris-amber: #d6b77f;
   --iris-lime: var(--pnl-up);
-  --iris-cyan: var(--velo-blue-ice);
+  --iris-cyan: #b9d0c0;
   --iris-blue: var(--velo-blue);
   --holo: var(--prism);
   --holo-linear: var(--prism-vivid);
@@ -123,53 +135,63 @@ body.dark,
 html.light,
 body.light,
 .light {
-  --bg: #fcfbff;
-  --bg-2: #f5f4fc;
-  --bg-3: #eeecf8;
-  --fg: #0a0b18;
-  --fg-2: #4c4c63;
-  --fg-3: #8a8aa6;
-  --hr: rgba(20, 22, 30, 0.09);
-  --hr-2: rgba(20, 22, 30, 0.15);
-  --accent: oklch(0.52 0.19 280);
-  --accent-text: oklch(0.46 0.17 280);
-  /* Light frosted glass — high white transparency. Strong glass stays
-     near-opaque so modals/dropdowns read as crisp light panels over scrims. */
-  --glass: rgba(255, 255, 255, 0.62);
-  --glass-2: rgba(252, 251, 255, 0.90);
-  --gl-edge: rgba(255, 255, 255, 0.96);
-  --glass-ring: rgba(255, 255, 255, 0.5);
-  --chip: rgba(20, 22, 30, 0.04);
-  --chip-h: rgba(20, 22, 30, 0.08);
-  /* Light ambient — gentle violet/blue wash, airy but present. */
-  --ambient:
-    radial-gradient(58% 50% at 6% 4%,  oklch(0.93 0.05 288 / 0.6), transparent 56%),
-    radial-gradient(56% 46% at 98% 4%, oklch(0.93 0.045 250 / 0.5), transparent 58%),
-    radial-gradient(64% 52% at 92% 98%,oklch(0.93 0.045 262 / 0.45), transparent 60%);
-  /* Light app-shell wash — soft violet (top-left), blue (top-right) and
-     blue-violet (bottom) glows on near-white. Colourful but still light. */
-  --app-bg:
-    radial-gradient(at 6% 4%,   oklch(0.93 0.06 290 / 0.5) 0px, transparent 48%),
-    radial-gradient(at 97% 5%,  oklch(0.94 0.05 248 / 0.42) 0px, transparent 50%),
-    radial-gradient(at 90% 97%, oklch(0.93 0.05 262 / 0.36) 0px, transparent 52%),
-    #fcfbff;
+  --bg: #e7eee8;
+  --bg-2: #dfe8e0;
+  --bg-3: #d5e1d7;
+  --surface: rgba(226, 234, 227, 0.72);
+  --surface-raised: rgba(234, 240, 235, 0.92);
+  --surface-inset: rgba(99, 122, 104, 0.07);
+  --surface-hover: rgba(100, 132, 107, 0.10);
+  --fg: #19241d;
+  --fg-2: #516257;
+  --fg-3: #5f6f63;
+  --hr: rgba(44, 75, 53, 0.11);
+  --hr-2: rgba(44, 75, 53, 0.17);
+  --accent: #557a62;
+  --accent-text: #365b43;
+  --pnl-up: #347b50;
+  --pnl-down: #b64e4c;
+  --control-bg: rgba(100, 136, 108, 0.075);
+  --control-bg-hover: rgba(100, 136, 108, 0.12);
+  --control-border: rgba(48, 79, 56, 0.18);
+  --focus-ring: rgba(78, 125, 91, 0.24);
+  --primary-bg: #28322b;
+  --primary-bg-hover: #333e36;
+  --primary-fg: #f4f8f4;
+  --disabled-bg: #d8e3d9;
+  --disabled-fg: #405447;
+  --secondary-bg: rgba(114, 151, 122, 0.10);
+  --secondary-fg: #304c38;
+  --form-bg: rgba(123, 153, 129, 0.11);
+  --form-border: rgba(53, 85, 60, 0.2);
+  --overlay: rgba(23, 40, 28, 0.56);
+  --modal-surface: rgba(229, 237, 230, 0.97);
+  /* Sage-tinted glass stays visibly green without turning surfaces white. */
+  --glass: rgba(222, 232, 223, 0.72);
+  --glass-2: rgba(229, 237, 230, 0.94);
+  --gl-edge: rgba(248, 252, 248, 0.46);
+  --glass-ring: rgba(255, 255, 255, 0.18);
+  --chip: rgba(49, 83, 59, 0.075);
+  --chip-h: rgba(49, 83, 59, 0.11);
+  --ambient: none;
+  --app-bg: #e7eee8;
   --glass-shadow:
     0 1px 0 var(--gl-edge) inset,
-    0 22px 54px -26px rgba(108, 82, 188, 0.26),
-    0 6px 18px -10px rgba(108, 82, 188, 0.13);
-  --modal-bg: rgba(252, 251, 255, 0.85);
-  --podium-gold-bg: linear-gradient(160deg, rgba(123, 60, 232, 0.12), rgba(59, 91, 255, 0.08));
-  --podium-silver-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(236, 233, 246, 0.92));
-  --podium-bronze-bg: linear-gradient(160deg, rgba(168, 200, 255, 0.22), rgba(236, 233, 246, 0.9));
-  --podium-gold-text: var(--velo-violet);
-  --podium-silver-text: #4f5564;
-  --podium-bronze-text: #2e4d79;
-  --podium-gold-border: 1px solid rgba(123, 60, 232, 0.24);
-  --podium-silver-border: 1px solid rgba(10, 11, 24, 0.08);
-  --podium-bronze-border: 1px solid rgba(59, 91, 255, 0.14);
-  --podium-stats-bg: rgba(10, 11, 24, 0.04);
-  --podium-stats-border: rgba(10, 11, 24, 0.06);
-  --podium-btn-hover-bg: rgba(10, 11, 24, 0.04);
+    0 20px 48px -34px rgba(35, 61, 41, 0.19),
+    0 4px 12px -10px rgba(35, 61, 41, 0.09);
+  --modal-bg: rgba(229, 237, 230, 0.97);
+  --podium-gold-bg: rgba(197, 221, 202, 0.25);
+  --podium-silver-bg: rgba(238, 246, 239, 0.62);
+  --podium-bronze-bg: rgba(207, 224, 211, 0.20);
+  --podium-gold-text: #42674d;
+  --podium-silver-text: #4e5c52;
+  --podium-bronze-text: #557a64;
+  --podium-gold-border: 1px solid rgba(82, 118, 95, 0.24);
+  --podium-silver-border: 1px solid rgba(38, 69, 47, 0.10);
+  --podium-bronze-border: 1px solid rgba(82, 118, 95, 0.16);
+  --podium-stats-bg: rgba(38, 69, 47, 0.045);
+  --podium-stats-border: rgba(38, 69, 47, 0.075);
+  --podium-btn-hover-bg: rgba(38, 69, 47, 0.045);
 
   --bg-base: var(--bg);
   --bg-base-2: var(--bg-2);
@@ -186,9 +208,9 @@ body.light,
   --iris-violet: var(--velo-violet);
   --iris-magenta: var(--velo-mauve);
   --iris-coral: var(--pnl-down);
-  --iris-amber: oklch(0.76 0.14 84);
+  --iris-amber: #9b7740;
   --iris-lime: var(--pnl-up);
-  --iris-cyan: var(--velo-blue-ice);
+  --iris-cyan: #557a64;
   --iris-blue: var(--velo-blue);
   --holo: var(--prism);
   --holo-linear: var(--prism-vivid);
@@ -279,7 +301,7 @@ select {
 /* ── Light mode: chart background matches page bg ─────────────────────────── */
 html.light .tv-lightweight-charts,
 html.light iframe[id*="tradingview"] {
-  background: #f7f6fc !important;
+  background: #dfe8e0 !important;
 }
 
 /* ── Mobile content offset: navbar = 60px + safe-area-inset-top ──────────── */
@@ -343,10 +365,12 @@ html.light iframe[id*="tradingview"] {
   }
   /* Profile stats row */
   .velo-profile-stats {
-    gap: 16px !important;
-    flex-wrap: wrap !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px 10px !important;
     padding-top: 10px !important;
   }
+  .velo-profile-stats > * { min-width: 0; }
   /* Profile actions row */
   .velo-profile-actions {
     gap: 6px !important;
@@ -492,9 +516,10 @@ html.light iframe[id*="tradingview"] {
   }
   /* Chart header: stack value + controls vertically */
   .token-chart-header {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 8px !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 12px !important;
+    padding: 14px 14px 0 !important;
   }
   .token-chart-controls {
     flex-direction: row !important;
@@ -502,6 +527,62 @@ html.light iframe[id*="tradingview"] {
     width: 100% !important;
     justify-content: space-between !important;
   }
+}
+
+.token-chart-plot {
+  min-height: 218px;
+  margin: 10px 8px 0;
+}
+
+.token-chart-empty {
+  min-height: 218px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 22px 18px;
+  text-align: center;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--bg-base-2) 46%, transparent);
+}
+
+.token-chart-empty-mark {
+  color: var(--accent);
+  font: italic 28px/1 var(--font-display);
+  opacity: 0.8;
+}
+
+.token-chart-empty-title {
+  color: var(--fg);
+  font: 600 14px/1.3 var(--font-sans);
+}
+
+.token-chart-empty-copy {
+  max-width: 34ch;
+  color: var(--fg-muted);
+  font: 12px/1.5 var(--font-sans);
+}
+
+.token-chart-retry {
+  margin-top: 4px;
+  padding: 7px 14px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: var(--chip-bg);
+  color: var(--fg);
+  font: 600 11px/1 var(--font-mono);
+  cursor: pointer;
+}
+
+.token-chart-retry:hover { border-color: var(--accent); }
+
+@media (max-width: 640px) {
+  .token-chart-plot { min-height: 192px; margin-inline: 0; }
+  .token-chart-empty { min-height: 192px; padding-inline: 20px; }
+  .token-chart-svg { height: 210px !important; }
+  .token-chart-footer { padding-inline: 14px !important; }
 }
 
 /* ── Admin panel: prevent horizontal overflow on mobile ───────────────────── */
@@ -706,22 +787,22 @@ html.light iframe[id*="tradingview"] {
 [style*="var(--glass-bg-strong)"],
 [style*="var(--glass-2)"],
 [style*="var(--modal-bg)"] {
-  -webkit-backdrop-filter: blur(34px) saturate(1.6);
-  backdrop-filter: blur(34px) saturate(1.6);
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  backdrop-filter: blur(22px) saturate(1.08);
 }
 
 /* Stronger blur for modals */
 [style*="var(--modal-bg)"] {
-  -webkit-backdrop-filter: blur(40px) saturate(1.6);
-  backdrop-filter: blur(40px) saturate(1.6);
+  -webkit-backdrop-filter: blur(30px) saturate(1.08);
+  backdrop-filter: blur(30px) saturate(1.08);
 }
 
 /* Light mode: ensure glass panels have visible frosted depth */
 html.light [style*="var(--glass-bg)"],
 html.light [style*="var(--glass-bg-strong)"],
 html.light [style*="var(--glass-2)"] {
-  -webkit-backdrop-filter: blur(34px) saturate(1.6) brightness(1.05);
-  backdrop-filter: blur(34px) saturate(1.6) brightness(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(1.06);
+  backdrop-filter: blur(22px) saturate(1.06);
 }
 
 /* Navbar: always fullblur, mode-aware border */
@@ -744,4 +825,128 @@ html.light .navbar-container {
   main.velo-main.trade-view {
     padding-top: clamp(64px, 10vw, 72px);
   }
+}
+
+/* ── Asset market pages: restrained terminal hierarchy ──────────────────── */
+.token-page {
+  box-sizing: border-box;
+  width: 100%;
+  color: var(--fg);
+}
+
+.token-page > button:first-child {
+  min-height: 32px;
+  margin-bottom: 12px !important;
+}
+
+.token-hero {
+  border-radius: 18px !important;
+  background: var(--glass-bg) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+.token-header-left { grid-template-columns: 48px minmax(0, 1fr) !important; }
+.token-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 7%, var(--glass-bg));
+  color: var(--fg-muted);
+  font: 600 9px/1 var(--font-mono);
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.token-quote-line { display:flex; align-items:center; gap:9px; flex-wrap:wrap; min-width:0; }
+.token-day-change,.token-period-change {
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:0 8px;
+  border-radius:999px;
+  background:var(--chip-bg);
+  font:600 10px/1 var(--font-mono);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.token-day-change.positive,.token-related-row .positive { color:var(--pnl-up); }
+.token-day-change.negative,.token-related-row .negative { color:var(--pnl-down); }
+.token-period-change { color:var(--fg-muted); }
+.token-trade-unavailable { color:var(--fg-subtle); font:600 9px/1.3 var(--font-mono); text-align:right; }
+
+.token-data-panel { background:var(--glass-bg) !important; }
+.token-data-heading { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding-bottom:12px; }
+.token-data-heading > span { color:var(--fg); font:500 18px/1.2 var(--font-display); }
+.token-data-heading > small { color:var(--fg-subtle); font:500 9px/1.2 var(--font-mono); letter-spacing:.07em; text-transform:uppercase; }
+.token-stats-grid { border-top:1px solid var(--hairline); }
+.token-stat { min-width:0; padding:13px 14px; border-right:1px solid var(--hairline); border-bottom:1px solid var(--hairline); }
+.token-stat:nth-child(3n) { border-right:0; }
+.token-stat:nth-last-child(-n+3) { border-bottom:0; }
+.token-market-sidebar { position:sticky; top:94px; background:var(--glass-bg) !important; }
+.token-market-sidebar > .vp:nth-child(n + 2),
+.token-market-sidebar > div:not(.vp) { display:none !important; }
+.token-market-sidebar .vp { box-shadow:none !important; background:transparent !important; border:0 !important; }
+.token-related-row {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  min-height:55px;
+  padding:8px 0;
+  border:0;
+  border-top:1px solid var(--hairline);
+  background:transparent;
+  color:var(--fg);
+  text-align:left;
+  cursor:pointer;
+}
+.token-related-row img { width:30px; height:30px; object-fit:cover; border:1px solid var(--hairline); border-radius:50%; background:var(--bg-2); }
+.token-related-row > span { display:grid; gap:3px; flex:1; min-width:0; }
+.token-related-row strong { color:var(--fg); font:600 11px/1.2 var(--font-mono); }
+.token-related-row small { overflow:hidden; color:var(--fg-subtle); font:11px/1.2 var(--font-sans); text-overflow:ellipsis; white-space:nowrap; }
+.token-related-row b { font:600 10px/1 var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+@media (max-width: 960px) {
+  .token-page-grid { grid-template-columns:minmax(0, 1fr) 238px !important; gap:12px !important; }
+  .token-period-change.hide-mobile { display:none; }
+}
+
+@media (max-width: 760px) {
+  .token-page { padding:14px 14px max(96px, calc(env(safe-area-inset-bottom, 0px) + 96px)) !important; }
+  .token-page-grid { grid-template-columns:minmax(0, 1fr) !important; }
+  .token-market-sidebar { display:none !important; }
+  .token-hero { padding:16px !important; }
+  .token-header-inner { flex-direction:column !important; align-items:stretch !important; gap:13px !important; }
+  .token-header-left { width:100% !important; }
+  .token-header-actions { width:100% !important; justify-content:flex-start !important; }
+  .token-trade-btn { flex:1 1 auto; }
+  .token-data-panel { padding:14px !important; }
+  .token-stat { padding:11px 10px; }
+  .token-stat:nth-child(3n) { border-right:1px solid var(--hairline); }
+  .token-stat:nth-child(2n) { border-right:0; }
+  .token-stat:nth-last-child(-n+3) { border-bottom:1px solid var(--hairline); }
+  .token-stat:nth-last-child(-n+2) { border-bottom:0; }
+  .token-chart-header { grid-template-columns:minmax(0, 1fr) !important; }
+  .token-chart-controls { flex-wrap:wrap; }
+  .token-chart-controls > div:first-child { flex:1; }
+  .token-chart-controls > div:first-child button { flex:1; }
+  .token-chart-controls > div:last-child { margin-left:auto; }
+  .token-chart-plot { min-height:190px; }
+}
+
+@media (max-width: 380px) {
+  .token-page { padding-inline:11px !important; }
+  .token-hero { padding:13px !important; }
+  .token-header-left { grid-template-columns:40px minmax(0, 1fr) !important; column-gap:10px !important; }
+  .token-header-left > .token-header-icon { width:38px !important; height:38px !important; }
+  .token-quote-line { gap:6px; }
+  .token-quote-line > span:first-child { font-size:19px !important; }
+  .token-day-change,.token-period-change { min-height:22px; padding-inline:6px; font-size:9px; }
+  .token-data-heading { align-items:flex-start; flex-direction:column; gap:4px; }
+  .token-chart-controls { gap:5px !important; }
+  .token-chart-controls > div:first-child button { padding-inline:7px !important; }
+  .token-chart-footer { justify-content:flex-start !important; }
 }

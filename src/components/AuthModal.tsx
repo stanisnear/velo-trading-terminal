@@ -1,10 +1,12 @@
+import { validateUsername as validateRegistryUsername } from '../services/usernameService';
+import { signInWithWallet } from '../services/walletAuth';
 // src/components/AuthModal.tsx
 // Apple-quality onboarding + MetaMask-style wallet UX
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { VeloWordmark } from '@/components/ui/shared';
 import { createPortal } from 'react-dom';
 import { useAppKit, useAppKitState, useAppKitAccount } from '@reown/appkit/react';
-import { useAccount, useDisconnect, useChainId } from 'wagmi';
+import { useAccount, useDisconnect, useChainId, useSignMessage } from 'wagmi';
 import { isConfigured as isSupabaseConfigured, supabase } from '../services/supabaseStore';
 
 // Base Sepolia chainId — must match web3Config.ts
@@ -30,10 +32,6 @@ type Step =
   | 'creating'
   | 'success_new'
   | 'success_returning';
-
-function wPass(addr: string) {
-  return `velo_w3_${addr.toLowerCase().slice(2, 20)}_xK9`;
-}
 
 // ─── Animated word-by-word text reveal (Apple style) ──────────────────────────
 const TypeReveal = ({ text, delay = 0, size = 28, color = 'var(--fg)', italic = false, onDone }: {
@@ -94,7 +92,7 @@ const ProgressBar = ({ step, total = 3 }: { step: number; total?: number }) => (
       <div key={i} style={{
         height: 2.5, borderRadius: 2, flex: 1,
         background: i <= step
-          ? 'var(--iris-violet, oklch(0.68 0.22 295))'
+          ? 'var(--iris-violet, var(--accent))'
           : 'var(--hairline-strong, rgba(255,255,255,0.1))',
         transition: 'background 0.4s ease',
         opacity: i < step ? 0.45 : 1,
@@ -129,7 +127,7 @@ const Field = ({
         style={{
           width: '100%', padding: '12px 14px',
           background: 'var(--bg-base-2, rgba(255,255,255,0.04))',
-          border: `1.5px solid ${error ? 'var(--pnl-down)' : focused ? 'var(--iris-violet, oklch(0.68 0.22 295))' : 'var(--hairline-strong)'}`,
+          border: `1.5px solid ${error ? 'var(--pnl-down)' : focused ? 'var(--iris-violet, var(--accent))' : 'var(--hairline-strong)'}`,
           borderRadius: 12,
           fontFamily: 'var(--font-mono)', fontSize: 14,
           color: 'var(--fg)', outline: 'none',
@@ -150,6 +148,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const { address, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
+  const { signMessageAsync } = useSignMessage();
   const { open: openAppKit } = useAppKit();
   const { open: appKitModalOpen } = useAppKitState();
   // embeddedWalletInfo is populated after social/email login — gives us the
@@ -236,7 +235,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       try {
         const { data: { session: existingSession } } = await supabase.auth.getSession();
-        if (existingSession?.user) {
+        if (existingSession?.user.app_metadata?.velo_wallet_verified === address.toLowerCase()) {
           const sessionEmail = existingSession.user.email ?? '';
           const sessionWallet = sessionEmail.replace('@wallet.velo', '');
           if (sessionWallet && sessionWallet !== address.toLowerCase()) {
@@ -245,7 +244,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             return;
           }
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', existingSession.user.id).single();
-          if (profile?.username) {
+          if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
             setReturningName(profile.username);
             setStep('success_returning');
             setTimeout(() => {
@@ -257,13 +256,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           }
         }
 
-        const pseudoEmail = `${address.toLowerCase()}@wallet.velo`;
-        const password = wPass(address);
-        const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
+        const { data, error: signInErr } = await signInWithWallet(address, signMessageAsync);
 
         if (data?.user && !signInErr) {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-          if (profile?.username) {
+          if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
             setReturningName(profile.username);
             setStep('success_returning');
             setTimeout(() => {
@@ -298,13 +295,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   }, [chainId, step, isOpen]);
 
-  const validateUsername = (v: string) => {
-    if (!v.trim()) return 'Username is required';
-    if (v.trim().length < 3) return 'Minimum 3 characters';
-    if (v.trim().length > 20) return 'Maximum 20 characters';
-    if (!/^[a-zA-Z0-9_]+$/.test(v.trim())) return 'Letters, numbers and underscores only';
-    return '';
-  };
+  const validateUsername = (v: string) => validateRegistryUsername(v.trim().toLowerCase()) || '';
 
   const advance = async () => {
     if (step === 'splash') { setStep('name'); return; }
@@ -330,15 +321,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setFieldError(''); setStep('email'); return;
     }
     if (step === 'email') {
-      // Check email uniqueness if provided (profiles table stores contact email)
-      if (email.trim() && supabaseReady) {
-        const { data: existingEmail } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', email.trim().toLowerCase())
-          .maybeSingle();
-        if (existingEmail) { setFieldError('Email already registered with another account'); return; }
-      }
       setFieldError(''); setStep('confirm'); return;
     }
     if (step === 'confirm') { handleCreate(); return; }
@@ -353,11 +335,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleCreate = useCallback(async () => {
     if (!address) return;
-    const uname = username.trim();
+    const uname = username.trim().toLowerCase();
     setStep('creating'); setError('');
 
-    const pseudoEmail = `${address.toLowerCase()}@wallet.velo`;
-    const password = wPass(address);
     const contactEmail = email.trim() || null;
 
     try {
@@ -375,33 +355,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: pseudoEmail, password,
-        options: { data: { username: uname, wallet_address: address.toLowerCase() } },
-      });
-
-      if (signUpError) {
-        if (signUpError.message?.includes('already') || signUpError.message?.includes('registered')) {
-          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-          if (signInErr || !signInData?.user) throw signInErr || new Error('Sign in failed');
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', signInData.user.id).single();
-          if (profile) await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', signInData.user.id);
-          setStep('success_new');
-          setTimeout(() => {
-            if (completedRef.current) return;
-            completedRef.current = true;
-            onAuth(signInData.user, { ...profile, username: uname, handle: `@${uname}` }, true); onClose();
-          }, 2400);
-          return;
-        }
-        throw signUpError;
-      }
-
-      if (!signUpData.user) throw new Error('No user returned from signup');
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: pseudoEmail, password });
-      if (signInErr || !signInData?.user) throw signInErr || new Error('Sign in after signup failed');
-
-      await supabase.from('profiles').update({ username: uname, handle: `@${uname}`, ...(contactEmail ? { email: contactEmail } : {}) }).eq('id', signInData.user.id);
+      const { data: signInData } = await signInWithWallet(address, signMessageAsync);
+      if (!signInData.user) throw new Error('Wallet sign-in failed');
+      const { error: updateError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', signInData.user.id);
+      if (updateError) throw updateError;
+      if (contactEmail) { const { error } = await supabase.rpc('set_my_contact_email', { contact_email: contactEmail }); if (error) throw error; }
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', signInData.user.id).single();
 
       setStep('success_new');
@@ -443,6 +401,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const content = (
     <div
       onClick={handleClose}
+      className="velo-modal-stateful"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'oklch(0 0 0 / 0.72)',
@@ -456,7 +415,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="mode-dark"
+        className="mode-dark velo-modal-stateful"
         style={{
           position: 'relative',
           width: '100%', maxWidth: 460,
@@ -474,7 +433,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Top gradient line — matches onboarding modal */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 2,
-          background: 'linear-gradient(90deg, oklch(0.78 0.18 295), oklch(0.82 0.16 200), oklch(0.85 0.15 30))',
+          background: 'linear-gradient(90deg, var(--accent), var(--velo-sage-bright), oklch(0.85 0.15 30))',
           opacity: 0.85,
         }} />
 
@@ -623,9 +582,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </p>
               <Field
                 label="Username" value={username}
-                onChange={v => { setUsername(v); setFieldError(''); }}
+                onChange={v => { setUsername(v.toLowerCase()); setFieldError(''); }}
                 placeholder="e.g. alpha_trader" autoFocus error={fieldError}
-                hint="3–20 characters · letters, numbers, underscores"
+                hint="3–16 characters · start with a letter · lowercase, digits, underscores"
                 onKeyDown={e => e.key === 'Enter' && advance()}
               />
               {/* On-chain identity note — the handle is registered in the
@@ -633,8 +592,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: 8,
                 padding: '10px 12px', borderRadius: 12,
-                background: 'oklch(0.68 0.22 295 / 0.08)',
-                border: '1px solid oklch(0.68 0.22 295 / 0.18)',
+                background: 'color-mix(in oklab, var(--accent) 8%, transparent)',
+                border: '1px solid color-mix(in oklab, var(--accent) 18%, transparent)',
               }}>
                 <span style={{ color: 'var(--iris-violet)', marginTop: -1, flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, lineHeight: 1.4 }}>@</span>
                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.55, letterSpacing: '0.01em' }}>
@@ -846,7 +805,7 @@ const SuccessScreen = ({ variant, username }: {
   variant: 'new' | 'returning'; username: string; color: string; address?: string;
 }) => {
   const isNew = variant === 'new';
-  const accent     = isNew ? '#34d399' : '#a78bfa';
+  const accent     = isNew ? '#77c995' : '#91b99f';
   const accentDim  = isNew ? 'rgba(52,211,153,0.10)'  : 'rgba(167,139,250,0.10)';
   const accentEdge = isNew ? 'rgba(52,211,153,0.22)'  : 'rgba(167,139,250,0.22)';
 
@@ -959,12 +918,12 @@ const HoloButton = ({ onClick, children, disabled = false }: { onClick: () => vo
       color: disabled ? 'var(--fg-subtle)' : '#0B0B0E',
       cursor: disabled ? 'not-allowed' : 'pointer',
       letterSpacing: '0.07em', textTransform: 'uppercase',
-      boxShadow: disabled ? 'none' : '0 4px 20px -6px oklch(0.68 0.22 295 / 0.45)',
+      boxShadow: disabled ? 'none' : '0 4px 20px -6px color-mix(in oklab, var(--accent) 45%, transparent)',
       transition: 'transform 0.15s, box-shadow 0.15s',
       opacity: disabled ? 0.4 : 1,
     }}
-    onMouseEnter={e => { if (!disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px -6px oklch(0.68 0.22 295 / 0.6)'; }}}
-    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = disabled ? 'none' : '0 4px 20px -6px oklch(0.68 0.22 295 / 0.45)'; }}
+    onMouseEnter={e => { if (!disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px -6px color-mix(in oklab, var(--accent) 60%, transparent)'; }}}
+    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = disabled ? 'none' : '0 4px 20px -6px color-mix(in oklab, var(--accent) 45%, transparent)'; }}
   >{children}</button>
 );
 
@@ -1001,8 +960,8 @@ const WalletPill = ({ address }: { address: string }) => (
 
 const PulseRing = () => (
   <div style={{ position: 'relative', width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--iris-violet, oklch(0.68 0.22 295))', animation: 'pulseRingAnim 1.5s ease-in-out infinite' }} />
-    <div style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid var(--hairline-strong)', borderTopColor: 'var(--iris-violet, oklch(0.68 0.22 295))', animation: 'authSpin 0.8s linear infinite' }} />
+    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--iris-violet, var(--accent))', animation: 'pulseRingAnim 1.5s ease-in-out infinite' }} />
+    <div style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid var(--hairline-strong)', borderTopColor: 'var(--iris-violet, var(--accent))', animation: 'authSpin 0.8s linear infinite' }} />
   </div>
 );
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
@@ -111,11 +111,32 @@ export const Wordmark = ({ size = 22, className = '' }: { size?: number, classNa
     <span className={`wordmark ${className}`} style={{ fontSize: size }}>Velo</span>
 );
 
+export const VeloAssetIcon = ({ src, symbol, size = 32, className = '' }: { src?: string | null; symbol: string; size?: number; className?: string }) => {
+  const highResolutionSrc = src?.replace('/standard/', '/large/') || null;
+  const [imageSrc, setImageSrc] = useState<string | null>(highResolutionSrc);
+  const [hasImage, setHasImage] = useState(false);
+
+  useEffect(() => {
+    setImageSrc(highResolutionSrc);
+    setHasImage(false);
+  }, [highResolutionSrc]);
+
+  return (
+    <span className={`velo-asset-icon${hasImage ? ' has-image' : ''} ${className}`} style={{ width: size, height: size }} role="img" aria-label={`${symbol} logo`}>
+      <span className="velo-asset-icon__fallback" aria-hidden="true">{symbol.trim().slice(0, 1).toUpperCase()}</span>
+      {imageSrc && <img src={imageSrc} alt="" aria-hidden="true" onLoad={() => setHasImage(true)} onError={() => {
+        if (src && imageSrc !== src) setImageSrc(src);
+        else { setImageSrc(null); setHasImage(false); }
+      }} />}
+    </span>
+  );
+};
+
 export const Ico3D = ({ size = 40, tone = 'violet', children }: { size?: number, tone?: 'violet' | 'blue' | 'ice' | 'up' | 'down', children: React.ReactNode }) => {
     const backgrounds: Record<string, string> = {
-        violet: 'linear-gradient(160deg, oklch(0.66 0.24 295), oklch(0.34 0.22 285))',
-        blue: 'linear-gradient(160deg, oklch(0.74 0.18 245), oklch(0.44 0.20 268))',
-        ice: 'linear-gradient(160deg, oklch(0.92 0.06 245), oklch(0.68 0.12 240))',
+        violet: 'linear-gradient(160deg, var(--accent), var(--velo-sage-deep))',
+        blue: 'linear-gradient(160deg, #718a77, var(--velo-sage))',
+        ice: 'linear-gradient(160deg, #cbd9ce, var(--velo-sage-bright))',
         up: 'linear-gradient(160deg, oklch(0.88 0.16 152), oklch(0.56 0.18 152))',
         down: 'linear-gradient(160deg, oklch(0.78 0.20 25), oklch(0.52 0.22 25))',
     };
@@ -165,7 +186,7 @@ export const ToastNotification = ({ message, type, onClose }: { message: string,
 
     return (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-auto pointer-events-none">
-            <div className="animate-bounce-in pointer-events-auto" style={{
+            <div className="velo-modal-enter-card pointer-events-auto" style={{
                 background: 'var(--glass-bg-strong)',
                 border: `1px solid ${accentColor}40`,
                 borderRadius: 999,
@@ -186,43 +207,47 @@ export const ToastNotification = ({ message, type, onClose }: { message: string,
 export const GlassCard = ({ children, className = '', onClick }: { children: React.ReactNode, className?: string, onClick?: (e: any) => void }) => (
   <div 
     onClick={onClick}
-    className={`glass-panel rounded-3xl p-5 transition-all duration-300 backdrop-blur-3xl border 
-    bg-white/60 dark:bg-[#0a0a0a]/60 border-white/40 dark:border-white/10 shadow-2xl shadow-black/5 dark:shadow-black/40
-    text-gray-900 dark:text-white backdrop-saturate-150
-    ${onClick ? 'cursor-pointer hover:border-purple-500/30 hover:bg-white/70 dark:hover:bg-[#121212]/70' : ''}
+    className={`glass-panel ${onClick ? 'glass-card-interactive cursor-pointer' : ''} rounded-2xl p-5 transition-all duration-300 border text-[var(--fg)]
     ${className}`}
     style={{
-        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05), 0 20px 40px -10px rgba(0,0,0,0.1)'
+        background: 'var(--glass-bg)',
+        borderColor: 'var(--glass-border)',
+        backdropFilter: 'blur(22px) saturate(1.08)',
+        WebkitBackdropFilter: 'blur(22px) saturate(1.08)',
+        boxShadow: 'var(--glass-shadow)',
     }}
   >
     {children}
   </div>
 );
 
-export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false }: any) => {
-  const base = "px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed";
-  const variants = {
-    primary: "bg-iris-violet hover:brightness-110 text-white shadow-lg shadow-purple-500/20",
-    secondary: "bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/5",
-    danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/10",
-    success: "bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-500/20",
-  };
+type VeloButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'secondary' | 'danger' | 'success';
+  isLoading?: boolean;
+};
+
+export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false, type = 'button', ...props }: VeloButtonProps) => {
   return (
-    <button onClick={(e) => { playSound('CLICK'); onClick && onClick(e); }} disabled={disabled || isLoading} className={`${base} ${variants[variant as keyof typeof variants]} ${className}`}>
+    <button {...props} type={type} onClick={(e) => { playSound('CLICK'); onClick?.(e); }} disabled={disabled || isLoading} aria-busy={isLoading || undefined} className={`velo-button velo-button--${variant} ${className}`}>
       {isLoading ? <RefreshCw className="animate-spin" size={16}/> : children}
     </button>
   );
 };
 
-export const Input = ({ label, rightLabel, error, className = '', ...props }: any) => (
-  <div className="w-full group">
-    <div className="flex justify-between mb-1 ml-1">
-        {label && <label className={`block text-[10px] font-bold uppercase tracking-wider transition-colors ${error ? 'text-red-500' : 'text-gray-500 group-focus-within:text-purple-400'}`}>{label}</label>}
-        {rightLabel && <span className="text-[10px] text-gray-400">{rightLabel}</span>}
+export const Input = ({ label, rightLabel, error, className = '', id, ...props }: any) => {
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const errorId = `${inputId}-error`;
+  return (
+  <div className={`velo-field w-full group ${error ? 'velo-field--error' : ''}`}>
+    <div className="velo-field__heading flex justify-between mb-1 ml-1">
+        {label && <label htmlFor={inputId} className="block text-[10px] font-bold uppercase tracking-wider transition-colors">{label}</label>}
+        {rightLabel && <span className="text-[10px]">{rightLabel}</span>}
     </div>
     <div className="relative">
-        <input className={`w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-[#1A1A1A] border focus:border-purple-500 outline-none text-gray-900 dark:text-white placeholder-gray-500 transition-all font-mono font-medium text-sm ${error ? 'border-red-500' : 'border-gray-200 dark:border-white/5'} ${className}`} {...props} />
+        <input {...props} id={inputId} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : props['aria-describedby']} className={`velo-input w-full px-4 py-2 rounded-xl font-mono font-medium text-sm ${className}`} />
     </div>
-    {error && <p className="text-[10px] text-red-500 mt-1 ml-1 font-bold">{error}</p>}
+    {error && <p id={errorId} className="velo-field__error text-[10px] mt-1 ml-1 font-bold">{error}</p>}
   </div>
-);
+  );
+};

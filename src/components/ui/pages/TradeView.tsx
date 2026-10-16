@@ -1,9 +1,10 @@
+import { LEGACY_V31_RESTRICTED } from '@/services/testnetReleaseGate';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2 } from 'lucide-react';
+import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2, Plus, Check, RefreshCw } from 'lucide-react';
 import { TradingViewChart, TV_INTERVALS, TV_INTERVALS_QUICK, CHART_STYLES, INDICATORS, ChartStyleCode } from '@/components/TradingViewChart';
 import { OrderBook } from '@/components/OrderBook';
-import { Button, Input, formatMoney, formatPrice, formatTime, playSound } from '@/components/ui/shared';
+import { Button, Input, VeloAssetIcon, formatMoney, formatPrice, formatTime, playSound } from '@/components/ui/shared';
 import { Position, OpenOrder, OrderType, MarginMode, PAIRS, ORDERLY_PAIRS, TradeHistoryItem } from '@/utils/types';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 // ── Orderly helpers inlined to avoid circular-dependency bundler errors ────────
@@ -22,6 +23,7 @@ const ORDERLY_SYMBOL_MAP: Record<string, string> = {
 const orderlyPortfolioUrl = () => 'https://testnet.orderly.org/portfolio';
 const orderlyOrderUrl = (orderId: number) => `https://testnet.orderly.org/portfolio?order=${orderId}`;
 const baseScanTxUrl = (txHash: string) => `https://sepolia.basescan.org/tx/${txHash}`;
+const EMPTY_CHART_CANDLES: never[] = [];
 interface OrderlyPosition {
   symbol: string; positionQty: number; costPosition: number;
   lastSumUnitaryFunding: number; pendingLongQty: number; pendingShortQty: number;
@@ -50,7 +52,7 @@ const S = {
 
 // Small reusable dropdown panel wrapper
 const DropPanel = ({ children, align = 'right' }: { children: React.ReactNode; align?: 'right' | 'left' }) => (
-    <div style={{ position: 'absolute', [align]: 0, top: 'calc(100% + 5px)', background: 'var(--bg-base-2)', border: '1px solid var(--hairline-strong)', borderRadius: 13, boxShadow: '0 16px 48px rgba(0,0,0,0.45)', overflow: 'hidden', zIndex: 200, minWidth: 160 }}>
+    <div className="velo-popover" style={{ position: 'absolute', [align]: 0, top: 'calc(100% + 5px)', background: 'var(--bg-base-2)', border: '1px solid var(--hairline-strong)', borderRadius: 13, boxShadow: '0 16px 48px rgba(0,0,0,0.45)', overflow: 'hidden', zIndex: 200, minWidth: 160 }}>
         {children}
     </div>
 );
@@ -68,9 +70,9 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
         p.id.toLowerCase().includes(search.toLowerCase())
     );
     return (
-        <div className="animate-fade-in" onClick={onClose}
+        <div className="velo-modal-enter-backdrop" onClick={onClose}
             style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', padding: '80px 16px 16px 20px', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)' }}>
-            <div onClick={(e: any) => e.stopPropagation()}
+            <div className="velo-modal-enter-card" onClick={(e: any) => e.stopPropagation()}
                 style={{ width: '100%', maxWidth: 360, maxHeight: 570, display: 'flex', flexDirection: 'column', borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden' }}>
                 <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--hairline)' }}>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -91,8 +93,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-bg)')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                                    {p.logo ? <img src={p.logo} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-                                        : <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,var(--iris-violet),var(--iris-magenta))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', ...S.mono, fontSize: 10, fontWeight: 800 }}>{p.id[0]}</div>}
+                                    <VeloAssetIcon src={p.logo} symbol={p.id.split('/')[0]} size={28} />
                                     <div style={{ textAlign: 'left' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                             <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>{p.id}</span>
@@ -176,11 +177,11 @@ const TfSelector = ({ tf, setTf, isMobile }: { tf: string; setTf: (t: string) =>
                                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)', padding: '6px 11px 3px', background: 'var(--chip-bg)' }}>{group.label}</div>
                                 {group.tfs.filter(t => !quickKeys.includes(t)).map(t => (
                                     <button key={t} onClick={() => { setTf(t); setShowMore(false); }}
-                                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 11px', border: 'none', background: 'transparent', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: tf === t ? 'var(--iris-violet)' : 'var(--fg-muted)', transition: 'background 0.1s' }}
+                                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 11px', border: 'none', background: 'transparent', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: tf === t ? 'var(--accent)' : 'var(--fg-muted)', transition: 'background 0.1s' }}
                                         onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-bg)')}
                                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                         {t}
-                                        {tf === t && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block' }} />}
+                                        {tf === t && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />}
                                     </button>
                                 ))}
                             </div>
@@ -203,25 +204,50 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
     'MASimple@tv-basicstudies': {
         label: 'Moving Average (MA)',
         fields: [
-            { key: 'length', label: 'Length', type: 'number', default: 9 },
-            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2', 'hlc3', 'ohlc4'] },
-            { key: 'color', label: 'Line Color', type: 'color', default: '#8b5cf6' },
+            { key: 'length', label: 'Period', type: 'number', default: 20 },
+            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#d3bc87' },
         ],
     },
-    'EMA@tv-basicstudies': {
+    'MAExp@tv-basicstudies': {
         label: 'Exponential MA (EMA)',
         fields: [
-            { key: 'length', label: 'Length', type: 'number', default: 21 },
-            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2', 'hlc3'] },
-            { key: 'color', label: 'Line Color', type: 'color', default: '#f59e0b' },
+            { key: 'length', label: 'Period', type: 'number', default: 21 },
+            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#b4d5bf' },
+        ],
+    },
+    'DoubleEMA@tv-basicstudies': {
+        label: 'Double EMA (DEMA)',
+        fields: [
+            { key: 'length', label: 'Period', type: 'number', default: 21 },
+            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#b4d5bf' },
+        ],
+    },
+    'TripleEMA@tv-basicstudies': {
+        label: 'Triple EMA (TEMA)',
+        fields: [
+            { key: 'length', label: 'Period', type: 'number', default: 21 },
+            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#d3bc87' },
+        ],
+    },
+    'HullMA@tv-basicstudies': {
+        label: 'Hull Moving Average',
+        fields: [
+            { key: 'length', label: 'Period', type: 'number', default: 9 },
+            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#91a9b6' },
         ],
     },
     'BB@tv-basicstudies': {
         label: 'Bollinger Bands (BB)',
         fields: [
-            { key: 'length', label: 'Length', type: 'number', default: 20 },
-            { key: 'mult', label: 'Std Dev Multiplier', type: 'number', default: 2 },
+            { key: 'length', label: 'Period', type: 'number', default: 20 },
+            { key: 'mult', label: 'Standard Deviations', type: 'number', default: 2 },
             { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Band Color', type: 'color', default: '#91a9b6' },
         ],
     },
     'IchimokuCloud@tv-basicstudies': {
@@ -239,6 +265,7 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
             { key: 'start', label: 'Start', type: 'number', default: 0.02 },
             { key: 'increment', label: 'Increment', type: 'number', default: 0.02 },
             { key: 'maximum', label: 'Maximum', type: 'number', default: 0.2 },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#d3bc87' },
         ],
     },
     'SuperTrend@tv-basicstudies': {
@@ -246,27 +273,7 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
         fields: [
             { key: 'period', label: 'ATR Period', type: 'number', default: 10 },
             { key: 'factor', label: 'Factor', type: 'number', default: 3 },
-        ],
-    },
-    'DoubleEMA@tv-basicstudies': {
-        label: 'Double EMA (DEMA)',
-        fields: [
-            { key: 'length', label: 'Length', type: 'number', default: 21 },
-            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
-        ],
-    },
-    'TripleEMA@tv-basicstudies': {
-        label: 'Triple EMA (TEMA)',
-        fields: [
-            { key: 'length', label: 'Length', type: 'number', default: 21 },
-            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
-        ],
-    },
-    'HullMA@tv-basicstudies': {
-        label: 'Hull Moving Average',
-        fields: [
-            { key: 'length', label: 'Length', type: 'number', default: 9 },
-            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#b4d5bf' },
         ],
     },
     'VWAP@tv-basicstudies': {
@@ -282,6 +289,7 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
             { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
             { key: 'overbought', label: 'Overbought Level', type: 'number', default: 70 },
             { key: 'oversold', label: 'Oversold Level', type: 'number', default: 30 },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#b4d5bf' },
         ],
     },
     'MACD@tv-basicstudies': {
@@ -291,17 +299,18 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
             { key: 'slowLength', label: 'Slow Length', type: 'number', default: 26 },
             { key: 'signalLength', label: 'Signal Smoothing', type: 'number', default: 9 },
             { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'MACD Line Color', type: 'color', default: '#b4d5bf' },
         ],
     },
     'Stochastic@tv-basicstudies': {
         label: 'Stochastic Oscillator',
         fields: [
+            { key: 'length', label: '%K Period', type: 'number', default: 14 },
             { key: 'smoothK', label: '%K Smoothing', type: 'number', default: 3 },
             { key: 'smoothD', label: '%D Smoothing', type: 'number', default: 3 },
-            { key: 'lengthRSI', label: 'RSI Length', type: 'number', default: 14 },
-            { key: 'lengthStoch', label: 'Stoch Length', type: 'number', default: 14 },
             { key: 'overbought', label: 'Overbought', type: 'number', default: 80 },
             { key: 'oversold', label: 'Oversold', type: 'number', default: 20 },
+            { key: 'color', label: '%K Line Color', type: 'color', default: '#b4d5bf' },
         ],
     },
     'StochasticRSI@tv-basicstudies': {
@@ -311,6 +320,10 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
             { key: 'lengthStoch', label: 'Stoch Length', type: 'number', default: 14 },
             { key: 'smoothK', label: '%K Smoothing', type: 'number', default: 3 },
             { key: 'smoothD', label: '%D Smoothing', type: 'number', default: 3 },
+            { key: 'overbought', label: 'Overbought', type: 'number', default: 80 },
+            { key: 'oversold', label: 'Oversold', type: 'number', default: 20 },
+            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: '%K Line Color', type: 'color', default: '#b4d5bf' },
         ],
     },
     'MOM@tv-basicstudies': {
@@ -318,13 +331,14 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
         fields: [
             { key: 'length', label: 'Length', type: 'number', default: 10 },
             { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#b4d5bf' },
         ],
     },
     'CCI@tv-basicstudies': {
         label: 'Commodity Channel Index (CCI)',
         fields: [
             { key: 'length', label: 'Length', type: 'number', default: 20 },
-            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hlc3'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#b4d5bf' },
         ],
     },
     'WilliamsPctR@tv-basicstudies': {
@@ -333,6 +347,7 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
             { key: 'length', label: 'Length', type: 'number', default: 14 },
             { key: 'overbought', label: 'Overbought', type: 'number', default: -20 },
             { key: 'oversold', label: 'Oversold', type: 'number', default: -80 },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#d3bc87' },
         ],
     },
     'UltimateOscillator@tv-basicstudies': {
@@ -348,12 +363,14 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
         fields: [
             { key: 'length', label: 'Length', type: 'number', default: 9 },
             { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#d3bc87' },
         ],
     },
     'ATR@tv-basicstudies': {
         label: 'Average True Range (ATR)',
         fields: [
             { key: 'length', label: 'Length', type: 'number', default: 14 },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#d3bc87' },
         ],
     },
     'ChaikinVolatility@tv-basicstudies': {
@@ -367,7 +384,23 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
         label: 'Historical Volatility',
         fields: [
             { key: 'length', label: 'Length', type: 'number', default: 10 },
-            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low'] },
+            { key: 'color', label: 'Line Color', type: 'color', default: '#91a9b6' },
+        ],
+    },
+    'KeltnerChannels@velo': {
+        label: 'Keltner Channels',
+        fields: [
+            { key: 'length', label: 'EMA Period', type: 'number', default: 20 },
+            { key: 'mult', label: 'ATR Multiplier', type: 'number', default: 2 },
+            { key: 'source', label: 'Source', type: 'select', default: 'close', options: ['close', 'open', 'high', 'low', 'hl2'] },
+            { key: 'color', label: 'Channel Color', type: 'color', default: '#91a9b6' },
+        ],
+    },
+    'DonchianChannels@velo': {
+        label: 'Donchian Channels',
+        fields: [
+            { key: 'length', label: 'Lookback Period', type: 'number', default: 20 },
+            { key: 'color', label: 'Channel Color', type: 'color', default: '#91a9b6' },
         ],
     },
     'Volume@tv-basicstudies': {
@@ -394,25 +427,47 @@ const INDICATOR_CONFIGS: Record<string, { label: string; fields: { key: string; 
     },
 };
 
-const IndicatorConfigModal = ({ indicatorId, onConfirm, onCancel }: { indicatorId: string; onConfirm: (id: string) => void; onCancel: () => void }) => {
+const IndicatorConfigModal = ({ indicatorId, onConfirm, onCancel, theme }: { indicatorId: string; onConfirm: (id: string, values: Record<string, unknown>) => void; onCancel: () => void; theme: 'light' | 'dark' }) => {
     const config = INDICATOR_CONFIGS[indicatorId];
     const [values, setValues] = useState<Record<string, any>>(() => {
         const init: Record<string, any> = {};
-        config?.fields.forEach(f => { init[f.key] = f.default; });
+        const lightColors: Record<string, string> = {
+            'MASimple@tv-basicstudies': '#8a6c3d',
+            'MAExp@tv-basicstudies': '#52765f',
+            'DoubleEMA@tv-basicstudies': '#52765f',
+            'TripleEMA@tv-basicstudies': '#8a6c3d',
+            'HullMA@tv-basicstudies': '#607f8c',
+            'BB@tv-basicstudies': '#607f8c',
+            'SuperTrend@tv-basicstudies': '#52765f',
+            'PSAR@tv-basicstudies': '#8a6c3d',
+            'RSI@tv-basicstudies': '#52765f',
+            'MACD@tv-basicstudies': '#52765f',
+            'Stochastic@tv-basicstudies': '#52765f',
+            'StochasticRSI@tv-basicstudies': '#52765f',
+            'MOM@tv-basicstudies': '#52765f',
+            'CCI@tv-basicstudies': '#52765f',
+            'WilliamsPctR@tv-basicstudies': '#8a6c3d',
+            'ROC@tv-basicstudies': '#8a6c3d',
+            'ATR@tv-basicstudies': '#8a6c3d',
+            'HistoricalVolatility@tv-basicstudies': '#607f8c',
+            'KeltnerChannels@velo': '#607f8c',
+            'DonchianChannels@velo': '#607f8c',
+        };
+        config?.fields.forEach(f => { init[f.key] = f.key === 'color' && theme === 'light' ? lightColors[indicatorId] || f.default : f.default; });
         return init;
     });
     if (!config) return null;
 
     return (
-        <div onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)' }}>
-            <div onClick={(e: any) => e.stopPropagation()} style={{ width: '100%', maxWidth: 340, borderRadius: 18, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden' }}>
+        <div className="velo-modal-enter-backdrop" onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)' }}>
+            <div className="velo-modal-enter-card" role="dialog" aria-modal="true" aria-label={config.label} onClick={(e: any) => e.stopPropagation()} style={{ width: '100%', maxWidth: 340, borderRadius: 18, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden' }}>
                 {/* Header */}
                 <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
                         <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{config.label}</div>
                         <div style={{ ...S.label, fontSize: 9, marginTop: 2 }}>Indicator Settings</div>
                     </div>
-                    <button onClick={onCancel} style={{ background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 7, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--fg-subtle)' }}>
+                    <button aria-label="Close indicator settings" onClick={onCancel} style={{ background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 7, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--fg-subtle)' }}>
                         <X size={12} />
                     </button>
                 </div>
@@ -422,7 +477,7 @@ const IndicatorConfigModal = ({ indicatorId, onConfirm, onCancel }: { indicatorI
                         <div key={field.key}>
                             <div style={{ ...S.label, fontSize: 9, marginBottom: 4 }}>{field.label}</div>
                             {field.type === 'number' && (
-                                <input type="number" value={values[field.key]} onChange={e => setValues(p => ({ ...p, [field.key]: e.target.value }))}
+                                <input aria-label={field.label} type="number" step={Number(field.default) % 1 === 0 ? 1 : 'any'} value={values[field.key]} onChange={e => setValues(p => ({ ...p, [field.key]: e.target.value }))}
                                     style={{ width: '100%', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 8, padding: '6px 10px', outline: 'none', ...S.mono, fontSize: 12, color: 'var(--fg)', boxSizing: 'border-box' as const }} />
                             )}
                             {field.type === 'color' && (
@@ -433,7 +488,7 @@ const IndicatorConfigModal = ({ indicatorId, onConfirm, onCancel }: { indicatorI
                                 </div>
                             )}
                             {field.type === 'select' && (
-                                <select value={values[field.key]} onChange={e => setValues(p => ({ ...p, [field.key]: e.target.value }))}
+                                <select aria-label={field.label} value={values[field.key]} onChange={e => setValues(p => ({ ...p, [field.key]: e.target.value }))}
                                     style={{ width: '100%', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 8, padding: '6px 10px', outline: 'none', ...S.mono, fontSize: 12, color: 'var(--fg)', boxSizing: 'border-box' as const, cursor: 'pointer' }}>
                                     {field.options?.map(o => <option key={o} value={o} style={{ background: 'var(--bg-base-2)' }}>{o}</option>)}
                                 </select>
@@ -443,10 +498,10 @@ const IndicatorConfigModal = ({ indicatorId, onConfirm, onCancel }: { indicatorI
                 </div>
                 {/* Footer */}
                 <div style={{ padding: '10px 16px 14px', borderTop: '1px solid var(--hairline)', display: 'flex', gap: 8 }}>
-                    <button onClick={onCancel} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: '1px solid var(--hairline-strong)', background: 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: 10 }}>
+                    <button onClick={onCancel} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: '1px solid var(--hairline-strong)', background: 'transparent', cursor: 'pointer', ...S.label, fontSize: 10, color: 'var(--fg-2)' }}>
                         Cancel
                     </button>
-                    <button onClick={() => onConfirm(indicatorId)} style={{ flex: 2, padding: '8px 0', borderRadius: 9, border: 'none', background: 'var(--iris-violet)', color: '#fff', cursor: 'pointer', ...S.label, fontSize: 10 }}>
+                    <button className="velo-button velo-button--primary" onClick={() => onConfirm(indicatorId, values)} style={{ flex: 2, padding: '8px 0', borderRadius: 9, cursor: 'pointer', ...S.label, fontSize: 10, color: 'var(--primary-fg)' }}>
                         Add to Chart
                     </button>
                 </div>
@@ -459,7 +514,7 @@ const IndicatorConfigModal = ({ indicatorId, onConfirm, onCancel }: { indicatorI
 // ─────────────────────────────────────────────────────────────────────────────
 // Chart toolbar (desktop)
 // ─────────────────────────────────────────────────────────────────────────────
-const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, chartStyle, setChartStyle, showInd, setShowInd, showCandle, setShowCandle, indRef, candleRef, onPairClick, onIndicatorConfig, isMobile }: any) => (
+const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, chartStyle, setChartStyle, showInd, setShowInd, indicatorQuery, setIndicatorQuery, showCandle, setShowCandle, showOverlays, setShowOverlays, overlays, toggleOverlay, indRef, candleRef, overlaysRef, onPairClick, onIndicatorConfig, isMobile }: any) => (
     <div style={{ flexShrink: 0, padding: isMobile ? '5px 10px' : '7px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'transparent', borderBottom: '1px solid var(--hairline)', position: 'relative', zIndex: 40, overflow: 'visible', flexWrap: isMobile ? 'wrap' as const : 'nowrap' as const, gap: isMobile ? 6 : 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexWrap: 'nowrap' }}>
             {/* Pair selector — desktop only (mobile has its own header) */}
@@ -469,60 +524,90 @@ const ChartToolbar = ({ activePair, tf, setTf, indicators, toggleIndicator, char
                     <ChevronDown size={11} style={{ color: 'var(--fg-subtle)' }} />
                 </button>
             )}
+            {LEGACY_V31_RESTRICTED && <a href="https://velotrading.live/docs#contracts" target="_blank" rel="noopener noreferrer" title="Cross-margin, margin adjustments and reduce-only entry orders are paused for a contract correction. Test funds only." style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Testnet · limited release</a>}
             {/* Timeframe selector — quick buttons + "More" dropdown */}
             <TfSelector tf={tf} setTf={setTf} isMobile={isMobile} />
         </div>
         <div style={{ display: 'flex', gap: isMobile ? 4 : 5, alignItems: 'center' }}>
             {/* Indicators dropdown */}
             <div ref={indRef} style={{ position: 'relative' }}>
-                <button onClick={() => { setShowInd((v: boolean) => !v); setShowCandle(false); setShowOverlays(false); }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: `1px solid ${indicators.length > 0 ? 'var(--iris-violet)' : 'var(--hairline-strong)'}`, background: indicators.length > 0 ? 'rgba(107,70,255,0.08)' : 'transparent', color: indicators.length > 0 ? 'var(--iris-violet)' : 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: isMobile ? 9 : 10, transition: 'all 0.12s' }}>
+                <button aria-haspopup="dialog" aria-expanded={showInd} onClick={() => { setShowInd((v: boolean) => !v); setShowCandle(false); setShowOverlays(false); }} style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: `1px solid ${indicators.length > 0 ? 'var(--accent)' : 'var(--hairline-strong)'}`, background: indicators.length > 0 ? 'color-mix(in oklab, var(--accent) 9%, transparent)' : 'transparent', color: indicators.length > 0 ? 'var(--accent)' : 'var(--fg-subtle)', cursor: 'pointer', fontSize: isMobile ? 9 : 10, transition: 'all 0.12s' }}>
                     Indicators
-                    {indicators.length > 0 && <span style={{ background: 'var(--iris-violet)', color: '#fff', fontSize: 9, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{indicators.length}</span>}
+                    {indicators.length > 0 && <span style={{ background: 'var(--accent)', color: 'var(--bg)', fontSize: 9, width: 14, height: 14, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{indicators.length}</span>}
                 </button>
                 {showInd && (
+                    <div className="chart-indicator-menu velo-popover" role="dialog" aria-label="Chart indicators">
+                        <div className="chart-indicator-menu__header">
+                            <div>
+                                <strong>Indicators</strong>
+                                <small>{indicators.length ? `${indicators.length} active` : 'Choose a study'}</small>
+                            </div>
+                            <button type="button" className="chart-indicator-menu__close" aria-label="Close indicators" onClick={() => setShowInd(false)}><X size={15} /></button>
+                        </div>
+                        <div className="chart-indicator-menu__search-wrap">
+                            <Search size={14} aria-hidden="true" />
+                            <input className="chart-indicator-menu__search" aria-label="Search indicators" autoFocus placeholder="Search indicators" value={indicatorQuery} onChange={event => setIndicatorQuery(event.target.value)} />
+                        </div>
+                        <div className="chart-indicator-menu__grid custom-scrollbar">
+                            {(['Trend', 'Momentum', 'Volatility'] as const).map(group => {
+                                const items = INDICATORS.filter((indicator: any) => indicator.group === group && indicator.label.toLowerCase().includes(indicatorQuery.trim().toLowerCase()));
+                                if (!items.length) return null;
+                                return <React.Fragment key={group}>
+                                    <div className="chart-indicator-menu__group">{group}</div>
+                                    {items.map((indicator: any) => {
+                                        const isActive = indicators.some((entry: string) => entry.split('|', 1)[0] === indicator.id);
+                                        return <button key={indicator.id} type="button" className="chart-indicator-menu__item" aria-pressed={isActive} title={indicator.label} onClick={() => {
+                                            if (isActive) toggleIndicator(indicator.id);
+                                            else onIndicatorConfig(indicator.id);
+                                        }}>
+                                            <span>{indicator.label}</span>
+                                            {isActive ? <Check size={14} aria-label="Active" /> : <Plus size={14} aria-hidden="true" />}
+                                        </button>;
+                                    })}
+                                </React.Fragment>;
+                            })}
+                            {!INDICATORS.some((indicator: any) => indicator.label.toLowerCase().includes(indicatorQuery.trim().toLowerCase())) && <div className="chart-indicator-menu__empty">No matching indicators</div>}
+                        </div>
+                    </div>
+                )}
+            </div>
+            {/* Position risk levels */}
+            <div ref={overlaysRef} style={{ position: 'relative' }}>
+                <button onClick={() => { setShowOverlays((v: boolean) => !v); setShowInd(false); setShowCandle(false); }} aria-expanded={showOverlays} style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: showOverlays ? 'var(--chip-bg)' : 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', fontSize: isMobile ? 9 : 10 }}>
+                    Levels
+                    <span style={{ color: 'var(--accent)' }}>{Number(overlays.entry) + Number(overlays.tp) + Number(overlays.sl) + Number(overlays.liq)}</span>
+                </button>
+                {showOverlays && (
                     <DropPanel>
-                        {['Trend', 'Momentum', 'Volatility', 'Volume'].map(group => {
-                            const items = INDICATORS.filter((i: any) => i.group === group);
-                            return (
-                                <div key={group}>
-                                    <div style={{ ...S.label, fontSize: 9, padding: '6px 11px 4px', background: 'var(--chip-bg)' }}>{group}</div>
-                                    {items.map((ind: any) => (
-                                        <button key={ind.id} onClick={() => {
-                                            if (indicators.includes(ind.id)) {
-                                                toggleIndicator(ind.id); // remove if already active
-                                            } else {
-                                                onIndicatorConfig(ind.id); // open config first
-                                            }
-                                        }} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 11px', border: 'none', background: 'transparent', ...S.mono, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: indicators.includes(ind.id) ? 'var(--iris-violet)' : 'var(--fg-muted)', transition: 'background 0.1s' }}
-                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-bg)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                            <span>{ind.label}</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                {!indicators.includes(ind.id) && (
-                                                    <span style={{ ...S.label, fontSize: 8, color: 'var(--fg-subtle)', opacity: 0.7 }}>Configure</span>
-                                                )}
-                                                {indicators.includes(ind.id) && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block' }} />}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            );
-                        })}
+                        <div style={{ ...S.label, fontSize: 9, padding: '8px 11px 6px', background: 'var(--chip-bg)' }}>Position levels</div>
+                        {[
+                            ['entry', 'Entry price'],
+                            ['tp', 'Take profit'],
+                            ['sl', 'Stop loss'],
+                            ['liq', 'Liquidation'],
+                        ].map(([key, label]) => (
+                            <button key={key} role="checkbox" aria-checked={Boolean(overlays[key])} onClick={() => toggleOverlay(key)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 11px', border: 'none', background: 'transparent', color: 'var(--fg-muted)', cursor: 'pointer', ...S.sans, fontSize: 12 }}>
+                                {label}
+                                <span style={{ width: 16, height: 16, display: 'grid', placeItems: 'center', borderRadius: 5, border: `1px solid ${overlays[key] ? 'var(--accent)' : 'var(--hairline-strong)'}`, background: overlays[key] ? 'color-mix(in oklab, var(--accent) 16%, transparent)' : 'transparent', color: 'var(--accent)', fontSize: 11, lineHeight: 1 }}>{overlays[key] ? '✓' : ''}</span>
+                            </button>
+                        ))}
+                        <div style={{ padding: '5px 11px 9px', color: 'var(--fg-subtle)', fontFamily: 'var(--font-sans)', fontSize: 10 }}>Shown when a position is open.</div>
                     </DropPanel>
                 )}
             </div>
             {/* Candle style */}
             <div ref={candleRef} style={{ position: 'relative' }}>
-                <button onClick={() => { setShowCandle((v: boolean) => !v); setShowInd(false); setShowOverlays(false); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', ...S.label, fontSize: isMobile ? 9 : 10 }}>
+                <button onClick={() => { setShowCandle((v: boolean) => !v); setShowInd(false); }} style={{ ...S.label, display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '3px 7px' : '4px 9px', borderRadius: 8, border: '1px solid var(--hairline-strong)', background: 'transparent', color: 'var(--fg-subtle)', cursor: 'pointer', fontSize: isMobile ? 9 : 10 }}>
                     {CHART_STYLES.find((s: any) => s.code === chartStyle)?.label || 'Candles'} <ChevronDown size={9} />
                 </button>
                 {showCandle && (
                     <DropPanel>
                         {CHART_STYLES.map((s: any) => (
-                            <button key={s.code} onClick={() => { setChartStyle(s.code); setShowCandle(false); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 11px', border: 'none', background: 'transparent', ...S.mono, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: chartStyle === s.code ? 'var(--iris-violet)' : 'var(--fg-muted)', transition: 'background 0.1s' }}
+                            <button key={s.code} onClick={() => { setChartStyle(s.code); setShowCandle(false); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 11px', border: 'none', background: 'transparent', ...S.mono, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: chartStyle === s.code ? 'var(--accent)' : 'var(--fg-muted)', transition: 'background 0.1s' }}
                                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-bg)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                 <span style={{ fontSize: 13, width: 16, textAlign: 'center' as const }}>{s.icon}</span>
                                 {s.label}
-                                {chartStyle === s.code && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--iris-violet)', display: 'inline-block' }} />}
+                                {chartStyle === s.code && <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }} />}
                             </button>
                         ))}
                     </DropPanel>
@@ -553,7 +638,7 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
     };
     const hide = () => {
         if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
-        hideTimer.current = setTimeout(() => setRect(null), 100);
+        hideTimer.current = setTimeout(() => setRect(null), 250);
     };
 
     React.useEffect(() => () => {
@@ -569,7 +654,7 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
         <span ref={triggerRef}
             style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'help' }}
             onMouseEnter={show}
-            onMouseLeave={hide}>
+            onMouseLeave={hide} tabIndex={0} onFocus={show} onBlur={hide} onKeyDown={e => { if (e.key === 'Escape') setRect(null); }}>
             {label}
             {rect && ReactDOM.createPortal(
                 <div
@@ -615,6 +700,21 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Positions / Orders / History panel
 // ─────────────────────────────────────────────────────────────────────────────
+const TradeAuthGate = ({ onRequireAuth, title, description, compact = false }: any) => (
+    <div className={`trade-auth-gate${compact ? ' trade-auth-gate--compact' : ''}`}>
+        {!compact && <div className="trade-auth-gate__mark"><Lock size={18} /></div>}
+        <div className="trade-auth-gate__copy">
+            <strong>{title}</strong>
+            <span>{description}</span>
+        </div>
+        <button type="button" className="velo-btn-primary trade-auth-gate__button" onClick={onRequireAuth}>
+            {compact ? 'Sign in' : 'Sign in to trade'}
+            {!compact && <span aria-hidden="true">↗</span>}
+        </button>
+        {!compact && <span className="trade-auth-gate__note">Read-only market data stays available.</span>}
+    </div>
+);
+
 const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
     const PER = 5;
     const page = (items: any[], k: string) => {
@@ -651,37 +751,15 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
 
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: 'transparent' }}>
-            {!user && (
-                <div style={{
-                    position: 'absolute', inset: 0, zIndex: 30,
-                    background: 'linear-gradient(180deg, color-mix(in oklab, var(--bg-base) 30%, transparent) 0%, var(--bg-base) 70%)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
-                    flexWrap: 'wrap' as const, padding: '0 16px',
-                }}>
-                    <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Sign in to view your positions and history.</span>
-                    <button
-                        onClick={onRequireAuth}
-                        className="velo-btn-primary"
-                        style={{
-                            minHeight: 36, borderRadius: 11,
-                            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-                            letterSpacing: '0.06em', textTransform: 'uppercase' as const,
-                            padding: '0 22px', cursor: 'pointer',
-                            touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-                        }}
-                    >Sign in →</button>
-                </div>
-            )}
-
             {/* Tabs */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', flex: 1 }}>
                     {TABS.map(({ k, label, n }) => (
-                        <button key={k} onClick={() => setTab(k)} style={{
+                        <button key={k} onClick={() => setTab(k)} style={{ ...S.label,
                             padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const,
                             borderBottom: `2px solid ${tab === k ? 'var(--iris-violet)' : 'transparent'}`,
                             color: tab === k ? 'var(--fg)' : 'var(--fg-subtle)',
-                            ...S.label, fontSize: 10, transition: 'all 0.12s',
+                            fontSize: 10, transition: 'all 0.12s',
                         }}>
                             {label} <span style={{ opacity: 0.4, marginLeft: 2 }}>· {n}</span>
                         </button>
@@ -690,7 +768,18 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             </div>
 
             {/* Body */}
-            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', opacity: !user ? 0.4 : 1, pointerEvents: !user ? 'none' : 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
+            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
+
+                {!user ? (
+                    <div style={{ padding: isMobile ? '18px 14px' : '20px 16px' }}>
+                        <TradeAuthGate
+                            compact
+                            onRequireAuth={onRequireAuth}
+                            title="Your trading activity"
+                            description="Sign in to view positions, working orders and history."
+                        />
+                    </div>
+                ) : <>
 
                 {/* POSITIONS */}
                 {tab === 'POSITIONS' && <>
@@ -746,7 +835,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                             <td style={{ padding: '4px 7px', fontWeight: 700 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                                    {pi?.logo && <img src={pi.logo} style={{ width: 16, height: 16, borderRadius: '50%' }} />}
+                                                    {pi?.logo && <VeloAssetIcon src={pi.logo} symbol={p.pair.split('/')[0]} size={18} />}
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); onNavigatePair && onNavigatePair(p.pair); }}
                                                         style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
@@ -755,7 +844,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                         <span style={{ ...S.display, fontSize: 13, color: 'var(--fg)', textDecoration: 'underline', textDecorationColor: 'var(--hairline-strong)', textUnderlineOffset: 3 }}>{p.pair}</span>
                                                     </button>
                                                     <span style={{ ...S.chip, padding: '1px 5px', fontSize: 9, color: 'var(--fg-subtle)', fontWeight: 700 }}>{p.leverage}x</span>
-                                                    <span style={{ padding: '1px 5px', borderRadius: 5, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const, background: p.marginMode === 'CROSS' ? 'oklch(0.68 0.22 295/0.12)' : 'oklch(0.78 0.18 150/0.10)', color: p.marginMode === 'CROSS' ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)', border: `1px solid ${p.marginMode === 'CROSS' ? 'oklch(0.68 0.22 295/0.25)' : 'oklch(0.78 0.18 150/0.25)'}` }}>{p.marginMode === 'CROSS' ? 'CROSS' : 'ISO'}</span>
+                                                    <span style={{ padding: '1px 5px', borderRadius: 5, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const, background: p.marginMode === 'CROSS' ? 'color-mix(in oklab, var(--accent) 12%, transparent)' : 'oklch(0.78 0.18 150/0.10)', color: p.marginMode === 'CROSS' ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)', border: `1px solid ${p.marginMode === 'CROSS' ? 'color-mix(in oklab, var(--accent) 25%, transparent)' : 'oklch(0.78 0.18 150/0.25)'}` }}>{p.marginMode === 'CROSS' ? 'CROSS' : 'ISO'}</span>
                                                 </div>
                                             </td>
                                             <td style={{ padding: '4px 7px', fontWeight: 700, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</td>
@@ -796,7 +885,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             <td style={{ padding: '4px 9px', textAlign: 'right' }}>
                                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                                   {onSharePosition && (
-                                                    <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share position" style={{ background: 'rgba(180,110,255,0.1)', border: 'none', cursor: 'pointer', borderRadius: 5, padding: '3px 4px', display: 'inline-flex', color: 'var(--iris-violet)' }}>
+                                                    <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share position" style={{ background: 'color-mix(in oklab, var(--accent) 11%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', cursor: 'pointer', borderRadius: 6, padding: '3px 5px', display: 'inline-flex', color: 'var(--accent-text)' }}>
                                                       <Share2 size={10} />
                                                     </button>
                                                   )}
@@ -838,14 +927,14 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         ))}
                                     </div>
                                     <div style={{ display: 'flex', gap: 5 }}>
-                                        {!p.onChain && <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'TRIGGERS'); }} style={{ flex: 1, background: 'var(--chip-bg)', border: 'none', padding: '6px 0', borderRadius: 8, cursor: 'pointer', ...S.label, textAlign: 'center' as const, fontSize: 9 }}>Edit TP/SL</button>}
+                                        {!p.onChain && <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'TRIGGERS'); }} style={{ ...S.label, flex: 1, background: 'var(--chip-bg)', border: 'none', padding: '6px 0', borderRadius: 8, cursor: 'pointer', textAlign: 'center' as const, fontSize: 9 }}>Edit TP/SL</button>}
                                         {onSharePosition && (
-                                          <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share" style={{ padding: '6px 12px', background: 'rgba(180,110,255,0.12)', border: 'none', borderRadius: 8, cursor: 'pointer', color: 'var(--iris-violet)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                          <button onClick={(e) => { e.stopPropagation(); onSharePosition(p); }} title="Share" style={{ padding: '6px 12px', background: 'color-mix(in oklab, var(--accent) 11%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 8, cursor: 'pointer', color: 'var(--accent-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <Share2 size={11} />
                                           </button>
                                         )}
-                                        <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'PARTIAL'); }} style={{ flex: 1, padding: '6px 0', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 8, cursor: 'pointer', ...S.label, color: 'var(--fg)', textAlign: 'center' as const, fontSize: 9 }}>Close</button>
-                                        <button onClick={(e) => { e.stopPropagation(); onClosePosition(p.id); }} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,60,60,0.12)', border: '1px solid oklch(0.66 0.22 25/0.3)', borderRadius: 8, cursor: 'pointer', ...S.label, color: 'var(--pnl-down)', textAlign: 'center' as const, fontSize: 9, fontWeight: 700 }}>Close 100%</button>
+                                        <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'PARTIAL'); }} style={{ ...S.label, flex: 1, padding: '6px 0', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 8, cursor: 'pointer', color: 'var(--fg)', textAlign: 'center' as const, fontSize: 9 }}>Close</button>
+                                        <button onClick={(e) => { e.stopPropagation(); onClosePosition(p.id); }} style={{ ...S.label, flex: 1, padding: '6px 0', background: 'rgba(255,60,60,0.12)', border: '1px solid oklch(0.66 0.22 25/0.3)', borderRadius: 8, cursor: 'pointer', color: 'var(--pnl-down)', textAlign: 'center' as const, fontSize: 9, fontWeight: 700 }}>Close 100%</button>
                                     </div>
                                 </div>
                             );
@@ -917,8 +1006,8 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         borderRadius: 9,
                                         cursor: 'pointer',
                                         transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
-                                        borderColor: isHighlighted ? 'var(--iris-violet, #6b46c1)' : 'var(--hairline)',
-                                        boxShadow: isHighlighted ? '0 0 0 1px var(--iris-violet, #6b46c1), 0 0 16px rgba(107,70,193,0.35)' : 'none',
+                                        borderColor: isHighlighted ? 'var(--accent)' : 'var(--hairline)',
+                                        boxShadow: isHighlighted ? '0 0 0 1px var(--accent), 0 0 16px color-mix(in oklab, var(--accent) 34%, transparent)' : 'none',
                                         animation: isHighlighted ? 'velo-pulse 1.1s ease-out 2' : undefined,
                                     }}
                                     onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--chip-bg)'; }}
@@ -941,10 +1030,10 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                 : 'var(--iris-violet)',
                                               background: t.action === 'CLOSE'
                                                 ? (t.pnl >= 0 ? 'oklch(0.78 0.18 150 / 0.12)' : 'oklch(0.62 0.22 25 / 0.12)')
-                                                : 'oklch(0.68 0.22 295 / 0.12)',
+                                                : 'color-mix(in oklab, var(--accent) 12%, transparent)',
                                               border: t.action === 'CLOSE'
                                                 ? (t.pnl >= 0 ? '1px solid oklch(0.78 0.18 150 / 0.28)' : '1px solid oklch(0.62 0.22 25 / 0.28)')
-                                                : '1px solid oklch(0.68 0.22 295 / 0.28)',
+                                                : '1px solid color-mix(in oklab, var(--accent) 28%, transparent)',
                                             }}>{t.action}</span>
                                           )}
                                           {t.onChain && null}
@@ -982,7 +1071,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={e => e.stopPropagation()}
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, textDecoration: 'none', padding: '1px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295 / 0.1)', border: '1px solid oklch(0.68 0.22 295 / 0.25)', letterSpacing: '0.04em' }}>
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 2, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, textDecoration: 'none', padding: '1px 5px', borderRadius: 4, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', letterSpacing: '0.04em' }}>
                                             Tx ↗
                                           </a>
                                         )}
@@ -993,7 +1082,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                           <button
                                             onClick={(e) => { e.stopPropagation(); onShareHistory(t); }}
                                             title="Share PnL card"
-                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4, marginLeft: 4, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: 'oklch(0.68 0.22 295 / 0.1)', border: '1px solid oklch(0.68 0.22 295 / 0.25)', cursor: 'pointer', letterSpacing: '0.04em' }}>
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 4, marginLeft: 4, color: 'var(--iris-violet)', fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', cursor: 'pointer', letterSpacing: '0.04em' }}>
                                             <Share2 size={9} /> Share
                                           </button>
                                         )}
@@ -1004,6 +1093,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                         <Pager k="HISTORY" pages={hist.pages} pg={hist.pg} />
                     </div>
                 )}
+                </>}
             </div>
         </div>
     );
@@ -1039,8 +1129,8 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
     const newLiqDist = newLiqPreview > 0 ? Math.abs((currentPrice - newLiqPreview) / currentPrice) * 100 : 0;
 
     const accentColor = isBlocked ? 'var(--pnl-down)' : isUp ? '#f97316' : 'var(--iris-violet)';
-    const accentBg = isBlocked ? 'rgba(239,68,68,0.10)' : isUp ? 'rgba(249,115,22,0.10)' : 'rgba(107,70,193,0.10)';
-    const accentBorder = isBlocked ? 'rgba(239,68,68,0.30)' : isUp ? 'rgba(249,115,22,0.30)' : 'rgba(107,70,193,0.30)';
+    const accentBg = isBlocked ? 'rgba(239,68,68,0.10)' : isUp ? 'rgba(249,115,22,0.10)' : 'color-mix(in oklab, var(--accent) 10%, transparent)';
+    const accentBorder = isBlocked ? 'rgba(239,68,68,0.30)' : isUp ? 'rgba(249,115,22,0.30)' : 'color-mix(in oklab, var(--accent) 30%, transparent)';
     const textPrimary = 'var(--fg)';
     const textMuted = 'var(--fg-muted)';
     const borderRow = '1px solid var(--hairline-strong)';
@@ -1065,9 +1155,9 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
     ];
 
     return (
-        <div onClick={onClose}
+        <div className="velo-modal-enter-backdrop" onClick={onClose}
             style={{ position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)' }}>
-            <div onClick={(e: any) => e.stopPropagation()}
+            <div className="velo-modal-enter-card" onClick={(e: any) => e.stopPropagation()}
                 style={{ width: '100%', maxWidth: 340, borderRadius: 20, background: 'var(--glass-bg-strong)', backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)', border: borderRow, boxShadow: '0 24px 64px rgba(0,0,0,0.45)', overflow: 'hidden' }}>
 
                 {/* Header */}
@@ -1159,7 +1249,7 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
 // Main TradeView
 // ─────────────────────────────────────────────────────────────────────────────
 export const TradeView = ({
-    activePair, setActivePair, marketPrices, marketChanges = {}, candles, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, onShareHistory, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
+    activePair, setActivePair, marketPrices, marketChanges = {}, candles, chartHistoryStatus = 'loading', onRetryChartHistory, onLoadOlderHistory, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, onShareHistory, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
     savedChartPrefs, onChartPrefsChange, tradeFocus, autoOpenHistoryId,
     orderlyBalance = 0, orderlyIsReady = false,
     // V3 cross-margin account (optional — pass from App.tsx)
@@ -1198,17 +1288,6 @@ export const TradeView = ({
     // Brief row highlight when arriving from a notification click
     const [highlightHistoryId, setHighlightHistoryId] = useState<string | null>(null);
 
-    // Keep body.modal-open in sync so the navbar drops behind modal backdrops
-    const anyTradeViewModalOpen = pairOpen || !!leverageModal || !!detailsItem;
-    useEffect(() => {
-        if (anyTradeViewModalOpen) {
-            document.body.classList.add('modal-open');
-        } else {
-            document.body.classList.remove('modal-open');
-        }
-        return () => { document.body.classList.remove('modal-open'); };
-    }, [anyTradeViewModalOpen]);
-
     // React to notification-driven focus: switch tab, paginate to the row, flash it.
     useEffect(() => {
         if (!tradeFocus) return;
@@ -1240,15 +1319,32 @@ export const TradeView = ({
     const [tf, setTf]                 = useState(savedChartPrefs?.chartTf || '15m');
     const [chartStyle, setChartStyle] = useState<ChartStyleCode>(savedChartPrefs?.chartStyle || '1');
     const [indicators, setIndicators] = useState<string[]>(savedChartPrefs?.indicators || []);
+    const [indicatorQuery, setIndicatorQuery] = useState('');
+    const [overlays, setOverlays] = useState(savedChartPrefs?.overlays || { entry: true, tp: true, sl: true, liq: true, openPos: true, funding: false });
     const [showInd, setShowInd]           = useState(false);
     const [showCandle, setShowCandle]     = useState(false);
-    // overlays removed — lines were unreliable; chart renders clean
+    const [showOverlays, setShowOverlays] = useState(false);
     const [indConfigId, setIndConfigId]   = useState<string | null>(null);
-    // overlays disabled
     const indRef      = useRef<HTMLDivElement>(null);
     const candleRef   = useRef<HTMLDivElement>(null);
-    // overlaysRef removed
+    const overlaysRef = useRef<HTMLDivElement>(null);
     const [isMobile, setIsMobile]         = useState(false);
+
+    useEffect(() => {
+        if (savedChartPrefs?.chartTf) setTf(savedChartPrefs.chartTf);
+    }, [savedChartPrefs?.chartTf]);
+
+    useEffect(() => {
+        if (savedChartPrefs?.chartStyle) setChartStyle(savedChartPrefs.chartStyle);
+    }, [savedChartPrefs?.chartStyle]);
+
+    useEffect(() => {
+        if (savedChartPrefs?.indicators) setIndicators(savedChartPrefs.indicators);
+    }, [savedChartPrefs?.indicators]);
+
+    useEffect(() => {
+        if (savedChartPrefs?.overlays) setOverlays(savedChartPrefs.overlays);
+    }, [savedChartPrefs?.overlays]);
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 1024);
@@ -1260,9 +1356,18 @@ export const TradeView = ({
         const h = (e: MouseEvent) => {
             if (indRef.current && !indRef.current.contains(e.target as Node)) setShowInd(false);
             if (candleRef.current && !candleRef.current.contains(e.target as Node)) setShowCandle(false);
+            if (overlaysRef.current && !overlaysRef.current.contains(e.target as Node)) setShowOverlays(false);
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setShowInd(false);
+                setShowCandle(false);
+                setShowOverlays(false);
+            }
         };
         document.addEventListener('mousedown', h);
-        return () => document.removeEventListener('mousedown', h);
+        document.addEventListener('keydown', onKeyDown);
+        return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', onKeyDown); };
     }, []);
 
     useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); }, [toast]);
@@ -1351,14 +1456,49 @@ export const TradeView = ({
         prevPairRef.current = activePair.id;
     }, [mergedPositions, activePair.id]);
 
-    const toggleIndicator = (id: string) => setIndicators(p => {
-        const next = p.includes(id) ? p.filter(i => i !== id) : [...p, id];
+    const toggleIndicator = (id: string, values?: Record<string, unknown>) => setIndicators(previous => {
+        const isActive = previous.some(entry => entry.split('|', 1)[0] === id);
+        const next = isActive
+            ? previous.filter(entry => entry.split('|', 1)[0] !== id)
+            : [...previous, values ? `${id}|${JSON.stringify(values)}` : id];
         onChartPrefsChange?.({ indicators: next });
         return next;
     });
-    const handleTfChange  = (t: string) => { setTf(t); onTimeframeChange?.(t); onChartPrefsChange?.({ chartTf: t }); };
+    const toggleOverlay = (key: string) => setOverlays(previous => {
+        const next = { ...previous, [key]: !previous[key] };
+        onChartPrefsChange?.({ overlays: next });
+        return next;
+    });
+    const handleTfChange  = (t: string) => { setTf(t); onTimeframeChange?.(t); };
     const onIndicatorConfig = (id: string) => { setIndConfigId(id); setShowInd(false); };
-    const onIndicatorConfirm = (id: string) => { toggleIndicator(id); setIndConfigId(null); };
+    const onIndicatorConfirm = (id: string, values: Record<string, unknown>) => {
+        const safeValues = Object.fromEntries(Object.entries(values).map(([key, value]) => {
+            if (key === 'color') return [key, /^#[\da-f]{6}$/i.test(String(value)) ? String(value) : undefined];
+            if (key === 'source') return [key, ['close', 'open', 'high', 'low', 'hl2', 'hlc3'].includes(String(value)) ? String(value) : undefined];
+            if (key === 'anchor') return [key, ['Session', 'Week', 'Month', 'Quarter', 'Year'].includes(String(value)) ? String(value) : undefined];
+            const number = Number(value);
+            if (!Number.isFinite(number)) return [key, undefined];
+            if (id === 'PSAR@tv-basicstudies' && ['start', 'increment', 'maximum'].includes(key)) return [key, Math.min(1, Math.max(0.001, number))];
+            if (id === 'WilliamsPctR@tv-basicstudies' && ['overbought', 'oversold'].includes(key)) return [key, Math.min(0, Math.max(-100, number))];
+            if (key === 'mult' || key === 'factor') return [key, Math.min(10, Math.max(0.1, number))];
+            if (['overbought', 'oversold'].includes(key)) return [key, Math.min(100, Math.max(0, number))];
+            return [key, Math.min(500, Math.max(1, Math.round(number)))];
+        }).filter(([, value]) => value !== undefined));
+        if (id === 'PSAR@tv-basicstudies') {
+            safeValues.increment = Math.min(Number(safeValues.maximum) || 0.2, Number(safeValues.increment) || 0.02);
+            safeValues.maximum = Math.max(Number(safeValues.start) || 0.02, Number(safeValues.maximum) || 0.2);
+        }
+        if (id === 'MACD@tv-basicstudies') {
+            safeValues.fastLength = Math.min(499, Number(safeValues.fastLength) || 12);
+            safeValues.slowLength = Math.min(500, Math.max(Number(safeValues.fastLength) + 1, Number(safeValues.slowLength) || 26));
+        }
+        setIndicators(previous => {
+            const next = [...previous.filter(entry => entry.split('|', 1)[0] !== id), `${id}|${JSON.stringify(safeValues)}`];
+            onChartPrefsChange?.({ indicators: next });
+            return next;
+        });
+        setIndConfigId(null);
+    };
 
     // Derived
     const currentPrice   = marketPrices[activePair.id] || activePair.basePrice;
@@ -1482,6 +1622,7 @@ export const TradeView = ({
             {indConfigId && (
                 <IndicatorConfigModal
                     indicatorId={indConfigId}
+                    theme={appTheme || 'dark'}
                     onConfirm={onIndicatorConfirm}
                     onCancel={() => setIndConfigId(null)}
                 />
@@ -1489,7 +1630,7 @@ export const TradeView = ({
 
             {/* Toast */}
             {toast && (
-                <div style={{ position: 'fixed', bottom: isMobile ? 96 : 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 10, background: toast.type === 'ERROR' ? 'var(--pnl-down)' : 'var(--pnl-up)', color: '#fff', ...S.label, fontSize: 11, boxShadow: '0 8px 28px rgba(0,0,0,0.4)' }}>
+                <div style={{ ...S.label, position: 'fixed', bottom: isMobile ? 96 : 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 10, background: toast.type === 'ERROR' ? 'var(--pnl-down)' : 'var(--pnl-up)', color: '#fff', fontSize: 11, boxShadow: '0 8px 28px rgba(0,0,0,0.4)' }}>
                     {toast.message}
                     <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', opacity: 0.7, display: 'flex', padding: 0 }}><X size={11} /></button>
                 </div>
@@ -1514,8 +1655,12 @@ export const TradeView = ({
                     indicators={indicators} toggleIndicator={toggleIndicator}
                     chartStyle={chartStyle} setChartStyle={(s: any) => { setChartStyle(s); onChartPrefsChange?.({ chartStyle: s }); }}
                     showInd={showInd} setShowInd={setShowInd}
+                    indicatorQuery={indicatorQuery} setIndicatorQuery={setIndicatorQuery}
                     showCandle={showCandle} setShowCandle={setShowCandle}
+                    showOverlays={showOverlays} setShowOverlays={setShowOverlays}
+                    overlays={overlays} toggleOverlay={toggleOverlay}
                     indRef={indRef} candleRef={candleRef}
+                    overlaysRef={overlaysRef}
                     onPairClick={() => setPairOpen(true)}
                     onIndicatorConfig={onIndicatorConfig}
                     isMobile={isMobile}
@@ -1524,20 +1669,23 @@ export const TradeView = ({
                 {/* Chart — on mobile use a fixed tall height so it fills the screen properly */}
                 <div style={{ flex: isMobile ? 'none' : 1, height: isMobile ? '60vw' : undefined, minHeight: isMobile ? 280 : 0, maxHeight: isMobile ? 420 : undefined, overflow: 'hidden', background: 'transparent', borderBottom: '1px solid var(--hairline)', position: 'relative' }}>
                     <TradingViewChart
-                        initialData={candles[activePair.id] || []}
+                        initialData={candles[`${activePair.id}::${tf}`] ?? EMPTY_CHART_CANDLES}
+                        historyStatus={chartHistoryStatus}
+                        onRetryHistory={onRetryChartHistory}
+                        onLoadOlderHistory={onLoadOlderHistory}
                         theme={appTheme || 'dark'}
                         pairName={activePair.id}
                         currentPrice={currentPrice}
+                        isLivePrice={Number(marketPrices[activePair.id]) > 0}
                         activePosition={activePosition}
                         onTimeframeChange={onTimeframeChange}
                         externalTimeframe={tf}
                         externalChartStyle={chartStyle}
                         externalIndicators={indicators}
-                        showEntryLine={false}
-                        showTPLine={false}
-                        showSLLine={false}
-                        showLiqLine={false}
-                        liqPrice={estLiqPrice > 0 ? estLiqPrice : undefined}
+                        showEntryLine={overlays.entry}
+                        showTPLine={overlays.tp}
+                        showSLLine={overlays.sl}
+                        showLiqLine={overlays.liq}
                     />
                 </div>
 
@@ -1553,7 +1701,7 @@ export const TradeView = ({
             <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', alignSelf: isMobile ? 'flex-start' : undefined, gap: isMobile ? 0 : 10, overflow: isMobile ? 'visible' : 'hidden' }}>
 
                 {/* BUBBLE 1 ── Pair header + Order book */}
-                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(44% - 5px)' : '0 0 calc(34% - 5px)'), display: 'flex', flexDirection: 'column', minHeight: isMobile ? 'auto' : 200, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined, transition: 'flex-basis 0.3s ease' }}>
+                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(44% - 5px)' : '0 0 calc(34% - 5px)'), display: 'flex', flexDirection: 'column', height: isMobile ? 272 : undefined, minHeight: isMobile ? 272 : 200, maxHeight: isMobile ? 272 : undefined, flexShrink: 0, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined, transition: 'flex-basis 0.3s ease' }}>
 
                     {/* Pair header (desktop only) */}
                     <div style={{ flexShrink: 0, padding: '10px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
@@ -1563,7 +1711,7 @@ export const TradeView = ({
                                     <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{activePair.id}</span>
                                     <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
                                     {isActivePairDemo && (
-                                        <span style={{ padding: '1px 5px', borderRadius: 4, background: 'oklch(0.65 0.18 260 / 0.12)', border: '1px solid oklch(0.65 0.18 260 / 0.3)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
+                                        <span style={{ padding: '1px 5px', borderRadius: 4, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
                                     )}
                                 </div>
                                 <div style={{ ...S.label, marginTop: 2, color: 'var(--fg-subtle)' }}>Perpetual</div>
@@ -1577,50 +1725,26 @@ export const TradeView = ({
 
                     {/* Order book */}
                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <OrderBook price={currentPrice} pair={activePair.id} rows={3} openOrders={openOrders} />
+                        <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
                     </div>
                 </div>
 
                 {/* BUBBLE 2 ── Order form */}
-                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(56% - 5px)' : '0 0 calc(66% - 5px)'), minHeight: 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: isMobile ? 'visible' : 'hidden', margin: isMobile ? '8px 10px' : undefined, transition: 'flex-basis 0.3s ease' }}>
+                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(56% - 5px)' : '0 0 calc(66% - 5px)'), minHeight: !user && isMobile ? 230 : 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: isMobile && user ? 'visible' : 'hidden', margin: isMobile ? '8px 10px' : undefined, transition: 'flex-basis 0.3s ease' }}>
                     <div style={{ overflowY: isMobile ? 'visible' : 'auto', position: 'relative', display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%' }} className={isMobile ? '' : 'custom-scrollbar'}>
-
-                        {/* Auth overlay */}
-                        {!user && (
-                            <div style={{
-                                position: isMobile ? 'relative' : 'absolute', inset: 0, zIndex: 30,
-                                background: isMobile ? 'transparent' : 'linear-gradient(180deg, color-mix(in oklab, var(--bg-base) 30%, transparent) 0%, var(--bg-base) 62%)',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                justifyContent: isMobile ? 'flex-start' : 'flex-end', gap: 14,
-                                padding: isMobile ? '28px 16px' : '0 0 28px',
-                            }}>
-                                <div style={{
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' as const,
-                                    maxWidth: 240,
-                                }}>
-                                    <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 700, fontSize: isMobile ? 20 : 17, color: 'var(--fg)', letterSpacing: '-0.02em' }}>Start trading</span>
-                                    <span style={{ fontSize: isMobile ? 12 : 11, color: 'var(--fg-subtle)', lineHeight: 1.45 }}>Sign in to open positions with up to 25× leverage on Base.</span>
-                                </div>
-                                <button
-                                    onClick={onRequireAuth}
-                                    className="velo-btn-primary"
-                                    style={{
-                                        minHeight: isMobile ? 48 : 40, borderRadius: 12,
-                                        fontFamily: 'var(--font-mono)', fontSize: isMobile ? 13 : 12, fontWeight: 700,
-                                        letterSpacing: '0.06em', textTransform: 'uppercase' as const,
-                                        padding: '0 28px', width: isMobile ? '100%' : 'auto', cursor: 'pointer',
-                                        touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-                                    }}
-                                >Sign in →</button>
-                            </div>
-                        )}
-
-                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, opacity: !user ? (isMobile ? 0.5 : 0.45) : 1, pointerEvents: !user ? 'none' : 'auto', flex: isMobile ? 'none' : 1 }}>
+                        {!user ? (
+                            <TradeAuthGate
+                                onRequireAuth={onRequireAuth}
+                                title="Your next trade starts here"
+                                description="Sign in to size an order, set risk and manage positions."
+                            />
+                        ) : (
+                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, flex: isMobile ? 'none' : 1 }}>
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
                                 {(['MARKET', 'LIMIT', 'STOP'] as const).map(t => (
-                                    <button key={t} onClick={() => setOrderType(t)} style={{ border: 'none', background: 'none', cursor: 'pointer', position: 'relative', paddingBottom: 3, ...S.label, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', transition: 'color 0.12s' }}>
+                                    <button key={t} onClick={() => setOrderType(t)} style={{ ...S.label, border: 'none', background: 'none', cursor: 'pointer', position: 'relative', paddingBottom: 3, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', transition: 'color 0.12s' }}>
                                         {t}
                                         {orderType === t && <div style={{ position: 'absolute', bottom: -8, left: 0, right: 0, height: 2, background: 'var(--fg)', borderRadius: 2 }} />}
                                     </button>
@@ -1660,9 +1784,9 @@ export const TradeView = ({
                                             width: `${sizeSlider}%`,
                                             borderRadius: 999,
                                             background: sizeSlider > 66
-                                                ? 'linear-gradient(90deg, oklch(0.78 0.18 150), oklch(0.68 0.22 295), #f97316)'
+                                                ? 'linear-gradient(90deg, oklch(0.78 0.18 150), var(--accent), #f97316)'
                                                 : sizeSlider > 33
-                                                    ? 'linear-gradient(90deg, oklch(0.78 0.18 150), oklch(0.68 0.22 295))'
+                                                    ? 'linear-gradient(90deg, oklch(0.78 0.18 150), var(--accent))'
                                                     : side === 'LONG'
                                                         ? 'oklch(0.78 0.18 150)'
                                                         : 'oklch(0.66 0.22 25)',
@@ -1792,23 +1916,22 @@ export const TradeView = ({
 
                             {/* Submit button */}
                             <button onClick={handleSubmit} disabled={parseFloat(sizeAmount) <= 0} style={{
-                                width: '100%', padding: isMobile ? '15px 0' : '11px 0', borderRadius: 14, border: 'none', cursor: 'pointer', ...S.sans, fontSize: isMobile ? 14 : 12, transition: 'all 0.15s',
-                                opacity: parseFloat(sizeAmount) <= 0 ? 0.35 : 1,
-                                background: side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
-                                color: side === 'LONG' ? '#0a1a10' : '#fff',
-                                boxShadow: side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
+                                width: '100%', padding: isMobile ? '15px 0' : '11px 0', borderRadius: 14, cursor: parseFloat(sizeAmount) <= 0 ? 'not-allowed' : 'pointer', ...S.sans, fontSize: isMobile ? 14 : 12, transition: 'all 0.15s',
+                                opacity: 1,
+                                background: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-bg)' : side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
+                                color: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-fg)' : side === 'LONG' ? '#0a1a10' : '#fff',
+                                border: parseFloat(sizeAmount) <= 0 ? '1px solid var(--control-border)' : 'none',
+                                boxShadow: parseFloat(sizeAmount) <= 0 ? 'none' : side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
                                 marginTop: 2,
                                 touchAction: 'manipulation',
                                 WebkitTapHighlightColor: 'transparent',
                             }}>
-                                {user ? (
-                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                                        <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: '0.15em' }}>{activePosition ? `${activePosition.leverage}x ${side}` : side}</span>
-                                        <span style={{ opacity: 0.45 }}>·</span>
-                                        <span style={{ ...S.display, fontSize: 14 }}>{activePair.id.split('/')[0]}</span>
-                                        <span>{side === 'LONG' ? '↗' : '↘'}</span>
-                                    </span>
-                                ) : 'Connect Wallet'}
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                                    <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: '0.15em' }}>{activePosition ? `${activePosition.leverage}x ${side}` : side}</span>
+                                    <span style={{ opacity: 0.45 }}>·</span>
+                                    <span style={{ ...S.display, fontSize: 14 }}>{activePair.id.split('/')[0]}</span>
+                                    <span>{side === 'LONG' ? '↗' : '↘'}</span>
+                                </span>
                             </button>
                             {/* Subtle demo notice only — live mode no longer needs a label,
                                 the user already knows they connected a wallet. */}
@@ -1821,6 +1944,7 @@ export const TradeView = ({
                                 </div>
                             )}
                         </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -8,7 +8,7 @@
 // they'd surface the cryptic "exceeds the balance" revert from viem when the
 // burner ran out.
 //
-// The sponsor route is /api/sponsor-eth on Vercel — it sends 0.005 ETH from
+// The sponsor route is /api/sponsor-eth through Cloudflare/Supabase — it sends 0.005 ETH from
 // the project's sponsor wallet to the burner. Rate-limited per address on the
 // server side.
 
@@ -60,6 +60,7 @@ export async function ensureBurnerGas(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ burnerAddress }),
+      signal: AbortSignal.timeout(20000),
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {

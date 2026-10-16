@@ -31,13 +31,13 @@ const Ico3D = ({ tone, size = 30, children }: { tone: { grad: string; glow: stri
   </div>
 );
 
-// Brand-cohesive: violet (primary) → indigo → blue → sky, plus green for on-chain.
+// Quiet, related materials keep the dashboard calm; green remains the live-state accent.
 const iconBg = {
-  violet: { grad: 'linear-gradient(150deg, oklch(0.72 0.18 292), oklch(0.50 0.20 282))', glow: 'oklch(0.60 0.22 290 / 0.7)' },
-  green:  { grad: 'linear-gradient(150deg, oklch(0.80 0.16 158), oklch(0.50 0.17 160))', glow: 'oklch(0.60 0.17 158 / 0.55)' },
-  indigo: { grad: 'linear-gradient(150deg, oklch(0.66 0.17 278), oklch(0.44 0.19 268))', glow: 'oklch(0.54 0.19 274 / 0.7)' },
-  blue:   { grad: 'linear-gradient(150deg, oklch(0.72 0.16 250), oklch(0.46 0.19 258))', glow: 'oklch(0.56 0.19 254 / 0.7)' },
-  sky:    { grad: 'linear-gradient(150deg, oklch(0.80 0.12 232), oklch(0.52 0.15 242))', glow: 'oklch(0.60 0.15 238 / 0.6)' },
+  violet: { grad: 'linear-gradient(150deg, #718a77, #3a4c3f)', glow: 'rgba(91, 129, 101, 0.42)' },
+  green:  { grad: 'linear-gradient(150deg, #8fc39b, #477253)', glow: 'rgba(86, 145, 99, 0.34)' },
+  indigo: { grad: 'linear-gradient(150deg, #74847a, #424b45)', glow: 'rgba(88, 105, 93, 0.34)' },
+  blue:   { grad: 'linear-gradient(150deg, #87998b, #4a5c4e)', glow: 'rgba(89, 116, 96, 0.34)' },
+  sky:    { grad: 'linear-gradient(150deg, #a2b9a8, #5d7864)', glow: 'rgba(104, 136, 111, 0.30)' },
 };
 
 // Solid primary action button — no animation
@@ -123,8 +123,8 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       </div>
     );
     return (
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.85)', backdropFilter: 'blur(16px)' }}>
-        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--glass-shadow)' }}>
+      <div className="velo-modal-enter-backdrop" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(7,7,10,0.85)', backdropFilter: 'blur(16px)' }}>
+        <div className="velo-modal-enter-card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--glass-shadow)' }}>
           {/* Header */}
           <div style={{ padding: '18px 20px 16px', borderBottom: '1px solid var(--hairline-strong)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -294,7 +294,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <Ico3D tone={iconBg.green}><Link2 size={13}/></Ico3D>
                 <span style={S.label}>On-chain account</span>
-                <span style={{ marginLeft: 'auto', ...S.label, fontSize: 8.5, background: 'oklch(0.68 0.22 295/0.12)', color: 'var(--iris-violet)', padding: '2px 7px', borderRadius: 999, border: '1px solid oklch(0.68 0.22 295/0.25)' }}>Base Sepolia</span>
+                <span style={{ marginLeft: 'auto', ...S.label, fontSize: 8.5, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', padding: '2px 7px', borderRadius: 999, border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)' }}>Base Sepolia</span>
               </div>
               {tradingWalletAddress ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -384,7 +384,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.1)'}
               >Close All</button>
             )}
-            <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: positions.length > 0 ? 'oklch(0.68 0.22 295/0.15)' : 'var(--chip-bg)', border: `1px solid ${positions.length > 0 ? 'oklch(0.68 0.22 295/0.3)' : 'var(--hairline-strong)'}`, color: positions.length > 0 ? 'var(--iris-violet)' : 'var(--fg-muted)' }}>{positions.length} Open</span>
+            <span style={{ ...S.mono, fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: positions.length > 0 ? 'color-mix(in oklab, var(--accent) 15%, transparent)' : 'var(--chip-bg)', border: `1px solid ${positions.length > 0 ? 'color-mix(in oklab, var(--accent) 30%, transparent)' : 'var(--hairline-strong)'}`, color: positions.length > 0 ? 'var(--iris-violet)' : 'var(--fg-muted)' }}>{positions.length} Open</span>
           </div>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -417,7 +417,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ ...S.display, fontSize: 13, color: 'var(--fg)' }}>{p.pair}</span>
                         <span style={{ ...S.mono, fontSize: 9, color: 'var(--fg-subtle)', padding: '1px 4px', borderRadius: 4, background: 'var(--chip-bg)' }}>{p.leverage}x</span>
-                        <span style={{ padding: '1px 5px', borderRadius: 4, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const, background: p.marginMode === 'CROSS' ? 'oklch(0.68 0.22 295/0.12)' : 'oklch(0.78 0.18 150/0.10)', color: p.marginMode === 'CROSS' ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)', border: `1px solid ${p.marginMode === 'CROSS' ? 'oklch(0.68 0.22 295/0.25)' : 'oklch(0.78 0.18 150/0.25)'}` }}>
+                        <span style={{ padding: '1px 5px', borderRadius: 4, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const, background: p.marginMode === 'CROSS' ? 'color-mix(in oklab, var(--accent) 12%, transparent)' : 'oklch(0.78 0.18 150/0.10)', color: p.marginMode === 'CROSS' ? 'var(--iris-violet)' : 'oklch(0.78 0.18 150)', border: `1px solid ${p.marginMode === 'CROSS' ? 'color-mix(in oklab, var(--accent) 25%, transparent)' : 'oklch(0.78 0.18 150/0.25)'}` }}>
                           {p.marginMode === 'CROSS' ? 'CROSS' : 'ISO'}
                         </span>
                       </div>
@@ -737,17 +737,17 @@ const PendingDepositPill: React.FC<{ deposit: any; onClick?: () => void }> = ({ 
       style={{
         width: '100%', display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 14px', marginBottom: 8, borderRadius: 11,
-        background: 'oklch(0.78 0.18 295 / 0.08)',
-        border: '1px solid oklch(0.78 0.18 295 / 0.28)',
+        background: 'color-mix(in oklab, var(--accent) 8%, transparent)',
+        border: '1px solid color-mix(in oklab, var(--accent) 28%, transparent)',
         color: 'var(--fg)', cursor: onClick ? 'pointer' : 'default',
         textAlign: 'left' as const,
         fontFamily: 'var(--font-mono)', fontSize: 11.5,
         transition: 'background 140ms',
       }}
-      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLElement).style.background = 'oklch(0.78 0.18 295 / 0.14)'; }}
-      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.78 0.18 295 / 0.08)'}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--accent) 14%, transparent)'; }}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--accent) 8%, transparent)'}
     >
-      <Loader2 size={13} style={{ animation: 'velo-pill-spin 1.2s linear infinite', color: 'oklch(0.78 0.18 295)', flexShrink: 0 }} />
+      <Loader2 size={13} style={{ animation: 'velo-pill-spin 1.2s linear infinite', color: 'var(--accent)', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, color: 'var(--fg)', fontSize: 12 }}>
           ${deposit.amount.toFixed(2)} USDC settling
@@ -818,13 +818,13 @@ const FailedDepositPill: React.FC<{ deposit: any; onClaimTestnetUsdc?: () => voi
         style={{
           width: '100%', marginTop: 10,
           padding: '9px 12px', borderRadius: 9,
-          background: claimingFaucet ? 'oklch(0.78 0.18 295 / 0.25)' : 'linear-gradient(180deg, oklch(0.82 0.18 295), oklch(0.72 0.20 295))',
+          background: claimingFaucet ? 'color-mix(in oklab, var(--accent) 25%, transparent)' : 'linear-gradient(180deg, var(--accent), var(--accent))',
           color: '#fff', border: 'none',
           cursor: claimingFaucet ? 'wait' : 'pointer',
           fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
           textTransform: 'uppercase' as const,
-          boxShadow: claimingFaucet ? 'none' : '0 4px 14px oklch(0.72 0.20 295 / 0.35)',
+          boxShadow: claimingFaucet ? 'none' : '0 4px 14px color-mix(in oklab, var(--accent) 35%, transparent)',
         }}
       >
         {claimingFaucet

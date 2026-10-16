@@ -52,7 +52,7 @@ const holoGradient: React.CSSProperties = {
   position: 'absolute',
   top: 0, left: 0, right: 0,
   height: 2,
-  background: 'linear-gradient(90deg, oklch(0.45 0.26 295) 0%, oklch(0.55 0.24 285) 35%, oklch(0.65 0.22 268) 70%, oklch(0.72 0.18 250) 100%)',
+  background: 'var(--brand-gradient)',
   opacity: 0.9, zIndex: 1,
 };
 
@@ -434,6 +434,7 @@ export const VeloBridgeModal: React.FC<Props> = ({ isOpen, onClose }) => {
   return createPortal(
     <div
       role="dialog" aria-modal="true"
+      className="velo-modal-enter-backdrop"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0, 0, 0, 0.6)',
@@ -443,7 +444,7 @@ export const VeloBridgeModal: React.FC<Props> = ({ isOpen, onClose }) => {
       }}
       onClick={(e) => { if (e.target === e.currentTarget && step !== 'SIGNING' && step !== 'PENDING') onClose(); }}
     >
-      <div style={cardStyle}>
+      <div className="velo-modal-enter-card" style={cardStyle}>
         <div style={holoGradient} />
         {renderHeader()}
         {step === 'IDLE' && renderIdle()}

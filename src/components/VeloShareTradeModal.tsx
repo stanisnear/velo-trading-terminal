@@ -29,7 +29,7 @@ const holoGradient: React.CSSProperties = {
   position: 'absolute',
   top: 0, left: 0, right: 0,
   height: 2,
-  background: 'linear-gradient(90deg, var(--iris-violet), var(--iris-magenta), var(--iris-coral), var(--iris-amber))',
+  background: 'linear-gradient(90deg, var(--velo-sage-deep), var(--velo-sage), var(--velo-sage-bright))',
   opacity: 0.9, zIndex: 1,
 };
 
@@ -88,6 +88,7 @@ export const VeloShareTradeModal: React.FC<Props> = ({ isOpen, trade, onClose, o
     <div
       role="dialog"
       aria-modal="true"
+      className="velo-modal-enter-backdrop"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0, 0, 0, 0.6)',
@@ -96,7 +97,7 @@ export const VeloShareTradeModal: React.FC<Props> = ({ isOpen, trade, onClose, o
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={cardStyle}>
+      <div className="velo-modal-enter-card" style={cardStyle}>
         <div style={holoGradient} />
 
         {/* Header */}
@@ -198,7 +199,7 @@ export const VeloShareTradeModal: React.FC<Props> = ({ isOpen, trade, onClose, o
               style={{
                 ...S.mono, flex: 2, padding: '12px 0', borderRadius: 12, border: 'none',
                 background: content.trim()
-                  ? 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340))'
+                  ? 'linear-gradient(100deg, var(--accent), var(--velo-sage-bright))'
                   : 'var(--chip-bg)',
                 color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
                 textTransform: 'uppercase' as const,

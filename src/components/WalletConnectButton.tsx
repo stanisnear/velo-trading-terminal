@@ -7,6 +7,7 @@
 //   - New account → VeloOnboardingModal opens at USERNAME step
 import { useAccount, useSwitchChain } from 'wagmi';
 import { useAppKit } from '@reown/appkit/react';
+import { Wallet } from 'lucide-react';
 
 interface WalletConnectButtonProps {
   compact?: boolean;
@@ -26,14 +27,13 @@ export function WalletConnectButton({ compact = false, onOpenAuthModal, onOpenSe
   if (!isConnected || !address) {
     return (
       <button
+        className="velo-connect-btn"
         onClick={() => openAppKit()}
         style={{
-          background: 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340), oklch(0.80 0.14 205))',
-          backgroundSize: '220% 100%',
-          animation: 'holoSlide 9s linear infinite',
-          border: 'none',
-          borderRadius: '8px',
-          color: '#0B0B0E',
+          background: 'linear-gradient(180deg, color-mix(in oklab, var(--velo-sage) 26%, #343b36), #202622)',
+          border: '1px solid color-mix(in oklab, var(--velo-sage-bright) 26%, var(--hr-2))',
+          borderRadius: '10px',
+          color: 'var(--fg)',
           cursor: 'pointer',
           fontFamily: 'var(--font-mono)',
           fontSize: compact ? '11px' : '12px',
@@ -43,7 +43,7 @@ export function WalletConnectButton({ compact = false, onOpenAuthModal, onOpenSe
           letterSpacing: '0.04em',
         }}
       >
-        {compact ? '⬡ Connect' : '⬡ Connect Wallet'}
+        <><Wallet size={13} strokeWidth={1.8} />{compact ? 'Connect' : 'Connect Wallet'}</>
       </button>
     );
   }
@@ -80,11 +80,11 @@ export function WalletConnectButton({ compact = false, onOpenAuthModal, onOpenSe
   if (!isAuthed) {
     return (
       <button
+        className="velo-connect-btn"
         onClick={() => onOpenAuthModal?.()}
         style={{
-          background: 'linear-gradient(100deg, oklch(0.68 0.22 295), oklch(0.70 0.22 340), oklch(0.80 0.14 205))',
-          backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite',
-          border: 'none', borderRadius: '8px', color: '#0B0B0E', cursor: 'pointer',
+          background: 'linear-gradient(180deg, color-mix(in oklab, var(--velo-sage) 26%, #343b36), #202622)',
+          border: '1px solid color-mix(in oklab, var(--velo-sage-bright) 26%, var(--hr-2))', borderRadius: '10px', color: 'var(--fg)', cursor: 'pointer',
           fontFamily: 'var(--font-mono)', fontSize: compact ? '11px' : '12px', fontWeight: 700,
           padding: compact ? '5px 11px' : '7px 14px', whiteSpace: 'nowrap', letterSpacing: '0.04em',
           display: 'flex', alignItems: 'center', gap: 6,

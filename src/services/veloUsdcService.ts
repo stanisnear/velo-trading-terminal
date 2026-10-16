@@ -57,7 +57,7 @@ export const VELO_USDC_ABI = [
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
 
-/** Balance in display units (1 = $1). Returns 0 on RPC failure. */
+/** Balance in display units (1 = $1). Throws on RPC failure so callers can retain the last confirmed balance. */
 export async function fetchUsdcBalance(
   publicClient: PublicClient,
   usdcAddress: Address,
@@ -71,8 +71,8 @@ export async function fetchUsdcBalance(
       args: [owner],
     });
     return Number(formatUnits(raw, USDC_DECIMALS));
-  } catch {
-    return 0;
+  } catch (error) {
+    throw error;
   }
 }
 

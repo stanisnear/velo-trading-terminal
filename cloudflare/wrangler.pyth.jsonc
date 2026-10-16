@@ -1,0 +1,17 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "velo-pyth-proxy",
+  "main": "pyth-worker.js",
+  "compatibility_date": "2026-10-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "vars": { "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ0Z2ZvZWtndnl2ZGZsempmZWh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NzU5NDIsImV4cCI6MjA5MjI1MTk0Mn0.8Z0Vce5RkSk2IS4tD4PAkCJ5XRtGeTMKHFx77we2_pU" },
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  // Approximate per-location limits, not global quota accounting.
+  "ratelimits": [
+    { "name": "AUTH_LIMIT", "namespace_id": "845321301", "simple": { "limit": 120, "period": 60 } },
+    { "name": "USER_LIMIT", "namespace_id": "845321302", "simple": { "limit": 60, "period": 60 } },
+    { "name": "STREAM_LIMIT", "namespace_id": "845321303", "simple": { "limit": 6, "period": 60 } }
+  ]
+  // PYTH_API_KEY is configured as a Worker secret. The anon key above is public.
+}

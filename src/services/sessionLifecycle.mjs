@@ -1,0 +1,31 @@
+// Auth callbacks must return before requesting more Supabase data. Otherwise
+// getSession/table reads can wait on the same auth lock that invokes them.
+export function createDeferredAuthListener(handle, onError = (_error) => {}) {
+  let active = true;
+  const timers = new Set();
+  return {
+    callback(event, session) {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        if (active) Promise.resolve().then(() => handle(event, session)).catch(onError);
+      }, 0);
+      timers.add(timer);
+    },
+    cancel() { active = false; for (const timer of timers) clearTimeout(timer); timers.clear(); },
+  };
+}
+export const IDLE_TIMEOUT_MS = 30 * 60_000;
+export const SESSION_MAX_MS = 8 * 60 * 60_000;
+export const SESSION_WARNING_MS = 60_000;
+export function sessionTimeLeft(now, lastActivity, startedAt) {
+  return Math.max(0, Math.min(lastActivity + IDLE_TIMEOUT_MS, startedAt + SESSION_MAX_MS) - now);
+}
+export async function boundedFetch(input, init = {}, timeoutMs = 12_000) {
+  const controller = new AbortController();
+  const original = init.signal || (input instanceof Request ? input.signal : undefined);
+  const abort = () => controller.abort(original?.reason);
+  if (original?.aborted) abort(); else original?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(() => controller.abort(new DOMException('Request timed out. Please retry.', 'TimeoutError')), timeoutMs);
+  try { return await fetch(input, { ...init, signal: controller.signal }); }
+  finally { clearTimeout(timer); original?.removeEventListener('abort', abort); }
+}

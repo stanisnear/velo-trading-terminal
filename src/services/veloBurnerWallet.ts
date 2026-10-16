@@ -13,14 +13,14 @@
 //
 //   3. The Velo burner wallet:
 //        - Has its own EVM address (different from MetaMask)
-//        - Holds USDC and deposits into Orderly
-//        - Signs all Orderly orders (no MetaMask popups during trading)
+//        - Holds testnet mUSDC and signs VELO contract transactions
+//        - Signs trading transactions locally (no owner popup per order)
 //        - Can be EXPORTED (private key shown to user) for backup or import
 //          into another wallet
-//        - Can be RE-DERIVED if the user clears their browser
+//        - Re-derivation requires the same signature bytes; back up the key.
 //
-//   4. The private key is cached in localStorage encrypted with a key derived
-//      from the user's wallet signature, so it's not plaintext on disk.
+//   4. The private key is stored as plaintext in localStorage. This is a full
+//      EOA, not a scoped session key. Use only test assets; XSS can expose it.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { keccak256, toHex, isHex } from 'viem';
@@ -177,9 +177,19 @@ export async function getOrCreateVeloBurner(
 export async function rederiveVeloBurner(
   ownerAddress: `0x${string}`,
   signMessageAsync: (args: { message: string }) => Promise<`0x${string}`>,
+  expectedAddress?: string | null,
 ): Promise<VeloBurnerWallet> {
-  clearBurner(ownerAddress);
-  return getOrCreateVeloBurner(ownerAddress, signMessageAsync);
+  // Never erase the only local key before a user finishes/cancels recovery.
+  const previous = loadStoredBurner(ownerAddress);
+  const expected = expectedAddress || previous?.veloAddress;
+  const signature = await signMessageAsync({ message: VELO_DERIVATION_MESSAGE });
+  if (!isHex(signature)) throw new Error('Wallet returned an invalid signature');
+  const recovered = buildBurnerFromSignature(ownerAddress, signature);
+  if (expected && recovered.veloAddress.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error('This signature derives a different trading wallet. Your saved key was not changed. Use the original wallet or your private-key backup.');
+  }
+  storeBurner(recovered);
+  return recovered;
 }
 
 /** Export the private key as a hex string for the user to copy/back up. */
