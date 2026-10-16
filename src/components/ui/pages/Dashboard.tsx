@@ -253,6 +253,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Deposit</button>
             <BtnSecondary onClick={() => onOpenWithdraw?.()} style={{ flex: '1 1 110px', padding: '10px' }}>Withdraw</BtnSecondary>
+            {onClaimTestnetUsdc && <BtnSecondary onClick={onClaimTestnetUsdc} style={{ flex: '1 1 110px', padding: '10px' }}>Faucet</BtnSecondary>}
             {/* SEND — peer-to-peer mUSDC by @handle or 0x address. Visible at all
                 times because it's a core SocialFi action: pay or tip another user
                 without ever leaving the app. */}

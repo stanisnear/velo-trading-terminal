@@ -13,6 +13,7 @@
 // server side.
 
 import type { Address, PublicClient } from 'viem';
+import { waitForSuccessfulReceipt } from './tradeReceipts';
 
 /** Minimum ETH the burner should hold before any tx. 0.003 ETH covers
  *  faucet mint + username claim + several trades at Base Sepolia gas prices. */
@@ -34,10 +35,8 @@ export interface SponsorResult {
  * Pre-flight: ensure the burner has enough ETH for an upcoming tx. If not,
  * call the sponsor endpoint and wait for the top-up to mine before returning.
  *
- * Never throws — if the sponsor is down, returns { ok: false, reason }. The
- * caller proceeds anyway and viem will surface the gas error if there really
- * isn't enough. This is by design: we don't want a sponsor outage to block
- * legit trades when the burner already has enough gas from previous top-ups.
+ * Returns a failure without signing anything if funding cannot be confirmed.
+ * Already funded wallets never depend on the sponsor's availability.
  */
 export async function ensureBurnerGas(
   publicClient: PublicClient,
@@ -49,7 +48,7 @@ export async function ensureBurnerGas(
   try {
     currentBalance = await publicClient.getBalance({ address: burnerAddress });
   } catch (e: any) {
-    return { ok: true, reason: 'balance read failed — proceeding' };
+    return { ok: false, reason: 'Unable to check Base Sepolia gas balance. Retry when the network is available.' };
   }
   if (currentBalance >= min) {
     return { ok: true, reason: 'already sufficient' };
@@ -60,7 +59,7 @@ export async function ensureBurnerGas(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ burnerAddress }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(45000),
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
@@ -68,11 +67,18 @@ export async function ensureBurnerGas(
     }
     if (data?.txHash) {
       // Wait for the top-up to actually mine so the next tx sees the new balance
-      await publicClient.waitForTransactionReceipt({ hash: data.txHash });
+      await waitForSuccessfulReceipt(publicClient, data.txHash);
       return { ok: true, txHash: data.txHash };
     }
-    return { ok: true, reason: 'sponsor ok but no txHash returned' };
+    if (data?.reason === 'Already funded') return { ok: true, reason: 'already sufficient' };
+    return { ok: false, reason: 'Gas funding has not been confirmed. Retry in a moment.' };
   } catch (e: any) {
     return { ok: false, reason: e?.message || 'sponsor request failed' };
   }
+}
+
+export async function requireBurnerGas(publicClient: PublicClient, address: Address) {
+  const result = await ensureBurnerGas(publicClient, address);
+  if (!result.ok) throw new Error(result.reason || 'Testnet gas funding is unavailable. Please retry.');
+  return result;
 }

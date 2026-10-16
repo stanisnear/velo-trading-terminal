@@ -8,7 +8,22 @@ VELO combines a crypto perpetuals terminal with profiles, posts, replies and fol
 
 The engineering review found serious contract accounting and legacy account-authorization defects. New signature login, private contact APIs, owner-only notification reads and receipt-verified incoming transfers are deployed, but the legacy-account/social cutover is still pending. The frontend blocks new cross-margin activity, margin adjustments and reduce-only entry orders on the current contract. These client checks do not prevent direct contract calls. **Do not use real funds.**
 
-## Start here
+## Market availability (16 October 2026)
+
+`shared/markets.mjs` is the app and price proxy's shared allowlist. The configured
+Pyth trial grants 13 crypto feeds, not the full Pyth catalogue:
+
+- Enabled perpetuals: **BTC, ETH, SOL, DOGE** (original registry slots 0, 1, 2, 5).
+- Price-only listings: **PYTH, BNB, XRP, HYPE, WBTC, JITOSOL, STETH, USDC, USDT**.
+- Other markets are excluded from new-order entry points and batched price requests.
+  Existing position/history IDs are preserved. These application restrictions do
+  not pause the legacy on-chain slots; unsupported positions require oracle access
+  to close. Contract owner registration is required before enabling additional perps.
+
+No stocks, forex or commodities are offered. A trial entitlement is not permanent;
+reverify provider access and contract registration before changing the allowlist.
+
+## Documentation
 
 | Document | Purpose |
 | --- | --- |

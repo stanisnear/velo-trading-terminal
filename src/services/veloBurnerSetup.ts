@@ -19,8 +19,9 @@ import {
   type PublicClient,
   type WalletClient,
   createWalletClient,
-  http,
   parseEther,
+  parseTransaction,
+  encodeFunctionData,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
@@ -31,17 +32,21 @@ import {
   type VeloBurnerWallet,
   VELO_DERIVATION_MESSAGE,
 } from './veloBurnerWallet';
-import { mintMockUsdc } from './veloUsdcService';
+import { mintMockUsdc, VELO_USDC_ABI } from './veloUsdcService';
 import { VELO_USDC_BASE } from './veloPerpsService';
+import { baseSepoliaTransport, pendingTransaction, recoverPendingTransaction } from './baseTransport.mjs';
+import { waitForSuccessfulReceipt } from './tradeReceipts';
+import { ensureBurnerGas } from './veloGasSponsor';
 
 const BASE_SEPOLIA_RPC =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
 
 export interface BurnerSetupArgs {
   walletClient: WalletClient;
   publicClient: PublicClient;
   ownerAddress: Address;
   onStep?: (step: BurnerSetupStep) => void;
+  onWalletReady?: (burner: VeloBurnerWallet) => Promise<void>;
 }
 
 export type BurnerSetupStep =
@@ -57,11 +62,10 @@ export interface BurnerSetupResult {
   ethFundSource: 'sponsor' | 'main_wallet' | 'skipped';
 }
 
-const FALLBACK_ETH_FUND = 0.01;   // matches SPONSOR_AMOUNT_ETH
 const MIN_BURNER_ETH_REQUIRED = 0.003; // matches MIN_TOPUP_THRESHOLD_ETH
 
 export async function setupBurnerWallet(args: BurnerSetupArgs): Promise<BurnerSetupResult> {
-  const { walletClient, publicClient, ownerAddress, onStep } = args;
+  const { walletClient, publicClient, ownerAddress, onStep, onWalletReady } = args;
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
 
@@ -75,41 +79,30 @@ export async function setupBurnerWallet(args: BurnerSetupArgs): Promise<BurnerSe
     burner = buildBurnerFromSignature(ownerAddress, signature);
     storeBurner(burner);
   }
+  // Save the profile link before funding. A faucet outage must not hide the
+  // trading wallet from recipient search or incoming-transfer reconciliation.
+  await onWalletReady?.(burner);
+  const pending = pendingTransaction(burner.veloAddress);
+  if (pending) {
+    const recovered = await recoverPendingTransaction(publicClient, burner.veloAddress, pending.hash);
+    const receipt = recovered || await waitForSuccessfulReceipt(publicClient, pending.hash);
+    const tx = parseTransaction(pending.raw);
+    if (receipt.status === 'success' && tx.to?.toLowerCase() === VELO_USDC_BASE.toLowerCase()
+      && tx.data === encodeFunctionData({ abi: VELO_USDC_ABI, functionName: 'mint' })) {
+      onStep?.('DONE');
+      return { burner, faucetTxHash: pending.hash, ethFundSource: 'skipped' };
+    }
+  }
 
   // ── Step 2: ensure burner has gas ──────────────────────────────────────
   let ethFundSource: 'sponsor' | 'main_wallet' | 'skipped' = 'skipped';
-  const burnerEthBalance = await publicClient.getBalance({
-    address: burner.veloAddress,
-  }).catch(() => 0n);
+  const burnerEthBalance = await publicClient.getBalance({ address: burner.veloAddress });
 
   if (burnerEthBalance < parseEther(MIN_BURNER_ETH_REQUIRED.toString())) {
     onStep?.('SPONSOR_REQUEST');
-    try {
-      const response = await fetch('/api/sponsor-eth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ burnerAddress: burner.veloAddress }),
-      });
-      const data = await response.json();
-      if (response.ok && data.sponsored && data.txHash) {
-        await publicClient.waitForTransactionReceipt({ hash: data.txHash });
-        ethFundSource = 'sponsor';
-      } else if (response.ok && !data.sponsored && data.reason === 'Already funded') {
-        ethFundSource = 'skipped';
-      } else {
-        throw new Error(data.error || 'Sponsor declined');
-      }
-    } catch (sponsorErr) {
-      console.warn('[veloBurnerSetup] sponsor unreachable, trying main wallet:', sponsorErr);
-      onStep?.('FUNDING_ETH_FALLBACK');
-      const fundTx = await walletClient.sendTransaction({
-        account, chain: walletClient.chain,
-        to: burner.veloAddress,
-        value: parseEther(FALLBACK_ETH_FUND.toString()),
-      });
-      await publicClient.waitForTransactionReceipt({ hash: fundTx });
-      ethFundSource = 'main_wallet';
-    }
+    const funding = await ensureBurnerGas(publicClient, burner.veloAddress);
+    if (!funding.ok) throw new Error(funding.reason || 'Gas funding is unavailable. Your wallet is saved; retry the faucet.');
+    ethFundSource = funding.txHash ? 'sponsor' : 'skipped';
   }
 
   // ── Step 3: burner mints faucet ────────────────────────────────────────
@@ -117,10 +110,10 @@ export async function setupBurnerWallet(args: BurnerSetupArgs): Promise<BurnerSe
   const burnerWalletClient = createWalletClient({
     account: privateKeyToAccount(burner.privateKey),
     chain: baseSepolia,
-    transport: http(BASE_SEPOLIA_RPC),
+    transport: baseSepoliaTransport(BASE_SEPOLIA_RPC),
   });
   const faucetTxHash = await mintMockUsdc(burnerWalletClient as any, VELO_USDC_BASE);
-  await publicClient.waitForTransactionReceipt({ hash: faucetTxHash });
+  await waitForSuccessfulReceipt(publicClient, faucetTxHash);
 
   onStep?.('DONE');
   return { burner, faucetTxHash, ethFundSource };
@@ -140,6 +133,6 @@ export function createBurnerWalletClient(privateKey: `0x${string}`) {
   return createWalletClient({
     account,
     chain: baseSepolia,
-    transport: http(BASE_SEPOLIA_RPC),
+    transport: baseSepoliaTransport(BASE_SEPOLIA_RPC),
   });
 }

@@ -5,6 +5,7 @@
  * decomposition): fully self-contained — props in, JSX out, own data fetches.
  */
 import React from 'react';
+import { MARKETS } from '../../shared/markets.mjs';
 
 export const TokenInteractiveChart = ({
     priceData, up, ticker, currentPrice, geckoId
@@ -26,7 +27,7 @@ export const TokenInteractiveChart = ({
     const chartId = React.useId().replace(/:/g, '');
     const chartSvgRef = React.useRef<SVGSVGElement | null>(null);
 
-    const binanceSym = ticker === 'BTC' ? 'BTCUSDT' : ticker === 'ETH' ? 'ETHUSDT' : ticker === 'SOL' ? 'SOLUSDT' : ticker === 'DOGE' ? 'DOGEUSDT' : `${ticker}USDT`;
+    const binanceSym = MARKETS.find(market => market.symbol === ticker)?.binance;
 
     // Load only the selected window and keep failures explicit rather than
     // leaving the chart in a permanent loading state.
@@ -45,17 +46,22 @@ export const TokenInteractiveChart = ({
         const { interval, limit } = config[timeframe];
         setPriceLoading(true);
         setPriceError(false);
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${interval}&limit=${limit}`, { signal: controller.signal })
+        const days = { '24H': 1, '7D': 7, '30D': 30 }[timeframe];
+        const historyUrl = binanceSym
+          ? `https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${interval}&limit=${limit}`
+          : `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${days}`;
+        fetch(historyUrl, { signal: controller.signal })
             .then(r => { if (!r.ok) throw new Error('Price history request failed'); return r.json(); })
-            .then((rows: any[]) => {
-                const values = Array.isArray(rows) ? rows.map(row => Number(row?.[4])).filter(v => Number.isFinite(v) && v > 0) : [];
+            .then((data: any) => {
+                const rows = binanceSym ? data : data?.prices;
+                const values = Array.isArray(rows) ? rows.map(row => Number(row?.[binanceSym ? 4 : 1])).filter(v => Number.isFinite(v) && v > 0) : [];
                 if (values.length < 2) throw new Error('Price history unavailable');
                 setPriceDataMap(prev => ({ ...prev, [timeframe]: values }));
             })
             .catch(() => { if (!controller.signal.aborted || timedOut) { setPriceError(true); setPriceLoading(false); } })
             .finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setPriceLoading(false); });
         return () => { window.clearTimeout(timeout); controller.abort(); };
-    }, [mode, timeframe, ticker, binanceSym, priceData, priceDataMap, priceRetry]);
+    }, [mode, timeframe, ticker, binanceSym, geckoId, priceData, priceDataMap, priceRetry]);
 
     // Fetch market cap data from CoinGecko when MCAP mode is selected
     React.useEffect(() => {
@@ -107,8 +113,8 @@ export const TokenInteractiveChart = ({
     const w = plotSize.width, h = plotSize.height;
     const pad = { top: 20, right: 16, bottom: 36, left: 78 };
 
-    const min = loading ? 0 : Math.min(...activeData);
-    const max = loading ? 1 : Math.max(...activeData);
+    const min = hasData ? Math.min(...activeData) : 0;
+    const max = hasData ? Math.max(...activeData) : 1;
     const range = max - min || 1;
     const toX = (i: number) => pad.left + (i / Math.max(activeData.length - 1, 1)) * (w - pad.left - pad.right);
     const toY = (v: number) => pad.top + ((max - v) / range) * (h - pad.top - pad.bottom);
@@ -311,7 +317,7 @@ export const TokenInteractiveChart = ({
 
             {/* Footer */}
             <div className="token-chart-footer" style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 4, padding: '0 18px 14px' }}>
-                {!loading && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-subtle)' }}>Low {formatTick(min)} <span aria-hidden="true">·</span> High {formatTick(max)}</span>}
+                {hasData && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-subtle)' }}>Low {formatTick(min)} <span aria-hidden="true">·</span> High {formatTick(max)}</span>}
             </div>
         </div>
     );

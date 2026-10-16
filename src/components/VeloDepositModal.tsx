@@ -53,7 +53,9 @@ import {
 import { fetchUsdcBalance, transferUsdc } from '@/services/veloUsdcService';
 import { VELO_USDC_BASE, baseScanAddressUrl, baseScanTxUrl } from '@/services/veloPerpsService';
 import { loadStoredBurner } from '@/services/veloBurnerWallet';
-import { ensureBurnerGas } from '@/services/veloGasSponsor';
+import { requireBurnerGas as ensureBurnerGas } from '@/services/veloGasSponsor';
+import { baseSepoliaTransport } from '@/services/baseTransport.mjs';
+import { waitForSuccessfulReceipt } from '@/services/tradeReceipts';
 import {
   CHAIN_ID,
   CHAIN_LABEL,
@@ -64,7 +66,7 @@ import {
 } from '@/services/bridgeService';
 
 const BASE_SEPOLIA_RPC =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
 
 const S = {
   mono:  { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
@@ -245,7 +247,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
       }
       const hash = await transferUsdc(walletClient as any, VELO_USDC_BASE, burnerAddress, parsed);
       setTxHash(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
+      await waitForSuccessfulReceipt(publicClient, hash);
       setStep('SUCCESS');
       onSuccess?.(hash, parsed, 'deposit');
       refreshBalances();
@@ -322,11 +324,11 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
       const burnerWalletClient = createWalletClient({
         account: privateKeyToAccount(burner.privateKey),
         chain: baseSepolia,
-        transport: http(BASE_SEPOLIA_RPC),
+        transport: baseSepoliaTransport(BASE_SEPOLIA_RPC),
       });
       const hash = await transferUsdc(burnerWalletClient as any, VELO_USDC_BASE, target, parsed);
       setTxHash(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
+      await waitForSuccessfulReceipt(publicClient, hash);
       setStep('SUCCESS');
       onSuccess?.(hash, parsed, 'withdraw');
       refreshBalances();
@@ -356,7 +358,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
       const burnerWalletClient = createWalletClient({
         account: privateKeyToAccount(burner.privateKey),
         chain: baseSepolia,
-        transport: http(BASE_SEPOLIA_RPC),
+        transport: baseSepoliaTransport(BASE_SEPOLIA_RPC),
       });
       const { txHash: hash } = await executeBridge(burnerWalletClient as any, publicClient as any, 'base_sepolia', withdrawChain, target, parsed);
       setTxHash(hash);

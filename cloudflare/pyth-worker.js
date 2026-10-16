@@ -1,5 +1,6 @@
 import { allowedFeeds, allowedSymbols } from './pyth-feeds.js';
 import { boundedJson } from '../supabase/functions/_shared/runtime.js';
+import { fetchPriceProvider } from './pyth-provider.js';
 
 const SUPABASE = 'https://btgfoekgvyvdflzjfehz.supabase.co';
 const resolutions = { '1':60, '2':120, '5':300, '15':900, '30':1800, '60':3600, '120':7200, '240':14400, '360':21600, '720':43200, D:86400, W:604800, M:2592000 };
@@ -33,8 +34,8 @@ export async function proxyPyth(request, env, fetchImpl = fetch) {
     for (const name of ['parsed', 'allow_unordered']) if (url.searchParams.has(name) && url.searchParams.get(name) !== 'true') return fail('INVALID_QUERY', 400);
     const ids = url.searchParams.getAll('ids[]').map(x => x.replace(/^0x/, '').toLowerCase());
     if (!ids.length || ids.length > allowedFeeds.size || new Set(ids).size !== ids.length || ids.some(x => !allowedFeeds.has(x))) return fail('INVALID_FEEDS', 400);
-    target = new URL(`https://hermes.pyth.network/v2/updates/price/${route}`);
-    for (const id of ids.sort()) target.searchParams.append('ids[]', id);
+    target = new URL(`https://pyth.dourolabs.app/hermes/v2/updates/price/${route}`);
+    for (const id of ids.sort()) target.searchParams.append('ids[]', `0x${id}`);
     target.searchParams.set('encoding', 'hex'); target.searchParams.set('parsed', 'true');
     if (route === 'stream') target.searchParams.set('allow_unordered', 'true');
   }
@@ -62,20 +63,19 @@ export async function proxyPyth(request, env, fetchImpl = fetch) {
     if (!(await env.USER_LIMIT.limit({ key: user.id })).success) return fail('RATE_LIMITED', 429);
     if (route === 'stream' && !(await env.STREAM_LIMIT.limit({ key: user.id })).success) return fail('RATE_LIMITED', 429);
     stage = 'provider_fetch';
-    const upstream = await fetchImpl(target, {
-      headers: { Authorization: `Bearer ${env.PYTH_API_KEY}`, Accept: route === 'stream' ? 'text/event-stream' : 'application/json' },
-      redirect: 'manual', signal: AbortSignal.any([request.signal, AbortSignal.timeout(route === 'stream' ? 300000 : 10000)]),
-    });
+    const { response: upstream, unavailable } = await fetchPriceProvider(target, request, env, fetchImpl, route);
+    if (!upstream) return fail('PYTH_FEED_UNAVAILABLE', 503);
     if (!upstream.ok) {
-      await upstream.body?.cancel();
+      console.error(JSON.stringify({ event: 'pyth_provider_rejected', route, status: upstream.status }));
       return fail(upstream.status === 429 ? 'PYTH_RATE_LIMITED' : 'PYTH_UNAVAILABLE', upstream.status === 429 ? 429 : 502);
     }
     stage = 'provider_response';
-    if (route !== 'stream') return Response.json(await boundedJson(upstream, 524288), { headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...(unavailable.length ? { 'X-Pyth-Unavailable-Feeds': unavailable.join(',') } : {}) };
+    if (route !== 'stream') return Response.json(await boundedJson(upstream, 524288), { headers });
     if (!upstream.headers.get('Content-Type')?.startsWith('text/event-stream')) {
       await upstream.body?.cancel(); return fail('INVALID_PRICE_STREAM', 502);
     }
-    return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    return new Response(upstream.body, { headers: { ...headers, 'Content-Type': 'text/event-stream' } });
   } catch (error) {
     // Log only a fixed stage and the error class, never URLs, headers or bodies.
     const reason = /illegal invocation|this.*bound|incorrect.*this/i.test(error?.message || '') ? 'INVOCATION_CONTEXT' : /redirect/i.test(error?.message || '') ? 'REDIRECT_REJECTED' : /header/i.test(error?.message || '') ? 'INVALID_HEADER' : /network|fetch failed|internal error|connection/i.test(error?.message || '') ? 'NETWORK_ERROR' : 'UNCLASSIFIED';

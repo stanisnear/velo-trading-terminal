@@ -24,6 +24,7 @@ import {
   parseUnits,
 } from 'viem';
 import { fetchPriceUpdate, PYTH_FEED_IDS } from './pythService';
+import { isEnabledTradingMarket } from '../../shared/markets.mjs';
 
 // ── Contract addresses ───────────────────────────────────────────────────────
 
@@ -694,6 +695,7 @@ export async function openPosition(
   publicClient: PublicClient,
   args: OpenPositionArgs,
 ): Promise<OpenPositionResult> {
+  if (!isEnabledTradingMarket(args.pair)) throw new Error('This market is not available for new trades under the current oracle subscription.');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
 
@@ -903,7 +905,7 @@ export async function addMargin(
       args: [VELO_PERPS_ADDRESS, amount_6 * 2n],
       account, chain: walletClient.chain,
     });
-    await publicClient.waitForTransactionReceipt({ hash: approveTx });
+    await waitForSuccessfulReceipt(publicClient, approveTx);
   }
 
   const txHash = await walletClient.writeContract({
@@ -1025,7 +1027,7 @@ export async function depositCross(
       args: [VELO_PERPS_ADDRESS, amount_6 * 2n],
       account, chain: walletClient.chain,
     });
-    await publicClient.waitForTransactionReceipt({ hash: approveTx });
+    await waitForSuccessfulReceipt(publicClient, approveTx);
   }
 
   const txHash = await walletClient.writeContract({
@@ -1088,6 +1090,7 @@ export async function placeConditionalOrder(
   publicClient: PublicClient,
   args: PlaceConditionalOrderArgs,
 ): Promise<PlaceConditionalOrderResult> {
+  if (!isEnabledTradingMarket(args.pair)) throw new Error('This market is not available for new orders under the current oracle subscription.');
   if (!IS_V3) throw new Error('placeConditionalOrder requires V3');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
@@ -1115,7 +1118,7 @@ export async function placeConditionalOrder(
         args: [VELO_PERPS_ADDRESS, collateral_6 * 2n],
         account, chain: walletClient.chain,
       });
-      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+      await waitForSuccessfulReceipt(publicClient, approveTx);
     }
   }
 

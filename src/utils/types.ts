@@ -1,4 +1,4 @@
-
+import { MARKETS } from '../../shared/markets.mjs';
 export interface Candle {
   time: number; 
   open: number;
@@ -236,54 +236,9 @@ export type ChartStyle = 'CANDLES' | 'LINE' | 'AREA' | 'BARS';
 export type SocialSort = 'LATEST' | 'TRENDING';
 export type ProfileTab = 'POSTS' | 'REPLIES' | 'MEDIA' | 'LIKES' | 'TRADES';
 
-// ─── All pairs (used in DEMO mode with simulated trading) ────────────────────
-export const PAIRS = [
-  { id: 'SOL/USD',  name: 'Solana',       basePrice: 145,       logo: 'https://assets.coingecko.com/coins/images/4128/standard/solana.png',       geckoId: 'solana' },
-  { id: 'BTC/USD',  name: 'Bitcoin',      basePrice: 64200,     logo: 'https://assets.coingecko.com/coins/images/1/standard/bitcoin.png',          geckoId: 'bitcoin' },
-  { id: 'ETH/USD',  name: 'Ethereum',     basePrice: 3400,      logo: 'https://assets.coingecko.com/coins/images/279/standard/ethereum.png',       geckoId: 'ethereum' },
-  { id: 'WIF/USD',  name: 'dogwifhat',    basePrice: 3.40,      logo: 'https://assets.coingecko.com/coins/images/33566/standard/dogwifhat.jpg',    geckoId: 'dogwifcoin' },
-  { id: 'JUP/USD',  name: 'Jupiter',      basePrice: 1.20,      logo: 'https://assets.coingecko.com/coins/images/34188/standard/jup.png',          geckoId: 'jupiter-exchange-solana' },
-  { id: 'BONK/USD', name: 'Bonk',         basePrice: 0.000024,  logo: 'https://assets.coingecko.com/coins/images/28600/standard/bonk.jpg',         geckoId: 'bonk' },
-  { id: 'AVAX/USD', name: 'Avalanche',    basePrice: 48.50,     logo: 'https://assets.coingecko.com/coins/images/12559/standard/Avalanche_Circle_RedWhite_Trans.png', geckoId: 'avalanche-2' },
-  { id: 'LINK/USD', name: 'Chainlink',    basePrice: 18.20,     logo: 'https://assets.coingecko.com/coins/images/877/standard/chainlink-new-logo.png', geckoId: 'chainlink' },
-  { id: 'DOGE/USD', name: 'Dogecoin',     basePrice: 0.16,      logo: 'https://assets.coingecko.com/coins/images/5/standard/dogecoin.png',         geckoId: 'dogecoin' },
-  { id: 'PEPE/USD', name: 'Pepe',         basePrice: 0.0000078, logo: 'https://assets.coingecko.com/coins/images/29850/standard/pepe-token.jpeg',  geckoId: 'pepe' },
-  { id: 'RNDR/USD', name: 'Render',       basePrice: 10.40,     logo: 'https://assets.coingecko.com/coins/images/11636/standard/rndr.png',         geckoId: 'render-token' },
-  { id: 'NEAR/USD', name: 'Near Protocol',basePrice: 7.20,      logo: 'https://assets.coingecko.com/coins/images/10365/standard/near.jpg',         geckoId: 'near' },
-  { id: 'TIA/USD',  name: 'Celestia',     basePrice: 14.30,     logo: 'https://assets.coingecko.com/coins/images/31967/standard/tia.jpg',          geckoId: 'celestia' },
-  { id: 'INJ/USD',  name: 'Injective',    basePrice: 38.90,     logo: 'https://assets.coingecko.com/coins/images/12882/standard/Secondary_Symbol.png', geckoId: 'injective-protocol' },
-  { id: 'PYTH/USD', name: 'Pyth Network', basePrice: 0.85,      logo: 'https://assets.coingecko.com/coins/images/31924/standard/pyth.png',         geckoId: 'pyth-network' },
-];
-
-// ─── Orderly-supported pairs (used in LIVE/WALLET mode) ───────────────────────
-// Only pairs that exist on Orderly testnet as perpetual contracts.
-// Everything else is simulated demo-only.
-// Pairs that Velo Perps supports on Base Sepolia. Order matches PAIR_INDEX in
-// veloPerpsService.ts so slot 0 = BTC, slot 1 = ETH, etc.
-//
-// Slots 0–5 (BTC..DOGE) are registered at deploy time. Slots 6+ are visible
-// in the UI but the contract owner needs to register them through the Admin
-// Panel before they're tradable on-chain. Until then, the pair-tradable
-// pre-flight check in useVeloPerpsTrading surfaces a clean error.
-export const VELO_PAIRS = [
-  { id: 'BTC/USD',    name: 'Bitcoin',    basePrice: 64200,    logo: 'https://assets.coingecko.com/coins/images/1/standard/bitcoin.png',          geckoId: 'bitcoin' },
-  { id: 'ETH/USD',    name: 'Ethereum',   basePrice: 3400,     logo: 'https://assets.coingecko.com/coins/images/279/standard/ethereum.png',       geckoId: 'ethereum' },
-  { id: 'SOL/USD',    name: 'Solana',     basePrice: 145,      logo: 'https://assets.coingecko.com/coins/images/4128/standard/solana.png',        geckoId: 'solana' },
-  { id: 'AVAX/USD',   name: 'Avalanche',  basePrice: 48.50,    logo: 'https://assets.coingecko.com/coins/images/12559/standard/Avalanche_Circle_RedWhite_Trans.png', geckoId: 'avalanche-2' },
-  { id: 'LINK/USD',   name: 'Chainlink',  basePrice: 18.20,    logo: 'https://assets.coingecko.com/coins/images/877/standard/chainlink-new-logo.png', geckoId: 'chainlink' },
-  { id: 'DOGE/USD',   name: 'Dogecoin',   basePrice: 0.16,     logo: 'https://assets.coingecko.com/coins/images/5/standard/dogecoin.png',         geckoId: 'dogecoin' },
-  { id: 'NEAR/USD',   name: 'Near',       basePrice: 7.20,     logo: 'https://assets.coingecko.com/coins/images/10365/standard/near.jpg',         geckoId: 'near' },
-  { id: 'INJ/USD',    name: 'Injective',  basePrice: 38.90,    logo: 'https://assets.coingecko.com/coins/images/12882/standard/Secondary_Symbol.png', geckoId: 'injective-protocol' },
-  { id: 'APT/USD',    name: 'Aptos',      basePrice: 12.10,    logo: 'https://assets.coingecko.com/coins/images/26455/standard/aptos_round.png',  geckoId: 'aptos' },
-  { id: 'ARB/USD',    name: 'Arbitrum',   basePrice: 1.05,     logo: 'https://assets.coingecko.com/coins/images/16547/standard/arb.jpg',          geckoId: 'arbitrum' },
-  { id: 'OP/USD',     name: 'Optimism',   basePrice: 2.45,     logo: 'https://assets.coingecko.com/coins/images/25244/standard/Optimism.png',     geckoId: 'optimism' },
-  { id: 'SUI/USD',    name: 'Sui',        basePrice: 1.85,     logo: 'https://assets.coingecko.com/coins/images/26375/standard/sui_asset.jpeg',   geckoId: 'sui' },
-  { id: 'TIA/USD',    name: 'Celestia',   basePrice: 9.80,     logo: 'https://assets.coingecko.com/coins/images/31967/standard/tia.jpg',          geckoId: 'celestia' },
-  { id: 'SEI/USD',    name: 'Sei',        basePrice: 0.55,     logo: 'https://assets.coingecko.com/coins/images/28205/standard/Sei_Logo_-_Transparent.png', geckoId: 'sei-network' },
-  { id: 'RENDER/USD', name: 'Render',     basePrice: 7.50,     logo: 'https://assets.coingecko.com/coins/images/11636/standard/rndr.png',         geckoId: 'render-token' },
-  { id: 'WLFI/USD',   name: 'World Liberty Financial', basePrice: 0.32, logo: 'https://assets.coingecko.com/coins/images/72012/standard/WLFI_Token.png', geckoId: 'world-liberty-financial' },
-  { id: 'POL/USD',    name: 'Polygon',    basePrice: 0.48,     logo: 'https://assets.coingecko.com/coins/images/32440/standard/polygon.png',      geckoId: 'matic-network' },
-];
+// Shared with the price gateway. Unknown or unavailable assets are not listed.
+export const PAIRS = MARKETS.map(market => ({ ...market, basePrice: 0 }));
+export const VELO_PAIRS = PAIRS.filter(market => market.contractIndex !== null);
 
 // Backwards-compat alias — many call sites still reference ORDERLY_PAIRS.
 // New code should use VELO_PAIRS.
@@ -319,10 +274,10 @@ export const SOCIAL_FEATURED_PAIRS = PAIRS.map(p => ({
     pairId: p.id,
     name: p.name,
     logo: p.logo,
-    binance: `${p.id.split('/')[0]}USDT`,
+    binance: p.binance,
     geckoId: p.geckoId,
 }));
 
 // Top 4 shown in the tokens bar and related-tokens sidebar
-export const TOP_SOCIAL_PAIRS = SOCIAL_FEATURED_PAIRS.slice(0, 4); // SOL, BTC, ETH, WIF
+export const TOP_SOCIAL_PAIRS = SOCIAL_FEATURED_PAIRS.slice(0, 4); // SOL, BTC, ETH, DOGE
 export const VALID_TICKER_SYMBOLS = SOCIAL_FEATURED_PAIRS.map(p => p.symbol);

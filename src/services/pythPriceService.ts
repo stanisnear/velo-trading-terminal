@@ -1,4 +1,5 @@
 import { firstChartPage } from './firstChartPage.mjs';
+import { MARKETS } from '../../shared/markets.mjs';
 /**
  * pythPriceService — single source of truth for displayed prices.
  *
@@ -38,40 +39,13 @@ const HERMES_URL = '/api/pyth';
 // ── pair id → Pyth feed id ────────────────────────────────────────────────────
 // Verified against https://hermes.pyth.network/v2/price_feeds (crypto, USD quote).
 // These are chain-independent — the same ids work everywhere Pyth is deployed.
-// The first 17 mirror the on-chain VeloPerps registry exactly; the remainder
-// cover the broader display/markets list so every visible pair is Pyth-priced.
-export const PAIR_TO_PYTH_FEED: Record<string, string> = {
-  'BTC/USD':    '0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43',
-  'ETH/USD':    '0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace',
-  'SOL/USD':    '0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d',
-  'AVAX/USD':   '0x93da3352f9f1d105fdfe4971cfa80e9dd777bfc5d0f683ebb6e1294b92137bb7',
-  'LINK/USD':   '0x8ac0c70fff57e9aefdf5edf44b51d62c2d433653cbb2cf5cc06bb115af04d221',
-  'DOGE/USD':   '0xdcef50dd0a4cd2dcc17e45df1676dcb336a11a61c69df7a0299b0150c672d25c',
-  'NEAR/USD':   '0xc415de8d2eba7db216527dff4b60e8f3a5311c740dadb233e13e12547e226750',
-  'INJ/USD':    '0x7a5bc1d2b56ad029048cd63964b3ad2776eadf812edc1a43a31406cb54bff592',
-  'APT/USD':    '0x03ae4db29ed4ae33d323568895aa00337e658e348b37509f5372ae51f0af00d5',
-  'ARB/USD':    '0x3fa4252848f9f0a1480be62745a4629d9eb1322aebab8a791e344b3b9c1adcf5',
-  'OP/USD':     '0x385f64d993f7b77d8182ed5003d97c60aa3361f3cecfe711544d2d59165e9bdf',
-  'SUI/USD':    '0x23d7315113f5b1d3ba7a83604c44b94d79f4fd69af77f804fc7f920a6dc65744',
-  'TIA/USD':    '0x09f7c1d7dfbb7df2b8fe3d3d87ee94a2259d212da4f30c1f0540d066dfa44723',
-  'SEI/USD':    '0x53614f1cb0c031d4af66c04cb9c756234adad0e1cee85303795091499a4084eb',
-  'RENDER/USD': '0x3d4a2bd9535be6ce8059d75eadeba507b043257321aa544717c56fa19b49e35d',
-  'WLFI/USD':   '0xd41369178d64f41d51ca95465c144a2c74d2fff30be69164835911943fa64c3e',
-  'POL/USD':    '0xffd11c5a1cfd42f80afb2df4d9f264c15f956d68153335374ec10722edd70472',
-  // Display-only (not yet on-chain) pairs from the broad PAIRS list:
-  'RNDR/USD':   '0x3d4a2bd9535be6ce8059d75eadeba507b043257321aa544717c56fa19b49e35d', // alias of RENDER
-  'WIF/USD':    '0x4ca4beeca86f0d164160323817a4e42b10010a724c2217c6ee41b54cd4cc61fc',
-  'JUP/USD':    '0x0a0408d619e9380abad35060f9192039ed5042fa6f82301d0e48bb52be830996',
-  'BONK/USD':   '0x72b021217ca3fe68922a19aaf990109cb9d84e9ad004b4d2025ad6f529314419',
-  'PEPE/USD':   '0xd69731a2e74ac1ce884fc3890f7ee324b6deb66147055249568869ed700882e4',
-  'PYTH/USD':   '0x0bbf28e9a841a1cc788f6a361b17ca072d0ea3098a1e5df1c3922d06719579ff',
-};
+// Only feeds entitled to the configured Pyth account belong in batch requests.
+export const PAIR_TO_PYTH_FEED: Record<string, string> = Object.fromEntries(MARKETS.map(market => [market.id, '0x' + market.feed]));
 
 // Reverse lookup: bare feed id (lowercase, no 0x) → pair id. Built once.
 const FEED_TO_PAIR: Record<string, string> = (() => {
   const m: Record<string, string> = {};
   for (const [pair, feed] of Object.entries(PAIR_TO_PYTH_FEED)) {
-    // When two pairs share a feed (RENDER/RNDR), keep the canonical on-chain id.
     const bare = feed.replace(/^0x/, '').toLowerCase();
     if (!(bare in m)) m[bare] = pair;
   }
@@ -113,7 +87,8 @@ export async function fetchPythPrices(): Promise<{
       const priceObj = entry?.price;
       if (!pair || !priceObj) continue;
       const px = parsedToPrice(priceObj);
-      if (px > 0) prices[pair] = px;
+      const age = Date.now() / 1000 - Number(priceObj.publish_time);
+      if (Number.isFinite(px) && px > 0 && age >= -5 && age <= 60) prices[pair] = px;
     }
     return { prices, status: 'pyth' };
   } catch (e) {

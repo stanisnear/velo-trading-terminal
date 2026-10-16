@@ -6,19 +6,13 @@ import { VeloAssetIcon } from '@/components/ui/shared';
 type SortKey = 'volume' | 'change' | 'price' | 'name';
 type MarketStats = { volume: number; marketCap: number };
 
-const pairSymbols: Record<string, string> = {
-  'BTC/USD': 'BTCUSDT', 'ETH/USD': 'ETHUSDT', 'SOL/USD': 'SOLUSDT', 'WIF/USD': 'WIFUSDT',
-  'JUP/USD': 'JUPUSDT', 'BONK/USD': 'BONKUSDT', 'AVAX/USD': 'AVAXUSDT', 'LINK/USD': 'LINKUSDT',
-  'DOGE/USD': 'DOGEUSDT', 'PEPE/USD': 'PEPEUSDT', 'RNDR/USD': 'RNDRUSDT', 'NEAR/USD': 'NEARUSDT',
-  'TIA/USD': 'TIAUSDT', 'INJ/USD': 'INJUSDT', 'PYTH/USD': 'PYTHUSDT',
-};
-
 const categories: Record<string, string> = {
-  'BTC/USD': 'Layer 1', 'ETH/USD': 'Layer 1', 'SOL/USD': 'Layer 1', 'AVAX/USD': 'Layer 1', 'NEAR/USD': 'Layer 1',
-  'LINK/USD': 'Oracle', 'PYTH/USD': 'Oracle', 'RNDR/USD': 'AI & compute', 'TIA/USD': 'Modular',
-  'INJ/USD': 'DeFi', 'JUP/USD': 'DeFi', 'DOGE/USD': 'Meme', 'WIF/USD': 'Meme', 'PEPE/USD': 'Meme', 'BONK/USD': 'Meme',
+  'BNB/USD': 'Layer 1', 'XRP/USD': 'Layer 1', 'HYPE/USD': 'DeFi', 'WBTC/USD': 'Wrapped assets',
+  'JITOSOL/USD': 'Staking', 'STETH/USD': 'Staking', 'USDC/USD': 'Stablecoins', 'USDT/USD': 'Stablecoins',
+  'BTC/USD': 'Layer 1', 'ETH/USD': 'Layer 1', 'SOL/USD': 'Layer 1',
+  'PYTH/USD': 'Oracle', 'DOGE/USD': 'Meme',
 };
-const categoryOptions = ['All markets', 'Layer 1', 'DeFi', 'Meme', 'Oracle', 'AI & compute', 'Modular'];
+const categoryOptions = ['All markets', 'Layer 1', 'DeFi', 'Meme', 'Oracle', 'Wrapped assets', 'Staking', 'Stablecoins'];
 
 const formatPrice = (price?: number | null) => {
   if (price == null || !Number.isFinite(price)) return '—';
@@ -71,29 +65,23 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
     const load = async () => {
       const geckoIds = PAIRS.map(pair => pair.geckoId).filter(Boolean).join(',');
       try {
-        const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${geckoIds}&order=market_cap_desc&per_page=100&page=1&sparkline=false`, { signal: controller.signal });
+        const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${geckoIds}&order=market_cap_desc&per_page=100&page=1&sparkline=true`, { signal: controller.signal });
         if (response.ok) {
           const rows: any[] = await response.json();
           const next: Record<string, MarketStats> = {};
+          const charts: Record<string, number[]> = {};
           rows.forEach(coin => {
             const pair = PAIRS.find(item => item.geckoId === coin.id);
-            if (pair) next[pair.id] = { volume: Number(coin.total_volume) || 0, marketCap: Number(coin.market_cap) || 0 };
+            if (pair) {
+              next[pair.id] = { volume: Number(coin.total_volume) || 0, marketCap: Number(coin.market_cap) || 0 };
+              charts[pair.id] = Array.isArray(coin.sparkline_in_7d?.price)
+                ? coin.sparkline_in_7d.price.filter((value: number) => Number.isFinite(value) && value > 0) : [];
+            }
           });
-          if (!controller.signal.aborted) setMarketStats(next);
+          if (!controller.signal.aborted) { setMarketStats(next); setSparklines(charts); }
         }
       } catch { /* Keep unavailable external metrics quiet; live prices still render. */ }
 
-      const results = await Promise.all(PAIRS.map(async pair => {
-        const symbol = pairSymbols[pair.id];
-        if (!symbol) return [pair.id, []] as const;
-        try {
-          const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=4h&limit=42`, { signal: controller.signal });
-          if (!response.ok) return [pair.id, []] as const;
-          const rows: any[] = await response.json();
-          return [pair.id, Array.isArray(rows) ? rows.map(row => Number(row?.[4])).filter(value => Number.isFinite(value) && value > 0) : []] as const;
-        } catch { return [pair.id, []] as const; }
-      }));
-      if (!controller.signal.aborted) setSparklines(Object.fromEntries(results));
     };
     void load();
     return () => controller.abort();
@@ -220,9 +208,9 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
         <div>
           <div className="markets-eyebrow">VELO · MARKET DESK</div>
           <h1 className="markets-title">All <em>markets</em></h1>
-          <p className="markets-subtitle">Track prices, compare momentum, and open a market.</p>
+          <p className="markets-subtitle">{PAIRS.length} crypto assets · {tradableCount} perpetuals · {PAIRS.length - tradableCount} price-only listings</p>
         </div>
-        <div className="markets-live"><i aria-hidden="true" />{tradableCount} live perpetuals <span aria-hidden="true">·</span> Base</div>
+        <div className="markets-live"><i aria-hidden="true" />{tradableCount} perpetuals <span aria-hidden="true">·</span> Base Sepolia</div>
       </header>
 
       <section className="markets-overview" aria-label="Market overview">
@@ -252,6 +240,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           const ticker = pair.id.split('/')[0];
           const price = marketPrices[pair.id];
           const change = marketChanges[pair.id] ?? 0;
+          const hasChange = Number.isFinite(marketChanges[pair.id]);
           const favorite = watchlist.includes(pair.id);
           const tradable = isTradablePair(pair.id);
           return <div className="markets-row" key={pair.id} role="link" tabIndex={0} aria-label={`Open ${pair.name} market details`} onClick={() => onNavigateToSocial(ticker)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigateToSocial(ticker); } }}>
@@ -262,12 +251,12 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
             </button>
             <div className="markets-quote">
               <span className="markets-price">{price == null ? '—' : `$${formatPrice(price)}`}</span>
-              <span className={`markets-change markets-mobile-change ${change >= 0 ? 'positive' : 'negative'}`}>{change >= 0 ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}{change >= 0 ? '+' : ''}{change.toFixed(2)}%</span>
+              <span className={`markets-change markets-mobile-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
             </div>
-            <span className={`markets-change markets-col-change ${change >= 0 ? 'positive' : 'negative'}`}>{change >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}{change >= 0 ? '+' : ''}{change.toFixed(2)}%</span>
+            <span className={`markets-change markets-col-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
             <span className="markets-volume markets-col-volume">{formatMoney(marketStats[pair.id]?.volume)}</span>
             <span className="markets-col-spark"><Sparkline values={sparklines[pair.id] || []} /></span>
-            {tradable ? <button className="markets-trade" onClick={event => { event.stopPropagation(); onNavigateToTrade(pair); }}>Trade<ChevronRight size={13} /></button> : <span className="markets-soon" title="This asset is tracked, but its perpetual market is not enabled yet.">Tracked</span>}
+            {tradable ? <button className="markets-trade" onClick={event => { event.stopPropagation(); onNavigateToTrade(pair); }}>Trade<ChevronRight size={13} /></button> : <span className="markets-soon" title="Price feed available. This asset is not registered for perpetual trading.">Price only</span>}
           </div>;
         })}
       </section>

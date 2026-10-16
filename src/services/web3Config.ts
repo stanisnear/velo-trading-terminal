@@ -23,7 +23,7 @@ if (!projectId) {
 }
 
 // PublicNode fallbacks
-const BASE_RPC = import.meta.env.VITE_BASE_SEPOLIA_RPC_URL  || 'https://base-sepolia-rpc.publicnode.com';
+const BASE_RPC = import.meta.env.VITE_BASE_SEPOLIA_RPC_URL  || 'https://sepolia.base.org';
 const ARB_RPC  = import.meta.env.VITE_ARB_SEPOLIA_RPC_URL   || 'https://arbitrum-sepolia-rpc.publicnode.com';
 const OP_RPC   = import.meta.env.VITE_OP_SEPOLIA_RPC_URL    || 'https://optimism-sepolia-rpc.publicnode.com';
 const ETH_RPC  = import.meta.env.VITE_ETH_SEPOLIA_RPC_URL   || 'https://ethereum-sepolia-rpc.publicnode.com';

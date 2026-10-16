@@ -1,23 +1,9 @@
 import { PAIRS } from '../utils/types';
 
 // ── Binance symbol map ────────────────────────────────────────────────────────
-const BINANCE_SYMBOLS: Record<string, string> = {
-  'BTC/USD':  'btcusdt',
-  'ETH/USD':  'ethusdt',
-  'SOL/USD':  'solusdt',
-  'AVAX/USD': 'avaxusdt',
-  'LINK/USD': 'linkusdt',
-  'DOGE/USD': 'dogeusdt',
-  'NEAR/USD': 'nearusdt',
-  'INJ/USD':  'injusdt',
-  'RNDR/USD': 'renderusdt',
-  'TIA/USD':  'tiausdt',
-  'WIF/USD':  'wifusdt',
-  'JUP/USD':  'jupusdt',
-  'BONK/USD': 'bonkusdt',
-  'PEPE/USD': 'pepeusdt',
-  'PYTH/USD': 'pythusdt',
-};
+const BINANCE_SYMBOLS: Record<string, string> = Object.fromEntries(
+  PAIRS.filter(pair => pair.binance).map(pair => [pair.id, pair.binance!.toLowerCase()]),
+);
 
 // ── One-shot REST fetch (used on startup) ─────────────────────────────────────
 export async function fetchRealPrices(): Promise<{
@@ -25,56 +11,58 @@ export async function fetchRealPrices(): Promise<{
   changes: Record<string, number>;
   status: string;
 }> {
+  const prices: Record<string, number> = {};
+  const changes: Record<string, number> = {};
+  let status = 'error';
   try {
     const symbols = Object.values(BINANCE_SYMBOLS)
       .map(s => `"${s.toUpperCase()}"`)
       .join(',');
 
     const res = await fetch(
-      `https://api.binance.com/api/v3/ticker/24hr?symbols=[${symbols}]`
+      `https://api.binance.com/api/v3/ticker/24hr?symbols=[${symbols}]`, { signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data: Array<{ symbol: string; lastPrice: string; priceChangePercent: string }> =
       await res.json();
 
-    const prices: Record<string, number> = {};
-    const changes: Record<string, number> = {};
-
     for (const pair of PAIRS) {
       const binanceSymbol = (BINANCE_SYMBOLS[pair.id] || '').toUpperCase();
       const ticker = data.find(d => d.symbol === binanceSymbol);
-      if (ticker) {
+      if (ticker && Number(ticker.lastPrice) > 0 && Number.isFinite(Number(ticker.lastPrice))) {
         prices[pair.id] = parseFloat(ticker.lastPrice);
         changes[pair.id] = parseFloat(ticker.priceChangePercent);
       }
     }
 
-    return { prices, changes, status: 'live' };
+    status = 'live';
   } catch (e) {
     console.warn('Binance REST fetch failed:', e);
-    // Fallback to CoinGecko
+  }
+  // Several entitled feeds have no equivalent Binance spot pair. Fill those
+  // independently without replacing a successful quote or inventing a price.
+  const missing = PAIRS.filter(pair => !prices[pair.id]);
+  if (missing.length) {
     try {
-      const geckoIds = PAIRS.map((p: any) => p.geckoId).filter(Boolean).join(',');
+      const geckoIds = missing.map(p => p.geckoId).join(',');
       const res = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${geckoIds}&vs_currencies=usd&include_24hr_change=true`
+        `https://api.coingecko.com/api/v3/simple/price?ids=${geckoIds}&vs_currencies=usd&include_24hr_change=true`, { signal: AbortSignal.timeout(8000) }
       );
       if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
       const gecko = await res.json();
-      const prices: Record<string, number> = {};
-      const changes: Record<string, number> = {};
-      for (const pair of PAIRS) {
-        const id = (pair as any).geckoId;
-        if (id && gecko[id]?.usd) {
+      for (const pair of missing) {
+        const id = pair.geckoId;
+        if (Number.isFinite(gecko[id]?.usd) && gecko[id].usd > 0) {
           prices[pair.id] = gecko[id].usd;
           changes[pair.id] = gecko[id].usd_24h_change ?? 0;
         }
       }
-      return { prices, changes, status: 'gecko' };
+      if (Object.keys(prices).length) status = status === 'live' ? 'mixed' : 'gecko';
     } catch (e2) {
       console.warn('CoinGecko fallback also failed:', e2);
-      return { prices: {}, changes: {}, status: 'error' };
     }
   }
+  return { prices, changes, status };
 }
 
 // ── WebSocket manager — one persistent connection for all pairs ───────────────

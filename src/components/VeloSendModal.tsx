@@ -5,10 +5,10 @@
  * VeloRegistry. Live resolution + validation. Signs with the burner if one
  * exists (silent), else MetaMask popup.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
-import { createWalletClient, http, isAddress, parseUnits } from 'viem';
+import { createWalletClient, isAddress, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { AtSign, ArrowRight, CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
@@ -17,10 +17,13 @@ import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { ensureBurnerGas } from '@/services/veloGasSponsor';
 import { VELO_USDC_BASE, baseScanTxUrl } from '@/services/veloPerpsService';
 import { fetchUsdcBalance, VELO_USDC_ABI } from '@/services/veloUsdcService';
-import { supabase } from '@/services/supabaseStore';
+import { publicSupabase } from '@/services/supabaseStore';
+import { baseSepoliaTransport, submittedTransactionHash } from '@/services/baseTransport.mjs';
+import { waitForSuccessfulReceipt } from '@/services/tradeReceipts';
+import { readPendingTransfer, savePendingTransfer, clearPendingTransfer } from '@/services/transferOutbox.mjs';
 
 const BASE_SEPOLIA_RPC =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
 
 const S = {
   display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
@@ -68,12 +71,12 @@ interface Props {
     recipientAddress: `0x${string}`;
     recipientHandle?: string;          // present if the recipient is a Velo user
     amount: number;                    // mUSDC, human-readable
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress: walletAddressProp, onSuccess }) => {
   const { address: wagmiAddress } = useAccount();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: 84532 });
   const { data: mainWalletClient } = useWalletClient();
 
   // Use wagmi address first; fall back to Supabase profile address so that
@@ -90,34 +93,23 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
   const [step, setStep] = useState<Step>('IDLE');
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const sendLock = useRef(false);
 
   // Determine which wallet is sending (burner if exists, else main)
   const burner = address ? loadStoredBurner(address) : null;
   const senderAddress = burner?.veloAddress ?? address;
+  const activeSender = useRef(senderAddress);
+  activeSender.current = senderAddress;
 
-  // When resolvedAddress changes, try to find the recipient's trading wallet
-  // from their Supabase profile. Falls back to the resolved (main) address.
-  // IMPORTANT: set sendToAddress = resolvedAddress immediately so canSend
-  // is not blocked while the async Supabase lookup is in-flight. The lookup
-  // then upgrades it to the burner/trading wallet if one exists.
   useEffect(() => {
-    if (!resolvedAddress) { setSendToAddress(null); return; }
-    // Unblock the Send button right away with the best address we have.
-    setSendToAddress(resolvedAddress);
-    Promise.resolve(supabase
-      .from('profiles')
-      .select('velo_wallet_address')
-      .ilike('wallet_address', resolvedAddress)
-      .maybeSingle())
-      .then(({ data }) => {
-        const tradingWallet = data?.velo_wallet_address;
-        if (tradingWallet && isAddress(tradingWallet)) {
-          setSendToAddress(tradingWallet as `0x${string}`);
-        }
-        // else: already set to resolvedAddress above — no-op
-      })
-      .catch(() => { /* already set to resolvedAddress — safe to ignore */ });
-  }, [resolvedAddress]);
+    if (!isOpen || !senderAddress) return;
+    setTxHash(null); setAmount(''); setRecipientInput(''); setStep('IDLE'); setErrorMsg('');
+    const saved = readPendingTransfer(localStorage, senderAddress);
+    if (!saved) return;
+    setTxHash(saved.txHash); setAmount(String(saved.amount));
+    setRecipientInput(saved.recipientAddress); setSendToAddress(saved.recipientAddress);
+    setStep('ERROR'); setErrorMsg('A previous transfer is awaiting confirmation. Check it before sending another.');
+  }, [isOpen, senderAddress]);
 
   // Read sender's mUSDC balance on open
   useEffect(() => {
@@ -144,12 +136,15 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
   // Live resolve recipient
   useEffect(() => {
     const raw = recipientInput.trim();
+    let active = true;
+    setResolvedAddress(null); setSendToAddress(null);
     if (!raw) { setResolveState('idle'); setResolvedAddress(null); return; }
 
     // Wallet address path
     if (raw.startsWith('0x') || raw.length === 42) {
       if (isAddress(raw)) {
         setResolvedAddress(raw as `0x${string}`);
+        setSendToAddress(raw as `0x${string}`);
         setResolveState('address');
       } else {
         setResolvedAddress(null);
@@ -165,14 +160,23 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
     if (!publicClient) return;
     setResolveState('checking');
     const handle = setTimeout(() => {
-      resolveUsername(publicClient, normalized)
+      // Profiles are authoritative for Velo handles. On-chain registration is
+      // optional, and a typed address must never be silently redirected.
+      (async () => {
+        const { data, error } = await publicSupabase.from('profiles')
+          .select('wallet_address,velo_wallet_address').ilike('username', normalized).maybeSingle();
+        if (error) throw error;
+        if (data) return data.velo_wallet_address || data.wallet_address;
+        return resolveUsername(publicClient, normalized);
+      })()
         .then((addr) => {
-          if (addr) { setResolvedAddress(addr as `0x${string}`); setResolveState('username_found'); }
+          if (!active) return;
+          if (addr && isAddress(addr)) { setResolvedAddress(addr as `0x${string}`); setSendToAddress(addr as `0x${string}`); setResolveState('username_found'); }
           else { setResolvedAddress(null); setResolveState('username_unknown'); }
         })
-        .catch(() => { setResolvedAddress(null); setResolveState('username_unknown'); });
+        .catch(() => { if (active) { setResolvedAddress(null); setResolveState('username_unknown'); } });
     }, 400);
-    return () => clearTimeout(handle);
+    return () => { active = false; clearTimeout(handle); };
   }, [recipientInput, publicClient]);
 
   if (!isOpen) return null;
@@ -192,8 +196,34 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
     && hasSigningCapability
     && publicClient;
 
+  const confirmTransfer = async (hash: `0x${string}`) => {
+    if (!publicClient || !senderAddress || !sendToAddress) return;
+    await waitForSuccessfulReceipt(publicClient, hash);
+    clearPendingTransfer(localStorage, senderAddress, hash);
+    if (activeSender.current !== senderAddress) return;
+    setStep('DONE');
+    try {
+      await onSuccess?.({ txHash: hash, recipientAddress: sendToAddress,
+        recipientHandle: resolveState === 'username_found' ? recipientInput.replace(/^@/, '').toLowerCase() : undefined,
+        amount: amountNum });
+    } catch { setErrorMsg('Transfer confirmed. Activity history could not refresh yet.'); }
+  };
+
+  const checkConfirmation = async () => {
+    if (!txHash || sendLock.current) return;
+    sendLock.current = true; setStep('SENDING'); setErrorMsg('');
+    try { await confirmTransfer(txHash); }
+    catch (error: any) {
+      if (error.message === 'Transaction reverted on-chain') {
+        if (senderAddress) clearPendingTransfer(localStorage, senderAddress, txHash);
+        setTxHash(null);
+      }
+      setErrorMsg(error.message || 'Confirmation is still unavailable.'); setStep('ERROR');
+    } finally { sendLock.current = false; }
+  };
+
   const handleSend = async () => {
-    if (!sendToAddress || !publicClient) return;
+    if (!sendToAddress || !publicClient || sendLock.current || !canSend || txHash) return;
     if (!burner && !mainWalletClient) {
       setErrorMsg('No wallet available to sign. Connect your wallet in the top-right corner first.');
       setStep('ERROR');
@@ -201,6 +231,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
     }
     setStep('SENDING');
     setErrorMsg('');
+    sendLock.current = true;
     try {
       // Pick signing client — burner preferred for silent UX, MetaMask fallback
       let signingClient;
@@ -208,7 +239,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
         signingClient = createWalletClient({
           account: privateKeyToAccount(burner.privateKey),
           chain: baseSepolia,
-          transport: http(BASE_SEPOLIA_RPC),
+          transport: baseSepoliaTransport(BASE_SEPOLIA_RPC),
         });
       } else if (mainWalletClient) {
         signingClient = mainWalletClient;
@@ -219,7 +250,8 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
       // Pre-flight: make sure the signer has ETH for gas. If sending from the
       // burner and it's low, the sponsor tops it up before we transfer.
       if (burner) {
-        await ensureBurnerGas(publicClient, burner.veloAddress);
+        const gas = await ensureBurnerGas(publicClient, burner.veloAddress);
+        if (!gas.ok) throw new Error(gas.reason || 'Unable to fund transaction gas.');
       }
 
       const amountWei = parseUnits(amountNum.toFixed(6), 6);
@@ -232,36 +264,21 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
         chain: baseSepolia,
       });
       setTxHash(hash);
-
-      // Fire onSuccess as soon as the transaction hash exists — the transfer
-      // is already submitted to the mempool at this point. Waiting for the
-      // receipt before calling onSuccess caused a silent failure mode where
-      // a network timeout would let the funds leave but record nothing in
-      // Supabase (no notification, no activity row, no toast for the sender).
-      const recipientHandle = resolveState === 'username_found'
-        ? recipientInput.replace(/^@/, '').toLowerCase()
-        : undefined;
-      onSuccess?.({
-        txHash: hash,
-        recipientAddress: sendToAddress!,
-        recipientHandle,
-        amount: amountNum,
-      });
-
-      // Wait for on-chain confirmation before showing DONE. If this times out
-      // the record is already saved (onSuccess ran above) — user sees a spinner
-      // briefly longer but the transfer is not lost.
-      await publicClient.waitForTransactionReceipt({ hash });
-
-      setStep('DONE');
+      if (senderAddress) savePendingTransfer(localStorage, senderAddress, { txHash: hash, recipientAddress: sendToAddress, amount: amountNum });
+      await confirmTransfer(hash);
     } catch (e: any) {
+      const pendingHash = submittedTransactionHash(e);
+      if (pendingHash) {
+        setTxHash(pendingHash);
+        try { if (senderAddress) savePendingTransfer(localStorage, senderAddress, { txHash: pendingHash, recipientAddress: sendToAddress, amount: amountNum }); } catch { /* The signed journal still guards the wallet. */ }
+      }
       const msg = e?.shortMessage || e?.message || 'Send failed';
       if (/rejected|denied/i.test(msg)) setErrorMsg('You cancelled the transfer.');
       else if (/insufficient/i.test(msg)) setErrorMsg('Insufficient funds for this transfer.');
       else if (/exceeds the balance/i.test(msg)) setErrorMsg("Trading wallet doesn't have enough ETH for gas. Top up from main wallet.");
       else setErrorMsg(msg);
       setStep('ERROR');
-    }
+    } finally { sendLock.current = false; }
   };
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -279,7 +296,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
     );
     if (resolveState === 'username_unknown') return (
       <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 6 }}>
-        Username not registered on-chain.
+        Could not resolve this Velo handle. Check the handle or use a wallet address.
       </div>
     );
     if (resolveState === 'username_found' && resolvedAddress) return (
@@ -399,6 +416,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
       <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 20px' }}>
         ${amountNum.toFixed(2)} mUSDC delivered.
       </p>
+      {errorMsg && <p role="status" style={{ ...S.sans, color: 'var(--fg-muted)', fontSize: 13 }}>{errorMsg}</p>}
       {txHash && (
         <a
           href={baseScanTxUrl(txHash)} target="_blank" rel="noopener noreferrer"
@@ -427,10 +445,11 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
   const renderError = () => (
     <div style={{ padding: '40px 24px', textAlign: 'center' as const }}>
       <X size={32} style={{ color: 'var(--pnl-down)', margin: '0 auto 20px' }} />
-      <h3 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 8px' }}>Send failed</h3>
+      <h3 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 8px' }}>{txHash ? 'Awaiting confirmation' : 'Send failed'}</h3>
       <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 20px' }}>{errorMsg}</p>
+      {txHash && <a href={baseScanTxUrl(txHash)} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginBottom: 16, color: 'var(--accent)' }}>View transaction</a>}
       <button
-        onClick={() => setStep('IDLE')}
+        onClick={() => txHash ? void checkConfirmation() : setStep('IDLE')}
         style={{
           ...S.mono, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
           background: 'var(--fg)', color: 'var(--bg-base)',
@@ -438,7 +457,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
           textTransform: 'uppercase' as const, cursor: 'pointer',
         }}
       >
-        Try again
+        {txHash ? 'Check confirmation' : 'Try again'}
       </button>
     </div>
   );
@@ -459,6 +478,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
         <div style={holoGradient} />
         <button
           onClick={onClose}
+          disabled={step === 'SENDING'}
           aria-label="Close"
           style={{
             position: 'absolute', top: 16, right: 16, zIndex: 3,

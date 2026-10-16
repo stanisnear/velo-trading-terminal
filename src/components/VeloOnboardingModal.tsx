@@ -294,13 +294,14 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     flowAbortedRef.current = false;
     setStep('CREATING');
     try {
-      if (supabaseReady) {
-        const { data: taken } = await supabase.from('profiles').select('id').ilike('username', uname).maybeSingle();
-        if (taken) { setGlobalError(`@${uname} is already taken — go back and choose another`); setStep('REVIEW'); return; }
-      }
       const { data: signedIn } = await signInWithWallet(address, ({ message }) => walletClient.signMessage({ account: address, message }));
       const authUser = signedIn.user;
       if (!authUser) throw new Error('Wallet sign-in failed');
+      const { data: taken, error: lookupError } = await supabase.from('profiles').select('id').ilike('username', uname).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (taken && taken.id !== authUser.id) {
+        setGlobalError(`@${uname} is already taken. Choose another username.`); setStep('REVIEW'); return;
+      }
       const { error: profileError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', authUser.id);
       if (profileError) throw profileError;
       if (contactEmail) { const { error } = await supabase.rpc('set_my_contact_email', { contact_email: contactEmail }); if (error) throw error; }
@@ -309,6 +310,10 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       setStep('BURNER_SIGN');
       const result = await setupBurnerWallet({
         walletClient, publicClient, ownerAddress: address,
+        onWalletReady: async (burner) => {
+          const { error } = await supabase.from('profiles').update({ velo_wallet_address: burner.veloAddress.toLowerCase() }).eq('id', authUser.id);
+          if (error) throw new Error('Unable to save the trading wallet. Please retry before claiming funds.');
+        },
         onStep: (s: string) => {
           if (s === 'SIGNING') setStep('BURNER_SIGN');
           if (s === 'SPONSOR_REQUEST') setStep('BURNER_SPONSOR');
@@ -326,15 +331,14 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             await ensureBurnerGas(publicClient, result.burner.veloAddress as `0x${string}`);
             const burnerWc = createBurnerWalletClient(result.burner.privateKey);
             const unameTx = await claimUsername(burnerWc as any, uname);
-            await publicClient.waitForTransactionReceipt({ hash: unameTx });
+            await (await import('@/services/tradeReceipts')).waitForSuccessfulReceipt(publicClient, unameTx);
             onUsernameClaimed?.(uname, unameTx);
           }
         } catch (e) { console.warn('[velo] on-chain username claim skipped:', e); }
       }
 
-      let bal = 1000;
-      try { bal = await fetchUsdcBalance(publicClient, VELO_USDC_BASE, result.burner.veloAddress); setClaimBalance(bal); }
-      catch { setClaimBalance(1000); }
+      const bal = await fetchUsdcBalance(publicClient, VELO_USDC_BASE, result.burner.veloAddress);
+      setClaimBalance(bal);
 
       if (flowAbortedRef.current) return;
       markDismissed(address);

@@ -34,13 +34,16 @@ import { VeloDepositModal } from './components/VeloDepositModal';
 import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
 import { VeloUsernameModal } from './components/VeloUsernameModal';
 import { VeloSendModal } from './components/VeloSendModal';
+import { VeloFaucetModal } from './components/VeloFaucetModal';
+import { TransactionRecoveryNotice } from './components/TransactionRecoveryNotice';
+import { reconcileIncomingTransfers } from './services/incomingTransfers.mjs';
 import { VeloWithdrawModal } from './components/VeloWithdrawModal';
 import { VeloShareCard, type ShareCardData } from './components/VeloShareCard';
 import { VeloManagePositionModal } from './components/VeloManagePositionModal';
 import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
 import { VeloAdminPanel } from './components/VeloAdminPanel';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
-import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI } from './services/veloPerpsService';
+import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentThread } from './components/CommentThread';
@@ -456,7 +459,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {} }: any) => 
                                 <VeloAssetIcon src={p.logo} symbol={p.id.split('/')[0]} size={32} className="group-hover:scale-105 transition-transform" />
                                 <div className="text-left"><p className="font-bold text-[var(--fg)]">{p.id}</p><p className="text-xs text-[var(--fg-subtle)]">{p.name}</p></div>
                             </div>
-                            <div className="text-right"><span className="block text-sm font-medium text-[var(--fg)]">${formatPrice(marketPrices[p.id] || p.basePrice)}</span><span className="text-[10px] text-[var(--fg-subtle)]">{p.name}</span></div>
+                            <div className="text-right"><span className="block text-sm font-medium text-[var(--fg)]">{marketPrices[p.id] > 0 ? `$${formatPrice(marketPrices[p.id])}` : '—'}</span><span className="text-[10px] text-[var(--fg-subtle)]">{p.name}</span></div>
                         </button>
                     ))}
                 </div>
@@ -644,8 +647,8 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
     const chg = changes[pairId] ?? 0;
     const up = chg >= 0;
     const pairInfo = SOCIAL_FEATURED_PAIRS.find(p => p.symbol === ticker);
-    const meta = TOKEN_META[ticker];
-    const binanceSym = (pairInfo?.binance) || `${ticker}USDT`;
+    const meta = pairInfo ? (TOKEN_META[ticker] || { geckoId: pairInfo.geckoId }) : undefined;
+    const binanceSym = pairInfo?.binance;
 
     const tickerPosts = React.useMemo(() => {
         return posts.filter((p: any) =>
@@ -657,6 +660,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
     React.useEffect(() => {
         const controller = new AbortController();
         setSparkData([]);
+        if (!binanceSym) return;
         fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1h&limit=24`, { signal: controller.signal })
             .then(r => r.json())
             .then((d: any[]) => { if (!controller.signal.aborted && Array.isArray(d)) setSparkData(d.map((c: any) => parseFloat(c[4]))); })
@@ -679,6 +683,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
     // Fetch news
     React.useEffect(() => {
         setNewsLoading(true);
+        if (!pairInfo) { setNewsLoading(false); return; }
         const categories = ticker === 'BTC' ? 'BTC' : ticker === 'ETH' ? 'ETH' : ticker === 'SOL' ? 'SOL' : ticker;
         const controller = new AbortController();
         fetch(`https://min-api.cryptocompare.com/data/v2/news/?categories=${categories}&extraParams=Velo&sortOrder=latest`, { signal: controller.signal })
@@ -687,6 +692,8 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
             .catch(() => { if (!controller.signal.aborted) { setNews([]); setNewsLoading(false); } });
         return () => controller.abort();
     }, [ticker]);
+
+    if (!pairInfo) return <main className="p-8"><h1>Market unavailable</h1><p>This asset is not part of Velo's supported crypto markets.</p><button onClick={onClose}>Back</button></main>;
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
@@ -2218,6 +2225,31 @@ const App = () => {
     // for any position cards rendered by VeloPerpsPanel.
     const veloPerpsTrading = useVeloPerpsTrading();
 
+    useEffect(() => {
+      if (!user?.id || !authChecked || !publicClient || !burnerAddress) return;
+      const identity = user.id;
+      let active = true, running = false;
+      const reconcile = async () => {
+        if (running || !active || document.visibilityState === 'hidden') return;
+        running = true;
+        try {
+          const changed = await reconcileIncomingTransfers({ client: publicClient, token: VELO_USDC_BASE, address: burnerAddress, userId: identity,
+            isActive: () => active,
+            record: (hash: string) => recordTransactionForUser(identity, 'RECEIVE', 0, { txHash: hash, onChain: true }),
+          });
+          if (changed && active) {
+            const history = await fetchTransactions(identity);
+            if (active) setUser(prev => prev?.id === identity ? { ...prev, transactionHistory: history } : prev);
+          }
+        } catch { /* The cursor stays behind the failed chunk; retry on focus. */ }
+        finally { running = false; }
+      };
+      void reconcile();
+      const timer = setInterval(reconcile, 60000);
+      window.addEventListener('focus', reconcile);
+      return () => { active = false; clearInterval(timer); window.removeEventListener('focus', reconcile); };
+    }, [user?.id, authChecked, publicClient, burnerAddress]);
+
     // Restore burner address from localStorage on mount / wallet connect so
     // useOrderlyTrading immediately uses the Velo address instead of MetaMask.
     // Without this, every page reload clears burnerAddress → keypair lookup
@@ -2827,55 +2859,10 @@ const App = () => {
     const hasInFlightDeposits    = pendingDepositCount > 0;
     const [claimingFaucet, setClaimingFaucet] = useState(false);
 
-    // Handler: claim 1000 USDC directly to the Orderly trading account.
-    // This is the testnet shortcut — bypasses cross-chain settlement entirely.
-    // Pre-conditions: user must have an activated Velo wallet (burnerAddress + keypair).
+    // Faucet recovery remains available after onboarding, including refreshes.
     const handleClaimTestnetUsdc = useCallback(async () => {
-      if (!burnerAddress || !orderly.keypair) {
-        // Phase 2: route legacy "claim faucet" call paths through the new on-chain
-        // Velo Welcome modal so users hit the working faucet, not the broken Orderly one.
-        setVeloWelcomeOpen(true);
-        return;
-      }
-      if (claimingFaucet) return;
-      setClaimingFaucet(true);
-      try {
-        const res = await fetch('/api/faucet', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_address: burnerAddress,
-            broker_id:    'woofi_dex',
-            chain_id:     '84532',
-            source:       'orderly', // ← force direct trading-account credit
-          }),
-        }).then(r => r.json()).catch(e => ({ success: false, message: e?.message }));
-
-        if (!res?.success) {
-          setToast({ message: `Faucet failed: ${res?.message || 'try again later'}`, type: 'ERROR' });
-          setClaimingFaucet(false);
-          return;
-        }
-
-        setToast({ message: 'Faucet accepted — checking trading account…', type: 'INFO' });
-
-        const startBal = orderly.orderlyBalance;
-        for (let i = 0; i < 20; i++) {
-          await new Promise(ok => setTimeout(ok, 3000));
-          const newBal = await refreshOrderlyBalance().catch(() => null);
-          if (newBal != null && newBal > startBal) {
-            setToast({ message: `+$${(newBal - startBal).toFixed(2)} USDC credited — ready to trade`, type: 'SUCCESS' });
-            setClaimingFaucet(false);
-            return;
-          }
-        }
-        setToast({ message: 'Faucet accepted but credit not detected yet. Check back in a minute.', type: 'INFO' });
-        setClaimingFaucet(false);
-      } catch (e: any) {
-        setToast({ message: `Faucet error: ${e?.message || 'unknown'}`, type: 'ERROR' });
-        setClaimingFaucet(false);
-      }
-    }, [burnerAddress, orderly.keypair, orderly.orderlyBalance, claimingFaucet, refreshOrderlyBalance]);
+      setVeloWelcomeOpen(true);
+    }, []);
 
     // Mark stale deposits as FAILED on app boot
     useEffect(() => { reapStaleDeposits(); }, []);
@@ -4058,7 +4045,7 @@ const App = () => {
         // unreachable. 24h change % comes from the fallback source.
         fetchPricesResilient().then(({ prices: livePrices, changes: liveChanges }) => {
             const merged: Record<string, number> = {};
-            PAIRS.forEach(p => { merged[p.id] = livePrices[p.id] || p.basePrice; });
+            PAIRS.forEach(p => { if (livePrices[p.id] > 0) merged[p.id] = livePrices[p.id]; });
             setMarketPrices(merged);
             setMarketChanges(liveChanges || {});
         });
@@ -4874,8 +4861,8 @@ const App = () => {
         setBurnerAddress(null); setSettingsOpen(false); setLoginOpen(false);
         setVeloWelcomeOpen(false); setNotifOpen(false); setAppOrderDetails(null);
         setSessionWarning(null); setAuthChecked(true);
-        setSessionNotice(reason === 'idle' ? 'expired' : 'signed-out');
-        // Preserve the owner wallet connection so Log In can request a signature directly.
+        setSessionNotice(reason === 'idle' ? 'expired' : null);
+        if (reason === 'manual') walletDisconnectRef.current?.();
         // Local scope revokes this session; access JWT expiry remains a backend boundary.
         try { const { error } = await supabase.auth.signOut({ scope: 'local' }); if (error) throw error; }
         catch { try { localStorage.removeItem('velo-auth-token'); } catch {} setToast({ message: 'Signed out here. The server could not confirm revocation; reconnect when online.', type: 'INFO' }); }
@@ -5355,7 +5342,7 @@ const App = () => {
               // Resolve UI pair (e.g. "BTC/USD") to Velo pair label ("BTC-USD")
               const veloPair = uiPairToVeloPair(pairId);
               if (!veloPair) {
-                setToast({ message: `${pairId} is not yet listed on Velo Perps. Available: BTC, ETH, SOL, AVAX, LINK, DOGE.`, type: 'INFO' });
+                setToast({ message: `${pairId} is not available for trading. Current perpetuals: BTC, ETH, SOL and DOGE.`, type: 'INFO' });
                 releaseLock();
                 return;
               }
@@ -6550,6 +6537,17 @@ const App = () => {
                 }
               }}
             />
+            <VeloFaucetModal isOpen={isVeloWelcomeOpen && !!user} userId={user?.id}
+              onClose={() => setVeloWelcomeOpen(false)} onReady={async ({ address, hash }) => {
+                setBurnerAddress(address); veloPerpsTrading.reloadBurner();
+                await veloPerpsTrading.refresh();
+                setToast({ message: 'Faucet claim confirmed in your trading wallet.', type: 'SUCCESS' });
+                if (user?.id) {
+                  await recordTransactionForUser(user.id, 'RECEIVE', 0, { txHash: hash, onChain: true });
+                  const txns = await fetchTransactions(user.id);
+                  setUser(prev => prev?.id === user.id ? { ...prev, transactionHistory: txns } : prev);
+                }
+              }} />
             {/* ── Reset Password Modal ── */}
             {isResetPasswordOpen && <ResetPasswordModal onClose={() => setResetPasswordOpen(false)} onSuccess={() => { setResetPasswordOpen(false); setToast({ message: 'Password updated! Please sign in.', type: 'SUCCESS' }); setLoginOpen(true); }} />}
             {/* ── Velo Bridge Modal (cross-chain mUSDC via LayerZero V2) ──
@@ -7069,10 +7067,7 @@ const App = () => {
                 }} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
             <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
-                {user && veloPerpsTrading.pendingTxHash && <div role="status" style={{ padding: '10px 16px' }}>
-                  Transaction submitted. Waiting for confirmation; another submission is paused.
-                  {' '}<a href={`https://sepolia.basescan.org/tx/${veloPerpsTrading.pendingTxHash}`} target="_blank" rel="noopener noreferrer">Check transaction</a>
-                </div>}
+                {user && veloPerpsTrading.pendingTxHash && <TransactionRecoveryNotice key={veloPerpsTrading.pendingTxHash} hash={veloPerpsTrading.pendingTxHash} onReset={veloPerpsTrading.resetLegacyTracking}/>}
                 {user && veloPerpsTrading.readError && <div role="alert" style={{ padding: '10px 16px', color: 'var(--pnl-down)' }}>
                   {veloPerpsTrading.readError} <button onClick={() => void veloPerpsTrading.refresh()}>Retry account data</button>
                 </div>}

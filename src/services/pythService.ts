@@ -34,6 +34,8 @@ export const PYTH_FEED_IDS = {
 } as const;
 
 import { fetchPyth } from './pythConnection';
+import { MARKETS } from '../../shared/markets.mjs';
+const availableFeeds = new Set(MARKETS.map(market => market.feed));
 const HERMES_URL = '/api/pyth';
 
 /**
@@ -79,11 +81,19 @@ async function fetchOnce(feedIds: readonly string[]): Promise<{
   );
 
   // Validate freshness and sanity from the parsed field.
-  const parsed = data?.parsed?.[0];
-  const publishTime: number = parsed?.price?.publish_time ?? 0;
+  const requested = feedIds.map(id => id.replace(/^0x/, '').toLowerCase());
+  const entries = requested.map(id => data?.parsed?.find((entry: any) => String(entry.id).replace(/^0x/, '').toLowerCase() === id));
+  if (entries.some(entry => !entry?.price || !Number.isFinite(Number(entry.price.price)) || Number(entry.price.price) <= 0 ||
+      !Number.isFinite(Number(entry.price.expo)) || !Number.isFinite(Number(entry.price.publish_time)) || Number(entry.price.publish_time) <= 0)) {
+    throw new Error('The requested market has no valid Pyth update. Trading is unavailable until its price feed recovers.');
+  }
+  const parsed = entries[0];
+  const publishTime: number = Math.min(...entries.map(entry => Number(entry.price.publish_time)));
+  if (entries.some(entry => Number(entry.price.publish_time) > Date.now() / 1000 + 5)) throw new Error('Pyth update timestamp is in the future.');
   const rawPrice: number = parsed?.price?.price ?? 0;
   const expo: number = parsed?.price?.expo ?? -8;
   const parsedPrice = rawPrice * Math.pow(10, expo);
+  if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) throw new Error('Invalid Pyth price.');
 
   return { updateData, parsedPrice, publishTime };
 }
@@ -109,6 +119,9 @@ export async function fetchPriceUpdate(
   if (feedIds.length === 0) {
     throw new Error('fetchPriceUpdate: no feed ids');
   }
+  if (feedIds.some(id => !availableFeeds.has(id.replace(/^0x/, '').toLowerCase()))) {
+    throw new Error('This market is not covered by Velo\'s current Pyth access. New orders are disabled; existing positions require restored oracle access to close.');
+  }
 
   const nowSec = Math.floor(Date.now() / 1000);
   let result = await fetchOnce(feedIds);
@@ -117,7 +130,7 @@ export async function fetchPriceUpdate(
   if (result.publishTime > 0 && nowSec - result.publishTime > MAX_DATA_AGE_SECONDS) {
     await new Promise(r => setTimeout(r, 1000));
     result = await fetchOnce(feedIds);
-    if (nowSec - result.publishTime > MAX_DATA_AGE_SECONDS) {
+    if (Math.floor(Date.now() / 1000) - result.publishTime > MAX_DATA_AGE_SECONDS) {
       throw new Error(
         `Pyth price data is stale (${nowSec - result.publishTime}s old). ` +
         `Try again in a few seconds.`

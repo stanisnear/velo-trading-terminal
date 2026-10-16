@@ -13,6 +13,7 @@ import {
   formatUnits,
   maxUint256,
 } from 'viem';
+import { waitForSuccessfulReceipt } from './tradeReceipts';
 
 const USDC_DECIMALS = 6;
 
@@ -111,7 +112,7 @@ export async function fetchFaucetCooldown(
     if (last === 0n) return { availableAt: 0, cooldownSeconds };
     return { availableAt: Number(last) + cooldownSeconds, cooldownSeconds };
   } catch {
-    return { availableAt: 0, cooldownSeconds: 6 * 3600 };
+    throw new Error('Unable to check faucet availability. Please retry when Base Sepolia is reachable.');
   }
 }
 
@@ -152,7 +153,7 @@ export async function approveUsdcIfNeeded(
     account,
     chain: walletClient.chain,
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await waitForSuccessfulReceipt(publicClient, txHash);
   return txHash;
 }
 

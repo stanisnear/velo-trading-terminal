@@ -62,11 +62,18 @@ export function decodeConfirmedClose(receipt: TransactionReceipt, contract: Addr
 export async function waitForSuccessfulReceipt(client: PublicClient, hash: Hex): Promise<TransactionReceipt> {
   let receipt: TransactionReceipt;
   try {
-    receipt = await client.waitForTransactionReceipt({ hash, pollingInterval: 2000, timeout: 90000 });
+    // One additional block keeps immediate follow-up simulations from using
+    // a lagging RPC replica that has not applied the preceding mint/approval.
+    receipt = await client.waitForTransactionReceipt({ hash, pollingInterval: 1000, timeout: 45000, confirmations: 2 });
   } catch {
     const error = new Error('Transaction submitted; confirmation is delayed. Check its status before retrying.') as Error & { txHash: Hex };
     error.txHash = hash;
     throw error;
+  }
+  const { clearPendingTransaction } = await import('./baseTransport.mjs');
+  clearPendingTransaction(receipt.from, hash);
+  if (receipt.transactionHash.toLowerCase() !== hash.toLowerCase()) {
+    throw new Error('The transaction was replaced. Check wallet activity before retrying this action.');
   }
   if (receipt.status !== 'success') throw new Error('Transaction reverted on-chain');
   return receipt;

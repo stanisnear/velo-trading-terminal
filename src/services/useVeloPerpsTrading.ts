@@ -27,7 +27,8 @@ import {
   type Hex,
   createWalletClient,
 } from 'viem';
-import { baseSepoliaTransport, transactionError } from './baseTransport.mjs';
+import { baseSepoliaTransport, transactionError, pendingTransaction, recoverPendingTransaction, checkLegacyTransaction } from './baseTransport.mjs';
+import { waitForSuccessfulReceipt } from './tradeReceipts';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import {
@@ -64,7 +65,8 @@ import {
   mintMockUsdc,
 } from './veloUsdcService';
 import { fetchPriceUpdate, PYTH_FEED_IDS } from './pythService';
-import { ensureBurnerGas } from './veloGasSponsor';
+import { requireBurnerGas as ensureBurnerGas } from './veloGasSponsor';
+import { isEnabledTradingMarket } from '../../shared/markets.mjs';
 import {
   loadStoredBurner,
   type VeloBurnerWallet,
@@ -73,7 +75,7 @@ import {
 const POLL_INTERVAL_MS = 5_000;
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_SEPOLIA_RPC =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
 
 export interface UseVeloPerpsTradingState {
   isReady: boolean;
@@ -100,6 +102,7 @@ export interface UseVeloPerpsTradingState {
 }
 
 export interface UseVeloPerpsTradingActions {
+  resetLegacyTracking: () => Promise<void>;
   refresh: () => Promise<void>;
   mintTestUsdc: () => Promise<{ txHash: `0x${string}` }>;
   openPosition: (args: OpenPositionArgs) => Promise<{
@@ -170,9 +173,12 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   useEffect(() => {
     let hash: Hex | null = null;
     try { const stored = traderAddress && localStorage.getItem(`velo_pending_tx_84532_${traderAddress.toLowerCase()}`); if (stored && /^0x[0-9a-f]{64}$/i.test(stored)) hash = stored as Hex; } catch {}
+    hash = pendingTransaction(traderAddress)?.hash || hash;
     pendingTxRef.current = hash; setPendingTxHash(hash);
   }, [traderAddress]);
   const beginWrite = () => {
+    const journal = pendingTransaction(traderAddress);
+    if (journal) rememberPending(journal.hash);
     if (pendingTxRef.current) throw new Error('A submitted transaction is still awaiting confirmation. Check the transaction link before sending another.');
     if (writeLock.current) throw new Error('Another wallet transaction is in progress. Wait for its confirmation.');
     writeLock.current = true;
@@ -253,10 +259,11 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     const check = async () => {
       if (reading) return; reading = true;
       try {
-        const receipt = await publicClient.getTransactionReceipt({ hash: pendingTxHash });
-        if (!active) return;
+        const receipt = await recoverPendingTransaction(publicClient, traderAddress, pendingTxHash);
+        if (!active || !receipt) return;
         rememberPending(null);
         if (receipt.status === 'reverted') setLastError('The pending transaction reverted on-chain. You can retry.');
+        if (receipt.status === 'replaced') setLastError('Another transaction used this nonce. Account data has been refreshed; check the action before retrying.');
         void refresh();
       } catch { /* Not mined or temporarily unreachable: keep the submission guard. */ }
       finally { reading = false; }
@@ -265,15 +272,28 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     return () => { active = false; clearInterval(timer); };
   }, [pendingTxHash, traderAddress, publicClient, refresh]);
 
+  const resetLegacyTracking = async () => {
+    const identity = traderAddress, hash = pendingTxRef.current;
+    if (!identity || !hash || writeLock.current) return;
+    await checkLegacyTransaction(identity, hash);
+    if (identityRef.current !== identity || pendingTxRef.current !== hash) return;
+    rememberPending(null);
+    await refresh();
+  };
+
   // ── Writes ─────────────────────────────────────────────────────────────────
 
   const mintTestUsdc = useCallback(async () => {
-    if (!metaMaskWalletClient || !publicClient) throw new Error('Wallet not connected');
+    if (!tradingClient || !publicClient || !traderAddress) throw new Error('Wallet not connected');
     beginWrite();
     setLastError(null);
     try {
-      const txHash = await mintMockUsdc(metaMaskWalletClient, VELO_USDC_BASE);
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
+      const gas = await ensureBurnerGas(publicClient, traderAddress);
+      if (!gas.ok) throw new Error(gas.reason || 'Unable to fund gas. Try again.');
+      const txHash = await mintMockUsdc(tradingClient as any, VELO_USDC_BASE);
+      rememberPending(txHash);
+      await waitForSuccessfulReceipt(publicClient, txHash);
+      rememberPending(null);
       void refresh();
       return { txHash };
     } catch (e: any) {
@@ -285,11 +305,12 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     } finally {
       writeLock.current = false; setPending(false);
     }
-  }, [metaMaskWalletClient, publicClient, refresh]);
+  }, [tradingClient, publicClient, traderAddress, refresh]);
 
   const openPosition = useCallback(
     async (args: OpenPositionArgs) => {
       requireSafeTestnetAction('open', args.marginMode);
+      if (!isEnabledTradingMarket(args.pair)) throw new Error('This market is not available for new orders.');
       if (!tradingClient || !publicClient || !traderAddress) {
         throw new Error('Trading wallet not ready');
       }
@@ -486,6 +507,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const placeConditionalOrder = useCallback(
     async (args: PlaceConditionalOrderArgs) => {
       requireSafeTestnetAction('order', args.marginMode, args.reduceOnly);
+      if (!isEnabledTradingMarket(args.pair)) throw new Error('This market is not available for new orders.');
       if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
       beginWrite(); setLastError(null);
       try {
@@ -529,6 +551,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     lastError,
     readError,
     pendingTxHash,
+    resetLegacyTracking,
     usdcBalance,
     crossFreeBalance,
     crossTotalBalance,

@@ -21,7 +21,7 @@ import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { baseScanTxUrl } from '@/services/veloPerpsService';
 
 const BASE_SEPOLIA_RPC =
-  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
+  import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
 
 const S = {
   display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },

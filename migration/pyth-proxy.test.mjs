@@ -31,8 +31,9 @@ test('credentials are confined to separate fixed origins, redirects are forbidde
  assert.equal(res.status,200);assert.equal(calls.length,2);
  assert(calls[0][0].startsWith('https://btgfoekgvyvdflzjfehz.supabase.co/auth/v1/user'));
  assert.equal(calls[0][1].headers.Authorization,`Bearer ${token}`);
- assert(calls[1][0].startsWith('https://hermes.pyth.network/v2/updates/price/latest?'));
+ assert(calls[1][0].startsWith('https://pyth.dourolabs.app/hermes/v2/updates/price/latest?'));
  assert.equal(calls[1][1].headers.Authorization,`Bearer ${key}`);
+ assert.equal(new URL(calls[1][0]).searchParams.get('ids[]'),`0x${id}`);
  for(const [u,o] of calls){assert(!u.includes(key));assert(!u.includes(token));assert.equal(o.redirect,'manual');}
  assert.equal(res.headers.get('cache-control'),'no-store');
  assert(!(await res.text()).includes(key));
@@ -68,6 +69,30 @@ test('SSE remains a stream and rejects non-SSE upstream content',async()=>{
  const res=await proxyPyth(request(url.replace('latest','stream')),env(),async(u)=>String(u).endsWith('/auth/v1/user')?Response.json(user):new Response(body,{headers:{'Content-Type':'text/event-stream'}}));
  assert.equal(res.headers.get('content-type'),'text/event-stream');assert.equal(await res.text(),body);
  assert.equal((await proxyPyth(request(url.replace('latest','stream')),env(),upstream)).status,502);
+});
+test('an explicit feed denial is isolated without altering the remaining signed price payload',async()=>{
+ const ids=[...allowedFeeds].slice(0,3),e=env(),calls=[];
+ const endpoint='https://app.example/api/pyth/v2/updates/price/latest?'+ids.map(id=>'ids[]='+id).join('&');
+ const payload={binary:{encoding:'hex',data:['signed-provider-payload']},parsed:ids.slice(1).map(id=>({id}))};
+ const fetch=async(u)=>{
+  if(String(u).endsWith('/auth/v1/user'))return Response.json(user);
+  const requested=new URL(u).searchParams.getAll('ids[]');calls.push(requested);
+  return requested.includes('0x'+ids[0])?new Response('Not entitled: feed '+ids[0],{status:403}):Response.json(payload);
+ };
+ const response=await proxyPyth(request(endpoint),e,fetch);
+ assert.equal(response.status,200);assert.deepEqual(await response.json(),payload);
+ assert.equal(response.headers.get('x-pyth-unavailable-feeds'),'0x'+ids[0]);
+ assert.deepEqual(calls,[ids.map(id=>'0x'+id).sort(),ids.slice(1).map(id=>'0x'+id).sort()]);
+ calls.length=0;
+ assert.equal((await proxyPyth(request(endpoint),e,fetch)).status,200);
+ assert.deepEqual(calls,[ids.slice(1).map(id=>'0x'+id)]);
+});
+test('generic or unrequested entitlement errors never silently discard requested feeds',async()=>{
+ for(const detail of ['Not entitled','Not entitled: feed '+'f'.repeat(64)]){
+  let providerCalls=0;
+  const response=await proxyPyth(request(),env(),async(u)=>String(u).endsWith('/auth/v1/user')?Response.json(user):(providerCalls++,new Response(detail,{status:403})));
+  assert.equal(response.status,502);assert.equal(providerCalls,1);
+ }
 });
 test('shared sponsor requires explicit consent and the expected wallet address',()=>{
  const fixture='0x'+'11'.repeat(32),address=privateKeyToAccount(fixture).address;
