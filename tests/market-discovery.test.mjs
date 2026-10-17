@@ -53,7 +53,7 @@ test('canonical cache shares public snapshots without cookies or exposing the se
     assert.equal(target.hostname, 'pro-api.coinmarketcap.com');
     assert.equal(target.searchParams.get('limit'), '50');
     assert.deepEqual(init.headers, { 'X-CMC_PRO_API_KEY': env.CMC_API_KEY });
-    assert.equal(init.redirect, 'error');
+    assert.equal(init.redirect, 'manual');
     return Response.json({ data: [coin()] });
   });
   const request = new Request('https://velo.test/api/market-data?ignored=secret', { headers: { Cookie: 'private', Authorization: 'Bearer private' } });
@@ -71,6 +71,24 @@ test('provider failures are not cached or exposed', async t => {
   assert.equal(result.status, 503);
   assert.equal(result.headers.get('Cache-Control'), 'no-store');
   assert.ok(!(await result.text()).includes('private'));
+});
+
+test('provider redirects are rejected without forwarding the key or caching the redirect', async t => {
+  let calls = 0;
+  const cache = memory();
+  t.mock.method(globalThis, 'fetch', async (target, init) => {
+    calls++;
+    assert.equal(target.hostname, 'pro-api.coinmarketcap.com');
+    assert.equal(init.redirect, 'manual');
+    return new Response(null, { status: 302, headers: { Location: 'https://untrusted.test/collect' } });
+  });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await handleMarketData(url(''), env, undefined, cache);
+    assert.equal(result.status, 503);
+    assert.equal(result.headers.get('Location'), null);
+    assert.doesNotMatch(await result.text(), /untrusted|test-server-key/);
+  }
+  assert.equal(calls, 2);
 });
 
 test('arbitrary asset IDs cannot spend chart or metadata credits', async t => {

@@ -49,7 +49,8 @@ export async function handleMarketData(request, env = {}, ctx, cache = globalThi
     const target = new URL(`https://pro-api.coinmarketcap.com${path}`);
     target.search = new URLSearchParams(params).toString();
     return readJson(await fetch(target, { headers: { 'X-CMC_PRO_API_KEY': env.CMC_API_KEY },
-      signal: AbortSignal.timeout(8000), redirect: 'error' }));
+      // Workers supports manual, not error; readJson rejects every 3xx response.
+      signal: AbortSignal.timeout(8000), redirect: 'manual' }));
   };
 
   try {
