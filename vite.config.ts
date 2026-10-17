@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { handleMarketData } from './cloudflare/market-data.js';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -9,7 +10,25 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
       },
-      plugins: [react()],
+      plugins: [react(), {
+        name: 'velo-public-markets',
+        configureServer(server) {
+          const secret = loadEnv('cmc', '.', '').CMC_API_KEY;
+          const entries = new Map<string, { response: Response; expires: number }>();
+          const cache = {
+            match: async (key: Request) => { const item = entries.get(key.url); return item && item.expires > Date.now() ? item.response.clone() : undefined; },
+            put: async (key: Request, response: Response) => {
+              const ttl = Number(response.headers.get('Cache-Control')?.match(/max-age=(\d+)/)?.[1] || 0);
+              entries.set(key.url, { response: response.clone(), expires: Date.now() + ttl * 1000 });
+            },
+          };
+          server.middlewares.use('/api/market-data', async (request, response) => {
+            const result = await handleMarketData(new Request(`http://localhost/api/market-data${request.url?.includes('?') ? request.url.slice(request.url.indexOf('?')) : ''}`, { method: request.method }), { CMC_API_KEY: secret }, undefined, cache);
+            response.writeHead(result.status, Object.fromEntries(result.headers));
+            response.end(await result.text());
+          });
+        },
+      }],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

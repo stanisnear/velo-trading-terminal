@@ -7,6 +7,7 @@ import { OrderBook } from '@/components/OrderBook';
 import { Button, Input, VeloAssetIcon, formatMoney, formatPrice, formatTime, playSound } from '@/components/ui/shared';
 import { Position, OpenOrder, OrderType, MarginMode, PAIRS, ORDERLY_PAIRS, TradeHistoryItem } from '@/utils/types';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
+import { Dialog } from '@/components/ui/Dialog';
 // ── Orderly helpers inlined to avoid circular-dependency bundler errors ────────
 // (TradeView → OrderBook → orderlyOrderbookStream → orderlyService → viem causes
 //  a "cannot access before initialization" ReferenceError in the Vite bundle)
@@ -62,22 +63,20 @@ const DropPanel = ({ children, align = 'right' }: { children: React.ReactNode; a
 // ─────────────────────────────────────────────────────────────────────────────
 const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChanges = {}, isLiveMode = false }: any) => {
     const [search, setSearch] = useState('');
+    useEffect(() => { if (isOpen) setSearch(''); }, [isOpen]);
     if (!isOpen) return null;
-    // In live mode show only Orderly-supported pairs; in demo show all
-    const allPairs = isLiveMode ? ORDERLY_PAIRS : PAIRS;
+    const allPairs = ORDERLY_PAIRS;
     const filtered = allPairs.filter(p =>
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.id.toLowerCase().includes(search.toLowerCase())
     );
     return (
-        <div className="velo-modal-enter-backdrop" onClick={onClose}
-            style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start', padding: '80px 16px 16px 20px', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)' }}>
-            <div className="velo-modal-enter-card" onClick={(e: any) => e.stopPropagation()}
-                style={{ width: '100%', maxWidth: 360, maxHeight: 570, display: 'flex', flexDirection: 'column', borderRadius: 20, background: 'var(--glass-bg-strong)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)', overflow: 'hidden' }}>
+        <Dialog open={isOpen} onClose={onClose} title="Select market">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--hairline)' }}>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                         <Search size={13} style={{ position: 'absolute', left: 10, color: 'var(--fg-subtle)', flexShrink: 0 }} />
-                        <input autoFocus placeholder="Search markets…" value={search} onChange={e => setSearch(e.target.value)}
+                        <input autoFocus aria-label="Search trading markets" placeholder="Search markets…" value={search} onChange={e => setSearch(e.target.value)}
                             style={{ width: '100%', background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 9, padding: '7px 10px 7px 30px', outline: 'none', ...S.mono, fontSize: 12, color: 'var(--fg)', boxSizing: 'border-box' as const }} />
                     </div>
                 </div>
@@ -86,7 +85,6 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                         const chg = marketChanges[p.id];
                         const hasChg = chg !== undefined && chg !== null;
                         const chgColor = hasChg ? (chg >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--fg-subtle)';
-                        const isDemo = !isLiveMode && !ORDERLY_SYMBOL_MAP[p.id];
                         return (
                             <button key={p.id} onClick={() => { onSelect(p); onClose(); }}
                                 style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', transition: 'background 0.1s', color: 'var(--fg)' }}
@@ -102,7 +100,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
-                                    <div style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>${formatPrice(marketPrices[p.id] || p.basePrice)}</div>
+                                    <div style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{Number.isFinite(marketPrices[p.id]) ? `$${formatPrice(marketPrices[p.id])}` : 'Unavailable'}</div>
                                     {hasChg && (
                                         <div style={{ ...S.mono, fontSize: 10, fontWeight: 700, color: chgColor }}>
                                             {chg >= 0 ? '+' : ''}{chg.toFixed(2)}%
@@ -112,9 +110,10 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                             </button>
                         );
                     })}
+                    {!filtered.length && <p role="status" style={{ padding: 20, color: 'var(--fg-muted)' }}>No matching trading markets.</p>}
                 </div>
             </div>
-        </div>
+        </Dialog>
     );
 };
 

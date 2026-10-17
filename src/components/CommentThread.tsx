@@ -10,6 +10,7 @@ import { Heart, Trash2, MessageCircle, ChevronDown, ChevronUp, Link2, Check } fr
 import { Comment } from '../utils/types';
 import { PAIRS } from '../utils/types';
 import { VeloAssetIcon } from './ui/shared';
+import { useMarketDiscovery } from '../services/marketDiscovery';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,8 +32,9 @@ export function renderContent(
     onViewProfile: (p: any) => void,
     traders: any[],
     onTickerClick?: (t: string) => void,
+    validTickers: string[] = VALID_TICKER_SYMBOLS,
 ) {
-    const parts = content.split(/(@[A-Za-z0-9_]+|\$[A-Z]{2,8}|https?:\/\/[^\s<>"']+)/g);
+    const parts = content.split(/(@[A-Za-z0-9_]+|\$[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*|https?:\/\/[^\s<>"']+)/g);
     return parts.map((part: string, i: number) => {
         if (/^@[A-Za-z0-9_]+$/.test(part)) {
             const h = part.toLowerCase();
@@ -47,9 +49,9 @@ export function renderContent(
                 </span>
             );
         }
-        if (/^\$[A-Z]{2,8}$/.test(part)) {
-            const symbol = part.slice(1);
-            if (VALID_TICKER_SYMBOLS.includes(symbol)) {
+        if (/^\$[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*$/.test(part)) {
+            const symbol = part.slice(1).toUpperCase();
+            if (validTickers.includes(symbol)) {
                 return (
                     <span key={i}
                         onClick={e => { e.stopPropagation(); onTickerClick?.(symbol); }}
@@ -106,7 +108,7 @@ function MentionDropdown({ results, anchorRef, activeIndex, onSelect, onHover }:
         }}>
             {results.map((item: any, i: number) => (
                 item._type === 'ticker' ? (
-                    <button key={item.symbol}
+                    <button key={item.assetId || item.symbol}
                         onMouseDown={e => { e.preventDefault(); onSelect(item); }}
                         onMouseEnter={() => onHover(i)}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: i === activeIndex ? 'var(--chip-bg)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const }}>
@@ -194,6 +196,7 @@ interface CommentInputProps {
 }
 
 function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmit, autoFocus, compact }: CommentInputProps) {
+    const { socialAssets } = useMarketDiscovery();
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
     const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -208,7 +211,7 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
         if (mentionQuery === null) return [];
         const q = mentionQuery.toLowerCase();
         if (mentionTrigger === '$' && q) {
-            return SOCIAL_FEATURED_PAIRS.filter(p => p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
+            return socialAssets.filter(p => p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
         }
         if (mentionTrigger === '@' && q.length > 0) {
             return traders.filter((t: any) => t.id !== user?.id && ((t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q))).slice(0, 5);
@@ -221,7 +224,7 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
         const cursor = e.target.selectionStart ?? val.length;
         setText(val);
         const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
+        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9.-]*)$/);
         if (atMatch) { setMentionTrigger('@'); setMentionQuery(atMatch[1]); setMentionStart(cursor - atMatch[0].length); setMentionIdx(0); }
         else if (dollarMatch) { setMentionTrigger('$'); setMentionQuery(dollarMatch[1]); setMentionStart(cursor - dollarMatch[0].length); setMentionIdx(0); }
         else { setMentionQuery(null); setMentionTrigger(null); }
@@ -326,6 +329,7 @@ function CommentRow({
     comment, postId, postAuthorId, user, traders, depth,
     onViewProfile, onTickerClick, onReply, onLikeComment, onDeleteComment, allComments, focusCommentId,
 }: CommentRowProps) {
+    const { socialAssets } = useMarketDiscovery();
     const [showReplies, setShowReplies] = useState(true);
     const [linkCopied, setLinkCopied] = useState(false);
     const hasLiked = user ? comment.likedBy.includes(user.id) : false;
@@ -422,7 +426,7 @@ function CommentRow({
 
                 {/* Content */}
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: depth === 0 ? 14 : 13, color: 'var(--fg-muted)', lineHeight: 1.55, margin: 0, whiteSpace: 'pre-wrap' as const }}>
-                    {renderContent(comment.content, onViewProfile, traders, onTickerClick)}
+                    {renderContent(comment.content, onViewProfile, traders, onTickerClick, socialAssets.map(asset => asset.symbol))}
                 </p>
 
                 {/* OG link preview */}

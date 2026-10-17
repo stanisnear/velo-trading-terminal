@@ -1,5 +1,6 @@
 import { boundedFetch } from './sessionLifecycle.mjs';
 import { createCommentWriter } from './commentPersistence.mjs';
+import { createPostWriter } from './postPersistence.mjs';
 /**
  * supabaseStore.ts
  * ─────────────────────────────────────────────────────────────────
@@ -273,19 +274,10 @@ export async function getFollowing(userId: string): Promise<string[]> {
   return (data || []).map((r: any) => r.following_id);
 }
 
-export async function toggleFollow(followerId: string, followingId: string) {
-  const { data: existing } = await supabase
-    .from('follows').select('id').eq('follower_id', followerId).eq('following_id', followingId).maybeSingle();
-  if (existing) {
-    await supabase.from('follows').delete().eq('follower_id', followerId).eq('following_id', followingId);
-    // Decrement counts (best-effort — RPC may not be deployed yet)
-    try { await supabase.rpc('decrement_follow_counts', { follower: followerId, following: followingId }); } catch (_) {}
-    return { following: false };
-  }
-  await supabase.from('follows').insert({ follower_id: followerId, following_id: followingId });
-  // Increment counts (best-effort — RPC may not be deployed yet)
-  try { await supabase.rpc('increment_follow_counts', { follower: followerId, following: followingId }); } catch (_) {}
-  return { following: true };
+export async function toggleFollow(_followerId: string, followingId: string, enabled: boolean) {
+  const { data, error } = await supabase.rpc('set_following', { target: followingId, enabled });
+  if (error) throw error;
+  return { following: data === true };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -391,6 +383,11 @@ export async function fetchPostById(postId: string): Promise<Post | null> {
   return post || null;
 }
 
+const writePost = createPostWriter(
+  row => supabase.from('posts').upsert(row, { onConflict: 'id', ignoreDuplicates: true }).select().maybeSingle(),
+  id => publicSupabase.from('posts').select().eq('id', id).maybeSingle(),
+);
+
 export async function createPost(
   authorId: string,
   content: string,
@@ -398,7 +395,7 @@ export async function createPost(
   tradeSignal?: { pair: string; side: string; leverage: number; entry: number },
   targetProfileId?: string,
 ) {
-  const { data, error } = await supabase.from('posts').insert({
+  return writePost({
     author_id: authorId, content, image_url: imageUrl || null,
     is_trade_signal: !!tradeSignal,
     trade_pair:     tradeSignal?.pair     || null,
@@ -406,9 +403,7 @@ export async function createPost(
     trade_leverage: tradeSignal?.leverage || null,
     trade_entry:    tradeSignal?.entry    || null,
     target_profile_id: targetProfileId || null,
-  }).select().single();
-  if (error) return { data: null, error: error.message };
-  return { data, error: null };
+  });
 }
 
 export async function deletePost(postId: string) {
@@ -416,26 +411,20 @@ export async function deletePost(postId: string) {
   return { error: error?.message || null };
 }
 
-export async function toggleLike(userId: string, postId: string) {
-  const { data: existing } = await supabase
-    .from('likes').select('id').eq('user_id', userId).eq('post_id', postId).maybeSingle();
-  if (existing) {
-    await supabase.from('likes').delete().eq('user_id', userId).eq('post_id', postId);
-    return { liked: false };
-  }
-  await supabase.from('likes').insert({ user_id: userId, post_id: postId });
-  return { liked: true };
+export async function toggleLike(userId: string, postId: string, enabled: boolean) {
+  const { error } = enabled
+    ? await supabase.from('likes').upsert({ user_id: userId, post_id: postId }, { onConflict: 'user_id,post_id', ignoreDuplicates: true })
+    : await supabase.from('likes').delete().eq('user_id', userId).eq('post_id', postId);
+  if (error) throw error;
+  return { liked: enabled };
 }
 
-export async function toggleRepost(userId: string, postId: string) {
-  const { data: existing } = await supabase
-    .from('reposts').select('id').eq('user_id', userId).eq('post_id', postId).maybeSingle();
-  if (existing) {
-    await supabase.from('reposts').delete().eq('user_id', userId).eq('post_id', postId);
-    return { reposted: false };
-  }
-  await supabase.from('reposts').insert({ user_id: userId, post_id: postId });
-  return { reposted: true };
+export async function toggleRepost(userId: string, postId: string, enabled: boolean) {
+  const { error } = enabled
+    ? await supabase.from('reposts').upsert({ user_id: userId, post_id: postId }, { onConflict: 'user_id,post_id', ignoreDuplicates: true })
+    : await supabase.from('reposts').delete().eq('user_id', userId).eq('post_id', postId);
+  if (error) throw error;
+  return { reposted: enabled };
 }
 
 const commentFields = 'id, post_id, author_id, content, created_at, parent_id';
@@ -448,16 +437,12 @@ export async function addComment(postId: string, authorId: string, content: stri
 }
 
 /** Toggle a like on a COMMENT (Twitter-style). Mirrors toggleLike for posts. */
-export async function toggleCommentLike(userId: string, commentId: string) {
-  const { data: existing } = await supabase
-    .from('comment_likes').select('id').eq('user_id', userId).eq('comment_id', commentId).maybeSingle();
-  if (existing) {
-    await supabase.from('comment_likes').delete().eq('user_id', userId).eq('comment_id', commentId);
-    return { liked: false };
-  }
-  const { error } = await supabase.from('comment_likes').insert({ user_id: userId, comment_id: commentId });
-  if (error) console.warn('[supabase] comment like failed:', error.message);
-  return { liked: !error };
+export async function toggleCommentLike(userId: string, commentId: string, enabled: boolean) {
+  const { error } = enabled
+    ? await supabase.from('comment_likes').upsert({ user_id: userId, comment_id: commentId }, { onConflict: 'comment_id,user_id', ignoreDuplicates: true })
+    : await supabase.from('comment_likes').delete().eq('user_id', userId).eq('comment_id', commentId);
+  if (error) throw error;
+  return { liked: enabled };
 }
 
 export async function deleteComment(commentId: string, authorId: string) {

@@ -1,98 +1,37 @@
 /**
  * TokenInteractiveChart — pure-SVG price / market-cap chart for token pages,
- * with 24H/7D/30D timeframes (lazy Binance klines + CoinGecko mcap fetches)
+ * with 24H/7D/30D timeframes from the server-side market-data gateway
  * and crosshair hover. Extracted from App.tsx (stage 5 of the monolith
  * decomposition): fully self-contained — props in, JSX out, own data fetches.
  */
 import React from 'react';
-import { MARKETS } from '../../shared/markets.mjs';
+import { useQuery } from '@tanstack/react-query';
+import { fetchMarketData } from '../services/marketDiscovery';
 
 export const TokenInteractiveChart = ({
-    priceData, up, ticker, currentPrice, geckoId
+    up, ticker, currentPrice, assetId
 }: {
-    priceData: number[], up: boolean, ticker: string,
-    currentPrice: number, geckoId?: string
+    priceData?: number[], up: boolean, ticker: string,
+    currentPrice: number, assetId?: string
 }) => {
     const [mode, setMode] = React.useState<'PRICE' | 'MCAP'>('PRICE');
     const [hoveredIdx, setHoveredIdx] = React.useState<number | null>(null);
     const [timeframe, setTimeframe] = React.useState<'24H' | '7D' | '30D'>('24H');
-    const [priceDataMap, setPriceDataMap] = React.useState<Record<string, number[]>>({});
-    const [priceLoading, setPriceLoading] = React.useState(false);
-    const [priceError, setPriceError] = React.useState(false);
-    const [priceRetry, setPriceRetry] = React.useState(0);
-    const [mcapDataMap, setMcapDataMap] = React.useState<Record<string, number[]>>({});
-    const [mcapLoading, setMcapLoading] = React.useState(false);
-    const [mcapError, setMcapError] = React.useState(false);
-    const [mcapRetry, setMcapRetry] = React.useState(0);
     const chartId = React.useId().replace(/:/g, '');
     const chartSvgRef = React.useRef<SVGSVGElement | null>(null);
 
-    const binanceSym = MARKETS.find(market => market.symbol === ticker)?.binance;
-
-    // Load only the selected window and keep failures explicit rather than
-    // leaving the chart in a permanent loading state.
-    React.useEffect(() => {
-        const provided24h = priceData.filter(v => Number.isFinite(v) && v > 0);
-        if (mode !== 'PRICE' || (timeframe === '24H' && provided24h.length >= 2) || priceDataMap[timeframe]?.length >= 2) return;
-
-        const config: Record<string, { interval: string; limit: number }> = {
-            '24H': { interval: '1h', limit: 24 },
-            '7D': { interval: '4h', limit: 42 },
-            '30D': { interval: '1d', limit: 30 },
-        };
-        const controller = new AbortController();
-        let timedOut = false;
-        const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 9000);
-        const { interval, limit } = config[timeframe];
-        setPriceLoading(true);
-        setPriceError(false);
-        const days = { '24H': 1, '7D': 7, '30D': 30 }[timeframe];
-        const historyUrl = binanceSym
-          ? `https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${interval}&limit=${limit}`
-          : `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${days}`;
-        fetch(historyUrl, { signal: controller.signal })
-            .then(r => { if (!r.ok) throw new Error('Price history request failed'); return r.json(); })
-            .then((data: any) => {
-                const rows = binanceSym ? data : data?.prices;
-                const values = Array.isArray(rows) ? rows.map(row => Number(row?.[binanceSym ? 4 : 1])).filter(v => Number.isFinite(v) && v > 0) : [];
-                if (values.length < 2) throw new Error('Price history unavailable');
-                setPriceDataMap(prev => ({ ...prev, [timeframe]: values }));
-            })
-            .catch(() => { if (!controller.signal.aborted || timedOut) { setPriceError(true); setPriceLoading(false); } })
-            .finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setPriceLoading(false); });
-        return () => { window.clearTimeout(timeout); controller.abort(); };
-    }, [mode, timeframe, ticker, binanceSym, geckoId, priceData, priceDataMap, priceRetry]);
-
-    // Fetch market cap data from CoinGecko when MCAP mode is selected
-    React.useEffect(() => {
-        if (mode !== 'MCAP' || !geckoId) return;
-        const tfDays: Record<string, string> = { '24H': '1', '7D': '7', '30D': '30' };
-        const days = tfDays[timeframe];
-        const cacheKey = timeframe;
-        if (mcapDataMap[cacheKey]) return;
-        const controller = new AbortController();
-        let timedOut = false;
-        const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 9000);
-        setMcapLoading(true);
-        setMcapError(false);
-        fetch(`https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${days}`, { signal: controller.signal })
-            .then(r => { if (!r.ok) throw new Error('Market cap request failed'); return r.json(); })
-            .then(d => {
-                const values = Array.isArray(d?.market_caps) ? d.market_caps.map((c: any) => Number(c?.[1])).filter((v: number) => Number.isFinite(v) && v > 0) : [];
-                if (values.length < 2) throw new Error('Market cap history unavailable');
-                setMcapDataMap(prev => ({ ...prev, [cacheKey]: values }));
-            })
-            .catch(() => { if (!controller.signal.aborted || timedOut) { setMcapError(true); setMcapLoading(false); } })
-            .finally(() => { window.clearTimeout(timeout); if (!controller.signal.aborted) setMcapLoading(false); });
-        return () => { window.clearTimeout(timeout); controller.abort(); };
-    }, [mode, timeframe, geckoId, mcapRetry]);
-
-    const provided24h = priceData.filter(v => Number.isFinite(v) && v > 0);
-    const priceDataForTf = timeframe === '24H' && provided24h.length >= 2 ? provided24h : (priceDataMap[timeframe] || []);
-    const activeData = mode === 'PRICE' ? priceDataForTf : (mcapDataMap[timeframe] || []);
+    const days = { '24H': 1, '7D': 7, '30D': 30 }[timeframe];
+    const history = useQuery({
+        queryKey: ['public-markets', 'chart', assetId, days],
+        queryFn: ({ signal }) => fetchMarketData('chart', assetId, days, signal),
+        enabled: !!assetId, staleTime: days === 1 ? 900000 : 3600000, retry: 1,
+    });
+    const rows: number[][] = history.data?.[mode === 'PRICE' ? 'prices' : 'market_caps'] || [];
+    const points = rows.filter(row => Number.isFinite(row?.[0]) && Number.isFinite(row?.[1]) && row[1] > 0);
+    const activeData = points.map(row => row[1]);
     const hasData = activeData.length >= 2;
-    const loading = !hasData && (mode === 'PRICE' ? priceLoading : mcapLoading);
-    const failed = !hasData && (mode === 'PRICE' ? priceError : mcapError);
+    const loading = !hasData && history.isPending && !!assetId;
+    const failed = !hasData && !loading;
 
     const [plotSize, setPlotSize] = React.useState({ width: 800, height: 280 });
     React.useEffect(() => {
@@ -116,7 +55,9 @@ export const TokenInteractiveChart = ({
     const min = hasData ? Math.min(...activeData) : 0;
     const max = hasData ? Math.max(...activeData) : 1;
     const range = max - min || 1;
-    const toX = (i: number) => pad.left + (i / Math.max(activeData.length - 1, 1)) * (w - pad.left - pad.right);
+    const startTime = points[0]?.[0] || 0;
+    const timeRange = (points[points.length - 1]?.[0] || 0) - startTime || 1;
+    const toX = (i: number) => pad.left + (((points[i]?.[0] || startTime) - startTime) / timeRange) * (w - pad.left - pad.right);
     const toY = (v: number) => pad.top + ((max - v) / range) * (h - pad.top - pad.bottom);
 
     const color = 'var(--accent)';
@@ -131,18 +72,15 @@ export const TokenInteractiveChart = ({
     };
 
     const ticks = !loading ? [0, 1, 2, 3].map(i => min + (range * (3 - i)) / 3) : [];
-    const now = new Date();
-    const xTickCount = 5;
-    const xTickIdxs = Array.from({ length: xTickCount }, (_, i) => Math.round((i / (xTickCount - 1)) * Math.max(activeData.length - 1, 0)));
+    const xTickCount = w < 500 ? 3 : 5;
+    const xTickIdxs = [...new Set(Array.from({ length: xTickCount }, (_, i) => Math.round((i / (xTickCount - 1)) * Math.max(activeData.length - 1, 0))))];
     const getXLabel = (i: number) => {
-        if (timeframe === '24H') {
-            const hoursAgo = activeData.length - 1 - i;
-            const d = new Date(now.getTime() - hoursAgo * 3600 * 1000);
-            return d.getHours().toString().padStart(2, '0') + ':00';
-        }
-        const daysAgo = Math.round((activeData.length - 1 - i) * (timeframe === '7D' ? 7 : 30) / activeData.length);
-        const d = new Date(now.getTime() - daysAgo * 86400 * 1000);
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const timestamp = points[i]?.[0];
+        if (!Number.isFinite(timestamp)) return '';
+        const date = new Date(timestamp);
+        return timeframe === '24H'
+            ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+            : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
 
     const hoveredVal = hoveredIdx !== null && activeData[hoveredIdx] != null ? activeData[hoveredIdx] : null;
@@ -231,7 +169,8 @@ export const TokenInteractiveChart = ({
                         const rect = e.currentTarget.getBoundingClientRect();
                         const svgX = ((e.clientX - rect.left) / rect.width) * w;
                         const frac = Math.max(0, Math.min(1, (svgX - pad.left) / (w - pad.left - pad.right)));
-                        setHoveredIdx(Math.round(frac * (activeData.length - 1)));
+                        const timestamp = startTime + frac * timeRange;
+                        setHoveredIdx(points.reduce((closest, point, index) => Math.abs(point[0] - timestamp) < Math.abs(points[closest][0] - timestamp) ? index : closest, 0));
                     }}
                 >
                     <defs>
@@ -299,7 +238,7 @@ export const TokenInteractiveChart = ({
 
                     {/* X labels */}
                     {xTickIdxs.map(i => (
-                        <text key={i} x={toX(i)} y={h - 8} textAnchor="middle"
+                        <text key={i} x={toX(i)} y={h - 8} textAnchor={i === 0 ? 'start' : i === activeData.length - 1 ? 'end' : 'middle'}
                             style={{ ...S.numeric, fontSize: 11, fill: 'var(--fg-subtle)' }}>
                             {getXLabel(i)}
                         </text>
@@ -310,13 +249,14 @@ export const TokenInteractiveChart = ({
                         <span className="token-chart-empty-mark" aria-hidden="true">V</span>
                         <span className="token-chart-empty-title">{loading ? 'Loading market history' : failed ? 'Market history unavailable' : 'No chart data yet'}</span>
                         <span className="token-chart-empty-copy">{loading ? 'Fetching verified price points.' : failed ? 'The live price is still available. Try loading the chart again.' : 'Price history will appear when data is available.'}</span>
-                        {failed && <button className="token-chart-retry" onClick={() => mode === 'PRICE' ? setPriceRetry(v => v + 1) : setMcapRetry(v => v + 1)}>Retry</button>}
+                        {failed && <button className="token-chart-retry" disabled={history.isFetching} onClick={() => void history.refetch()}>Retry</button>}
                     </div>
                 )}
             </div>
 
             {/* Footer */}
             <div className="token-chart-footer" style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 4, padding: '0 18px 14px' }}>
+                <a href="https://coinmarketcap.com/" target="_blank" rel="noopener noreferrer" style={{ marginRight: 'auto', fontSize: 10, color: 'var(--fg-muted)' }}>Data: CoinMarketCap</a>
                 {hasData && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-subtle)' }}>Low {formatTick(min)} <span aria-hidden="true">·</span> High {formatTick(max)}</span>}
             </div>
         </div>

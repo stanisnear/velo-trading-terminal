@@ -101,6 +101,7 @@ has no public workers.dev endpoint.
 | Setting | Where to change it | Follow-up |
 | --- | --- | --- |
 | Public `VITE_*` settings | Pages → Settings → Variables and Secrets | Rebuild the frontend |
+| CoinMarketCap key | velo-trading-terminal Pages → Variables and Secrets → `CMC_API_KEY` (secret) | Runtime only; never prefix with `VITE_` |
 | Pyth browser-provider key | velo-pyth-proxy → Settings → Variables and Secrets → PYTH_API_KEY | Keep it a secret |
 | Pyth keeper-provider key | Supabase → Edge Functions → Secrets → PYTH_API_KEY | Keep the two copies synchronized |
 | Wallet and private RPC keys | Supabase → Edge Functions → Secrets | Never use a `VITE_` name |
@@ -114,6 +115,25 @@ signer lock. The raw key is not duplicated into frontend settings or GitHub.
 
 See [migration/SUPABASE.md](migration/SUPABASE.md) for token rotation. A public
 SHA-256 verifier is not the token; never paste the verifier into a secret field.
+
+### Market discovery
+
+`/api/market-data` is a public, read-only reference-data endpoint, separate from
+authenticated Pyth execution. It accepts only directory, coin and chart requests
+for the current top 50 or known oracle reference assets. It does not forward
+visitor cookies/authorization to CoinMarketCap. Upstream requests are bounded
+and provider errors are not returned verbatim.
+
+Listings and quotes are cached for ten minutes, metadata for one day, 24-hour
+history for fifteen minutes, and 7/30-day history for one hour. The Cloudflare
+Cache API is per location, not a global quota cap. Monitor CoinMarketCap credits
+as traffic grows; do not assume a free quota supports unlimited users.
+
+For local Vite checks, configure `CMC_API_KEY` in the ignored `.env.cmc.local`
+file. This is read only by the dev-server middleware. Public app configuration
+belongs in `.env.local`; export those public variables for the production build
+check. Do not commit either file. Configure a separate server secret for preview
+deployments if they need market data; the production secret is not copied there.
 
 ## How the trading jobs work
 
@@ -188,6 +208,6 @@ The terminal build now includes `npm run typecheck`. For local review use `npm r
 
 Public posts, profiles and fills load independently of wallet login. Public cached results last at most five minutes and refresh from Supabase. Failed fills show Retry; a successful zero-row query shows an empty state. Clearing cookies/cache should not be a normal login step.
 
-Log In connects the owner wallet if needed and requests a one-use signature. Sign Out clears the app session while preserving the local trading-wallet backup and owner connector. After 30 minutes without activity the app signs out, warning during the last minute; eight hours requires a new sign-in regardless of activity. This does not close positions or stop keepers. Browser key storage is still plaintext: the session lock is not a secure key vault.
+Log In connects the owner wallet if needed and requests a one-use signature. Manual Sign Out clears the app session and disconnects the owner connector while preserving the local trading-wallet backup. After 30 minutes without activity the app signs out, warning during the last minute; eight hours requires a new sign-in regardless of activity. This does not close positions or stop keepers. Browser key storage is still plaintext: the session lock is not a secure key vault.
 
 Wallet settings keep key confirmation/reveal open across price/profile refreshes. Recovery checks the expected address before replacing a stored key; cancel or mismatch leaves the previous key intact. Keep a secure backup and never paste it into support chats.

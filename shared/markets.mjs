@@ -22,5 +22,7 @@ export const MARKETS = definitions.map(([symbol, name, feed, geckoId, logo, cont
   binance: binanceSymbols.has(symbol) ? `${symbol}USDT` : null,
   id: `${symbol}/USD`, logo: `https://coin-images.coingecko.com/coins/images/${logo}`,
 }));
-export const TRADING_MARKETS = MARKETS.filter(market => market.contractIndex !== null);
+export const EXCLUDED_PERPETUALS = new Set(['USDT', 'USDC', 'WBTC', 'JITOSOL']);
+export const ELIGIBLE_PERPETUALS = MARKETS.filter(market => !EXCLUDED_PERPETUALS.has(market.symbol));
+export const TRADING_MARKETS = ELIGIBLE_PERPETUALS.filter(market => market.contractIndex !== null);
 export const isEnabledTradingMarket = pair => TRADING_MARKETS.some(market => market.id === pair?.replace('-', '/'));

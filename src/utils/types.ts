@@ -238,7 +238,7 @@ export type ProfileTab = 'POSTS' | 'REPLIES' | 'MEDIA' | 'LIKES' | 'TRADES';
 
 // Shared with the price gateway. Unknown or unavailable assets are not listed.
 export const PAIRS = MARKETS.map(market => ({ ...market, basePrice: 0 }));
-export const VELO_PAIRS = PAIRS.filter(market => market.contractIndex !== null);
+export const VELO_PAIRS = PAIRS.filter(market => market.contractIndex !== null && !['USDT', 'USDC', 'WBTC', 'JITOSOL'].includes(market.symbol));
 
 // Backwards-compat alias — many call sites still reference ORDERLY_PAIRS.
 // New code should use VELO_PAIRS.

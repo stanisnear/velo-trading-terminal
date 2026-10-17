@@ -48,6 +48,10 @@ import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentThread } from './components/CommentThread';
 import { TokenInteractiveChart } from './components/TokenInteractiveChart';
+import { useMarketDiscovery, fetchMarketData, tradingPairForAsset, marketWatchKey } from './services/marketDiscovery';
+import { mentionsTicker } from '../shared/marketDiscovery.mjs';
+import { setReactionActor } from './services/reactionState.mjs';
+import { useQuery } from '@tanstack/react-query';
 import { MentionDropdown, WallCompose } from './components/social/Compose';
 import { ProfileHeader } from './components/social/ProfileHeader';
 import { PostCard, LinkPreviewCard, renderContentWithMentions, extractFirstUrl, COMMENT_LIKE_HANDLER, setCommentLikeHandler } from './components/social/PostCard';
@@ -112,7 +116,6 @@ import {
   uploadBanner,
   onPersistenceError,
   touchUserActivity,
-  ensureFreshSession,
   onSessionHealth,
   registerReauthProvider,
   cacheGet,
@@ -634,51 +637,34 @@ const TOKEN_META: Record<string, { geckoId: string; website?: string; twitter?: 
 };
 
 // ── Interactive token chart with price/mcap toggle ─────────────────────────
-const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
+const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
     const [activeTab, setActiveTab] = useState<'posts' | 'news'>('posts');
     const [news, setNews] = useState<any[]>([]);
     const [newsLoading, setNewsLoading] = useState(true);
-    const [sparkData, setSparkData] = useState<number[]>([]);
-    const [tokenInfo, setTokenInfo] = useState<any>(null);
     const [descExpanded, setDescExpanded] = useState(false);
-
-    const pairId = SOCIAL_FEATURED_PAIRS.find(p => p.symbol === ticker)?.pairId || `${ticker}/USD`;
-    const price = prices[pairId];
-    const chg = changes[pairId] ?? 0;
+    const discovery = useMarketDiscovery();
+    const pairInfo = discovery.resolve(identifier);
+    const ticker = pairInfo?.symbol || identifier;
+    const pairId = pairInfo?.pairId || `${ticker}/USD`;
+    const details = useQuery({
+        queryKey: ['public-markets', 'coin', pairInfo?.assetId],
+        queryFn: ({ signal }) => fetchMarketData('coin', pairInfo!.assetId, undefined, signal),
+        enabled: !!pairInfo?.assetId, staleTime: 600000, retry: 1,
+    });
+    const tokenInfo = details.data;
+    const price = pairInfo?.price ?? tokenInfo?.asset?.price;
+    const change = pairInfo?.change ?? tokenInfo?.asset?.change;
+    const chg = change ?? 0;
     const up = chg >= 0;
-    const pairInfo = SOCIAL_FEATURED_PAIRS.find(p => p.symbol === ticker);
-    const meta = pairInfo ? (TOKEN_META[ticker] || { geckoId: pairInfo.geckoId }) : undefined;
-    const binanceSym = pairInfo?.binance;
+    const meta = pairInfo ? { ...(TOKEN_META[ticker]?.geckoId === pairInfo.geckoId ? TOKEN_META[ticker] : {}),
+        geckoId: pairInfo.geckoId, website: tokenInfo?.links?.website?.[0], twitter: tokenInfo?.links?.twitter?.[0], whitepaper: tokenInfo?.links?.whitepaper?.[0] } : undefined;
+    const tradable = pairInfo && tradingPairForAsset(pairInfo);
 
     const tickerPosts = React.useMemo(() => {
         return posts.filter((p: any) =>
-            (p.content || '').toUpperCase().includes(`$${ticker.toUpperCase()}`)
+            mentionsTicker(p.content, ticker)
         ).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }, [posts, ticker]);
-
-    // Fetch 24h hourly sparkline from Binance
-    React.useEffect(() => {
-        const controller = new AbortController();
-        setSparkData([]);
-        if (!binanceSym) return;
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1h&limit=24`, { signal: controller.signal })
-            .then(r => r.json())
-            .then((d: any[]) => { if (!controller.signal.aborted && Array.isArray(d)) setSparkData(d.map((c: any) => parseFloat(c[4]))); })
-            .catch(() => {});
-        return () => controller.abort();
-    }, [ticker, binanceSym]);
-
-    // Fetch token info from CoinGecko
-    React.useEffect(() => {
-        setTokenInfo(null);
-        if (!meta?.geckoId) return;
-        const controller = new AbortController();
-        fetch(`https://api.coingecko.com/api/v3/coins/${meta.geckoId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, { signal: controller.signal })
-            .then(r => r.json())
-            .then(d => { if (!controller.signal.aborted) setTokenInfo(d); })
-            .catch(() => {});
-        return () => controller.abort();
-    }, [ticker, meta?.geckoId]);
 
     // Fetch news
     React.useEffect(() => {
@@ -693,7 +679,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
         return () => controller.abort();
     }, [ticker]);
 
-    if (!pairInfo) return <main className="p-8"><h1>Market unavailable</h1><p>This asset is not part of Velo's supported crypto markets.</p><button onClick={onClose}>Back</button></main>;
+    if (!pairInfo) return <main className="p-8" aria-busy={discovery.isPending}><h1>{discovery.isPending ? 'Loading market...' : 'Market unavailable'}</h1>{discovery.isError && <button onClick={() => void discovery.refetch()}>Retry</button>}<button onClick={onClose}>Back to markets</button></main>;
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
@@ -724,17 +710,18 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
     const bullPctDisplay = tickerPosts.length > 0 ? bullPct : (up ? Math.round(50 + Math.min(Math.abs(chg) * 3, 45)) : Math.round(50 - Math.min(Math.abs(chg) * 3, 45)));
     const bearPctDisplay = 100 - bullPctDisplay;
 
-    const mcap = tokenInfo?.market_data?.market_cap?.usd;
-    const volume24h = tokenInfo?.market_data?.total_volume?.usd;
-    const high24h = tokenInfo?.market_data?.high_24h?.usd;
-    const low24h = tokenInfo?.market_data?.low_24h?.usd;
-    const circulatingSupply = tokenInfo?.market_data?.circulating_supply;
-    const ath = tokenInfo?.market_data?.ath?.usd;
-    const athDate = tokenInfo?.market_data?.ath_date?.usd;
-    const priceChange7d = tokenInfo?.market_data?.price_change_percentage_7d;
-    const priceChange30d = tokenInfo?.market_data?.price_change_percentage_30d;
-    const rank = tokenInfo?.market_cap_rank;
-    const fdv = tokenInfo?.market_data?.fully_diluted_valuation?.usd;
+    const quote = pairInfo.price != null ? pairInfo : (tokenInfo?.asset || pairInfo);
+    const mcap = quote.marketCap;
+    const volume24h = quote.volume;
+    const high24h = quote.high24h;
+    const low24h = quote.low24h;
+    const circulatingSupply = quote.supply;
+    const ath = quote.ath;
+    const athDate = quote.athDate;
+    const priceChange7d = quote.change7d;
+    const priceChange30d = quote.change30d;
+    const rank = quote.rank;
+    const fdv = quote.fdv;
 
     const formatLarge = (n?: number) => {
         if (!n) return '—';
@@ -751,7 +738,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
         if (n >= 0.0001) return `$${n.toFixed(6)}`;
         return `$${n.toFixed(8)}`;
     };
-    const description = meta?.longDescription || meta?.description || tokenInfo?.description?.en?.split('. ').slice(0, 3).join('. ') || '';
+    const description = meta?.longDescription || meta?.description || tokenInfo?.description || '';
     const descShort = description.length > 220 ? description.slice(0, 220).trimEnd() + '…' : description;
 
     return (
@@ -784,7 +771,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                     {formatQuote(price)}
                                 </span>
                                 <span className={`token-day-change ${up ? 'positive' : 'negative'}`}>
-                                    {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}% 24h
+                                    {change == null ? '24h unavailable' : `${up ? '▲' : '▼'} ${Math.abs(chg).toFixed(2)}% 24h`}
                                 </span>
                                 {priceChange7d != null && (
                                     <span className="token-period-change" style={{ color: priceChange7d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
@@ -803,7 +790,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     {/* Right: Watchlist + Trade button */}
                     <div className="token-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         {onToggleWatchlist && (() => {
-                            const pairId = `${ticker}/USD`;
+                            const pairId = marketWatchKey(pairInfo);
                             const isFav = watchlist?.includes(pairId);
                             return (
                                 <button
@@ -815,7 +802,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                 </button>
                             );
                         })()}
-                        {onNavigateToTrade && isTradablePair(pairId) && (
+                        {onNavigateToTrade && tradable && (
                             <button
                                 className="token-trade-btn"
                                 onClick={() => onNavigateToTrade(ticker)}
@@ -823,7 +810,7 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                 <TrendingUp size={13} strokeWidth={2.5}/> Trade
                             </button>
                         )}
-                        {!isTradablePair(pairId) && <span className="token-trade-unavailable">Perpetual not listed</span>}
+                        {!tradable && <span className="token-trade-unavailable">Perpetual not listed</span>}
                     </div>
                 </div>
             </div>
@@ -833,12 +820,11 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                     {/* Interactive chart */}
                     <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
                         <TokenInteractiveChart
-                            key={ticker}
-                            priceData={sparkData}
+                            key={pairInfo.assetId}
                             up={up}
                             ticker={ticker}
                             currentPrice={price || 0}
-                            geckoId={meta?.geckoId}
+                            assetId={pairInfo.assetId}
                         />
                     </div>
 
@@ -933,11 +919,11 @@ const TokenPage = ({ ticker, posts, traders, user, prices, changes, onClose, onL
                                             <ExternalLink size={11}/> Whitepaper
                                         </a>
                                     )}
-                                    {meta?.geckoId && (
-                                        <a href={`https://www.coingecko.com/en/coins/${meta.geckoId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
+                                    {quote.cmcSlug && (
+                                        <a href={`https://coinmarketcap.com/currencies/${quote.cmcSlug}/`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
                                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
                                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            <ExternalLink size={11}/> CoinGecko
+                                            <ExternalLink size={11}/> CoinMarketCap
                                         </a>
                                     )}
                                 </div>
@@ -1238,6 +1224,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
 };
 
 const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
+    const { socialAssets } = useMarketDiscovery();
     const [newPostContent, setNewPostContent] = useState('');
     const [filter, setFilter] = useState<'LATEST' | 'TRENDING' | 'FOLLOWING' | 'SIGNALS'>('LATEST');
     const [feedMentionQuery, setFeedMentionQuery] = useState<string | null>(null);
@@ -1280,7 +1267,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
         const q = feedMentionQuery.toLowerCase();
         if (feedMentionTrigger === '$') {
             if (!q) return [];
-            const tickers = SOCIAL_FEATURED_PAIRS.filter(p =>
+            const tickers = socialAssets.filter(p =>
                 p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
             ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
             return tickers;
@@ -1292,7 +1279,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             }).slice(0, 6);
         }
         return [];
-    }, [feedMentionQuery, feedMentionTrigger, traders, user]);
+    }, [feedMentionQuery, feedMentionTrigger, traders, user, socialAssets]);
 
     const handleFeedTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
@@ -3663,17 +3650,13 @@ const App = () => {
         }
         if (p.startsWith('markets/')) {
             const parts = p.split('/');
-            const ticker = parts[1]?.toUpperCase();
-            if (ticker) {
-                // If it's a known social pair, open social token page
-                const knownPair = SOCIAL_FEATURED_PAIRS.find(sp => sp.symbol === ticker);
-                if (knownPair) {
+            const ticker = parts[1];
+            if (ticker && /^[a-z0-9][a-z0-9.-]{0,99}$/i.test(ticker)) {
                     setSinglePostId(null);
                     setSingleCommentId(null);
                     setActiveSocialTicker(ticker);
                     setActiveTab(TabView.SOCIAL);
                     return;
-                }
             }
             setActiveTab(TabView.MARKETS);
             return;
@@ -3684,7 +3667,7 @@ const App = () => {
             const pairSlug = p.split('/')[1];
             if (pairSlug) {
                 const pairId = pairSlug.replace('-', '/');
-                const pair = PAIRS.find(pr => pr.id === pairId);
+                const pair = ORDERLY_PAIRS.find(pr => pr.id === pairId);
                 if (pair) setActivePair(pair);
             }
             setActiveTab(TabView.TRADE);
@@ -4077,11 +4060,7 @@ const App = () => {
         if (!authChecked || !isSupabaseConfigured()) return;
         const heal = async () => {
             if (document.visibilityState !== 'visible') return;
-            // Ensure a live session before re-reading. ensureFreshSession will
-            // refresh an expiring token, and — if the session is dead and the
-            // wallet is connected — silently re-auth via wallet creds. Without
-            // this the heal just re-reads with a dead token and stays empty.
-            await ensureFreshSession();
+            // Public discovery must not wait for wallet or session recovery.
             loadSocialData();
         };
         // Heal immediately on setup (and whenever the wallet address resolves —
@@ -5804,9 +5783,12 @@ const App = () => {
             return prevOrders.filter(o => o.id !== id);
         });
     };
+    const followsInFlight = useRef(new Set<string>());
     const handleFollow = async (id: string) => { 
         if(!user) return handleRequireAuth();
-        if(!walletAddress) { setToast({ message: 'Connect a crypto wallet to follow traders', type: 'INFO' }); return; }
+        if (id === user.id || followsInFlight.current.has(id)) return;
+        followsInFlight.current.add(id);
+        const actor = user.id;
         const isFollowing = user.following.includes(id);
         // Optimistic update: update current user's following list
         setUser(prev => prev ? {
@@ -5836,28 +5818,21 @@ const App = () => {
         playSound('CLICK');
         if (isSupabaseConfigured()) {
             try { 
-                await supabaseFollow(user.id, id);
+                await supabaseFollow(user.id, id, !isFollowing);
                 // Notify the followed user (only on follow, not unfollow)
                 if (!isFollowing) {
                     createNotificationForUser(id, 'FOLLOW', `${user.handle} started following you`, user.id)
                         .catch(e => console.warn('Follow notification failed:', e));
                 }
-                // Sync follower_count on the followed profile and following_count on current user
-                const delta = isFollowing ? -1 : 1;
-                const { data: targetProfile } = await supabase.from('profiles').select('follower_count').eq('id', id).single();
-                if (targetProfile) {
-                    supabase.from('profiles')
-                        .update({ follower_count: Math.max(0, (targetProfile.follower_count || 0) + delta) })
-                        .eq('id', id).then(() => {});
-                }
-                const { data: selfProfile } = await supabase.from('profiles').select('following_count').eq('id', user.id).single();
-                if (selfProfile) {
-                    supabase.from('profiles')
-                        .update({ following_count: Math.max(0, (selfProfile.following_count || 0) + delta) })
-                        .eq('id', user.id).then(() => {});
-                }
-            } catch(e) { console.warn('Follow sync failed:', e); }
+            } catch {
+                setUser(prev => prev?.id === actor ? { ...prev, following: isFollowing ? [...new Set([...prev.following, id])] : prev.following.filter(value => value !== id) } : prev);
+                const restore = (profile: any) => !profile || profile.id !== id ? profile : { ...profile, followers: isFollowing ? [...new Set([...(profile.followers || []), actor])] : (profile.followers || []).filter((value: string) => value !== actor) };
+                setTraders(prev => prev.map(restore));
+                setViewingProfile(restore);
+                setToast({ message: 'Follow could not be saved. Please retry.', type: 'ERROR' });
+            }
         }
+        followsInFlight.current.delete(id);
     };
     const handleCopyTrade = async (_id: string) => {
         setToast({ message: 'Copy trading is planned and is not available in this testnet release.', type: 'INFO' });
@@ -5914,7 +5889,6 @@ const App = () => {
     const lastPostRef = useRef<{ c: string; ts: number } | null>(null);
     const handleCreatePost = async (c: string, tradeSignal?: any, targetProfileId?: string): Promise<string | null> => { 
         if(!user) { void handleRequireAuth(); return null; }
-        if(!walletAddress) { setToast({ message: 'Connect a crypto wallet to post', type: 'INFO' }); return null; }
         if (!c.trim()) return null;
         if (postInFlightRef.current) return null; // a post is already mid-flight
         if (lastPostRef.current && lastPostRef.current.c === c.trim() && Date.now() - lastPostRef.current.ts < 30_000) {
@@ -5927,34 +5901,18 @@ const App = () => {
         // Optimistic local update with temp id
         if (targetProfileId && targetProfileId !== user.id) { setToast({ message: 'Publish on your own profile and mention the trader instead.', type: 'INFO' }); return null; }
         const tempPost: Post = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[], isTradeSignal: !!tradeSignal, tradeDetails: tradeSignal, targetProfileId };
-        setPosts(prev => [tempPost, ...prev]); 
         // Tentative dedupe registration — cleared in the catch so a genuine
         // retry after failure isn't blocked, but a double-click never lands.
         lastPostRef.current = { c: c.trim(), ts: Date.now() };
-        setToast({message:'Post Shared', type:'SUCCESS'}); 
-        playSound('SUCCESS');
-        // Persist to Supabase and replace temp post with real DB post (with real UUID)
-        if (!isSupabaseConfigured()) return tempId; // local-only mode: temp post IS the post
         try {
-            // Settle-guarantee: a stalled network response (insert landed, reply
-            // never arrived) must not hang the whole submit chain — that is the
-            // only physical way the modal can strand on 'Posting…'. After 10s we
-            // keep the optimistic post (the insert very likely succeeded; dedupe
-            // is already registered so a re-click can't duplicate) and move on.
-            const raced: any = await Promise.race([
-                supabaseCreatePost(user.id, c, undefined, tradeSignal, targetProfileId),
-                new Promise(resolve => setTimeout(() => resolve({ __timeout: true }), 10_000)),
-            ]);
-            if (raced?.__timeout) {
-                console.warn('[velo] createPost did not respond within 10s — keeping optimistic post');
-                return tempId;
-            }
-            const { data, error } = raced;
+            if (!isSupabaseConfigured()) throw new Error('Publishing is unavailable.');
+            const { data, error } = await supabaseCreatePost(user.id, c, undefined, tradeSignal, targetProfileId);
             if (error) {
                 throw new Error(typeof error === 'string' ? error : (error as any)?.message || 'create post failed');
             } else if (data) {
-                // Swap temp post for real DB post (so delete works with real UUID)
-                setPosts(prev => prev.map(p => p.id === tempId ? { ...p, id: data.id } : p));
+                setPosts(prev => prev.some(p => p.id === data.id) ? prev : [{ ...tempPost, id: data.id, timestamp: data.created_at }, ...prev]);
+                setToast({ message: 'Post published', type: 'SUCCESS' });
+                playSound('SUCCESS');
                 // Notify profile owner if posting on their wall (not your own)
                 if (targetProfileId && targetProfileId !== user.id) {
                     createNotificationForUser(targetProfileId, 'WALL_POST', `${user.handle} posted on your profile`, data.id, data.id)
@@ -5975,12 +5933,7 @@ const App = () => {
                 lastPostRef.current = { c: c.trim(), ts: Date.now() };
                 return data.id as string;
             }
-            // Insert acknowledged but no row returned — the post exists, so
-            // never strand the UX on a technicality: treat the optimistic
-            // copy as the post and say so in the console.
-            console.warn('[velo] createPost returned no row; using temp id');
-            lastPostRef.current = { c: c.trim(), ts: Date.now() };
-            return tempId;
+            throw new Error('Publication could not be confirmed.');
         } catch (e: any) {
             // Roll back the optimistic post and correct the premature success
             // toast — the person must know it did NOT publish, and the console
@@ -5988,7 +5941,7 @@ const App = () => {
             console.error('[velo] handleCreatePost failed:', e);
             lastPostRef.current = null; // allow an honest retry
             setPosts(prev => prev.filter(p => p.id !== tempId));
-            setToast({ message: 'Post failed to publish — please try again', type: 'ERROR' });
+            setToast({ message: 'Publication not confirmed. Your draft is kept; retry to check or finish it.', type: 'ERROR' });
             return null;
         }
         } finally {
@@ -6023,9 +5976,12 @@ const App = () => {
         setTimeout(() => setCreatePostModalOpen(false), 240);
     };
 
+    const reactionsInFlight = useRef(new Set<string>());
     const handleLike = async (id: string) => {
         if (!user) return handleRequireAuth();
-        if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to like posts', type: 'INFO' }); return; }
+        const key = `like:${id}`;
+        if (reactionsInFlight.current.has(key)) return;
+        reactionsInFlight.current.add(key);
         // Read post data BEFORE setPosts to avoid stale closure issues
         const targetPost = posts.find(p => p.id === id);
         const postAuthorId = targetPost?.authorId || null;
@@ -6033,24 +5989,37 @@ const App = () => {
         // Optimistic update
         setPosts(prevPosts => prevPosts.map(p => {
             if (p.id === id) {
-                const newLikedBy = wasLiked ? p.likedBy.filter(uid => uid !== user.id) : [...p.likedBy, user.id];
+                const newLikedBy = setReactionActor(p.likedBy, user.id, !wasLiked);
                 return { ...p, likedBy: newLikedBy, likes: newLikedBy.length };
             }
             return p;
         }));
         playSound('CLICK');
         if (isSupabaseConfigured()) {
-            supabaseLike(user.id, id).catch(e => console.warn('Like sync failed:', e));
+            try {
+            await supabaseLike(user.id, id, !wasLiked);
             // Notify post author (only on like, not unlike, and not your own post)
             if (!wasLiked && postAuthorId && postAuthorId !== user.id) {
                 createNotificationForUser(postAuthorId, 'LIKE', `${user.handle} liked your post`, id, id)
                     .catch(e => console.warn('Like notification failed:', e));
             }
+            } catch {
+                setPosts(prev => prev.map(p => {
+                    if (p.id !== id) return p;
+                    const likedBy = setReactionActor(p.likedBy, user.id, wasLiked);
+                    return { ...p, likedBy, likes: likedBy.length };
+                }));
+                setToast({ message: 'Like could not be saved. Please retry.', type: 'ERROR' });
+            }
         }
+        reactionsInFlight.current.delete(key);
     };
     // ── Comment likes (Twitter-style) ────────────────────────────────────
     const handleLikeComment = async (postId: string, commentId: string) => {
         if (!user) return handleRequireAuth();
+        const key = `comment-like:${commentId}`;
+        if (reactionsInFlight.current.has(key)) return;
+        reactionsInFlight.current.add(key);
         const targetPost = posts.find(p => p.id === postId);
         const targetComment = targetPost?.comments?.find((cm: any) => cm.id === commentId);
         const wasLiked = !!targetComment?.likedBy?.includes(user.id);
@@ -6060,18 +6029,28 @@ const App = () => {
             return { ...p, comments: p.comments.map((cm: any) => {
                 if (cm.id !== commentId) return cm;
                 const likedBy: string[] = cm.likedBy || [];
-                const next = wasLiked ? likedBy.filter((uid: string) => uid !== user.id) : [...likedBy, user.id];
+                const next = setReactionActor(likedBy, user.id, !wasLiked);
                 return { ...cm, likedBy: next, likes: next.length };
             }) };
         }));
         playSound('CLICK');
         if (isSupabaseConfigured()) {
-            supabaseToggleCommentLike(user.id, commentId).catch(e => console.warn('Comment like sync failed:', e));
+            try {
+            await supabaseToggleCommentLike(user.id, commentId, !wasLiked);
             if (!wasLiked && targetComment && targetComment.authorId && targetComment.authorId !== user.id) {
                 createNotificationForUser(targetComment.authorId, 'LIKE', `${user.handle} liked your comment`, postId, postId, commentId)
                     .catch(() => {});
             }
+            } catch {
+                setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: p.comments.map(cm => {
+                    if (cm.id !== commentId) return cm;
+                    const likedBy = setReactionActor(cm.likedBy, user.id, wasLiked);
+                    return { ...cm, likedBy, likes: likedBy.length };
+                }) } : p));
+                setToast({ message: 'Comment like could not be saved. Please retry.', type: 'ERROR' });
+            }
         }
+        reactionsInFlight.current.delete(key);
     };
     // Expose to PostCard / SinglePostView (rendered deep in the tree) without
     // threading a new prop through every intermediate component.
@@ -6079,31 +6058,42 @@ const App = () => {
 
     const handleRepost = async (id: string) => {
         if (!user) return handleRequireAuth();
-        if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to repost', type: 'INFO' }); return; }
+        const key = `repost:${id}`;
+        if (reactionsInFlight.current.has(key)) return;
+        reactionsInFlight.current.add(key);
         // Read post data BEFORE setPosts
         const targetPost = posts.find(p => p.id === id);
         const postAuthorId = targetPost?.authorId || null;
         const wasReposted = targetPost ? targetPost.repostedBy.includes(user.id) : false;
         setPosts(prevPosts => prevPosts.map(p => {
             if (p.id === id) {
-                const newRepostedBy = wasReposted ? p.repostedBy.filter(uid => uid !== user.id) : [...p.repostedBy, user.id];
+                const newRepostedBy = setReactionActor(p.repostedBy, user.id, !wasReposted);
                 return { ...p, repostedBy: newRepostedBy, reposts: newRepostedBy.length };
             }
             return p;
         }));
         playSound('CLICK');
         if (isSupabaseConfigured()) {
-            supabaseRepost(user.id, id).catch(e => console.warn('Repost sync failed:', e));
+            try {
+            await supabaseRepost(user.id, id, !wasReposted);
             // Notify post author on repost (not un-repost, not your own post)
             if (!wasReposted && postAuthorId && postAuthorId !== user.id) {
                 createNotificationForUser(postAuthorId, 'REPOST', `${user.handle} reposted your post`, id, id)
                     .catch(e => console.warn('Repost notification failed:', e));
             }
+            } catch {
+                setPosts(prev => prev.map(p => {
+                    if (p.id !== id) return p;
+                    const repostedBy = setReactionActor(p.repostedBy, user.id, wasReposted);
+                    return { ...p, repostedBy, reposts: repostedBy.length };
+                }));
+                setToast({ message: 'Repost could not be saved. Please retry.', type: 'ERROR' });
+            }
         }
+        reactionsInFlight.current.delete(key);
     };
     const handleComment = async (pid: string, c: string, parentId?: string | null) => {
         if (!user) { handleRequireAuth(); throw new Error('Sign in to send your reply.'); }
-        if (!walletAddress) { setToast({ message: 'Connect a crypto wallet to comment', type: 'INFO' }); throw new Error('Connect your wallet to send your reply.'); }
         if (!c.trim()) return;
         const targetPost = posts.find(p => p.id === pid);
         const postAuthorId = targetPost?.authorId;

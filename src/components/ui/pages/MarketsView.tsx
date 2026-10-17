@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Activity, ArrowDownRight, ArrowUpRight, ChevronRight, Search, Star } from 'lucide-react';
 import { PAIRS, isTradablePair } from '@/utils/types';
 import { VeloAssetIcon } from '@/components/ui/shared';
+import { useMarketDiscovery, tradingPairForAsset, marketWatchKey } from '@/services/marketDiscovery';
 
-type SortKey = 'volume' | 'change' | 'price' | 'name';
-type MarketStats = { volume: number; marketCap: number };
+type SortKey = 'rank' | 'volume' | 'change' | 'price' | 'name';
 
 const categories: Record<string, string> = {
   'BNB/USD': 'Layer 1', 'XRP/USD': 'Layer 1', 'HYPE/USD': 'DeFi', 'WBTC/USD': 'Wrapped assets',
@@ -23,7 +23,7 @@ const formatPrice = (price?: number | null) => {
   return price.toFixed(2);
 };
 
-const formatMoney = (value?: number) => {
+const formatMoney = (value?: number | null) => {
   if (!value || !Number.isFinite(value)) return '—';
   if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
   if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
@@ -54,64 +54,39 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All markets');
-  const [sortBy, setSortBy] = useState<SortKey>('volume');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<SortKey>('rank');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
-  const [marketStats, setMarketStats] = useState<Record<string, MarketStats>>({});
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const load = async () => {
-      const geckoIds = PAIRS.map(pair => pair.geckoId).filter(Boolean).join(',');
-      try {
-        const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${geckoIds}&order=market_cap_desc&per_page=100&page=1&sparkline=true`, { signal: controller.signal });
-        if (response.ok) {
-          const rows: any[] = await response.json();
-          const next: Record<string, MarketStats> = {};
-          const charts: Record<string, number[]> = {};
-          rows.forEach(coin => {
-            const pair = PAIRS.find(item => item.geckoId === coin.id);
-            if (pair) {
-              next[pair.id] = { volume: Number(coin.total_volume) || 0, marketCap: Number(coin.market_cap) || 0 };
-              charts[pair.id] = Array.isArray(coin.sparkline_in_7d?.price)
-                ? coin.sparkline_in_7d.price.filter((value: number) => Number.isFinite(value) && value > 0) : [];
-            }
-          });
-          if (!controller.signal.aborted) { setMarketStats(next); setSparklines(charts); }
-        }
-      } catch { /* Keep unavailable external metrics quiet; live prices still render. */ }
-
-    };
-    void load();
-    return () => controller.abort();
-  }, []);
+  const discovery = useMarketDiscovery();
+  const { assets } = discovery;
 
   const handleSort = (key: SortKey) => {
     if (sortBy === key) setSortDir(value => value === 'desc' ? 'asc' : 'desc');
     else { setSortBy(key); setSortDir('desc'); }
   };
 
-  const listedVolume = Object.values(marketStats).reduce((sum, stats) => sum + stats.volume, 0);
-  const listedCap = Object.values(marketStats).reduce((sum, stats) => sum + stats.marketCap, 0);
-  const advancing = PAIRS.filter(pair => (marketChanges[pair.id] ?? 0) > 0).length;
+  const listedVolume = assets.reduce((sum, asset) => sum + (asset.volume || 0), 0);
+  const listedCap = assets.reduce((sum, asset) => sum + (asset.marketCap || 0), 0);
+  const advancing = assets.filter(asset => (asset.change ?? 0) > 0).length;
   const tradableCount = PAIRS.filter(pair => isTradablePair(pair.id)).length;
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return PAIRS.filter(pair => {
+    return assets.filter(pair => {
       const matchesQuery = !query || pair.id.toLowerCase().includes(query) || pair.name.toLowerCase().includes(query);
-      const matchesCategory = category === 'All markets' || categories[pair.id] === category;
-      return matchesQuery && matchesCategory && (!favoritesOnly || watchlist.includes(pair.id));
+      const categoryTags = { 'Layer 1': ['layer-1'], DeFi: ['defi', 'decentralized-exchange-dex-token'], Meme: ['memes'], Oracle: ['oracles'], 'Wrapped assets': ['wrapped-tokens'], Staking: ['liquid-staking-derivatives', 'staking'], Stablecoins: ['stablecoin'] };
+      const matchesCategory = category === 'All markets' || (pair.geckoId && categories[pair.id] === category) || categoryTags[category]?.some(tag => pair.tags?.includes(tag));
+      return matchesQuery && matchesCategory && (!favoritesOnly || watchlist.includes(marketWatchKey(pair)));
     }).sort((a, b) => {
       let result = 0;
       if (sortBy === 'name') result = a.name.localeCompare(b.name);
-      else if (sortBy === 'price') result = (marketPrices[a.id] || 0) - (marketPrices[b.id] || 0);
-      else if (sortBy === 'change') result = (marketChanges[a.id] || 0) - (marketChanges[b.id] || 0);
-      else result = (marketStats[a.id]?.volume || 0) - (marketStats[b.id]?.volume || 0);
+      else if (sortBy === 'price') result = (a.price || 0) - (b.price || 0);
+      else if (sortBy === 'change') result = (a.change || 0) - (b.change || 0);
+      else if (sortBy === 'rank') result = (a.rank ?? Infinity) - (b.rank ?? Infinity);
+      else result = (a.volume || 0) - (b.volume || 0);
       return sortDir === 'desc' ? -result : result;
     });
-  }, [search, category, favoritesOnly, watchlist, sortBy, sortDir, marketPrices, marketChanges, marketStats]);
+  }, [assets, search, category, favoritesOnly, watchlist, sortBy, sortDir]);
 
   const sortLabel = (key: SortKey, label: string) => <button className="markets-sort" onClick={() => handleSort(key)} aria-label={`Sort by ${label}`}>{label}<span>{sortBy === key ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span></button>;
 
@@ -208,7 +183,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
         <div>
           <div className="markets-eyebrow">VELO · MARKET DESK</div>
           <h1 className="markets-title">All <em>markets</em></h1>
-          <p className="markets-subtitle">{PAIRS.length} crypto assets · {tradableCount} perpetuals · {PAIRS.length - tradableCount} price-only listings</p>
+          <p className="markets-subtitle">Top 50 crypto assets by market cap · {tradableCount} testnet perpetuals</p>
         </div>
         <div className="markets-live"><i aria-hidden="true" />{tradableCount} perpetuals <span aria-hidden="true">·</span> Base Sepolia</div>
       </header>
@@ -216,7 +191,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
       <section className="markets-overview" aria-label="Market overview">
         <div><span className="markets-label">Listed market cap</span><strong>{formatMoney(listedCap)}</strong><small>Combined tracked assets</small></div>
         <div><span className="markets-label">24h spot volume</span><strong>{formatMoney(listedVolume)}</strong><small>Across tracked assets</small></div>
-        <div><span className="markets-label">Market breadth</span><strong>{advancing}<span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> / {PAIRS.length}</span></strong><small>Assets advancing today</small></div>
+        <div><span className="markets-label">Market breadth</span><strong>{advancing}<span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> / {assets.length}</span></strong><small>Assets advancing today</small></div>
       </section>
 
       <div className="markets-tools">
@@ -228,39 +203,40 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
       </nav>
 
       <section className="markets-table" aria-label="Markets">
+        {discovery.isError && <div className="markets-empty" role="status">{assets.length ? 'Showing the last available market snapshot.' : 'Market data is temporarily unavailable.'} <button className="markets-trade" disabled={discovery.isFetching} onClick={() => void discovery.refetch()}>Retry</button></div>}
         <div className="markets-table-head">
           <span />{sortLabel('name', 'Asset')}
-          <span className="markets-sort right">Price</span>
-          <span className="markets-sort right markets-col-change">24h</span>
-          <span className="markets-sort right markets-col-volume">Volume</span>
+          <span>{sortLabel('price', 'Price')}</span>
+          <span className="markets-col-change">{sortLabel('change', '24h')}</span>
+          <span className="markets-col-volume">{sortLabel('volume', 'Volume')}</span>
           <span className="markets-sort markets-col-spark" style={{ justifyContent: 'center' }}>7D</span>
           <span />
         </div>
-        {filtered.length === 0 ? <div className="markets-empty">No matching markets. Try another asset, category, or watchlist filter.</div> : filtered.map(pair => {
+        {discovery.isPending ? <div className="markets-empty" role="status">Loading markets...</div> : filtered.length === 0 && !discovery.isError ? <div className="markets-empty">No matching markets. Try another asset, category, or watchlist filter.</div> : filtered.map(pair => {
           const ticker = pair.id.split('/')[0];
-          const price = marketPrices[pair.id];
-          const change = marketChanges[pair.id] ?? 0;
-          const hasChange = Number.isFinite(marketChanges[pair.id]);
-          const favorite = watchlist.includes(pair.id);
-          const tradable = isTradablePair(pair.id);
-          return <div className="markets-row" key={pair.id} role="link" tabIndex={0} aria-label={`Open ${pair.name} market details`} onClick={() => onNavigateToSocial(ticker)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigateToSocial(ticker); } }}>
-            <button className="markets-star" aria-label={favorite ? `Remove ${ticker} from watchlist` : `Add ${ticker} to watchlist`} aria-pressed={favorite} onClick={event => { event.stopPropagation(); onToggleWatchlist(pair.id); }}><Star size={15} fill={favorite ? 'currentColor' : 'none'} /></button>
-            <button className="markets-asset" onClick={event => { event.stopPropagation(); onNavigateToSocial(ticker); }}>
+          const price = pair.price;
+          const change = pair.change ?? 0;
+          const hasChange = Number.isFinite(pair.change);
+          const favorite = watchlist.includes(marketWatchKey(pair));
+          const tradable = tradingPairForAsset(pair);
+          return <div className="markets-row" key={pair.assetId} role="link" tabIndex={0} aria-label={`Open ${pair.name} market details`} onClick={() => onNavigateToSocial(pair.assetId)} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onNavigateToSocial(pair.assetId); } }}>
+            <button className="markets-star" aria-label={favorite ? `Remove ${ticker} from watchlist` : `Add ${ticker} to watchlist`} aria-pressed={favorite} onClick={event => { event.stopPropagation(); onToggleWatchlist(marketWatchKey(pair)); }}><Star size={15} fill={favorite ? 'currentColor' : 'none'} /></button>
+            <button className="markets-asset" onClick={event => { event.stopPropagation(); onNavigateToSocial(pair.assetId); }}>
               <VeloAssetIcon src={pair.logo} symbol={ticker} size={34} />
-              <span className="markets-asset-copy"><strong>{ticker} <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>/ USD</span></strong><span>{pair.name} <span aria-hidden="true">·</span> {categories[pair.id]}</span></span>
+              <span className="markets-asset-copy"><strong>{ticker} <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>/ USD</span></strong><span>{pair.rank ? `#${pair.rank} · ` : ''}{pair.name}</span></span>
             </button>
             <div className="markets-quote">
               <span className="markets-price">{price == null ? '—' : `$${formatPrice(price)}`}</span>
               <span className={`markets-change markets-mobile-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
             </div>
             <span className={`markets-change markets-col-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
-            <span className="markets-volume markets-col-volume">{formatMoney(marketStats[pair.id]?.volume)}</span>
-            <span className="markets-col-spark"><Sparkline values={sparklines[pair.id] || []} /></span>
-            {tradable ? <button className="markets-trade" onClick={event => { event.stopPropagation(); onNavigateToTrade(pair); }}>Trade<ChevronRight size={13} /></button> : <span className="markets-soon" title="Price feed available. This asset is not registered for perpetual trading.">Price only</span>}
+            <span className="markets-volume markets-col-volume">{formatMoney(pair.volume)}</span>
+            <span className={`markets-change markets-col-spark ${pair.change7d != null ? (pair.change7d >= 0 ? 'positive' : 'negative') : ''}`}>{pair.change7d != null ? `${pair.change7d >= 0 ? '+' : ''}${pair.change7d.toFixed(2)}%` : '—'}</span>
+            {tradable ? <button className="markets-trade" onClick={event => { event.stopPropagation(); onNavigateToTrade(tradable); }}>Trade<ChevronRight size={13} /></button> : <span className="markets-soon" title="Market information only. Perpetual trading is not available for this asset.">Info only</span>}
           </div>;
         })}
       </section>
-      <p className="markets-label" style={{ margin: '11px 2px 0', fontSize: 9, textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}><Activity size={11} style={{ verticalAlign: '-2px', marginRight: 5 }} />Prices and market data are reference information. Perpetual availability is shown per market.</p>
+      <p className="markets-label" style={{ margin: '11px 2px 0', fontSize: 11, textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}><Activity size={11} style={{ verticalAlign: '-2px', marginRight: 5 }} /><a href="https://coinmarketcap.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--fg-muted)' }}>Data: CoinMarketCap</a>. Reference snapshot{discovery.data?.fetchedAt ? ` · Updated ${new Date(discovery.data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}. Perpetual availability is shown per market.</p>
     </main>
   );
 };

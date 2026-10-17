@@ -4,17 +4,18 @@
 
 VELO combines a crypto perpetuals terminal with profiles, posts, replies and follows on **Base Sepolia (84532)**. Trading uses mock USDC and a custom Pyth-priced contract. This is a restricted, experimental testnet, **not an independently audited exchange or a real-money product**.
 
-**Status: 16 October 2026.** Cloudflare serves both sites. Supabase runs the database, authentication and backend. A Cloudflare timer calls the trading keepers every minute. Vercel is paused. The migration retained the existing database and contracts.
+**Status: 17 October 2026.** Cloudflare serves both sites. Supabase runs the database, authentication and backend. A Cloudflare timer calls the trading keepers every minute. Vercel is paused. The migration retained the existing database and contracts.
 
 The engineering review found serious contract accounting and legacy account-authorization defects. New signature login, private contact APIs, owner-only notification reads and receipt-verified incoming transfers are deployed, but the legacy-account/social cutover is still pending. The frontend blocks new cross-margin activity, margin adjustments and reduce-only entry orders on the current contract. These client checks do not prevent direct contract calls. **Do not use real funds.**
 
-## Market availability (16 October 2026)
+## Market availability (17 October 2026)
 
 `shared/markets.mjs` is the app and price proxy's shared allowlist. The configured
 Pyth trial grants 13 crypto feeds, not the full Pyth catalogue:
 
 - Enabled perpetuals: **BTC, ETH, SOL, DOGE** (original registry slots 0, 1, 2, 5).
-- Price-only listings: **PYTH, BNB, XRP, HYPE, WBTC, JITOSOL, STETH, USDC, USDT**.
+- Oracle-entitled candidates awaiting contract registration: **PYTH, BNB, XRP, HYPE, STETH**. These are not enabled perpetuals.
+- **USDT, USDC, WBTC and JITOSOL are deliberately excluded from perpetual trading**, regardless of oracle access.
 - Other markets are excluded from new-order entry points and batched price requests.
   Existing position/history IDs are preserved. These application restrictions do
   not pause the legacy on-chain slots; unsupported positions require oracle access
@@ -22,6 +23,14 @@ Pyth trial grants 13 crypto feeds, not the full Pyth catalogue:
 
 No stocks, forex or commodities are offered. A trial entitlement is not permanent;
 reverify provider access and contract registration before changing the allowlist.
+
+The Markets directory and coin pages independently cover the **top 50 crypto
+assets by market cap from CoinMarketCap**. They provide reference quotes, asset
+information, 24-hour/7-day/30-day history and ticker discussions. Listing in this
+directory does not enable trading. Provider numeric IDs prevent ticker collisions
+from selecting a different asset. CoinMarketCap credentials stay on the Pages
+server; they are never embedded into browser code. Quotes are cached snapshots,
+not executable Pyth prices. Missing data is shown as unavailable, not fabricated.
 
 ## Documentation
 
@@ -31,6 +40,7 @@ reverify provider access and contract registration before changing the allowlist
 | [FEATURES.md](FEATURES.md) | Implemented, restricted, unverified and planned features |
 | [docs/AUDIT-2026-10-15.md](docs/AUDIT-2026-10-15.md) | Findings, evidence, test coverage and release gates |
 | [docs/RELIABILITY-2026-10-16.md](docs/RELIABILITY-2026-10-16.md) | Close-request recovery, shared replies and comment database integrity |
+| [docs/RELEASE-2026-10-17.md](docs/RELEASE-2026-10-17.md) | Market discovery, social persistence, dialog checks and live testnet evidence |
 | [contracts/README.md](contracts/README.md) | Contract addresses, accounting defects and reproduction tests |
 | [audit-plans/README.md](audit-plans/README.md) | Unapplied account/social cutover and its approval requirements |
 | [migration/STATUS.md](migration/STATUS.md) | Historical hosting migration and transaction evidence |
@@ -55,6 +65,7 @@ flowchart TD
   P --> W[Private Pyth Worker]
   W --> D[Pyth data service]
   P --> A[Supabase API]
+  P --> M[CoinMarketCap reference data]
   A --> S[Supabase Auth and database]
   U --> C[Base Sepolia contracts]
   T[Cloudflare minute timer] --> K[Supabase keepers]
@@ -68,6 +79,7 @@ flowchart TD
 | Terminal and API gateway | Cloudflare Pages `velo-trading-terminal` → `app.velotrading.live` |
 | Landing and product docs | Cloudflare Pages `velo-landing` → `velotrading.live` |
 | Authenticated REST, SSE and candle access | Private Worker `velo-pyth-proxy` |
+| Public top-50 directory and coin history | Pages `/api/market-data`, server-side CoinMarketCap key |
 | Login, sponsorship and transfer verification | Supabase `velo-api` |
 | Conditional orders, TP/SL and liquidations | Supabase `velo-keepers` |
 | Scheduler | Worker `velo-keeper-scheduler`, `* * * * *` |
@@ -92,7 +104,7 @@ Both sites automatically deploy commits to **`codex/cloudflare-migration`**, not
 
 ## Validation and limitations
 
-The review ran TypeScript checking, a production build, 91 Node tests and seven Foundry tests. **Three Foundry tests pass by reproducing bugs**, not by proving a safe contract. Focused live tests checked signature login, replay rejection, upgraded-account password rejection, private contact access and notification ownership. Temporary test accounts were removed.
+The earlier review ran TypeScript checking, a production build, 91 Node tests and seven Foundry tests. **Three Foundry tests pass by reproducing bugs**, not by proving a safe contract. Focused live tests checked signature login, replay rejection, upgraded-account password rejection, private contact access and notification ownership. Temporary test accounts from that review were removed. The 17 October release adds market-provider, social-persistence and dialog regression coverage; see its release record for the current results.
 
 At 00:54 UTC on 16 October, keeper logs showed 60 runs for each of three jobs over the inspected hour with zero reported errors. Historical testnet receipts cover sponsorship, a limit entry/TP and liquidation. This does not establish every long/short, stop/SL, partial-close or outage scenario.
 

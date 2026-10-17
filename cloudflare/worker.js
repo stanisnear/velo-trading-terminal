@@ -1,3 +1,4 @@
+import { handleMarketData } from './market-data.js';
 // A narrow Pages gateway. The API implementation must be deployed separately.
 // Runtime secrets: VELO_BACKEND_URL and VELO_PROXY_TOKEN.
 const routes = new Map([
@@ -23,8 +24,9 @@ function error(message, status, extra = {}) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/market-data') return handleMarketData(request, env, ctx);
     if (url.pathname.startsWith('/api/pyth/')) {
       if (!env.VELO_PYTH) return error('Price service not configured', 503);
       try { return await env.VELO_PYTH.fetch(request); }

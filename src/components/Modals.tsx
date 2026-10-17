@@ -8,6 +8,7 @@ import { AlertCircle, ArrowRightLeft, Edit, Trash2, X, Image as ImageIcon } from
 import { PAIRS } from '@/utils/types';
 import { GlassCard, Button, formatPrice, formatMoney, playSound } from '@/components/ui/shared';
 import { supabase, uploadAvatar, uploadBanner, isConfigured as isSupabaseConfigured } from '@/services/supabaseStore';
+import { Dialog } from '@/components/ui/Dialog';
 
 export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccount }: any) => {
     const [formData, setFormData] = useState({ bio: '', avatar: '', banner: '', username: '' });
@@ -16,19 +17,27 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [bannerFile, setBannerFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [saveError, setSaveError] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteInput, setDeleteInput] = useState('');
     useEffect(() => {
-        if (user) {
+        if (isOpen && user) {
             setFormData({ bio: user.bio || '', avatar: user.avatar || '', banner: user.banner || '', username: user.username || '' });
             setAvatarPreview(null); setBannerPreview(null);
             setAvatarFile(null); setBannerFile(null);
+            setSaveError(''); setShowDeleteConfirm(false); setDeleteInput('');
         }
-    }, [user, isOpen]);
+    }, [user?.id, isOpen]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
         const file = e.target.files?.[0];
         if (!file) return;
+        if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+            setSaveError('Choose a PNG, JPEG or WebP image under 5 MB.');
+            e.target.value = '';
+            return;
+        }
+        setSaveError('');
         const reader = new FileReader();
         reader.onload = (ev) => {
             if (type === 'avatar') { setAvatarPreview(ev.target?.result as string); setAvatarFile(file); }
@@ -38,19 +47,28 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
     };
 
     const handleSave = async () => {
+        if (uploading) return;
+        if (!formData.username.trim()) { setSaveError('Username is required.'); return; }
         setUploading(true);
+        setSaveError('');
+        try {
         const updates: any = { bio: formData.bio, username: formData.username };
         if (avatarFile && user?.id && isSupabaseConfigured()) {
-            const { url } = await uploadAvatar(user.id, avatarFile);
+            const { url, error } = await uploadAvatar(user.id, avatarFile);
+            if (error) throw new Error(error);
             if (url) updates.avatar = url;
         }
         if (bannerFile && user?.id && isSupabaseConfigured()) {
-            const { url } = await uploadBanner(user.id, bannerFile);
+            const { url, error } = await uploadBanner(user.id, bannerFile);
+            if (error) throw new Error(error);
             if (url) updates.banner = url;
         }
-        setUploading(false);
-        await onSave(updates);
+        const result = await onSave(updates);
+        if (result?.ok === false) throw new Error(result.error || 'Profile could not be saved.');
         onClose();
+        } catch (error) {
+            setSaveError(error instanceof Error ? error.message : 'Profile could not be saved. Please retry.');
+        } finally { setUploading(false); }
     };
 
     if(!isOpen) return null;
@@ -60,18 +78,13 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md velo-modal-enter-backdrop" onClick={onClose}>
-            <div onClick={(e: any) => e.stopPropagation()} className="velo-modal-enter-card" style={{
-                width: '100%', maxWidth: 480, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)',
-                borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(32px)',
-                maxHeight: '90vh', overflowY: 'auto',
-            }}>
-                {/* Holo accent */}
-                <div style={{ height: 3, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }} />
+        <Dialog open={isOpen} onClose={onClose} busy={uploading} title="Edit profile">
+            <fieldset disabled={uploading} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
 
                 {/* Banner upload zone */}
-                <div style={{ position: 'relative', height: 120, background: bannerPreview ? '#000' : (formData.banner ? '#000' : 'var(--chip-bg)'), overflow: 'hidden', cursor: 'pointer' }}
-                    onClick={() => document.getElementById('velo-banner-upload')?.click()}>
+                <div role="button" tabIndex={0} aria-label="Change banner" style={{ position: 'relative', height: 120, background: bannerPreview ? '#000' : (formData.banner ? '#000' : 'var(--chip-bg)'), overflow: 'hidden', cursor: 'pointer' }}
+                    onClick={e => { if (!uploading && !(e.target instanceof HTMLInputElement)) document.getElementById('velo-banner-upload')?.click(); }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!uploading) document.getElementById('velo-banner-upload')?.click(); } }}>
                     {(bannerPreview || formData.banner) && (
                         <img src={bannerPreview || formData.banner} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} alt="" />
                     )}
@@ -84,8 +97,9 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
 
                 {/* Avatar upload zone */}
                 <div style={{ padding: '0 24px', position: 'relative' }}>
-                    <div style={{ position: 'relative', width: 80, height: 80, borderRadius: '50%', border: '4px solid var(--bg-base)', overflow: 'hidden', marginTop: -40, cursor: 'pointer', background: 'var(--chip-bg)', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.5)' }}
-                        onClick={() => document.getElementById('velo-avatar-upload')?.click()}>
+                    <div role="button" tabIndex={0} aria-label="Change avatar" style={{ position: 'relative', width: 80, height: 80, borderRadius: '50%', border: '4px solid var(--bg-base)', overflow: 'hidden', marginTop: -40, cursor: 'pointer', background: 'var(--chip-bg)', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.5)' }}
+                        onClick={e => { if (!uploading && !(e.target instanceof HTMLInputElement)) document.getElementById('velo-avatar-upload')?.click(); }}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!uploading) document.getElementById('velo-avatar-upload')?.click(); } }}>
                         <img src={avatarPreview || formData.avatar || user?.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <Edit size={14} style={{ color: '#fff' }} />
@@ -96,7 +110,7 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
 
                 {/* Form fields */}
                 <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em' }}>Edit Profile</div>
+                    {saveError && <p role="alert" style={{ color: 'var(--pnl-down)', fontSize: 13 }}>{saveError}</p>}
 
                     {/* Wallet address display */}
                     {user?.walletAddress && (
@@ -110,8 +124,9 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
 
                     {/* Username */}
                     <div>
-                        <label style={S.label}>Username</label>
+                        <label htmlFor="edit-profile-username" style={S.label}>Username</label>
                         <input
+                            id="edit-profile-username" maxLength={32} required
                             value={formData.username}
                             onChange={(e: any) => setFormData({ ...formData, username: e.target.value })}
                             style={{ width: '100%', marginTop: 6, padding: '10px 14px', borderRadius: 10, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg)', outline: 'none', boxSizing: 'border-box' }}
@@ -120,8 +135,9 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
 
                     {/* Bio */}
                     <div>
-                        <label style={S.label}>Bio</label>
+                        <label htmlFor="edit-profile-bio" style={S.label}>Bio</label>
                         <textarea
+                            id="edit-profile-bio" maxLength={500}
                             value={formData.bio}
                             onChange={(e: any) => setFormData({ ...formData, bio: e.target.value })}
                             rows={3}
@@ -169,8 +185,8 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+            </fieldset>
+        </Dialog>
     );
 };
 // ── Delete Post Confirmation Modal ───────────────────────────────────────────

@@ -2,15 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { VeloAssetIcon } from './ui/shared';
-import { PAIRS } from '../utils/types';
-
-// ── Shared featured pairs list (mirrors App.tsx SOCIAL_FEATURED_PAIRS) ────────
-const SOCIAL_FEATURED_PAIRS = PAIRS.map(p => ({
-    symbol: p.id.split('/')[0],
-    name: p.name ?? p.id,
-    pairId: p.id,
-    logo: p.logo ?? '',
-}));
+import { useMarketDiscovery } from '../services/marketDiscovery';
 
 // ── MentionDropdown ───────────────────────────────────────────────────────────
 const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onHover }: {
@@ -85,7 +77,7 @@ const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onHover }:
                     <div key={`header-${i}`} className="velo-mention-section-header">{item._sectionHeader}</div>
                 ) : item._type === 'ticker' ? (
                     <button
-                        key={item.symbol}
+                        key={item.assetId || item.symbol}
                         className={`velo-mention-item${i === activeIndex ? ' active' : ''}`}
                         onMouseDown={e => { e.preventDefault(); onSelect(item); }}
                         onMouseEnter={() => onHover(i)}
@@ -126,6 +118,7 @@ export interface CreatePostModalProps {
 }
 
 export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] }: CreatePostModalProps) => {
+    const { socialAssets } = useMarketDiscovery();
     const [content, setContent] = React.useState('');
     const [posting, setPosting] = React.useState(false);
     const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
@@ -156,7 +149,7 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
         if (mentionQuery === null) return [];
         const q = mentionQuery.toLowerCase();
         if (mentionTrigger === '$' && q) {
-            return SOCIAL_FEATURED_PAIRS
+            return socialAssets
                 .filter(p => p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q))
                 .slice(0, 4)
                 .map(p => ({ ...p, _type: 'ticker' }));
@@ -170,14 +163,14 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
                 .slice(0, 5);
         }
         return [];
-    }, [mentionQuery, mentionTrigger, traders, user]);
+    }, [mentionQuery, mentionTrigger, traders, user, socialAssets]);
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
         const cursor = e.target.selectionStart ?? val.length;
         setContent(val);
         const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
+        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9.-]*)$/);
         if (atMatch) {
             setMentionTrigger('@'); setMentionQuery(atMatch[1]);
             setMentionStart(cursor - atMatch[0].length); setMentionIdx(0);

@@ -9,7 +9,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowUpRight, Heart, MessageCircle, Repeat, Share2, Trash2 } from 'lucide-react';
 import { CommentThread } from '@/components/CommentThread';
 import { VerifiedBadge } from '@/components/ui/shared';
-import { Post, SOCIAL_FEATURED_PAIRS, VALID_TICKER_SYMBOLS } from '@/utils/types';
+import { Post } from '@/utils/types';
+import { useMarketDiscovery } from '@/services/marketDiscovery';
 
 // ── Comment-like dispatch bus ────────────────────────────────────────────────
 // PostCard renders deep inside several views; App wires the actual handler at
@@ -82,7 +83,7 @@ export const extractFirstUrl = (content: string): string | null => {
 };
 
 export const renderContentWithMentions = (content: string, onViewProfile: (p: any) => void, traders: any[], onTickerClick?: (ticker: string) => void, validTickers?: string[]) => {
-    const parts = content.split(/(@[A-Za-z0-9_]+|\$[A-Z]{2,8}|https?:\/\/[^\s<>"']+)/g);
+    const parts = content.split(/(@[A-Za-z0-9_]+|\$[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*|https?:\/\/[^\s<>"']+)/g);
     return parts.map((part: string, i: number) => {
         if (part.match(/^@[A-Za-z0-9_]+$/)) {
             const handle = part.toLowerCase();
@@ -97,8 +98,8 @@ export const renderContentWithMentions = (content: string, onViewProfile: (p: an
                 </span>
             );
         }
-        if (part.match(/^\$[A-Z]{2,8}$/)) {
-            const symbol = part.slice(1);
+        if (/^\$[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*$/.test(part)) {
+            const symbol = part.slice(1).toUpperCase();
             // Only make it a special clickable ticker if it's a known available pair
             const isKnown = validTickers ? validTickers.includes(symbol) : true;
             if (isKnown) {
@@ -128,6 +129,7 @@ export const renderContentWithMentions = (content: string, onViewProfile: (p: an
 };
 
 export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost }: any) => {
+    const { socialAssets } = useMarketDiscovery();
     const hasLiked = post.likedBy.includes(user?.id);
     const hasReposted = post.repostedBy.includes(user?.id);
     // Author can delete their own post from any wall; wall owner can also delete posts on their wall
@@ -147,7 +149,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
         const q = commentMentionQuery.toLowerCase();
         if (commentMentionTrigger === '$') {
             if (!q) return []; // don't show anything until at least 1 char typed
-            return SOCIAL_FEATURED_PAIRS.filter(p =>
+            return socialAssets.filter(p =>
                 p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
             ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
         }
@@ -165,7 +167,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
         const cursor = e.target.selectionStart ?? val.length;
         setCommentText(val);
         const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
+        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9.-]*)$/);
         if (atMatch) {
             setCommentMentionTrigger('@'); setCommentMentionQuery(atMatch[1]);
             setCommentMentionStart(cursor - atMatch[0].length); setCommentMentionIdx(0);
@@ -292,7 +294,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                     </div>
                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--fg-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap' as const, marginBottom: post.isTradeSignal ? 12 : 0, cursor: onSinglePost ? 'pointer' : 'default' }}
                         onClick={() => onSinglePost && onSinglePost(post.id)}>
-                        {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}
+                        {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, socialAssets.map(asset => asset.symbol))}
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
                     {post.isTradeSignal && post.tradeDetails && (

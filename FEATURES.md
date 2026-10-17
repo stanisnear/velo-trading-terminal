@@ -1,4 +1,4 @@
-# Feature status — 15 October 2026
+# Feature status — 17 October 2026
 
 Status terms: **implemented** means code exists; **verified** names a specific test; neither means a complete independent audit. The app remains testnet-only.
 
@@ -8,7 +8,7 @@ Status terms: **implemented** means code exists; **verified** names a specific t
 | Wallet login | One-use message signature; stable existing Supabase identity | Live new/returning login and replay tests passed; unupgraded legacy credentials still require global retirement |
 | Trading wallet | Locally derived EOA, exported/recovered through wallet settings | Plaintext localStorage; no scoped permissions; recovery must be tested per connector |
 | Onboarding | Testnet network, username, optional private contact, faucet/gas setup | Username now matches registry rules; complete mobile wallet matrix unverified |
-| Market orders | Isolated open/close, local signing, Pyth settlement | Source review and selected historical receipts; all directions/extremes not exhaustively tested |
+| Market orders | Isolated open/close, local signing, Pyth settlement | Live disposable-wallet SOL open/close passed on 17 October; all directions/extremes not exhaustively tested |
 | Limit/stop entries | On-chain conditions checked by minute keeper | Long limit receipt verified previously; full side/condition/outage matrix still required |
 | TP/SL | Separate trigger updates and keeper execution | Historical TP receipt; not an atomic guarantee at entry, fill may gap |
 | Liquidation | Keeper checks current V3.1 rules | Receipt verified previously; cross loss accounting defect reproduced |
@@ -22,7 +22,8 @@ Status terms: **implemented** means code exists; **verified** names a specific t
 | Bridge | LayerZero OFT code and multi-testnet routes | All route pairs, delayed delivery and recovery not verified; no mainnet bridge claim |
 | Charts | Streaming/history adapters, chart tools and indicator controls | Chart control runtime issue fixed; outage/staleness UX and candle quality need browser scenarios |
 | Volume/orders panels | Recent reported fills and conditional orders | Informational panels, not executable liquidity or a matching-engine order book |
-| Social | Posts, replies, likes, reposts, follows, profiles and mentions | Broad authorization, counters, moderation/spam and browser interaction checks outstanding |
+| Market discovery | Top-50 CoinMarketCap directory, stable coin IDs, 24h/7d/30d history and ticker discussions | Live provider requests and gateway regressions pass; separate from four enabled Pyth perpetuals |
+| Social | Posts, replies, likes, reposts, follows, profiles and mentions | Post retries use stable IDs; reactions use desired state; follows have owner-only writes and database counters. Broader authorization, moderation/spam and browser checks remain outstanding |
 | Notifications | Owner-only reads now enforced | Live ownership check passed; forged cross-user writes still require legacy RPC replacement |
 | Contact email | New writes/read API in private schema | Live verified; historical public profile email fields still need cleanup |
 | Avatar/profile editing | Upload/edit paths present | Path ownership, replacement policy and protected identity fields pending cutover |

@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { VeloAssetIcon } from '@/components/ui/shared';
-import { SOCIAL_FEATURED_PAIRS } from '@/utils/types';
+import { useMarketDiscovery } from '@/services/marketDiscovery';
 
 export const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onHover }: any) => {
     const [pos, setPos] = React.useState<{ top: number; left: number; width: number } | null>(null);
@@ -117,7 +117,7 @@ export const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onH
                     <div key={`header-${i}`} className="velo-mention-section-header">{item._sectionHeader}</div>
                 ) : item._type === 'ticker' ? (
                     <button
-                        key={item.symbol}
+                        key={item.assetId || item.symbol}
                         className={`velo-mention-item${i === activeIndex ? ' active' : ''}`}
                         onMouseDown={e => { e.preventDefault(); onSelect(item); }}
                         onMouseEnter={() => onHover(i)}
@@ -149,6 +149,7 @@ export const MentionDropdown = ({ results, anchorRef, activeIndex, onSelect, onH
 };
 
 export const WallCompose = ({ user, targetId, targetName, onPostCreate, placeholder, traders = [] }: any) => {
+    const { socialAssets } = useMarketDiscovery();
     const [text, setText] = React.useState('');
     const [posting, setPosting] = React.useState(false);
     const [mentionQuery, setMentionQuery] = React.useState<string | null>(null);
@@ -164,7 +165,7 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
         const q = mentionQuery.toLowerCase();
         if (mentionTrigger === '$') {
             if (!q) return []; // don't show anything until at least 1 char typed
-            return SOCIAL_FEATURED_PAIRS.filter(p =>
+            return socialAssets.filter(p =>
                 p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
             ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
         }
@@ -182,7 +183,7 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
         const cursor = e.target.selectionStart ?? val.length;
         setText(val);
         const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
+        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9.-]*)$/);
         if (atMatch) {
             setMentionTrigger('@');
             setMentionQuery(atMatch[1]);
