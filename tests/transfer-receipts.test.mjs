@@ -13,3 +13,9 @@ test('wrong token, wrong recipient, zero and malformed events are excluded',()=>
  assert.deepEqual(matchingTransfers([log(from),log(token,0n),{address:token,data:'0x',topics:[]}],[to]),[]);
  assert.deepEqual(matchingTransfers([log()],[from]),[]);
 });
+test('position settlement and transfers between own wallets do not become incoming deposits', () => {
+  const settlement = log();
+  settlement.topics = encodeEventTopics({abi:parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']),eventName:'Transfer',args:{from:'0x41fdb544d7247a5ddc6b4c06f29d09f2b20de907',to}});
+  assert.deepEqual(matchingTransfers([settlement], [to]), []);
+  assert.deepEqual(matchingTransfers([log()], [from, to]), []);
+});

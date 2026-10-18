@@ -787,14 +787,14 @@ export async function fetchTransactions(userId: string): Promise<Transaction[]> 
     counterparty:  r.counterparty || undefined,
   });
   const { data, error } = await supabase
-    .from('transactions').select('*')
+    .from('transactions').select('*').eq('suppressed', false)
     .eq('user_id', userId).order('created_at', { ascending: false });
   if (error) {
     console.error('[supabase] fetchTransactions error:', error.message, error.code);
     // Retry once after a short delay — covers JWT-not-yet-active on page load
     await new Promise(r => setTimeout(r, 800));
     const retry = await supabase
-      .from('transactions').select('*')
+      .from('transactions').select('*').eq('suppressed', false)
       .eq('user_id', userId).order('created_at', { ascending: false });
     if (retry.error) {
       console.error('[supabase] fetchTransactions retry failed:', retry.error.message);
@@ -920,7 +920,7 @@ export async function recordTransaction(
 
 export async function fetchNotifications(userId: string): Promise<Notification[]> {
   const { data, error } = await supabase
-    .from('notifications').select('*')
+    .from('notifications').select('*').eq('suppressed', false)
     .eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
   if (error) {
     console.warn('[velo] fetchNotifications ERROR:', error.code, error.message, '— user_id queried:', userId);

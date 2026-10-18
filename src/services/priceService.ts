@@ -150,6 +150,7 @@ export const binancePriceStream = new BinancePriceStream();
 // Binance returns at most 1,000 candles per request. Load a useful initial
 // window, then the chart requests older pages as the user pans left.
 const TF_TO_BINANCE: Record<string, { interval: string; history: number }> = {
+  '1s':  { interval: '1s', history: 300 },
   '1m':  { interval: '1m',  history: 2000 },
   '3m':  { interval: '3m',  history: 2000 },
   '5m':  { interval: '5m',  history: 2000 },
@@ -240,4 +241,43 @@ export async function fetchKlinesBefore(pairId: string, tf: string, beforeTime: 
     console.warn(`[velo] fetchKlinesBefore(${pairId}, ${tf}) failed:`, e);
     throw e;
   }
+}
+
+// Subscribe only to the visible chart. REST repairs gaps after reconnect or tab suspension.
+export function subscribeKlines(pairId: string, tf: string, onCandle: (candle: KlineCandle) => void) {
+  const symbol = BINANCE_SYMBOLS[pairId];
+  const interval = TF_TO_BINANCE[tf]?.interval;
+  if (!symbol || !interval) return () => {};
+  let stopped = false, socket: WebSocket | undefined, retry: ReturnType<typeof setTimeout> | undefined;
+  let lastMessage = 0, polling = false;
+  const repair = async () => {
+    if (stopped || polling || document.visibilityState === 'hidden') return;
+    polling = true;
+    try {
+      const rows = parseBinanceKlines(await fetchBinancePage(symbol, interval, 300));
+      if (!stopped) rows.forEach(onCandle);
+    } catch { /* The websocket and watchdog retry independently. */ }
+    finally { polling = false; }
+  };
+  const connect = () => {
+    if (stopped) return;
+    const connection = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${interval}`);
+    socket = connection;
+    socket.onopen = () => { void repair(); };
+    socket.onmessage = event => {
+      try {
+        const k = JSON.parse(event.data)?.k;
+        if (!k || k.s !== symbol.toUpperCase() || k.i !== interval) return;
+        lastMessage = Date.now();
+        onCandle({ time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v });
+      } catch { /* Ignore malformed frames. */ }
+    };
+    socket.onclose = () => { if (!stopped) retry = setTimeout(connect, 3000); };
+    socket.onerror = () => connection.close();
+  };
+  connect();
+  const watchdog = setInterval(() => { if (Date.now() - lastMessage > 5000) void repair(); }, tf === '1s' ? 2000 : 5000);
+  const onVisible = () => { if (document.visibilityState === 'visible') void repair(); };
+  document.addEventListener('visibilitychange', onVisible);
+  return () => { stopped = true; clearInterval(watchdog); clearTimeout(retry); socket?.close(); document.removeEventListener('visibilitychange', onVisible); };
 }
