@@ -129,6 +129,7 @@ import { TradeView } from '@/components/ui/pages/TradeView';
 import { AccountChoiceDialog } from './components/AccountChoiceDialog';
 import { postPath, parsePostPath } from '../shared/socialLinks.mjs';
 import { coinOverview } from '../shared/coinOverview.mjs';
+import { mergeNotifications } from './services/notificationState.mjs';
 import { ReactionContext, PostReactions, type ReactionKind } from './components/social/PostReactions';
 import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
@@ -2015,6 +2016,11 @@ const App = () => {
     const olderHistoryRequestsRef = useRef(new Set<string>());
     const exhaustedHistoryRef = useRef(new Set<string>());
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const notificationReadIds = useRef(new Set<string>());
+    const notificationSeenIds = useRef(new Set<string>());
+    const notificationOwner = useRef(user?.id);
+    notificationOwner.current = user?.id;
+    useEffect(() => { notificationReadIds.current.clear(); notificationSeenIds.current.clear(); }, [user?.id]);
     // Notification-driven focus for the Trade view. tradeFocus.tab forces the
     // PositionsPanel tab; tradeFocus.highlightId briefly outlines a matching row.
     const [tradeFocus, setTradeFocus] = useState<{ tab?: 'POSITIONS' | 'OPEN ORDERS' | 'HISTORY'; highlightId?: string; key: number } | null>(null);
@@ -4137,18 +4143,11 @@ const App = () => {
 
         const load = async (isRetry = false) => {
             try {
+                const startedAt = Date.now();
                 const notifs = await fetchNotifications(user.id);
                 if (!mounted) return;
-                if (notifs.length > 0) {
-                    setNotifications(prev => {
-                        const serverIds = new Set(notifs.map((n: any) => n.id));
-                        const localOnly = (prev || []).filter((n: any) => !serverIds.has(n.id));
-                        return [...notifs, ...localOnly];
-                    });
-                } else if (!isRetry) {
-                    // Empty could be a genuine zero or a JWT-race — retry once.
-                    retryTimer = setTimeout(() => { void load(true); }, 2200);
-                }
+                notifs.forEach(n => notificationSeenIds.current.add(n.id));
+                setNotifications(prev => mergeNotifications(prev, notifs, notificationReadIds.current, startedAt));
             } catch (e) {
                 if (!isRetry && mounted) retryTimer = setTimeout(() => { void load(true); }, 3000);
             }
@@ -4157,8 +4156,11 @@ const App = () => {
         const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
         document.addEventListener('visibilitychange', onVisible);
         void load();
+        const poll = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 60000);
+        const unsubscribe = onSessionHealth(health => { if (health === 'fresh') void load(); });
         return () => {
             mounted = false;
+            clearInterval(poll); unsubscribe();
             if (retryTimer) clearTimeout(retryTimer);
             document.removeEventListener('visibilitychange', onVisible);
         };
@@ -4458,7 +4460,7 @@ const App = () => {
             });
         }, 30000);
         return () => { unsub(); pythPriceStream.disconnect(); clearInterval(restTimer); };
-    }, []);
+    }, [user?.id]);
 
     // Real-time social feed is handled by the unified social-sync channel above
 
@@ -4494,15 +4496,21 @@ const App = () => {
         // ── notifications ─────────────────────────────────────────────────
         const notifR = makeReconnector(() =>
             subscribeUserNotifications(user.id, (rawNotif: any) => {
-                if (!mounted || rawNotif.suppressed) return;
+                if (!mounted) return;
                 const notif: Notification = {
                     id: rawNotif.id, type: rawNotif.type, message: rawNotif.message,
                     timestamp: new Date(rawNotif.created_at).getTime(),
-                    read: false, relatedId: rawNotif.related_id,
+                    read: rawNotif.read, relatedId: rawNotif.related_id,
+                    postId: rawNotif.post_id, commentId: rawNotif.comment_id,
                 };
-                setNotifications(prev => prev.some(n => n.id === notif.id) ? prev : [notif, ...prev]);
-                setToast({ message: rawNotif.message, type: 'INFO' });
-                playSound('CLICK');
+                setNotifications(prev => mergeNotifications(prev, [{ ...notif, suppressed: rawNotif.suppressed, __event: rawNotif.__event }], notificationReadIds.current));
+                const isNew = !notificationSeenIds.current.has(notif.id);
+                notificationSeenIds.current.add(notif.id);
+                if (notificationSeenIds.current.size > 500) notificationSeenIds.current.delete(notificationSeenIds.current.values().next().value!);
+                if (isNew && rawNotif.__event === 'INSERT' && !rawNotif.suppressed && !notif.read) {
+                    setToast({ message: rawNotif.message, type: 'INFO' });
+                    playSound('CLICK');
+                }
             }, notifR.onStatus)
         );
         notifR.launch();
@@ -4845,6 +4853,19 @@ const App = () => {
         await logoutTaskRef.current;
         setSessionNotice(null);
         setAccountChoiceOpen(true);
+    };
+    const markNotificationIdsRead = async (ids: string[]) => {
+        if (!user || !ids.length) return;
+        const owner = user.id;
+        ids.forEach(id => notificationReadIds.current.add(id));
+        setNotifications(rows => rows.map(row => ids.includes(row.id) ? { ...row, read: true } : row));
+        try { await markAllNotificationsRead(user.id, ids); }
+        catch {
+            if (notificationOwner.current !== owner) return;
+            ids.forEach(id => notificationReadIds.current.delete(id));
+            setNotifications(rows => rows.map(row => ids.includes(row.id) ? { ...row, read: false } : row));
+            setToast({ message: 'Could not save notification read status. Please try again.', type: 'ERROR' });
+        }
     };
     const reactionWritesRef = useRef(new Set<string>());
     const handleReaction = async (postId: string, kind: ReactionKind | null) => {
@@ -6996,9 +7017,7 @@ const App = () => {
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
             <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
             <Navbar activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
-                    // Mark this notification (and all others) as read
-                    setNotifications(prev => prev.map(x => ({ ...x, read: true })));
-                    if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
+                    if (!n.read) void markNotificationIdsRead([n.id]);
 
                     // Route based on notification type so the click actually lands somewhere useful
                     const t = n?.type;
@@ -7055,13 +7074,9 @@ const App = () => {
                         // Generic trade alert — jump to Positions
                         setTradeFocus({ tab: 'POSITIONS', highlightId: rid, key: focusKey });
                         setActiveTab(TabView.TRADE);
-                    } else if (t === 'COMMENT' || t === 'MENTION') {
-                        // Open the specific post with comments expanded
-                        if (rid) { setSocialFocusPostId(rid); setSocialOpenCommentsPostId(rid); }
-                        setActiveTab(TabView.SOCIAL);
-                    } else if (t === 'LIKE' || t === 'REPOST') {
-                        // Scroll to the specific post
-                        if (rid) { setSocialFocusPostId(rid); setSocialOpenCommentsPostId(null); }
+                    } else if (['COMMENT', 'MENTION', 'LIKE', 'REPOST', 'WALL_POST'].includes(t)) {
+                        setSinglePostId(n.postId || rid || null);
+                        setSingleCommentId(n.commentId || null);
                         setActiveTab(TabView.SOCIAL);
                     } else if (t === 'FOLLOW') {
                         // Someone followed the user — show the follower's profile if we can resolve it,
@@ -7070,18 +7085,26 @@ const App = () => {
                             const trader = traders.find((x: Trader) => x.id === rid);
                             if (trader) { handleViewProfile(trader); return; }
                         }
-                        setActiveTab(TabView.PROFILE);
-                    } else if (t === 'DEPOSIT' || t === 'WITHDRAW' || t === 'EARN') {
+                        if (rid) {
+                            const requestPath = window.location.pathname;
+                            setViewingProfile(null); setActiveTab(TabView.PUBLIC_PROFILE);
+                            void supabase.from('profiles').select('*').eq('id', rid).maybeSingle().then(({ data }) => {
+                                if (window.location.pathname !== requestPath) return;
+                                if (data) setViewingProfile(dbProfileToUserProfile(data));
+                                else { setActiveTab(TabView.SOCIAL); setToast({ message: 'This profile is no longer available.', type: 'INFO' }); }
+                            });
+                        }
+                    } else if (t === 'EARN') {
                         // Account / balance events — Dashboard is the right home
                         setActiveTab(TabView.DASHBOARD);
-                    } else if (t === 'TRANSFER_SENT' || t === 'TRANSFER_RECEIVED') {
+                    } else if (['TRANSFER_SENT', 'TRANSFER_RECEIVED', 'DEPOSIT', 'WITHDRAW'].includes(t)) {
                         // Peer-to-peer mUSDC transfer — open the matching
                         // transaction row in OrderDetailsModal. `rid` is the
                         // tx_hash we passed to createNotification. We match by
                         // txHash first (authoritative); if local state hasn't
                         // hydrated the row yet (realtime race), fetch it.
                         const findInHistory = () => (user?.transactionHistory ?? []).find((tx: any) =>
-                            tx.txHash === rid || tx.tx_hash === rid || tx.id === rid,
+                            tx.txHash?.replace(/^faucet:/, '') === rid?.replace(/^faucet:/, '') || tx.tx_hash === rid || tx.id === rid,
                         );
                         const local = findInHistory();
                         if (local) {
@@ -7094,7 +7117,9 @@ const App = () => {
                                         .from('transactions')
                                         .select('*')
                                         .eq('user_id', user.id)
-                                        .eq('tx_hash', rid)
+                                        .eq('suppressed', false)
+                                        .in('tx_hash', [rid, `faucet:${rid}`])
+                                        .limit(1)
                                         .maybeSingle();
                                     if (data) {
                                         const item: any = {
@@ -7129,24 +7154,15 @@ const App = () => {
                 }} isNotifOpen={notifOpen} setNotifOpen={(open: boolean) => {
                     setNotifOpen(open);
                     if (open && user && isSupabaseConfigured()) {
-                        // Always pull the latest notifications from Supabase when the
-                        // panel opens, so existing/older rows show — not just realtime ones.
+                        const owner = user.id;
+                        const startedAt = Date.now();
                         fetchNotifications(user.id).then(fresh => {
-                            if (fresh.length > 0) {
-                                setNotifications(prev => {
-                                    const ids = new Set(fresh.map((n: any) => n.id));
-                                    const localOnly = (prev || []).filter((n: any) => !ids.has(n.id));
-                                    return [...fresh, ...localOnly];
-                                });
-                            }
-                        }).catch(() => {});
-                        // Mark all read shortly after (clears the unread highlight).
-                        setTimeout(() => {
-                            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                            markAllNotificationsRead(user.id).catch(() => {});
-                        }, 800);
+                            if (notificationOwner.current !== owner) return;
+                            fresh.forEach(n => notificationSeenIds.current.add(n.id));
+                            setNotifications(prev => mergeNotifications(prev, fresh, notificationReadIds.current, startedAt));
+                        }).catch(() => setToast({ message: 'Notifications could not refresh. Reopen the panel to retry.', type: 'ERROR' }));
                     }
-                }} totalEquity={totalEquity}/>
+                }} onMarkAllRead={() => void markNotificationIdsRead(notifications.filter(n => !n.read).map(n => n.id))} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
             <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {user && veloPerpsTrading.pendingTxHash && <TransactionRecoveryNotice key={veloPerpsTrading.pendingTxHash} hash={veloPerpsTrading.pendingTxHash} onReset={veloPerpsTrading.resetLegacyTracking}/>}

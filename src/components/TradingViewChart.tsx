@@ -586,6 +586,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const lastOlderCursorRef = useRef<number | null>(null);
   const chartDataRef = useRef<{ key: string; firstTime: number; length: number } | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [hasLiveCandles, setHasLiveCandles] = useState(false);
   const liveCandleRef = useRef<Candle | null>(null);
   const pricePrecisionRef = useRef<number | null>(null);
   const indicatorKey = useMemo(() => [...externalIndicators].sort().join('|'), [externalIndicators]);
@@ -847,6 +848,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     candlesRef.current = source;
     chartDataRef.current = source.length ? { key: dataKey, firstTime: source[0].time, length: source.length } : { key: dataKey, firstTime: 0, length: 0 };
     liveCandleRef.current = null;
+    setHasLiveCandles(false);
     indicatorRefreshRef.current = () => {};
 
     if (externalChartStyle === '2' || externalChartStyle === '3') {
@@ -1196,19 +1198,20 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   // Keep the chart on its original source; exchange candles never use oracle marks.
   useEffect(() => {
     const series = seriesRef.current;
-    if (!series || !initialData.length) return;
+    if (!series) return;
     const update = (candle: Candle) => {
       const rows = candlesRef.current;
       const next = mergeLiveCandle(rows, candle);
       if (next === rows) return;
       candlesRef.current = next;
       liveCandleRef.current = candle;
+      setHasLiveCandles(true);
       indicatorRefreshRef.current(next);
       if (externalChartStyle === '2' || externalChartStyle === '3') series.update({ time: candle.time as Time, value: candle.close });
       else if (externalChartStyle === '8') series.update(heikinAshi(next).at(-1)!);
       else series.update({ ...candle, time: candle.time as Time });
     };
-    if (initialData[0].source === 'exchange') return subscribeKlines(pairName, externalTimeframe, candle => update({ ...candle, source: 'exchange' }));
+    if (initialData[0]?.source === 'exchange') return subscribeKlines(pairName, externalTimeframe, candle => update({ ...candle, source: 'exchange' }));
     const onPrice = (prices: Record<string, number>) => {
       const meta = pythPriceStream.getMeta(pairName);
       if (!meta || Math.abs(Date.now() / 1000 - meta.publishTime) > 30) return;
@@ -1221,7 +1224,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
         else date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
         date.setUTCHours(0, 0, 0, 0); published = date.getTime() / 1000; seconds = 1;
       }
-      const candle = oracleCandle(candlesRef.current, prices[pairName], published, seconds);
+      const candle = oracleCandle(candlesRef.current, meta.price, published, seconds);
       if (candle) update({ ...candle, source: 'pyth' });
     };
     return pythPriceStream.subscribe(onPrice);
@@ -1260,10 +1263,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   return (
     <div style={{ height: '100%', minHeight: 0, position: 'relative', background, overflow: 'hidden' }}>
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
-      {initialData.length > 0 && (
+      {(initialData.length > 0 || hasLiveCandles) && (
         <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: isDark ? 'rgba(10,14,12,0.82)' : 'rgba(237,242,238,0.92)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: isLivePrice ? candleUp : foreground, opacity: isLivePrice ? 1 : 0.65 }} />
-          {historySource}{isLivePrice && initialData[0]?.source === 'pyth' ? ' · mark updates when fresh' : ''}
+          {initialData[0]?.source === 'exchange' ? 'Exchange reference' : 'Pyth mark'}
         </div>
       )}
       {isLoadingOlder && (
@@ -1271,7 +1274,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
           <span className="chart-history-spinner"><RefreshCw size={11} /></span> Loading older candles
         </div>
       )}
-      {!initialData.length && (
+      {!initialData.length && !hasLiveCandles && (
         <div className="chart-history-state" aria-live="polite">
           {historyStatus === 'loading' ? (
             <>

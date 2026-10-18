@@ -924,6 +924,7 @@ export async function fetchNotifications(userId: string): Promise<Notification[]
     .eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
   if (error) {
     console.warn('[velo] fetchNotifications ERROR:', error.code, error.message, '— user_id queried:', userId);
+    throw error;
   } else {
     console.info('[velo] fetchNotifications:', (data || []).length, 'rows for user_id', userId);
   }
@@ -931,15 +932,19 @@ export async function fetchNotifications(userId: string): Promise<Notification[]
     id: r.id, type: r.type, message: r.message,
     timestamp: new Date(r.created_at).getTime(),
     read: r.read, relatedId: r.related_id || undefined,
+    postId: r.post_id || undefined, commentId: r.comment_id || undefined,
   }));
 }
 
-export async function markAllNotificationsRead(userId: string) {
-  await supabase.from('notifications').update({ read: true }).eq('user_id', userId);
+export async function markAllNotificationsRead(userId: string, ids: string[]) {
+  if (!ids.length) return;
+  const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', userId).in('id', ids);
+  if (error) throw error;
 }
 
 export async function createNotification(userId: string, type: string, message: string, relatedId?: string) {
-  await supabase.from('notifications').insert({ user_id: userId, type, message, related_id: relatedId || null });
+  const { error } = await supabase.from('notifications').insert({ user_id: userId, type, message, related_id: relatedId || null });
+  if (error && error.code !== '23505') throw error;
 }
 
 /**
@@ -1066,9 +1071,9 @@ export function subscribeUserNotifications(userId: string, onNew: (n: any) => vo
   const uid = Math.random().toString(36).slice(2, 8);
   return supabase.channel(`velo-notif-${userId}-${uid}`)
     .on('postgres_changes', {
-      event: 'INSERT', schema: 'public', table: 'notifications',
+      event: '*', schema: 'public', table: 'notifications',
       filter: `user_id=eq.${userId}`,
-    }, p => onNew(p.new))
+    }, p => onNew({ ...(p.eventType === 'DELETE' ? p.old : p.new), __event: p.eventType }))
     .subscribe((status, err) => onStatus?.(status, err ?? undefined));
 }
 

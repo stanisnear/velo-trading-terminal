@@ -1,4 +1,4 @@
-import { firstChartPage } from './firstChartPage.mjs';
+import { oracleCandle, mergeLiveCandle } from './chartLive.mjs';
 import { MARKETS } from '../../shared/markets.mjs';
 /**
  * pythPriceService — single source of truth for displayed prices.
@@ -71,6 +71,7 @@ export async function fetchPythPrices(): Promise<{
   prices: Record<string, number>;
   status: string;
 }> {
+  const startedAt = Date.now();
   try {
     const params = new URLSearchParams();
     for (const id of ALL_FEED_IDS) params.append('ids[]', id);
@@ -90,7 +91,8 @@ export async function fetchPythPrices(): Promise<{
       const age = Date.now() / 1000 - Number(priceObj.publish_time);
       if (Number.isFinite(px) && px > 0 && age >= -5 && age <= 60) prices[pair] = px;
     }
-    return { prices, status: 'pyth' };
+    pythPriceStream.ingest(data?.parsed ?? [], startedAt);
+    return { prices: { ...prices, ...pythPriceStream.getOraclePrices() }, status: 'pyth' };
   } catch (e) {
     console.warn('[velo] fetchPythPrices failed:', e);
     return { prices: {}, status: 'error' };
@@ -113,7 +115,7 @@ export async function fetchPricesResilient(): Promise<{
     fetchRealPrices().catch(() => ({ prices: {} as Record<string, number>, changes: {} as Record<string, number>, status: 'error' })),
   ]);
   // Pyth wins per-pair; Binance/CoinGecko fills the gaps.
-  const prices: Record<string, number> = { ...(fallback.prices || {}), ...pyth.prices };
+  const prices: Record<string, number> = { ...(fallback.prices || {}), ...pyth.prices, ...pythPriceStream.getOraclePrices() };
   const status = Object.keys(pyth.prices).length > 0
     ? (Object.keys(fallback.prices || {}).length > 0 ? 'pyth+fallback' : 'pyth')
     : 'fallback';
@@ -127,7 +129,9 @@ class PythPriceStream {
   private es: PythEventStream | null = null;
   private callbacks: Set<PriceCallback> = new Set();
   // Real Pyth oracle metadata per pair (confidence band + publish time).
-  private latestMeta: Record<string, { conf: number; publishTime: number }> = {};
+  private latestMeta: Record<string, { conf: number; publishTime: number; price: number }> = {};
+  private observations: Record<string, { time: number; price: number }[]> = {};
+  private receivedAt: Record<string, number> = {};
   private latestPrices: Record<string, number> = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private alive = false;
@@ -153,6 +157,43 @@ class PythPriceStream {
     this.callbacks.forEach(cb => cb(snapshot));
   }
 
+  ingest(entries: any[], snapshotStartedAt = Infinity) {
+    let changed = false;
+    for (const entry of entries) {
+      const pair = FEED_TO_PAIR[String(entry.id).replace(/^0x/, '').toLowerCase()];
+      const value = entry?.price;
+      if (!pair || !value) continue;
+      const price = parsedToPrice(value), time = Number(value.publish_time);
+      const previous = this.latestMeta[pair];
+      if (!(price > 0) || !Number.isFinite(price) || !Number.isFinite(time)
+        || Math.abs(Date.now() / 1000 - time) > 60 || (previous && time < previous.publishTime)
+        || (previous?.publishTime === time && this.receivedAt[pair] > snapshotStartedAt)) continue;
+      const conf = Number(value.conf || 0) * Math.pow(10, Number(value.expo));
+      this.latestMeta[pair] = { conf, publishTime: time, price };
+      this.latestPrices[pair] = price;
+      this.receivedAt[pair] = Date.now();
+      const rows = this.observations[pair] ||= [];
+      if (rows.at(-1)?.time === time) rows[rows.length - 1] = { time, price };
+      else rows.push({ time, price });
+      if (rows.length > 3600) rows.shift();
+      changed = true;
+    }
+    if (changed) this.emit();
+  }
+
+  getOraclePrices() {
+    return Object.fromEntries(Object.entries(this.latestMeta).filter(([, tick]) => Math.abs(Date.now() / 1000 - tick.publishTime) <= 30).map(([pair, tick]) => [pair, tick.price]));
+  }
+
+  observedCandles(pair: string, seconds: number): KlineCandle[] {
+    let rows: KlineCandle[] = [];
+    for (const tick of this.observations[pair] || []) {
+      const candle = oracleCandle(rows, tick.price, tick.time, seconds);
+      if (candle) rows = mergeLiveCandle(rows, { ...candle, source: 'pyth', volume: 0 });
+    }
+    return rows;
+  }
+
   // Binance fallback: only runs when Pyth has gone silent. Pyth ticks take over
   // again as soon as they resume, so a healthy Pyth connection never mixes in
   // Binance prices (which is what kept mark/chart/fills consistent).
@@ -162,6 +203,7 @@ class PythPriceStream {
     this.fallbackUnsub = binancePriceStream.subscribe(prices => {
       let changed = false;
       for (const [pair, px] of Object.entries(prices)) {
+        if (this.getOraclePrices()[pair]) continue;
         if (px > 0 && this.latestPrices[pair] !== px) { this.latestPrices[pair] = px; changed = true; }
       }
       if (changed) this.emit();
@@ -201,25 +243,7 @@ class PythPriceStream {
           this.lastTickAt = Date.now();
           if (this.fallbackUnsub) this.stopFallback(); // Pyth is back — take over
 
-          let changed = false;
-          for (const entry of parsed) {
-            const bare = String(entry.id).replace(/^0x/, '').toLowerCase();
-            const pair = FEED_TO_PAIR[bare];
-            const priceObj = entry?.price;
-            if (!pair || !priceObj) continue;
-            const px = parsedToPrice(priceObj);
-            // Capture the REAL oracle metadata Pyth publishes alongside price:
-            // the confidence interval (oracle's own ± uncertainty band) and the
-            // publish timestamp. These drive the honest oracle-depth panel.
-            const expo = Number(priceObj.expo) || 0;
-            const conf = priceObj.conf != null ? Number(priceObj.conf) * Math.pow(10, expo) : 0;
-            const pub  = Number(priceObj.publish_time) || 0;
-            if (px > 0) {
-              this.latestMeta[pair] = { conf, publishTime: pub };
-              if (this.latestPrices[pair] !== px) { this.latestPrices[pair] = px; changed = true; }
-            }
-          }
-          if (changed) this.emit();
+          this.ingest(parsed);
         } catch (_) { /* malformed frame — skip */ }
       };
 
@@ -255,7 +279,7 @@ class PythPriceStream {
 
   /** Real oracle metadata for a pair: confidence interval (± band, in quote
    *  units) and publish_time (epoch seconds). Empty until the first tick. */
-  getMeta(pair: string): { conf: number; publishTime: number } | null {
+  getMeta(pair: string): { conf: number; publishTime: number; price: number } | null {
     return this.latestMeta[pair] || null;
   }
 
@@ -380,7 +404,15 @@ export async function fetchPythKlines(pairId: string, tf = '1H', options: { auth
     const unique = [...new Map(rows.map(c => [c.time, c])).values()].sort((a,b) => a.time-b.time);
     return targetSeconds > sourceSeconds ? aggregateCandles(unique, targetSeconds) : unique;
   };
-  const request = (tf === '1s' || options.authenticated === false ? fallback() : firstChartPage(primary, fallback))
+  const oracleHistory = async () => {
+    if (tf === '1s') {
+      if (!pythPriceStream.observedCandles(pairId, 1).length) await fetchPythPrices();
+      return pythPriceStream.observedCandles(pairId, 1);
+    }
+    try { const rows = await primary(); if (rows.length) return rows; } catch { /* Live oracle observations remain available. */ }
+    return pythPriceStream.observedCandles(pairId, pythHistoryConfig(tf).targetSeconds);
+  };
+  const request = (options.authenticated === false ? fallback() : oracleHistory())
     .then(rows => {
       if (rows.length) {
         if (historyCache.size >= 32) historyCache.delete(historyCache.keys().next().value!);

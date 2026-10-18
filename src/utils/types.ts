@@ -108,6 +108,8 @@ export interface Notification {
   timestamp: number;
   read: boolean;
   relatedId?: string;
+  postId?: string;
+  commentId?: string;
 }
 
 export interface Comment {
