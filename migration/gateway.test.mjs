@@ -1,9 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import worker from '../cloudflare/worker.js';
 import { postPath } from '../shared/socialLinks.mjs';
 const postId = '00000000-0000-4000-8000-000000000001';
 const replyId = '00000000-0000-4000-8000-000000000002';
+
+test('Pages invokes the gateway for canonical and legacy social links', () => {
+  const routes = JSON.parse(readFileSync(new URL('../cloudflare/_routes.json', import.meta.url), 'utf8'));
+  assert.ok(routes.include.includes('/p/*'));
+  assert.ok(routes.include.includes('/social/post/*'));
+  assert.deepEqual(routes.exclude, []);
+});
 
 const bindings = {
   VELO_BACKEND_URL: 'https://backend.example/functions/v1/velo-api',
