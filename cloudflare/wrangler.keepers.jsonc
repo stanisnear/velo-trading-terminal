@@ -12,8 +12,7 @@
     "VELO_KEEPER_BASE_URL": "https://btgfoekgvyvdflzjfehz.supabase.co/functions/v1/velo-keepers"
   },
   "triggers": {
-    // Execution mode: owner confirmed Vercel paused on 2026-10-14.
-    // Never resume the old Vercel writers while this timer is enabled.
+    // Run exactly one scheduler against the keeper wallet; a second one causes nonce conflicts.
     "crons": ["* * * * *"]
   }
 }

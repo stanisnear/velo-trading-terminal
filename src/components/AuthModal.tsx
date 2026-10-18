@@ -797,7 +797,7 @@ const SplashScreen = ({ address, phase, onPhaseChange, onContinue, onBack }: {
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SuccessScreen — precision dark glass. Linear/Vercel-grade.
+// SuccessScreen — precision dark glass. Linear-grade.
 // Pure CSS animation timeline — no JS phase toggling, no glow soup.
 // drawArc → checkIn → slideUp headline → slideUp sub → slideUp chip
 // ══════════════════════════════════════════════════════════════════════════════

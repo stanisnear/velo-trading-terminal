@@ -1,4 +1,4 @@
-// Vercel serverless function — server-side link-preview (OG) fetch.
+// Server-side link-preview (OG) fetch.
 // Replaces the public api.allorigins.win proxy, which fails CORS from the
 // app origin. Runs same-origin (/api/og), so no CORS, and is edge-cached for
 // fast X-style unfurls.

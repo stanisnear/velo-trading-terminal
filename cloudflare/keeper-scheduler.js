@@ -1,6 +1,6 @@
 // Cloudflare is the timer; the transaction work runs in Supabase.
 // Do not enable until the backend has durable locking, bounded scans and
-// duplicate-run protection, and the previous Vercel schedules are disabled.
+// duplicate-run protection.
 export const jobs = ['cron-conditional-orders', 'cron-tp-sl', 'cron-liquidate'];
 const transientGatewayStatuses = new Set([520, 521, 522, 523, 524]);
 const retryDelayMs = 1000;

@@ -14,8 +14,10 @@ All deployed addresses, including earlier versions, are in [`deployments/base_se
 ## Protocol parameters (V3.1)
 
 - Maximum leverage 25x, minimum collateral 1 USDC
-- Open fee and close fee of 0.10% each
-- Liquidation when a position's loss reaches 90% of its collateral
+- Open fee of 0.10% of collateral and close fee of 0.10% of gross payout, accrued to a fee balance only the owner can withdraw
+- Liquidation when a position's loss reaches 90% of its collateral, with a 1% bounty to the liquidator
+- Prices from Pyth are rejected when older than 60 seconds
+- The pool is the contract's USDC balance net of accrued fees. There is no public liquidity-provider deposit
 - Order kinds: market, limit and stop, with take-profit and stop-loss on open positions
 
 ## Build and test

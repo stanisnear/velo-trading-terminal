@@ -47,7 +47,7 @@ export const isConfigured = () =>
 //
 // This event bus surfaces every insert failure so App.tsx can show ONE
 // non-spammy toast per failure category. The actual error is also still
-// logged via console.error so it's grep-able in Vercel logs / Sentry.
+// logged via console.error so it's grep-able in the console / Sentry.
 type PersistenceErrorKind = 'TRADE_HISTORY' | 'TRANSACTION' | 'POSITION' | 'PROFILE_SYNC';
 export interface PersistenceError {
   kind: PersistenceErrorKind;
@@ -67,7 +67,7 @@ function reportPersistenceError(err: PersistenceError) {
 }
 function hintFromCode(code: string | undefined): string | undefined {
   switch (code) {
-    case '42501':   return 'Row-Level Security blocked the insert — apply SUPABASE_MIGRATION_RLS_ACTIVITY.sql.';
+    case '42501':   return 'Row-Level Security blocked the insert — check the activity table policies.';
     case '42703':   return 'Column does not exist — run the latest Supabase migration.';
     case 'PGRST204':return 'PostgREST schema cache is stale or the column is missing — re-run the migration and reload the schema cache.';
     case '23503':   return 'Foreign key violation — the user_id may not match auth.uid().';
@@ -197,7 +197,7 @@ export async function fetchAllProfiles(limit = 50) {
       .limit(limit);
     data = r2.data as any;
     error = r2.error;
-    if (!r2.error) console.warn('[supabase] profiles missing verified_reason column — run SUPABASE_MIGRATION_BUILD80.sql.');
+    if (!r2.error) console.warn('[supabase] profiles missing verified_reason column — the database schema is behind the app.');
     // If wallet_address / auth_method are ALSO missing (pre-build-79), retry once more.
     if (isMissingColumnError(r2.error as any)) {
       const r3 = await publicSupabase
@@ -207,7 +207,7 @@ export async function fetchAllProfiles(limit = 50) {
         .limit(limit);
       data = r3.data as any;
       error = r3.error;
-      if (!r3.error) console.warn('[supabase] profiles missing wallet-address/auth-method columns in schema cache — run SUPABASE_MIGRATION_BUILD79.sql and reload PostgREST schema.');
+      if (!r3.error) console.warn('[supabase] profiles missing wallet-address/auth-method columns in schema cache — the database schema is behind the app; reload the PostgREST schema cache.');
     }
   }
   return { data, error };
@@ -476,7 +476,7 @@ export async function deleteAccount(userId: string): Promise<{ error: string | n
     console.warn('[deleteAccount] RPC failed, falling back to profile delete:', authErr.message);
     // Fallback: delete the profile row. Cascades to every FK-dependent table.
     // NOTE: this leaves auth.users orphaned — username will NOT be freed until
-    // the RPC is deployed. Deploy the RPC from SUPABASE_SCHEMA.sql to fix.
+    // the RPC is deployed. Deploy the RPC to fix.
     const { error: profileErr } = await supabase.from('profiles').delete().eq('id', userId);
     if (profileErr) {
       await supabase.auth.signOut();

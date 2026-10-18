@@ -1,4 +1,4 @@
-// SUPABASE_* is reserved on hosted Edge Functions. Preserve exported Vercel
+// SUPABASE_* is reserved on hosted Edge Functions. Preserve exported legacy
 // values under VELO_IMPORTED_SUPABASE_* rather than silently replacing them.
 import { publicConfig } from '../_shared/public-config.js';
 export function runtimeEnv(name) {

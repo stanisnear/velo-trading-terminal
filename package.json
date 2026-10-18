@@ -32,7 +32,6 @@
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@types/uuid": "^10.0.0",
-    "@vercel/node": "^5.0.0",
     "@vitejs/plugin-react": "^4.5.2",
     "esbuild": "0.25.12",
     "jsdom": "27.0.1",
