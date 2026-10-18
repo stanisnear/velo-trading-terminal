@@ -1,112 +1,214 @@
-# VELO — social trading testnet
+<h1 align="center">Velo</h1>
 
-[Terminal](https://app.velotrading.live) · [Website](https://velotrading.live) · [Product docs](https://velotrading.live/docs)
+<p align="center">
+  <b>The trader hub for crypto and, next, the rest of finance.</b><br/>
+  Trade perpetuals, follow the people behind the trades, read the news and talk about it, all in one place.
+</p>
 
-VELO combines a crypto perpetuals terminal with profiles, posts, replies and follows on **Base Sepolia (84532)**. Trading uses mock USDC and a custom Pyth-priced contract. This is a restricted, experimental testnet, **not an independently audited exchange or a real-money product**.
+<p align="center">
+  <a href="https://app.velotrading.live">Open the app</a> ·
+  <a href="https://velotrading.live">Website</a> ·
+  <a href="https://velotrading.live/docs">Product docs</a>
+</p>
 
-**Status: 18 October 2026.** Cloudflare serves both sites. Supabase runs the database, authentication and backend. A Cloudflare timer calls the trading keepers every minute. Vercel is paused. The migration retained the existing database and contracts.
+<p align="center">
+  <i>Live on Base Sepolia testnet. Mock USDC only. Not audited, not for real funds.</i>
+</p>
 
-The engineering review found serious contract accounting and legacy account-authorization defects. New signature login, private contact APIs, owner-only notification reads and receipt-verified incoming transfers are deployed, but the legacy-account/social cutover is still pending. The frontend blocks new cross-margin activity, margin adjustments and reduce-only entry orders on the current contract. These client checks do not prevent direct contract calls. **Do not use real funds.**
+---
 
-## Market availability (17 October 2026)
+## What Velo is
 
-`shared/markets.mjs` is the app and price proxy's shared allowlist. The configured
-Pyth trial grants 13 crypto feeds, not the full Pyth catalogue:
+Most people who get into crypto end up juggling five tabs: an exchange to trade, a chart site, a news feed, a social app to see what traders are saying, and a spreadsheet to remember how they did. Velo puts those in one product.
 
-- Enabled perpetuals: **BTC, ETH, SOL, DOGE** (original registry slots 0, 1, 2, 5).
-- Oracle-entitled candidates awaiting contract registration: **PYTH, BNB, XRP, HYPE, STETH**. These are not enabled perpetuals.
-- **USDT, USDC, WBTC and JITOSOL are deliberately excluded from perpetual trading**, regardless of oracle access.
-- Other markets are excluded from new-order entry points and batched price requests.
-  Existing position/history IDs are preserved. These application restrictions do
-  not pause the legacy on-chain slots; unsupported positions require oracle access
-  to close. Contract owner registration is required before enabling additional perps.
+It is a trading terminal with a social network built into it. You can open a position, share it, watch someone else's, argue about it in the replies, and check the market news without leaving the page. The goal is to be the place anyone with an interest in crypto and finance opens first, whether they have traded for ten years or ten minutes.
 
-No stocks, forex or commodities are offered. A trial entitlement is not permanent;
-reverify provider access and contract registration before changing the allowlist.
+## Who it is for
 
-The Markets directory and coin pages independently cover the **top 50 crypto
-assets by market cap from CoinMarketCap**. They provide reference quotes, asset
-information, 24-hour/7-day/30-day history and ticker discussions. Listing in this
-directory does not enable trading. Provider numeric IDs prevent ticker collisions
-from selecting a different asset. CoinMarketCap credentials stay on the Pages
-server; they are never embedded into browser code. Quotes are cached snapshots,
-not executable Pyth prices. Missing data is shown as unavailable, not fabricated.
+**New traders.** The interface is built to be learned. Plain labels, a guided first run (connect, pick a username, get test funds and gas), clear liquidation and margin readouts on every position, and a community feed where questions get answered in context.
 
-## Documentation
+**Active and professional traders.** Market, limit and stop entries, take-profit and stop-loss, up to 25x leverage, live charts with indicators, a fills tape, position management and shareable trade cards. Orders are signed locally and settle on-chain.
 
-| Document | Purpose |
+**People who follow more than they trade.** Profiles, a following feed, a leaderboard, top-50 market pages with ticker discussions, and a news tab. Browsing needs no wallet.
+
+## The vision
+
+Velo is built around one idea: **trading is better when it is social, and social is better when the numbers are real.**
+
+| Stage | What it adds |
 | --- | --- |
-| [CLOUDFLARE.md](CLOUDFLARE.md) | Publish updates, manage secrets, monitor jobs and recover deployments |
-| [FEATURES.md](FEATURES.md) | Implemented, restricted, unverified and planned features |
-| [docs/AUDIT-2026-10-15.md](docs/AUDIT-2026-10-15.md) | Findings, evidence, test coverage and release gates |
-| [docs/RELIABILITY-2026-10-16.md](docs/RELIABILITY-2026-10-16.md) | Close-request recovery, shared replies and comment database integrity |
-| [docs/RELEASE-2026-10-17.md](docs/RELEASE-2026-10-17.md) | Market discovery, social persistence, dialog checks and live testnet evidence |
-| [docs/RELEASE-2026-10-18.md](docs/RELEASE-2026-10-18.md) | Account choice, short social links, reactions, notification checks and trade feedback |
-| [contracts/README.md](contracts/README.md) | Contract addresses, accounting defects and reproduction tests |
-| [audit-plans/README.md](audit-plans/README.md) | Unapplied account/social cutover and its approval requirements |
-| [migration/STATUS.md](migration/STATUS.md) | Historical hosting migration and transaction evidence |
+| **Today** | Perpetual futures terminal, social feed, profiles, leaderboard, market directory, news, wallet onboarding, testnet bridge |
+| **Next** | Copy trading with allocation, slippage and risk limits. Trading bots with scoped permissions, quotas and kill switches. On-chain reconstruction of every trader's history, so profiles and the leaderboard rest on verifiable results |
+| **Later** | Classic instruments alongside crypto: stocks and commodities. Alerts, richer discovery, and a mainnet launch after independent security review |
 
-## What happens when someone uses VELO
+Copy trading, bots and traditional instruments are **planned and not yet available**. Nothing in the app pretends otherwise.
 
-1. Reown connects an owner wallet. A short-lived, single-use message signature authenticates it to Supabase through `velo-api`.
-2. A separate signature derives a trading wallet. This is a full EOA whose private key is stored **in plaintext in browser localStorage**, not a permission-limited session key. Back up the key; identical recovery across wallet implementations is not guaranteed.
-3. The trading wallet receives testnet gas and mock USDC. On-chain trading requires Base Sepolia, a funded signer, current Pyth data and contract confirmation.
-4. Market transactions settle against a contract pool. Conditional entry, TP/SL and liquidation execution depend on the keeper, the oracle and available gas. A trigger is not a guaranteed fill price or an execution deadline.
-5. Profiles and social activity live in Supabase. The current leaderboard and shared performance data are not an authoritative chain indexer and must not be represented as unforgeable returns.
+## What you can do today
 
-Copy trading and algorithmic trading are planned. The former simulated copy action now displays a planned-feature message instead of creating database positions.
+### Trade
+- Perpetual markets priced by [Pyth](https://pyth.network): **BTC, ETH, SOL, DOGE**
+- Isolated margin, leverage up to **25x**, 0.10% open fee and 0.10% close fee, minimum 1 USDC collateral
+- **Market, limit and stop** entries. A limit order rests until the price reaches your level, then opens at that level
+- **Take-profit and stop-loss** on any position
+- Automatic **liquidation** when a position loses 90% of its collateral
+- Charts built on Lightweight Charts with Velo's own data feed, chart tools and indicators
+- Live fills tape, open orders, position history and receipt-backed trade records
+- Shareable trade cards
 
-Receipt-backed close classification, explicit failed-refresh states and bounded chart/fill loading are included in the 16 October follow-up. The confirmed manual-close record previously labelled liquidation was corrected. Chart history starts with a smaller cached page and loads older candles on demand; exchange display fallback cannot replace Pyth settlement data. See the audit addendum for evidence and remaining indexing limits.
+### Discover
+- **Markets directory** covering the top 50 crypto assets by market cap, with prices, asset info, 24h / 7d / 30d history and a discussion thread per ticker
+- **News tab** with the latest crypto headlines next to the conversation about them
+- **Leaderboard** of top traders by profile performance
 
-## Infrastructure
+### Connect
+- Posts, threaded replies, likes, reposts, follows, mentions and wall posts
+- Public profiles with trade history and activity
+- Notifications, link previews for shared posts, and verified badges for recognised accounts
+- Installable as a PWA on desktop and mobile
+
+### Move funds (testnet)
+- Test-USDC faucet and gas sponsorship, so a new user can trade within a minute
+- Wallet-to-wallet transfers with on-chain receipt verification
+- Bridge routes across Base, Ethereum, Optimism and Arbitrum Sepolia using LayerZero OFT
+
+## How it works
+
+### First run
+
+```mermaid
+flowchart LR
+  A[Connect wallet] --> B[Sign a one-time message]
+  B --> C[Choose a username]
+  C --> D[Trading wallet derived in browser]
+  D --> E[Faucet USDC and gas]
+  E --> F[Trade]
+```
+
+1. **Connect** any wallet through Reown. Signing a short, single-use message proves ownership and signs you in. No password.
+2. **Choose a username.** It is stored on-chain in the Velo registry, one name per wallet.
+3. **Trading wallet.** A second signature deterministically derives a dedicated trading wallet in your browser. The key stays on your device and the Velo database only stores its public address. This lets orders sign instantly, with no wallet popup on every click. Today the key sits in browser storage; permission-scoped session keys are on the roadmap.
+4. **Fund** with the faucet, then trade.
+
+### Placing and managing a trade
+
+```mermaid
+sequenceDiagram
+  participant U as Trader (browser)
+  participant W as Pyth proxy (Cloudflare Worker)
+  participant P as Pyth
+  participant C as VeloPerps contract
+  participant K as Keepers (every minute)
+  U->>W: Request price data
+  W->>P: Fetch latest price (provider key stays server-side)
+  W-->>U: Signed price update
+  U->>C: Sign and send openPosition
+  C-->>U: Confirmed position
+  K->>C: Execute limit/stop entries, TP/SL and liquidations when triggered
+```
+
+- **Market orders** settle immediately at the oracle price.
+- **Limit, stop, take-profit and stop-loss** conditions are stored on-chain. A keeper checks them every minute and executes when the condition is met. A trigger is a condition, not a guaranteed fill price or deadline.
+- Positions, fills and activity are recorded from confirmed transaction receipts.
+
+### Social
+
+Posts, replies, reactions and follows are written to Supabase under row-level security and update live over Realtime. Mentions and follows generate notifications. Shared links get server-rendered previews, so a Velo post looks right when pasted into X, Discord or Telegram.
+
+## Architecture
 
 ```mermaid
 flowchart TD
-  U[Browser] --> P[Cloudflare Pages]
-  P --> W[Private Pyth Worker]
-  W --> D[Pyth data service]
-  P --> A[Supabase API]
-  P --> M[CoinMarketCap reference data]
-  A --> S[Supabase Auth and database]
-  U --> C[Base Sepolia contracts]
-  T[Cloudflare minute timer] --> K[Supabase keepers]
-  K --> D
-  K --> C
-  K --> S
+  U[Browser / PWA] --> CF[Cloudflare Pages]
+  CF -->|/api/*| GW[Gateway worker]
+  GW --> SB[Supabase Edge Function: velo-api]
+  GW --> PX[Private Worker: Pyth proxy]
+  GW --> MD[Market reference data]
+  PX --> PY[Pyth]
+  SB --> DB[(Supabase Postgres, Auth, Storage, Realtime)]
+  U --> RPC[Base Sepolia contracts]
+  T[Cloudflare cron, every minute] --> KP[Supabase Edge Function: velo-keepers]
+  KP --> PY
+  KP --> RPC
+  KP --> DB
 ```
 
-| Component | Deployment |
+### Frontend
+
+React 19, TypeScript, Vite, wagmi v2 and viem, Reown AppKit for wallets, TanStack Query and Zustand for state.
+
+- `src/App.tsx` is the application shell: Dashboard, Trade, Markets, Social, Leaderboard and Profile views.
+- `src/components/` holds the UI: trading panels, order book and fills tape, charts, modals, social components and shared primitives.
+- `src/services/` holds everything that touches the outside world: contract calls, Pyth streaming, wallet and session handling, Supabase access, and transfer and trade-receipt verification.
+- **No optimistic state for money.** Balances and positions come from contract reads and confirmed receipts, not from what the UI expects to have happened.
+- Design system in `src/styles/`: OKLCH colour tokens, glass surfaces, light and dark modes, Fraunces for display type and Geist for the interface.
+
+### Backend
+
+Velo runs on Cloudflare and Supabase.
+
+| Layer | What it does |
 | --- | --- |
-| Terminal and API gateway | Cloudflare Pages `velo-trading-terminal` → `app.velotrading.live` |
-| Landing and product docs | Cloudflare Pages `velo-landing` → `velotrading.live` |
-| Authenticated REST, SSE and candle access | Private Worker `velo-pyth-proxy` |
-| Public top-50 directory and coin history | Pages `/api/market-data`, server-side CoinMarketCap key |
-| Login, sponsorship and transfer verification | Supabase `velo-api` |
-| Conditional orders, TP/SL and liquidations | Supabase `velo-keepers` |
-| Scheduler | Worker `velo-keeper-scheduler`, `* * * * *` |
-| Identity, social data, storage and realtime | Existing Supabase project `btgfoekgvyvdflzjfehz` |
-| Domain | Namecheap registration; Cloudflare DNS and HTTPS |
+| **Cloudflare Pages** | Serves the terminal and the landing site. `cloudflare/worker.js` is the `/api/*` gateway: it allow-lists routes and methods and forwards requests to the backend with a gateway credential |
+| **Pyth proxy Worker** | Private Worker with no public endpoint. Checks the user's session, holds the Pyth provider key, rate-limits, and serves price REST, streaming and candle history |
+| **Supabase `velo-api`** | Edge Function for wallet sign-in, gas sponsorship, incoming-transfer verification, link previews and protocol stats. Source lives in `api/` and is compiled into the function by `npm run build:supabase` |
+| **Supabase `velo-keepers`** | Edge Function that scans and executes conditional orders, take-profit / stop-loss and liquidations. Signed transactions are persisted before broadcast and recovered after timeouts, and a durable lock prevents nonce collisions |
+| **Keeper scheduler** | A Cloudflare Worker on a one-minute cron that calls the three keeper jobs in sequence, with retry and idempotent run IDs |
+| **Supabase Postgres** | Profiles, posts, comments, reactions, follows, notifications, activity and fills, behind row-level security. Base schema in `supabase/schema/`, versioned changes in `supabase/migrations/` |
+| **Market data** | `/api/market-data` serves the top-50 directory and coin history using a server-side provider key, with caching and bounded requests |
 
-Free hosting has quotas. Domain renewal, oracle access, independent security work and future mainnet operations have separate costs.
+### Smart contracts
 
-## Development and deployment
+Built and tested with Foundry.
+
+| Contract | Role |
+| --- | --- |
+| `VeloPerpsV3_1` | Pool-based perpetuals: positions, conditional orders, TP/SL, liquidation and Pyth price verification |
+| `VeloRegistry` | Username to wallet mapping |
+| `VeloMockUSDC` | 6-decimal test collateral with a faucet, bridgeable with LayerZero OFT |
+
+Addresses are in [`contracts/deployments/base_sepolia.json`](contracts/deployments/base_sepolia.json). Build and test instructions are in [`contracts/README.md`](contracts/README.md).
+
+## Repository layout
+
+```
+src/                 React app (components, services, styles)
+api/                 Handlers compiled into the Supabase velo-api function
+cloudflare/          Pages gateway, Pyth proxy Worker, keeper scheduler Worker
+supabase/            Edge Functions, migrations and base schema
+contracts/           Solidity contracts, scripts and Foundry tests
+shared/              Market allow-list shared by the app and the price proxy
+scripts/             Build, packaging and acceptance scripts
+tests/               Node test suite
+public/              PWA manifest, icons, service worker, social images
+```
+
+## Run it locally
+
+Requires Node 20 or newer.
 
 ```sh
 npm ci
-npm run typecheck
-npm test
-npm run build
-npm run dev
+npm run dev          # Vite dev server
+npm run typecheck    # TypeScript
+npm test             # Node test suite
+npm run build        # Production build
 ```
 
-Supply the required public configuration in your local environment; see `scripts/check-cloudflare-env.mjs` and the hosting guide. Never put a wallet key, Supabase service-role credential or Pyth provider key in a `VITE_*` variable: those values are embedded into browser code. Local Vite alone does not emulate the protected Pages gateway, private Worker or live backend secrets.
+The app needs public configuration (`VITE_*` variables for RPC endpoints, contract addresses and a WalletConnect project ID); `scripts/check-cloudflare-env.mjs` lists them. Never put a private key, a Supabase service-role key or an oracle provider key in a `VITE_*` variable, because those are embedded in browser code. Local Vite does not emulate the Cloudflare gateway, the Pyth proxy or the live backend secrets.
 
-Both sites automatically deploy commits to **`codex/cloudflare-migration`**, not `main`. The terminal build is `npm run build:cloudflare`, output `dist`. That command includes TypeScript checking. A frontend push does not apply SQL or deploy standalone Workers/Supabase functions. The destructive pending cutover is deliberately outside `supabase/migrations`; do not run it as routine setup.
+## Deployment
 
-## Validation and limitations
+- **Frontend and gateway.** Cloudflare Pages builds the production branch with `npm run build:cloudflare` (typecheck, env check, Vite build, gateway packaging) and publishes `dist`.
+- **Backend.** Supabase functions are deployed separately with the Supabase CLI after `npm run build:supabase`. Workers are deployed with Wrangler using the configs in `cloudflare/`. A frontend push does not deploy either.
+- **Secrets** live in Cloudflare and Supabase secret stores, never in the repository.
+- **Keepers.** Run exactly one scheduler against the keeper wallet. Two schedulers on one wallet cause nonce conflicts.
 
-The earlier review ran TypeScript checking, a production build, 91 Node tests and seven Foundry tests. **Three Foundry tests pass by reproducing bugs**, not by proving a safe contract. Focused live tests checked signature login, replay rejection, upgraded-account password rejection, private contact access and notification ownership. Temporary test accounts from that review were removed. The 17 October release adds market-provider, social-persistence and dialog regression coverage; see its release record for the current results.
+## Status
 
-At 00:54 UTC on 16 October, keeper logs showed 60 runs for each of three jobs over the inspected hour with zero reported errors. Historical testnet receipts cover sponsorship, a limit entry/TP and liquidation. This does not establish every long/short, stop/SL, partial-close or outage scenario.
+Velo is an early-stage product running on **Base Sepolia testnet with mock USDC**. The contracts have **not been independently audited** and some risk controls are still being built, so do not use real funds with it. Independent security review is a prerequisite for a mainnet launch. A next-generation margin and accounting contract is in development and is not deployed.
 
-Authenticated mobile/browser journeys, every bridge route and complete social interactions remain unverified. The production browser was blocked in the review environment. Read the audit before expanding access or treating test results as a security certification.
+Some parts are deliberately conservative today. Only four perpetual markets are enabled, margin adjustment and cross-margin entry are switched off in the interface, and the leaderboard ranks stored profile metrics rather than independently reconstructed on-chain results. Moving that last item to verifiable history is a core part of the roadmap.
+
+## Security
+
+Please report vulnerabilities privately to the maintainers rather than through public issues.
