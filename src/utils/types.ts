@@ -225,6 +225,7 @@ export enum TabView {
   DASHBOARD = 'DASHBOARD',
   TRADE = 'TRADE',
   MARKETS = 'MARKETS',
+  COIN = 'COIN',
   SOCIAL = 'SOCIAL',
   LEADERBOARD = 'LEADERBOARD',
   PROFILE = 'PROFILE',
@@ -232,7 +233,7 @@ export enum TabView {
   ADMIN = 'ADMIN'
 }
 
-export type ChartTimeframe = '1m' | '3m' | '5m' | '15m' | '30m' | '1H' | '2H' | '4H' | '6H' | '12H' | '1D' | '3D' | '1W' | '1M';
+export type ChartTimeframe = '1s' | '1m' | '3m' | '5m' | '15m' | '30m' | '1H' | '2H' | '4H' | '6H' | '12H' | '1D' | '3D' | '1W' | '1M';
 export type ChartStyle = 'CANDLES' | 'LINE' | 'AREA' | 'BARS';
 export type SocialSort = 'LATEST' | 'TRENDING';
 export type ProfileTab = 'POSTS' | 'REPLIES' | 'MEDIA' | 'LIKES' | 'TRADES';

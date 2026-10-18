@@ -380,7 +380,7 @@ export async function fetchPythKlines(pairId: string, tf = '1H', options: { auth
     const unique = [...new Map(rows.map(c => [c.time, c])).values()].sort((a,b) => a.time-b.time);
     return targetSeconds > sourceSeconds ? aggregateCandles(unique, targetSeconds) : unique;
   };
-  const request = (options.authenticated === false ? fallback() : firstChartPage(primary, fallback))
+  const request = (tf === '1s' || options.authenticated === false ? fallback() : firstChartPage(primary, fallback))
     .then(rows => {
       if (rows.length) {
         if (historyCache.size >= 32) historyCache.delete(historyCache.keys().next().value!);

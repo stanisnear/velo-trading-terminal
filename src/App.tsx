@@ -128,6 +128,7 @@ import { trackPageView, setAnalyticsUser } from './services/analytics';
 import { TradeView } from '@/components/ui/pages/TradeView';
 import { AccountChoiceDialog } from './components/AccountChoiceDialog';
 import { postPath, parsePostPath } from '../shared/socialLinks.mjs';
+import { coinOverview } from '../shared/coinOverview.mjs';
 import { ReactionContext, PostReactions, type ReactionKind } from './components/social/PostReactions';
 import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
@@ -649,8 +650,12 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
     const change = pairInfo?.change ?? tokenInfo?.asset?.change;
     const chg = change ?? 0;
     const up = chg >= 0;
-    const meta = pairInfo ? { ...(TOKEN_META[ticker]?.geckoId === pairInfo.geckoId ? TOKEN_META[ticker] : {}),
-        geckoId: pairInfo.geckoId, website: tokenInfo?.links?.website?.[0], twitter: tokenInfo?.links?.twitter?.[0], whitepaper: tokenInfo?.links?.whitepaper?.[0] } : undefined;
+    const fallbackMeta = pairInfo && TOKEN_META[ticker]?.geckoId === pairInfo.geckoId ? TOKEN_META[ticker] : undefined;
+    const meta = pairInfo ? { ...fallbackMeta,
+        geckoId: pairInfo.geckoId,
+        website: tokenInfo?.links?.website?.[0] || fallbackMeta?.website,
+        twitter: tokenInfo?.links?.twitter?.[0] || fallbackMeta?.twitter,
+        whitepaper: tokenInfo?.links?.whitepaper?.[0] || fallbackMeta?.whitepaper } : undefined;
     const tradable = pairInfo && tradingPairForAsset(pairInfo);
 
     const tickerPosts = React.useMemo(() => {
@@ -680,7 +685,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
         display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
-    const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 18, backdropFilter: 'blur(16px) saturate(1.2)', WebkitBackdropFilter: 'blur(16px) saturate(1.2)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
+    const panel: React.CSSProperties = { borderBottom: '1px solid var(--hairline)', overflow: 'hidden' };
 
     const handleViewProfileWrapper = (partial: { id: string }) => {
         const trader = traders.find((t: any) => t.id === partial.id);
@@ -731,7 +736,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
         if (n >= 0.0001) return `$${n.toFixed(6)}`;
         return `$${n.toFixed(8)}`;
     };
-    const description = meta?.longDescription || meta?.description || tokenInfo?.description || '';
+    const description = meta?.longDescription || meta?.description || coinOverview(tokenInfo?.description);
     const descShort = description.length > 220 ? description.slice(0, 220).trimEnd() + '…' : description;
 
     return (
@@ -752,9 +757,9 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                         )}
                         <div style={{ minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                                <h1 style={{ ...S.display, fontSize: 28, fontWeight: 500, color: 'var(--fg)', lineHeight: 1, margin: 0 }}>${ticker}</h1>
+                                <h1 style={{ ...S.display, fontSize: 32, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.15, margin: 0 }}>{pairInfo.name}</h1>
                                 {(pairInfo?.name || tokenInfo?.name) && (
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-subtle)' }}>{pairInfo?.name || tokenInfo?.name}</span>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)' }}>{ticker}</span>
                                 )}
                                 {rank && <span className="token-meta-chip">Rank #{rank}</span>}
                                 {meta?.category && <span className="token-meta-chip">{meta.category}</span>}
@@ -807,6 +812,61 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                     </div>
                 </div>
             </div>
+
+                    {/* About section — rich description */}
+                    {description && (
+                        <section className="token-overview" style={{ ...panel, padding: '20px 0 24px', marginBottom: 24 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
+                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>About {pairInfo?.name || ticker}</span>
+                                {meta?.category && (
+                                    <span style={{ marginLeft: 'auto', ...S.label, fontSize: 9, color: 'var(--iris-violet)', background: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 6, padding: '2px 8px' }}>
+                                        {meta.category}
+                                    </span>
+                                )}
+                            </div>
+                            <p style={{ maxWidth: 900, fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg-muted)', lineHeight: 1.7, marginBottom: 14 }}>
+                                {descExpanded ? description : descShort}
+                            </p>
+                            {description.length > 220 && (
+                                <button onClick={() => setDescExpanded(e => !e)} style={{ background: 'none', border: 'none', cursor: 'pointer', ...S.label, fontSize: 10, color: 'var(--iris-violet)', padding: 0, marginBottom: 12 }}>
+                                    {descExpanded ? 'Show less ↑' : 'Read more ↓'}
+                                </button>
+                            )}
+                            {(meta?.website || meta?.twitter || meta?.whitepaper) && (
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    {meta.website && (
+                                        <a href={meta.website} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
+                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
+                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
+                                            <ExternalLink size={11}/> Website
+                                        </a>
+                                    )}
+                                    {meta.twitter && (
+                                        <a href={meta.twitter} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
+                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
+                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
+                                            𝕏 Twitter
+                                        </a>
+                                    )}
+                                    {meta.whitepaper && (
+                                        <a href={meta.whitepaper} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
+                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
+                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
+                                            <ExternalLink size={11}/> Whitepaper
+                                        </a>
+                                    )}
+                                    {quote.cmcSlug && (
+                                        <a href={`https://coinmarketcap.com/currencies/${quote.cmcSlug}/`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
+                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
+                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
+                                            <ExternalLink size={11}/> CoinMarketCap
+                                        </a>
+                                    )}
+                                </div>
+                            )}
+                        </section>
+                    )}
 
             <div className="token-page-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 16, alignItems: 'start' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -866,61 +926,6 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    )}
-
-                    {/* About section — rich description */}
-                    {description && (
-                        <div style={{ ...panel, padding: '16px 18px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
-                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>About {pairInfo?.name || ticker}</span>
-                                {meta?.category && (
-                                    <span style={{ marginLeft: 'auto', ...S.label, fontSize: 9, color: 'var(--iris-violet)', background: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 6, padding: '2px 8px' }}>
-                                        {meta.category}
-                                    </span>
-                                )}
-                            </div>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--fg-muted)', lineHeight: 1.7, marginBottom: 10 }}>
-                                {descExpanded ? description : descShort}
-                            </p>
-                            {description.length > 220 && (
-                                <button onClick={() => setDescExpanded(e => !e)} style={{ background: 'none', border: 'none', cursor: 'pointer', ...S.label, fontSize: 10, color: 'var(--iris-violet)', padding: 0, marginBottom: 12 }}>
-                                    {descExpanded ? 'Show less ↑' : 'Read more ↓'}
-                                </button>
-                            )}
-                            {(meta?.website || meta?.twitter || meta?.whitepaper) && (
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                    {meta.website && (
-                                        <a href={meta.website} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            <ExternalLink size={11}/> Website
-                                        </a>
-                                    )}
-                                    {meta.twitter && (
-                                        <a href={meta.twitter} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            𝕏 Twitter
-                                        </a>
-                                    )}
-                                    {meta.whitepaper && (
-                                        <a href={meta.whitepaper} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            <ExternalLink size={11}/> Whitepaper
-                                        </a>
-                                    )}
-                                    {quote.cmcSlug && (
-                                        <a href={`https://coinmarketcap.com/currencies/${quote.cmcSlug}/`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            <ExternalLink size={11}/> CoinMarketCap
-                                        </a>
-                                    )}
-                                </div>
-                            )}
                         </div>
                     )}
 
@@ -1037,7 +1042,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                         </div>
                     </div>
                     {/* Quick trade CTA */}
-                    {onNavigateToTrade && (
+                    {onNavigateToTrade && tradable && (
                         <div style={{ ...panel, padding: '14px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
@@ -2819,6 +2824,12 @@ const App = () => {
       else setEditingPosition(p);
     };
     const [activeSocialTicker, setActiveSocialTicker] = useState<string | null>(null);
+    const openCoin = (identifier: string) => {
+        setActiveSocialTicker(identifier);
+        setSinglePostId(null);
+        setSingleCommentId(null);
+        setActiveTab(TabView.COIN);
+    };
     const [watchlist, setWatchlist] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem('velo_fav_markets') || '[]'); } catch { return []; }
     });
@@ -3647,7 +3658,7 @@ const App = () => {
             setActiveTab(TabView.SOCIAL);
             return;
         }
-        // Social token routing: /markets/ETH -> open social token page on the social tab
+        // Asset routes belong to Markets; legacy social asset links remain valid.
         // Single post routing: /social/post/:id -> open that post
         if (p === 'social') {
             // Going back to the global feed — clear any active ticker or post
@@ -3674,7 +3685,7 @@ const App = () => {
                 setSingleCommentId(null);
                 setActiveSocialTicker(ticker);
             }
-            setActiveTab(TabView.SOCIAL);
+            setActiveTab(TabView.COIN);
             return;
         }
         if (p.startsWith('markets/')) {
@@ -3684,7 +3695,7 @@ const App = () => {
                     setSinglePostId(null);
                     setSingleCommentId(null);
                     setActiveSocialTicker(ticker);
-                    setActiveTab(TabView.SOCIAL);
+                    setActiveTab(TabView.COIN);
                     return;
             }
             setActiveTab(TabView.MARKETS);
@@ -3744,7 +3755,8 @@ const App = () => {
             [TabView.DASHBOARD]: '/dashboard',
             [TabView.TRADE]: `/trade/${activePair?.id?.replace('/', '-') || 'ETH-USD'}`,
             [TabView.MARKETS]: '/markets',
-            [TabView.SOCIAL]: singlePostId ? postPath(singlePostId, singleCommentId) || '/social' : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
+            [TabView.COIN]: `/markets/${activeSocialTicker || ''}`,
+            [TabView.SOCIAL]: singlePostId ? postPath(singlePostId, singleCommentId) || '/social' : '/social',
             [TabView.LEADERBOARD]: '/leaderboard',
             [TabView.PROFILE]: `/profile/${user?.handle?.replace('@', '') || ''}`,
             [TabView.PUBLIC_PROFILE]: `/profile/${viewingProfile?.handle?.replace('@', '') || ''}`,
@@ -3769,8 +3781,8 @@ const App = () => {
                 : `${activePair.id} | VELO`;
         } else if (activeTab === TabView.MARKETS) {
             document.title = 'Markets | VELO';
-        } else if (activeTab === TabView.SOCIAL && activeSocialTicker) {
-            document.title = `$${activeSocialTicker} | VELO Social`;
+        } else if (activeTab === TabView.COIN && activeSocialTicker) {
+            document.title = `${activeSocialTicker} | Velo Markets`;
         } else {
             document.title = 'Velo — Provable. Social. On-chain.';
         }
@@ -4482,7 +4494,7 @@ const App = () => {
         // ── notifications ─────────────────────────────────────────────────
         const notifR = makeReconnector(() =>
             subscribeUserNotifications(user.id, (rawNotif: any) => {
-                if (!mounted) return;
+                if (!mounted || rawNotif.suppressed) return;
                 const notif: Notification = {
                     id: rawNotif.id, type: rawNotif.type, message: rawNotif.message,
                     timestamp: new Date(rawNotif.created_at).getTime(),
@@ -4498,7 +4510,7 @@ const App = () => {
         // ── transactions ──────────────────────────────────────────────────
         const txR = makeReconnector(() =>
             subscribeUserTransactions(user.id, (rawTx: any) => {
-                if (!mounted) return;
+                if (!mounted || rawTx.suppressed) return;
                 const incoming: any = {
                     id: rawTx.id, type: rawTx.type,
                     amount: Number(rawTx.amount) || 0,
@@ -6982,8 +6994,8 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
-            <Navbar activeTab={activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
+            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
+            <Navbar activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
                     // Mark this notification (and all others) as read
                     setNotifications(prev => prev.map(x => ({ ...x, read: true })));
                     if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
@@ -7225,25 +7237,37 @@ const App = () => {
                 orderlyPositions={[]}
                 />
                 </> }
-                {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); }} onNavigateToSocial={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); }} onNavigateToSocial={(ticker: string) => { openCoin(ticker); }}/>}
+                {activeTab === TabView.COIN && activeSocialTicker && <TokenPage
+                    key={activeSocialTicker} ticker={activeSocialTicker} posts={posts} traders={traders} user={user}
+                    prices={marketPrices} changes={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist}
+                    onClose={(identifier?: string) => identifier ? openCoin(identifier) : setActiveTab(TabView.MARKETS)}
+                    onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onViewProfile={handleViewProfile}
+                    showUsersModal={(title: string, userIds: string[]) => setUsersListModal({ isOpen: true, title, userIds })}
+                    onDeletePost={(id: string) => handleDeletePostWithConfirm(id, async pid => { await supabaseDeletePost(pid); setPosts(rows => rows.filter(row => row.id !== pid)); })}
+                    onDeleteComment={handleDeleteComment} handleCopyTrade={handleCopyTrade}
+                    onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(item => item.symbol === ticker && isTradablePair(item.id)); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); } }}
+                    onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}
+                    onNavigateToTicker={openCoin}
+                />}
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
-                    <SinglePostView setPosts={setPosts} postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { setSinglePostId(null); setSingleCommentId(null); setActiveSocialTicker(ticker); }}/>
+                    <SinglePostView setPosts={setPosts} postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { openCoin(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={activeSocialTicker} onTickerChange={(t: string | null) => setActiveSocialTicker(t)} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
+                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={null} onTickerChange={(t: string | null) => { if (t) openCoin(t); }} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
                 ))}
-                {(activeTab === TabView.SOCIAL || activeTab === TabView.LEADERBOARD || activeTab === TabView.PUBLIC_PROFILE) && (publicLoading || publicLoadErrors.posts || publicLoadErrors.profiles) && (
+                {(activeTab === TabView.SOCIAL || activeTab === TabView.COIN || activeTab === TabView.LEADERBOARD || activeTab === TabView.PUBLIC_PROFILE) && (publicLoading || publicLoadErrors.posts || publicLoadErrors.profiles) && (
                   <div role="status" style={{ padding: '10px 16px', color: 'var(--fg-muted)', background: 'var(--chip-bg)', borderRadius: 10, marginBottom: 12 }}>
                     {publicLoading ? 'Refreshing public data…' : [publicLoadErrors.profiles, publicLoadErrors.posts].filter(Boolean).join(' ')}
                     {!publicLoading && <button onClick={() => void loadSocialData()} style={{ marginLeft: 12 }}>Retry</button>}
                   </div>
                 )}
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} walletAddress={walletAddress} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
-                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
-                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { openCoin(ticker); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { openCoin(ticker); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.PUBLIC_PROFILE && !viewingProfile && <div role="status" style={{ padding: 24, color: 'var(--fg-muted)' }}>Loading profile...</div>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
-            <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }} />
+            <MobileBottomNav activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }} />
             {/* App-level order details modal — opened from notifications without tab switch */}
             {appOrderDetails && (
                 <OrderDetailsModal

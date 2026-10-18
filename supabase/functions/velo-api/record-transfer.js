@@ -3,6 +3,7 @@ import { createPublicClient, http, decodeEventLog, parseAbi } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { runtimeEnv } from './env.js';
 const TOKEN='0x5efaf3f69b09bc2abf3439bdc0c93bf611026699';
+const PERPS='0x41fdb544d7247a5ddc6b4c06f29d09f2b20de907';
 const ABI=parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']);
 export function matchingTransfers(logs, addresses) {
   const targets=new Set(addresses.filter(Boolean).map(a=>a.toLowerCase()));
@@ -10,7 +11,7 @@ export function matchingTransfers(logs, addresses) {
     if(log.address.toLowerCase()!==TOKEN) return [];
     try {
       const {args}=decodeEventLog({abi:ABI,data:log.data,topics:log.topics});
-      return targets.has(args.to.toLowerCase()) && args.value>0n
+      return targets.has(args.to.toLowerCase()) && args.value>0n && args.from.toLowerCase()!==PERPS && !targets.has(args.from.toLowerCase())
         ? [{log_index:log.logIndex,from:args.from.toLowerCase(),amount:Number(args.value)/1e6}] : [];
     } catch {return [];}
   });
@@ -30,7 +31,7 @@ export default async function recordTransfer(req,res) {
   const receipt=await client.getTransactionReceipt({hash:txHash});
   if(receipt.status!=='success') return res.status(400).json({error:'Transfer did not succeed'});
   const matches=matchingTransfers(receipt.logs,[profile.wallet_address,profile.velo_wallet_address]);
-  if(!matches.length) return res.status(400).json({error:'No matching mUSDC transfer to this recipient'});
+  if(!matches.length) return res.status(200).json({ok:true,recorded:0});
   for(const item of matches){
     const {error}=await admin.rpc('velo_record_verified_transfer',{target:targetUserId,tx_hash:txHash.toLowerCase(),event_index:item.log_index,amount:item.amount,sender:item.from});
     if(error) throw new Error('Unable to record transfer');

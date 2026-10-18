@@ -79,8 +79,8 @@ export const TokenInteractiveChart = ({
         if (!Number.isFinite(timestamp)) return '';
         const date = new Date(timestamp);
         return timeframe === '24H'
-            ? date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-            : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            ? date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+            : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     };
 
     const hoveredVal = hoveredIdx !== null && activeData[hoveredIdx] != null ? activeData[hoveredIdx] : null;

@@ -1,4 +1,6 @@
 import { pythPriceStream } from '../services/pythPriceService';
+import { subscribeKlines } from '../services/priceService';
+import { mergeLiveCandle, oracleCandle, localChartTime } from '../services/chartLive.mjs';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
@@ -21,10 +23,12 @@ import { Position } from '../utils/types';
 // TradingView's hosted widget, this keeps type, spacing, colors, and overlays
 // inside the app's design system.
 export const TV_INTERVALS_QUICK: Record<string, string> = {
+  '1s': '1S',
   '1m': '1', '5m': '5', '15m': '15', '1H': '60', '4H': '240', '1D': 'D',
 };
 
 export const TV_INTERVALS: Record<string, string> = {
+  '1s': '1S',
   '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30',
   '1H': '60', '2H': '120', '4H': '240', '6H': '360', '12H': '720',
   '1D': 'D', '3D': '3D', '1W': 'W', '1M': 'M',
@@ -99,6 +103,7 @@ interface TradingViewChartProps {
 }
 
 const TF_SECONDS: Record<string, number> = {
+  '1s': 1,
   '1m': 60, '3m': 180, '5m': 300, '15m': 900, '30m': 1800,
   '1H': 3600, '2H': 7200, '4H': 14400, '6H': 21600, '12H': 43200,
   '1D': 86400, '3D': 259200, '1W': 604800, '1M': 2592000,
@@ -628,7 +633,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       timeScale: {
         borderColor: grid,
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: externalTimeframe === '1s',
         rightOffset: 4,
         minBarSpacing: 2,
         tickMarkFormatter: (time, tickMarkType, locale) => {
@@ -640,15 +645,15 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
           const year = date.getUTCFullYear();
           if (!Number.isFinite(date.getTime()) || year < 2000 || year > 2100) return '';
           const format: Intl.DateTimeFormatOptions = tickMarkType === TickMarkType.Year
-            ? { year: 'numeric', timeZone: 'UTC' }
+            ? { year: 'numeric' }
             : tickMarkType === TickMarkType.Month
-              ? { month: 'short', timeZone: 'UTC' }
+              ? { month: 'short' }
               : tickMarkType === TickMarkType.DayOfMonth
-                ? { day: '2-digit', timeZone: 'UTC' }
+                ? { day: '2-digit' }
                 : tickMarkType === TickMarkType.TimeWithSeconds
-                  ? { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC' }
-                  : { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' };
-          return new Intl.DateTimeFormat(locale, format).format(date);
+                  ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+                  : { hour: '2-digit', minute: '2-digit' };
+          return localChartTime(time, format, locale);
         },
       },
       crosshair: {
@@ -657,7 +662,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
         horzLine: { color: crosshair, style: LineStyle.Dashed, labelBackgroundColor: crosshairLabel },
       },
       localization: {
-        locale: 'en-US',
+        locale: navigator.language,
         timeFormatter: time => {
           const date = typeof time === 'number'
             ? new Date(time * 1000)
@@ -666,10 +671,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
               : new Date(Date.UTC(time.year, time.month - 1, time.day));
           const year = date.getUTCFullYear();
           if (!Number.isFinite(date.getTime()) || year < 2000 || year > 2100) return '';
-          return new Intl.DateTimeFormat('en-GB', {
+          return localChartTime(time, {
             day: '2-digit', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
-          }).format(date);
+            hour: '2-digit', minute: '2-digit', ...(externalTimeframe === '1s' ? { second: '2-digit' } : {}),
+          });
         },
       },
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
@@ -822,10 +827,15 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     const chart = chartRef.current;
     if (!series || !chart) return;
 
-    const source = cleanCandles(initialData);
+    let source = cleanCandles(initialData);
     const dataKey = `${pairName}::${externalTimeframe}`;
     const previousData = chartDataRef.current;
     const sameDataKey = previousData?.key === dataKey;
+    if (sameDataKey && source.length && source[0].source === candlesRef.current[0]?.source) {
+      const historyEnd = source.at(-1)!.time;
+      const liveTail = candlesRef.current.filter(candle => candle.time >= historyEnd);
+      source = [...new Map([...source, ...liveTail].map(candle => [candle.time, candle])).values()];
+    }
     const visibleRange = chart.timeScale().getVisibleLogicalRange();
     const isPrepend = !!(sameDataKey && source.length > previousData.length && source[0]?.time < previousData.firstTime);
     const addedBars = isPrepend && previousData ? source.findIndex(candle => candle.time >= previousData.firstTime) : 0;
@@ -1183,58 +1193,39 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     }
   }, [currentPrice, initialData, externalChartStyle, externalTimeframe, pairName]);
 
-  // Append each fresh oracle mark to the active interval candle. The stream
-  // supplies prices only; candle OHLC remains derived from those marks and the
-  // real Pyth history, with no fabricated volume.
+  // Keep the chart on its original source; exchange candles never use oracle marks.
   useEffect(() => {
     const series = seriesRef.current;
-    if (!series || !isLivePrice || !Number.isFinite(currentPrice) || currentPrice <= 0) return;
-    // An oracle mark must not rewrite exchange candles, or use stale fallback ticks.
-    const meta = pythPriceStream.getMeta(pairName);
-    if (initialData[0]?.source !== 'pyth' || !meta || Date.now() / 1000 - meta.publishTime > 30) return;
-    // Calendar bars are not fixed-duration Unix buckets.
-    if (externalTimeframe === '1M' || externalTimeframe === '1W') return;
-    const source = candlesRef.current;
-    const previous = liveCandleRef.current;
-    const last = source[source.length - 1];
-    if (!last && !previous) return;
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const bucket = Math.floor(nowSeconds / timeframeSeconds) * timeframeSeconds;
-    if (last && bucket < last.time) return;
-    const time = Math.max(bucket, previous?.time || 0);
-    const isSameBar = previous?.time === time;
-    const existing = isSameBar ? previous : last?.time === time ? last : null;
-    const baseOpen = existing?.open ?? previous?.close ?? last?.close ?? currentPrice;
-    const candle: Candle = {
-      time,
-      open: baseOpen,
-      high: Math.max(existing?.high ?? baseOpen, currentPrice),
-      low: Math.min(existing?.low ?? baseOpen, currentPrice),
-      close: currentPrice,
+    if (!series || !initialData.length) return;
+    const update = (candle: Candle) => {
+      const rows = candlesRef.current;
+      const next = mergeLiveCandle(rows, candle);
+      if (next === rows) return;
+      candlesRef.current = next;
+      liveCandleRef.current = candle;
+      indicatorRefreshRef.current(next);
+      if (externalChartStyle === '2' || externalChartStyle === '3') series.update({ time: candle.time as Time, value: candle.close });
+      else if (externalChartStyle === '8') series.update(heikinAshi(next).at(-1)!);
+      else series.update({ ...candle, time: candle.time as Time });
     };
-    liveCandleRef.current = candle;
-    const liveData = source.slice();
-    if (previous) {
-      const previousIndex = liveData.findIndex(item => item.time === previous.time);
-      if (previousIndex >= 0) liveData[previousIndex] = previous;
-      else liveData.push(previous);
-    }
-    const currentIndex = liveData.findIndex(item => item.time === candle.time);
-    if (currentIndex >= 0) liveData[currentIndex] = candle;
-    else liveData.push(candle);
-    indicatorRefreshRef.current(liveData);
-
-    if (externalChartStyle === '2' || externalChartStyle === '3') {
-      series.update({ time: candle.time as Time, value: candle.close });
-    } else if (externalChartStyle === '8') {
-      const previousHa = heikinAshi(source).at(-1);
-      const open = previousHa ? (previousHa.open + previousHa.close) / 2 : (candle.open + candle.close) / 2;
-      const close = (candle.open + candle.high + candle.low + candle.close) / 4;
-      series.update({ ...candle, open, close, high: Math.max(candle.high, open, close), low: Math.min(candle.low, open, close), time: candle.time as Time });
-    } else {
-      series.update({ ...candle, time: candle.time as Time });
-    }
-  }, [currentPrice, externalChartStyle, isLivePrice, timeframeSeconds, pairName, initialData, externalTimeframe]);
+    if (initialData[0].source === 'exchange') return subscribeKlines(pairName, externalTimeframe, candle => update({ ...candle, source: 'exchange' }));
+    const onPrice = (prices: Record<string, number>) => {
+      const meta = pythPriceStream.getMeta(pairName);
+      if (!meta || Math.abs(Date.now() / 1000 - meta.publishTime) > 30) return;
+      // Calendar bars retain UTC boundaries while labels use the viewer's timezone.
+      let seconds = timeframeSeconds;
+      let published = meta.publishTime;
+      if (externalTimeframe === '1M' || externalTimeframe === '1W') {
+        const date = new Date(published * 1000);
+        if (externalTimeframe === '1M') date.setUTCDate(1);
+        else date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+        date.setUTCHours(0, 0, 0, 0); published = date.getTime() / 1000; seconds = 1;
+      }
+      const candle = oracleCandle(candlesRef.current, prices[pairName], published, seconds);
+      if (candle) update({ ...candle, source: 'pyth' });
+    };
+    return pythPriceStream.subscribe(onPrice);
+  }, [externalChartStyle, timeframeSeconds, pairName, initialData, externalTimeframe]);
 
   useEffect(() => {
     const series = seriesRef.current;
