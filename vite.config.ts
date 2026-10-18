@@ -65,7 +65,7 @@ export default defineConfig(({ mode }) => {
         //
         // Anything not matched stays in the main index chunk. Patches to
         // App.tsx alone now invalidate ~600kB instead of 3.5MB, which is the
-        // main win for repeat-visit cache hits and Vercel deploy speed.
+        // main win for repeat-visit cache hits and deploy speed.
         chunkSizeWarningLimit: 1000,
         rollupOptions: {
           output: {

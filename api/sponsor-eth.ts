@@ -1,6 +1,6 @@
 // api/sponsor-eth.ts
 //
-// Vercel serverless endpoint. POST with { burnerAddress: "0x..." } and the
+// Gas sponsorship endpoint (runs in the Supabase velo-api function). POST with { burnerAddress: "0x..." } and the
 // sponsor wallet sends a tiny amount of Base Sepolia ETH so the burner can
 // pay gas for its first few trades.
 //
@@ -10,7 +10,7 @@
 //   • Hard cap: SPONSOR_AMOUNT = 0.005 ETH per address.
 //   • In-memory rate limit: 1 sponsor per IP per 60 seconds.
 //
-// Environment variables required (Vercel → Settings → Environment Variables):
+// Environment variables required (Supabase → Edge Functions → Secrets):
 //   VELO_SPONSOR_PRIVATE_KEY  — private key of the funded ops wallet
 //   VITE_BASE_SEPOLIA_RPC_URL — optional, defaults to PublicNode
 //

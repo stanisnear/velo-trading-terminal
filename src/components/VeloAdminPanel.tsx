@@ -689,7 +689,7 @@ export const VeloAdminPanel: React.FC = () => {
         <div style={{ padding: 14, marginBottom: 24, borderRadius: 12, background: 'rgba(255,180,60,0.06)', border: '1px solid rgba(255,180,60,0.2)' }}>
           <p style={{ ...S.mono, fontSize: 11, color: 'oklch(0.80 0.16 60)', margin: '0 0 4px', fontWeight: 700 }}>USER STATS NOT CONFIGURED</p>
           <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.5 }}>
-            Set <code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>SUPABASE_SERVICE_ROLE_KEY</code> in your Vercel env so <code style={{ ...S.mono, fontSize: 11 }}>/api/user-stats</code> can read totals, then run <code style={{ ...S.mono, fontSize: 11 }}>SUPABASE_MIGRATION_BUILD91_ANALYTICS.sql</code> to enable DAU/WAU/MAU.
+            Set <code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>SUPABASE_SERVICE_ROLE_KEY</code> in your Supabase function secrets so <code style={{ ...S.mono, fontSize: 11 }}>/api/user-stats</code> can read totals. DAU/WAU/MAU appear once browse-activity data is being recorded.
           </p>
         </div>
       ) : (
@@ -733,7 +733,7 @@ export const VeloAdminPanel: React.FC = () => {
           </div>
           {userStats?.activity_source === 'trade_history' && (
             <p style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', margin: '0 0 16px' }}>
-              Active-user counts derived from trade history — run SUPABASE_MIGRATION_BUILD91_ANALYTICS.sql for full browse-activity DAU/WAU/MAU.
+              Active-user counts derived from trade history — browse-activity counts appear once that data is recorded.
             </p>
           )}
 
@@ -813,7 +813,7 @@ export const VeloAdminPanel: React.FC = () => {
               {' '}This card only pulls those numbers back into the dashboard. To enable it, give a GA4 service account Viewer access and set
               {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_PROPERTY_ID</code>,
               {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_CLIENT_EMAIL</code>, and
-              {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_PRIVATE_KEY</code> in Vercel.
+              {' '}<code style={{ ...S.mono, fontSize: 11, background: 'var(--chip-bg)', padding: '1px 5px', borderRadius: 4 }}>GA_PRIVATE_KEY</code> in your Supabase function secrets.
             </p>
             <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer"
               style={{ ...S.mono, fontSize: 11, color: 'var(--iris-violet)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>

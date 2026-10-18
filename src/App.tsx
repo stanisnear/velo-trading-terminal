@@ -307,7 +307,7 @@ if (typeof window !== 'undefined') {
 // ─────────────────────────────────────────────────────────────────────────────
 // Inline helpers that earlier builds expected to be exported from
 // services/supabaseStore.ts. Defined here so App.tsx works against ANY
-// version of that file — old or new — and Vercel can't refuse to build
+// version of that file, old or new, and the build can't refuse
 // just because a file copy was missed during a prior deploy. The logic is
 // identical to what the supabaseStore helpers would have done; we just
 // reach into `supabase` directly (which IS always exported).
@@ -317,7 +317,7 @@ if (typeof window !== 'undefined') {
  * Subscribe to INSERTs on the transactions table for a specific user.
  * Returns the channel so the caller can `supabase.removeChannel(ch)` on
  * cleanup. Requires `public.transactions` to be in the supabase_realtime
- * publication (added by SUPABASE_MIGRATION_BUILD81.sql).
+ * publication (added by a Supabase migration).
  */
 function subscribeUserTransactions(userId: string, onNew: (t: any) => void, onStatus?: (s: string, e?: Error) => void) {
   // Unique suffix so a re-subscribe after a reconnect always gets a fresh
@@ -334,7 +334,7 @@ function subscribeUserTransactions(userId: string, onNew: (t: any) => void, onSt
 
 /**
  * Create a notification row owned by ANOTHER user via the SECURITY DEFINER
- * RPC (`create_notification_for_user`) from BUILD81. Throws on RPC failure
+ * RPC (`create_notification_for_user`) from the notifications migration. Throws on RPC failure
  * so the caller can surface the precise error as a toast.
  */
 async function createNotificationForUser(
@@ -2174,7 +2174,7 @@ const App = () => {
     // in Recent Activity, refreshes, and watches it vanish with no clue why.
     //
     // We throttle: one toast per kind per 60 seconds. The full error still
-    // goes to console for grep in Vercel logs.
+    // goes to console for grep in the browser console.
     useEffect(() => {
       const lastShown = new Map<string, number>();
       const unsubscribe = onPersistenceError((err) => {
@@ -4553,7 +4553,7 @@ const App = () => {
     // When another tab opens/closes/edits a position (or cancels an order) the
     // Supabase Realtime event fires here and we merge the change into local state.
     //
-    // KEY REQUIREMENT: tables must have REPLICA IDENTITY FULL (set in SUPABASE_SCHEMA.sql)
+    // KEY REQUIREMENT: tables must have REPLICA IDENTITY FULL (set in the database schema)
     // so that DELETE events carry the full old row — not just the PK.
     useEffect(() => {
         if (!user || !isSupabaseConfigured()) return;

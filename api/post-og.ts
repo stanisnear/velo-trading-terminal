@@ -1,7 +1,7 @@
-// Vercel serverless function — server-side Open Graph page for shared post
+// Server-side Open Graph page for shared post
 // links. The SPA serves identical generic tags for every route, so pasting
 // /social/post/:id into X/Slack/Discord/WhatsApp showed a blank brand card.
-// vercel.json rewrites BOT user-agents on that route here; humans never hit
+// The Cloudflare gateway routes BOT user-agents on that route here; humans never hit
 // this (they get the SPA), and crawlers don't run the service worker.
 //
 // Env-first with hardcoded fallbacks (same hardening as the keepers): the
