@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../cloudflare/worker.js';
+import { postPath } from '../shared/socialLinks.mjs';
+const postId = '00000000-0000-4000-8000-000000000001';
+const replyId = '00000000-0000-4000-8000-000000000002';
 
 const bindings = {
   VELO_BACKEND_URL: 'https://backend.example/functions/v1/velo-api',
@@ -15,7 +18,7 @@ async function withFetch(mock, task) {
 }
 
 test('human SPA routes return the actual asset bytes', async () => {
-  const response = await worker.fetch(new Request('https://app.example/social/post/abc'), bindings);
+  const response = await worker.fetch(new Request(`https://app.example/social/post/${postId}`), bindings);
   assert.equal(await response.text(), '<html>terminal</html>');
   assert.equal(response.headers.get('Vary'), 'User-Agent');
 });
@@ -61,13 +64,24 @@ test('proxy preserves payload/status but replaces spoofed credentials and exclud
 test('bot post metadata uses the path ID and prevents caching crawler HTML for humans', async () => {
   await withFetch(async url => {
     assert.equal(url.pathname, '/functions/v1/velo-api/api/post-og');
-    assert.equal(url.searchParams.get('id'), 'actual-id');
+    assert.equal(url.searchParams.get('id'), postId);
     return new Response('<html>post metadata</html>');
   }, async () => {
-    const response = await worker.fetch(new Request('https://app.example/social/post/actual-id?id=spoof', { headers: { 'User-Agent': 'Twitterbot' } }), bindings);
+    const response = await worker.fetch(new Request(`https://app.example/social/post/${postId}?id=spoof`, { headers: { 'User-Agent': 'Twitterbot' } }), bindings);
     assert.equal(await response.text(), '<html>post metadata</html>');
     assert.equal(response.headers.get('Vary'), 'User-Agent');
     assert.equal(response.headers.get('Cache-Control'), 'no-store');
+  });
+});
+
+test('compact reply links forward both canonical IDs and reject forged query IDs', async () => {
+  await withFetch(async url => {
+    assert.equal(url.searchParams.get('id'), postId);
+    assert.equal(url.searchParams.get('comment'), replyId);
+    return new Response('reply metadata');
+  }, async () => {
+    const response = await worker.fetch(new Request(`https://app.example${postPath(postId, replyId)}?id=forged&comment=forged`, { headers: { 'User-Agent': 'Slackbot' } }), bindings);
+    assert.equal(await response.text(), 'reply metadata');
   });
 });
 

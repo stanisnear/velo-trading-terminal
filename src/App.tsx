@@ -126,6 +126,9 @@ import { trackPageView, setAnalyticsUser } from './services/analytics';
 
 // Extracted page components
 import { TradeView } from '@/components/ui/pages/TradeView';
+import { AccountChoiceDialog } from './components/AccountChoiceDialog';
+import { postPath, parsePostPath } from '../shared/socialLinks.mjs';
+import { ReactionContext, PostReactions, type ReactionKind } from './components/social/PostReactions';
 import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
@@ -352,23 +355,13 @@ async function createNotificationForUser(
     p_comment_id: commentId || null,
   });
   if (!error) return;
-  // Best-effort fallback if the RPC isn't deployed: try a direct insert
-  // (only works in environments with permissive RLS, which early-dev
-  // projects sometimes still have).
-  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
-    const { error: insertErr } = await supabase
-      .from('notifications')
-      .insert({ user_id: targetUserId, type, message, related_id: relatedId || null });
-    if (insertErr) throw new Error(`fallback notifications insert failed: ${insertErr.message}`);
-    return;
-  }
   throw new Error(error.message);
 }
 
 /**
  * Record a transaction row owned by ANOTHER user (e.g. the recipient of
- * a SEND). Same SECURITY DEFINER pattern, only RECEIVE is allowed
- * cross-user by the server-side validation in BUILD81.
+ * a SEND). The server verifies the receipt and records both recipient
+ * activity and its notification atomically.
  */
 async function recordTransactionForUser(
   targetUserId: string,
@@ -1192,8 +1185,10 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                         { icon: <Heart size={16} fill={hasLiked ? 'currentColor' : 'none'}/>, label: hasLiked ? 'Liked' : 'Like', onClick: () => onLike(post.id), active: hasLiked, color: 'var(--iris-magenta)' },
                         { icon: <Repeat size={16}/>, label: hasReposted ? 'Reposted' : 'Repost', onClick: () => onRepost(post.id), active: hasReposted, color: 'var(--pnl-up)' },
                         { icon: <Share2 size={16}/>, label: 'Share', onClick: async () => {
-                            const url = `${window.location.origin}/social/post/${post.id}`;
-                            if (navigator.share) { try { await navigator.share({ title: `${post.authorHandle} on Velo`, text: post.content.slice(0, 200), url }); return; } catch (_) {} }
+                            const path = postPath(post.id);
+                            if (!path) return;
+                            const url = `${window.location.origin}${path}`;
+                            if (navigator.share) { try { await navigator.share({ title: `${post.authorHandle} on Velo`, text: post.content.slice(0, 200), url }); return; } catch (error) { if ((error as DOMException)?.name === 'AbortError') return; } }
                             await navigator.clipboard.writeText(url).catch(() => {});
                         }, active: false, color: 'var(--iris-cyan)' },
                     ].map((a, i) => (
@@ -1206,6 +1201,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                 </div>
             </div>
 
+            <PostReactions post={post} />
             {/* Comments section — full Twitter-style thread: likes, replies, @/$ tags */}
             <CommentThread
                 post={post}
@@ -2101,6 +2097,10 @@ const App = () => {
     };
     const prefsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLoginOpen, setLoginOpen] = useState(false);
+    const [accountChoiceOpen, setAccountChoiceOpen] = useState(false);
+    const [accountSwitchBusy, setAccountSwitchBusy] = useState(false);
+    const authAttemptRef = useRef(0);
+    const logoutTaskRef = useRef<Promise<void> | null>(null);
     // Username for SUCCESS_RETURNING screen — set by silent login in socialLoginHandledRef effect
     const [loginReturningName, setLoginReturningName] = useState<string>('');
     const [isResetPasswordOpen, setResetPasswordOpen] = useState(false);
@@ -2452,11 +2452,14 @@ const App = () => {
       const loginTimer = setTimeout(async () => {
         if (freshSignupRef.current) return;
         if (intentionalLogoutRef.current) return;
+        if (signInBusyRef.current) return;
+        const attempt = ++authAttemptRef.current;
         signInBusyRef.current = true; setSignInBusy(true);
         try {
           const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
-          if (intentionalLogoutRef.current || freshSignupRef.current) return;
+          if (attempt !== authAttemptRef.current || intentionalLogoutRef.current || freshSignupRef.current) return;
           const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
+          if (attempt !== authAttemptRef.current || intentionalLogoutRef.current) return;
           if (error) throw error;
           if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
             sessionRestoredRef.current = true;
@@ -2464,13 +2467,14 @@ const App = () => {
             return;
           }
         } catch (error: any) {
+          if (attempt !== authAttemptRef.current) return;
           socialLoginHandledRef.current = false;
           setToast({ message: error?.shortMessage || error?.message || 'Sign-in cancelled. Click Log In to retry.', type: 'ERROR' });
           return;
-        } finally { signInBusyRef.current = false; setSignInBusy(false); }
+        } finally { if (attempt === authAttemptRef.current) { signInBusyRef.current = false; setSignInBusy(false); } }
 
         // No existing account (or retries exhausted) — open onboarding.
-        if (freshSignupRef.current || intentionalLogoutRef.current) return;
+        if (attempt !== authAttemptRef.current || freshSignupRef.current || intentionalLogoutRef.current) return;
         socialLoginHandledRef.current = false;
         setLoginReturningName('');
         setLoginOpen(true);
@@ -2949,6 +2953,7 @@ const App = () => {
     useEffect(() => {
       silentLoginCallbackRef.current = async (authUser: any, profile: any) => {
         if (!authUser || intentionalLogoutRef.current) return;
+        const attempt = authAttemptRef.current;
         try {
           const restoredUser = profile ? dbProfileToUserProfile(profile) : {
             id: authUser.id,
@@ -2993,7 +2998,7 @@ const App = () => {
           // wallet_address so the UI always shows the correct address.
           if (walletAddress) restoredUser.walletAddress = walletAddress;
           else if (profile?.wallet_address) restoredUser.walletAddress = profile.wallet_address;
-          if (intentionalLogoutRef.current || window.__veloLogoutLock) return;
+          if (attempt !== authAttemptRef.current || intentionalLogoutRef.current || window.__veloLogoutLock) return;
           setUser(restoredUser);
           recordSessionWallet();
           setPositions(positions);
@@ -3007,7 +3012,7 @@ const App = () => {
     }); // no deps — always keep current
 
     // Ref to wagmi disconnect fn — populated by AuthModal, called on logout
-    const walletDisconnectRef = useRef<(() => void) | null>(null);
+    const walletDisconnectRef = useRef<(() => Promise<void>) | null>(null);
 
     // Ref to track latest positions to avoid stale closures
     const positionsRef = useRef<Position[]>([]);
@@ -3557,7 +3562,11 @@ const App = () => {
     const AUTH_REQUIRED_PATHS = new Set(['dashboard', 'profile']);
 
     // URL routing — parse pathname into tab/view state
+    const applyingUrlRef = useRef(false);
+    const [routeRevision, setRouteRevision] = useState(0);
     const navigateFromPath = useCallback((path: string) => {
+        applyingUrlRef.current = true;
+        setRouteRevision(value => value + 1);
         // Strip leading slash
         const p = path.replace(/^\//, '');
         if (!p) return;
@@ -3573,13 +3582,14 @@ const App = () => {
         // If this tab requires auth and user is not logged in after auth check completes,
         // silently redirect to /trade. Do NOT auto-open AppKit — the user may have just
         // had their session expire or be on a slow connection; they can click Log In themselves.
-        if (AUTH_REQUIRED_PATHS.has(basePath) && !user && authChecked) {
+        const requiresAuth = basePath === 'dashboard' || p === 'profile';
+        if (requiresAuth && !user && authChecked) {
             setActiveTab(TabView.TRADE);
             return;
         }
         // If auth not yet checked, silently navigate to the requested tab —
         // restoreSession will fire shortly and the user will be hydrated.
-        if (AUTH_REQUIRED_PATHS.has(basePath) && !authChecked) {
+        if (requiresAuth && !authChecked) {
             setActiveTab(tabMap[basePath] as any);
             return;
         }
@@ -3587,7 +3597,7 @@ const App = () => {
         // Profile routing: /profile/username -> view that user's profile
         if (p.startsWith('profile/')) {
             const handle = p.split('/')[1];
-            if (handle) {
+            if (handle && /^[a-z0-9_]{1,30}$/i.test(handle)) {
                 if (user && (user.handle?.replace('@', '').toLowerCase() === handle.toLowerCase() || user.username?.toLowerCase() === handle.toLowerCase())) {
                     setActiveTab(TabView.PROFILE);
                     return;
@@ -3601,23 +3611,42 @@ const App = () => {
                     setViewingProfile(trader);
                     setActiveTab(TabView.PUBLIC_PROFILE as any);
                 } else if (isSupabaseConfigured()) {
+                    setViewingProfile(null);
+                    setActiveTab(TabView.PUBLIC_PROFILE);
                     // Try Supabase lookup for handle
                     (async () => {
                         try {
                             const { data: p } = await supabase.from('profiles').select('*')
                                 .or(`handle.eq.@${handle},username.ilike.${handle}`)
                                 .single();
+                            if (window.location.pathname !== path) return;
                             if (p) {
                                 setViewingProfile(dbProfileToUserProfile(p));
                                 setActiveTab(TabView.PUBLIC_PROFILE as any);
+                            } else {
+                                setToast({ message: 'Profile not found.', type: 'INFO' });
+                                setActiveTab(TabView.SOCIAL);
                             }
-                        } catch (_) {}
+                        } catch (_) {
+                            if (window.location.pathname === path) {
+                                setToast({ message: 'Unable to load this profile. Please try again.', type: 'ERROR' });
+                                setActiveTab(TabView.SOCIAL);
+                            }
+                        }
                     })();
                 }
                 return;
             }
         }
 
+        const sharedPost = parsePostPath(path);
+        if (sharedPost) {
+            setSinglePostId(sharedPost.postId);
+            setSingleCommentId(sharedPost.commentId);
+            setActiveSocialTicker(null);
+            setActiveTab(TabView.SOCIAL);
+            return;
+        }
         // Social token routing: /markets/ETH -> open social token page on the social tab
         // Single post routing: /social/post/:id -> open that post
         if (p === 'social') {
@@ -3708,22 +3737,25 @@ const App = () => {
     }, [navigateFromPath]);
 
     // Sync active tab -> URL pathname (clean browser URLs, no hash)
-    const isInternalNavRef = useRef(false);
     useEffect(() => {
+        if (applyingUrlRef.current) { applyingUrlRef.current = false; return; }
+        if (activeTab === TabView.PUBLIC_PROFILE && !viewingProfile) return;
         const tabToPath: Record<string, string> = {
             [TabView.DASHBOARD]: '/dashboard',
             [TabView.TRADE]: `/trade/${activePair?.id?.replace('/', '-') || 'ETH-USD'}`,
             [TabView.MARKETS]: '/markets',
-            [TabView.SOCIAL]: singlePostId ? `/social/post/${singlePostId}${singleCommentId ? `/comment/${singleCommentId}` : ''}` : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
+            [TabView.SOCIAL]: singlePostId ? postPath(singlePostId, singleCommentId) || '/social' : activeSocialTicker ? `/markets/${activeSocialTicker}` : '/social',
             [TabView.LEADERBOARD]: '/leaderboard',
             [TabView.PROFILE]: `/profile/${user?.handle?.replace('@', '') || ''}`,
             [TabView.PUBLIC_PROFILE]: `/profile/${viewingProfile?.handle?.replace('@', '') || ''}`,
         };
         const newPath = tabToPath[activeTab] || '';
         if (newPath && newPath !== window.location.pathname) {
-            window.history.pushState(null, '', newPath);
+            const current = parsePostPath(window.location.pathname);
+            const samePost = current && newPath === postPath(current.postId, current.commentId);
+            window.history[samePost ? 'replaceState' : 'pushState'](null, '', newPath);
         }
-    }, [activeTab, activePair, user, viewingProfile, activeSocialTicker, singlePostId, singleCommentId]);
+    }, [activeTab, activePair, user, viewingProfile, activeSocialTicker, singlePostId, singleCommentId, routeRevision]);
 
     // Dynamic document title: show pair + price when on trade view
     useEffect(() => {
@@ -3939,6 +3971,7 @@ const App = () => {
                     }));
                 })
 
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'post_reactions' }, () => scheduleResync())
                 // ── channel health ────────────────────────────────────────
                 .subscribe((status: string, err?: Error) => {
                     if (!mounted) return;
@@ -4797,17 +4830,63 @@ const App = () => {
     // Login is explicit: connect a wallet, sign a one-use challenge, restore the same profile.
     const handleRequireAuth = async () => {
         if (user || signInBusyRef.current) return;
+        await logoutTaskRef.current;
+        setSessionNotice(null);
+        setAccountChoiceOpen(true);
+    };
+    const reactionWritesRef = useRef(new Set<string>());
+    const handleReaction = async (postId: string, kind: ReactionKind | null) => {
+        if (!user) { void handleRequireAuth(); return; }
+        const userId = user.id;
+        const key = `${userId}:${postId}`;
+        if (reactionWritesRef.current.has(key)) return;
+        reactionWritesRef.current.add(key);
+        const previous = posts.find(post => post.id === postId)?.reactions || [];
+        const apply = (nextKind: ReactionKind | null) => setPosts(rows => rows.map(post => post.id === postId ? {
+            ...post, reactions: [...(post.reactions || []).filter(reaction => reaction.userId !== userId), ...(nextKind ? [{ userId, kind: nextKind }] : [])],
+        } : post));
+        apply(kind);
+        try {
+            const result = kind
+                ? await supabase.from('post_reactions').upsert({ post_id: postId, user_id: userId, kind }, { onConflict: 'post_id,user_id' })
+                : await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', userId);
+            if (result.error) throw result.error;
+        } catch (error) { apply(previous.find(reaction => reaction.userId === userId)?.kind || null); throw error; }
+        finally { reactionWritesRef.current.delete(key); }
+    };
+    const handleChooseAnotherAccount = async () => {
+        if (accountSwitchBusy) return;
+        setAccountSwitchBusy(true);
+        try {
+            await logoutTaskRef.current;
+            await walletDisconnectRef.current?.();
+            socialLoginHandledRef.current = false;
+            freshWalletConnectRef.current = false;
+            intentionalLogoutRef.current = false;
+            window.__veloLogoutLock = false;
+            try { localStorage.removeItem('velo_logged_out'); } catch {}
+            setAccountChoiceOpen(false);
+            await openAppKitModal({ view: 'Connect' });
+        } catch {
+            setToast({ message: 'Unable to switch accounts. Please try again.', type: 'ERROR' });
+        } finally { setAccountSwitchBusy(false); }
+    };
+    const handleContinueWithWallet = async () => {
+        if (user || signInBusyRef.current) return;
+        const attempt = ++authAttemptRef.current;
+        setAccountChoiceOpen(false);
         intentionalLogoutRef.current = false;
         window.__veloLogoutLock = false;
         try { localStorage.removeItem('velo_logged_out'); localStorage.removeItem('velo_session_started_at'); } catch {}
         setSessionNotice(null);
         setVeloWelcomeOpen(false);
         try {
-            if (!isWalletConnected || !walletAddress) { await openAppKitModal(); return; }
+            if (!isWalletConnected || !walletAddress) { await openAppKitModal({ view: 'Connect' }); return; }
             socialLoginHandledRef.current = true;
             signInBusyRef.current = true; setSignInBusy(true);
             const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
             const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
+            if (attempt !== authAttemptRef.current || intentionalLogoutRef.current) return;
             if (error) throw error;
             if (profile?.username && !/^wallet_[0-9a-f]{40}$/.test(profile.username)) {
                 sessionRestoredRef.current = true;
@@ -4817,11 +4896,14 @@ const App = () => {
                 setLoginOpen(true);
             }
         } catch (error: any) {
+            if (attempt !== authAttemptRef.current) return;
             socialLoginHandledRef.current = false;
             setToast({ message: error?.shortMessage || error?.message || 'Unable to sign in. Please try again.', type: 'ERROR' });
-        } finally { signInBusyRef.current = false; setSignInBusy(false); }
+        } finally { if (attempt === authAttemptRef.current) { signInBusyRef.current = false; setSignInBusy(false); } }
     };
     const handleLogout = async (reason: 'manual' | 'idle' = 'manual') => {
+        if (logoutTaskRef.current) return logoutTaskRef.current;
+        ++authAttemptRef.current;
         intentionalLogoutRef.current = true;
         window.__veloLogoutLock = true;
         cancelWalletSignIn();
@@ -4838,13 +4920,19 @@ const App = () => {
         freshWalletConnectRef.current = false; socialLoginHandledRef.current = false;
         setUser(null); setPositions([]); setOpenOrders([]); setNotifications([]);
         setBurnerAddress(null); setSettingsOpen(false); setLoginOpen(false);
+        setAccountChoiceOpen(false); setSidebarOpen(false);
         setVeloWelcomeOpen(false); setNotifOpen(false); setAppOrderDetails(null);
         setSessionWarning(null); setAuthChecked(true);
         setSessionNotice(reason === 'idle' ? 'expired' : null);
-        if (reason === 'manual') walletDisconnectRef.current?.();
         // Local scope revokes this session; access JWT expiry remains a backend boundary.
-        try { const { error } = await supabase.auth.signOut({ scope: 'local' }); if (error) throw error; }
-        catch { try { localStorage.removeItem('velo-auth-token'); } catch {} setToast({ message: 'Signed out here. The server could not confirm revocation; reconnect when online.', type: 'INFO' }); }
+        logoutTaskRef.current = (async () => {
+            try {
+                if (reason !== 'idle') await walletDisconnectRef.current?.();
+            } catch { setToast({ message: 'Signed out of Velo. Disconnect the wallet in your wallet app if needed.', type: 'INFO' }); }
+            try { const { error } = await supabase.auth.signOut({ scope: 'local' }); if (error) throw error; }
+            catch { try { localStorage.removeItem('velo-auth-token'); } catch {} setToast({ message: 'Signed out here. The server could not confirm revocation; reconnect when online.', type: 'INFO' }); }
+        })();
+        try { await logoutTaskRef.current; } finally { logoutTaskRef.current = null; }
     };
 
     const keepSessionActive = () => {
@@ -6229,7 +6317,7 @@ const App = () => {
 
     // True whenever any overlay/modal is open — used to push navbar behind the backdrop
     const anyModalOpen =
-        isLoginOpen || isResetPasswordOpen || isOrderlyOnboardingOpen ||
+        accountChoiceOpen || isLoginOpen || isResetPasswordOpen || isOrderlyOnboardingOpen ||
         isVeloWelcomeOpen || isVeloBridgeOpen || isVeloDepositOpen ||
         isVeloUsernameOpen || isVeloSendOpen || isVeloWithdrawOpen ||
         isCrossAccountOpen || isSettingsOpen || orderlyDWModal.open ||
@@ -6260,13 +6348,14 @@ const App = () => {
 
     return (
         <>
+        <ReactionContext.Provider value={{ userId: user?.id, react: handleReaction, requireAuth: () => void handleRequireAuth() }}>
         {(sessionNotice || sessionWarning !== null || signInBusy) && (
           <div role="dialog" aria-modal="true" aria-label={signInBusy ? 'Wallet sign-in' : 'Session status'} style={{ position: 'fixed', inset: 0, zIndex: 30000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.6)', padding: 20 }}>
             <div style={{ background: 'var(--glass-bg-strong)', color: 'var(--fg)', border: '1px solid var(--hairline)', borderRadius: 18, padding: 28, maxWidth: 410, width: '100%' }}>
               <h2 style={{ fontSize: 22, marginBottom: 12 }}>{signInBusy ? 'Complete sign-in in your wallet' : sessionWarning !== null ? 'Still here?' : sessionNotice === 'expired' ? 'Sign in again' : 'You’re signed out'}</h2>
               <p style={{ color: 'var(--fg-muted)', lineHeight: 1.6, marginBottom: 18 }}>{signInBusy ? 'Approve the VELO sign-in message. It does not submit a trade.' : sessionWarning !== null ? `This app session will sign out in ${sessionWarning}s. Sessions end after 30 minutes without activity or eight hours after sign-in.` : 'Your wallet and open on-chain positions are unchanged. Scheduled trading jobs continue. Sign in to manage your account, or continue browsing public posts and markets.'}</p>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                {signInBusy ? <button onClick={() => { cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); }} style={{ padding: '10px 16px' }}>Cancel sign-in</button> : sessionWarning !== null ? <button autoFocus onClick={() => sessionHardExpiry ? void handleLogout('idle') : keepSessionActive()} style={{ padding: '10px 16px' }}>{sessionHardExpiry ? 'Sign in again' : 'Stay signed in'}</button> : <button autoFocus onClick={() => { setSessionNotice(null); void handleRequireAuth(); }} style={{ padding: '10px 16px' }}>Log in</button>}
+                {signInBusy ? <button onClick={() => { ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); }} style={{ padding: '10px 16px' }}>Cancel sign-in</button> : sessionWarning !== null ? <button autoFocus onClick={() => sessionHardExpiry ? void handleLogout('idle') : keepSessionActive()} style={{ padding: '10px 16px' }}>{sessionHardExpiry ? 'Sign in again' : 'Stay signed in'}</button> : <button autoFocus onClick={() => { setSessionNotice(null); void handleRequireAuth(); }} style={{ padding: '10px 16px' }}>Log in</button>}
                 {!signInBusy && <button onClick={() => { if (sessionWarning !== null) void handleLogout(); else setSessionNotice(null); }} style={{ padding: '10px 16px' }}>{sessionWarning !== null ? 'Sign out' : 'Continue browsing'}</button>}
               </div>
             </div>
@@ -6407,6 +6496,7 @@ const App = () => {
             )}
             {/* Wire silentLoginCallbackRef to onAuth for silent wallet reconnect logins */}
             {/* We set this inline via a side-effect-safe ref assignment in the effect above */}
+            <AccountChoiceDialog open={accountChoiceOpen} address={isWalletConnected ? walletAddress : undefined} busy={accountSwitchBusy} onClose={() => setAccountChoiceOpen(false)} onContinue={() => void handleContinueWithWallet()} onSwitch={() => void handleChooseAnotherAccount()} />
             <VeloOnboardingModal
               isOpen={isLoginOpen}
               required={!user && !loginReturningName}
@@ -6669,17 +6759,7 @@ const App = () => {
                     const fromLabel = user.handle
                       ? (user.handle.startsWith('@') ? user.handle : `@${user.handle}`)
                       : (user.username ? `@${user.username}` : 'a Velo user');
-                    try {
-                      await createNotificationForUser(
-                        (recipientProfile as { id: string }).id,
-                        'TRANSFER_RECEIVED',
-                        `${fromLabel} sent you $${amount.toFixed(2)} mUSDC`,
-                        txHash,
-                      );
-                    } catch (e: any) {
-                      console.warn('[velo] receiver notification failed', e);
-                      setToast({ message: `Recipient lookup ok but notification insert failed: ${e?.message || 'unknown'}`, type: 'ERROR' });
-                    }
+                    // The receipt verifier creates both recipient activity and its notification.
                     try {
                       await recordTransactionForUser(
                         (recipientProfile as { id: string }).id,
@@ -7096,7 +7176,7 @@ const App = () => {
                 {activeTab === TabView.TRADE && <>
 
 
-                  <TradeView activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} chartHistoryStatus={chartHistoryStatus} onRetryChartHistory={() => setChartHistoryRetry(retry => retry + 1)} onLoadOlderHistory={loadOlderChartHistory} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
+                  <TradeView tradingPending={veloPerpsTrading.isPending} activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} chartHistoryStatus={chartHistoryStatus} onRetryChartHistory={() => setChartHistoryRetry(retry => retry + 1)} onLoadOlderHistory={loadOlderChartHistory} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
                     const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
                     const collateral = p.size / p.leverage;
@@ -7160,6 +7240,7 @@ const App = () => {
                 {activeTab === TabView.LEADERBOARD && <LeaderboardView traders={traders} user={user} walletAddress={walletAddress} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} handleViewProfile={handleViewProfile}/>}
                 {activeTab === TabView.PROFILE && user && <ProfileView user={user} handleUpdateProfile={handleUpdateProfile} posts={posts} traders={traders} onPostCreate={handleCreatePost} positions={positions} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} onViewProfile={handleViewProfile} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { setActiveSocialTicker(ticker); setActiveTab(TabView.SOCIAL); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
+                {activeTab === TabView.PUBLIC_PROFILE && !viewingProfile && <div role="status" style={{ padding: 24, color: 'var(--fg-muted)' }}>Loading profile...</div>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
             </main>
             <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }} />
@@ -7169,9 +7250,9 @@ const App = () => {
                     payload={appOrderDetails}
                     onClose={() => setAppOrderDetails(null)}
                     marketPrices={marketPrices}
-                    onClosePosition={() => {}}
-                    onEditPosition={() => {}}
-                    handleCancelOrder={() => {}}
+                    onClosePosition={handleClosePosition}
+                    onEditPosition={handleEditPosition}
+                    handleCancelOrder={handleCancelOrder}
                 />
             )}
             {/* Delete Post Confirmation Modal */}
@@ -7191,6 +7272,7 @@ const App = () => {
             />
         </div>
         <PWAInstallBanner />
+        </ReactionContext.Provider>
         </>
     )
 }

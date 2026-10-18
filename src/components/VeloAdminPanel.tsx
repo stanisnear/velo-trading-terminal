@@ -29,6 +29,8 @@ import {
   fetchPoolBalance, baseScanAddressUrl, baseScanTxUrl,
   PAIR_LABEL, type VeloPairLabel, type PairIndex,
 } from '@/services/veloPerpsService';
+import { ELIGIBLE_PERPETUALS, isEnabledTradingMarket } from '../../shared/markets.mjs';
+import { waitForSuccessfulReceipt } from '@/services/tradeReceipts';
 import {
   fetchAllProfiles,
   isCurrentUserAdmin,
@@ -378,16 +380,19 @@ export const VeloAdminPanel: React.FC = () => {
 
   const handleRegisterPair = async (pair: PairState) => {
     if (!walletClient || !publicClient) return;
+    if (!isEnabledTradingMarket(pair.label)) { setActionError('This market is not approved for the current release.'); return; }
     setActionBusy(`register-${pair.index}`);
     setActionError(null);
     try {
+      const existing = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'pairFeedId', args: [pair.index] });
+      if (existing !== `0x${'0'.repeat(64)}`) throw new Error('This registry slot is already occupied. Refresh before continuing.');
       const hash = await walletClient.writeContract({
         address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
         functionName: 'registerPair',
         args: [pair.index, pair.expectedFeedId as `0x${string}`, pair.label.replace('-', '/')],
       });
+      await waitForSuccessfulReceipt(publicClient, hash);
       setLastTx({ hash, label: `Registered ${pair.label}` });
-      await publicClient.waitForTransactionReceipt({ hash });
       await refresh();
     } catch (e: any) {
       setActionError(e?.shortMessage || e?.message || 'Register failed');
@@ -398,19 +403,21 @@ export const VeloAdminPanel: React.FC = () => {
 
   const handleRegisterAll = async () => {
     if (!walletClient || !publicClient) return;
-    const toRegister = pairs.filter(p => !p.registered);
+    const toRegister = pairs.filter(p => !p.registered && isEnabledTradingMarket(p.label));
     if (toRegister.length === 0) return;
     setActionBusy('register-all');
     setActionError(null);
     try {
       for (const p of toRegister) {
+        const existing = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'pairFeedId', args: [p.index] });
+        if (existing !== `0x${'0'.repeat(64)}`) throw new Error(`${p.label} registry slot is already occupied. Refresh before continuing.`);
         const hash = await walletClient.writeContract({
           address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
           functionName: 'registerPair',
           args: [p.index, p.expectedFeedId as `0x${string}`, p.label.replace('-', '/')],
         });
+        await waitForSuccessfulReceipt(publicClient, hash);
         setLastTx({ hash, label: `Registered ${p.label}` });
-        await publicClient.waitForTransactionReceipt({ hash });
       }
       await refresh();
     } catch (e: any) {
@@ -422,6 +429,9 @@ export const VeloAdminPanel: React.FC = () => {
 
   const handleToggleTradable = async (pair: PairState) => {
     if (!walletClient || !publicClient) return;
+    if (!pair.tradable && (!isEnabledTradingMarket(pair.label) || pair.onChainFeedId.toLowerCase() !== pair.expectedFeedId.toLowerCase())) {
+      setActionError('Only approved markets with the expected oracle feed can be resumed.'); return;
+    }
     setActionBusy(`toggle-${pair.index}`);
     setActionError(null);
     try {
@@ -430,8 +440,8 @@ export const VeloAdminPanel: React.FC = () => {
         functionName: 'setPairTradable',
         args: [pair.index, !pair.tradable],
       });
+      await waitForSuccessfulReceipt(publicClient, hash);
       setLastTx({ hash, label: `${pair.tradable ? 'Paused' : 'Resumed'} ${pair.label}` });
-      await publicClient.waitForTransactionReceipt({ hash });
       await refresh();
     } catch (e: any) {
       setActionError(e?.shortMessage || e?.message || 'Toggle failed');
@@ -932,7 +942,7 @@ export const VeloAdminPanel: React.FC = () => {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: 0 }}>Trading pairs</h2>
-          {pairs.some(p => !p.registered) && (
+          {pairs.some(p => !p.registered && isEnabledTradingMarket(p.label)) && (
             <button
               onClick={handleRegisterAll}
               disabled={actionBusy !== null}
@@ -956,7 +966,7 @@ export const VeloAdminPanel: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {pairs.map((p) => (
+          {pairs.filter(p => p.registered || isEnabledTradingMarket(p.label)).map((p) => (
             <div key={p.index} style={{
               padding: '14px 16px', borderRadius: 12,
               background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
@@ -1023,6 +1033,13 @@ export const VeloAdminPanel: React.FC = () => {
       </div>
 
       {/* Fees panel */}
+      <section aria-label="Pending market rollout" style={{ padding: '4px 0 24px' }}>
+        <h2 style={{ ...S.display, fontSize: 22, margin: '0 0 12px' }}>Next markets</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {ELIGIBLE_PERPETUALS.filter(market => market.contractIndex === null).map(market => <span key={market.symbol} style={{ ...S.mono, padding: '7px 10px', border: '1px solid var(--hairline)', borderRadius: 8 }}>{market.symbol}/USD</span>)}
+        </div>
+        <p style={{ ...S.sans, fontSize: 12, color: 'var(--fg-muted)' }}>Oracle access verified. Registry rollout and keeper verification are required before trading opens.</p>
+      </section>
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
         background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',

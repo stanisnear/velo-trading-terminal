@@ -402,6 +402,34 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
     );
 }
 export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick }: any) => {
+    const drawerRef = useRef<HTMLDivElement>(null);
+    const closeRef = useRef(setSidebarOpen);
+    closeRef.current = setSidebarOpen;
+    useEffect(() => {
+        if (!isOpen) return;
+        const previous = document.activeElement as HTMLElement | null;
+        const overflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        drawerRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeRef.current(false);
+            } else if (event.key === 'Tab') {
+                const controls = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]') ?? []);
+                const first = controls[0];
+                const last = controls[controls.length - 1];
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+            }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.removeEventListener('keydown', onKeyDown);
+            document.body.style.overflow = overflow;
+            if (previous?.isConnected) previous.focus({ preventScroll: true });
+        };
+    }, [isOpen]);
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE,     icon: TrendingUp,      label: 'Trade',     requiresAuth: false },
@@ -421,17 +449,19 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
     return (
         <>
             <div
-                style={{ position: 'fixed', inset: 0, background: 'rgba(5,6,8,0.45)', backdropFilter: 'blur(4px)', zIndex: 60, transition: 'opacity 0.25s', opacity: isOpen ? 1 : 0, pointerEvents: isOpen ? 'auto' : 'none' }}
+                aria-hidden="true"
+                style={{ position: 'fixed', inset: 0, background: 'rgba(5,6,8,0.45)', backdropFilter: 'blur(4px)', zIndex: 60, transition: `opacity 0.25s, visibility 0s ${isOpen ? '0s' : '0.25s'}`, opacity: isOpen ? 1 : 0, visibility: isOpen ? 'visible' : 'hidden', pointerEvents: isOpen ? 'auto' : 'none' }}
                 onClick={() => setSidebarOpen(false)}
             />
 
-            <div style={{
-                position: 'fixed', inset: '0 auto 0 0', width: 292,
+            <div ref={drawerRef} role="dialog" aria-label="Navigation" aria-modal={isOpen || undefined} aria-hidden={!isOpen} inert={!isOpen} style={{
+                position: 'fixed', inset: '0 auto 0 0', width: 'min(292px, calc(100vw - 32px))',
                 background: 'var(--glass-2)', borderRight: '1px solid var(--hr)',
                 zIndex: 70, display: 'flex', flexDirection: 'column',
                 transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
-                transition: 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
-                boxShadow: '12px 0 40px rgba(0,0,0,0.25)',
+                visibility: isOpen ? 'visible' : 'hidden',
+                transition: `transform 0.28s cubic-bezier(0.22,1,0.36,1), visibility 0s ${isOpen ? '0s' : '0.28s'}`,
+                boxShadow: isOpen ? '12px 0 40px rgba(0,0,0,0.25)' : 'none',
                 backdropFilter: 'blur(40px) saturate(1.6)',
                 WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
             }}>
@@ -440,7 +470,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ ...S.display, fontStyle: 'italic', fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
                     </div>
-                    <button onClick={() => setSidebarOpen(false)} style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 12, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', color: 'var(--fg-2)' }}>
+                    <button aria-label="Close navigation" onClick={() => setSidebarOpen(false)} style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 12, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', color: 'var(--fg-2)' }}>
                         <X size={15}/>
                     </button>
                 </div>
@@ -507,7 +537,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                                     {theme === 'dark' ? <Sun size={13}/> : <Moon size={13}/>}
                                     {theme === 'dark' ? 'Light' : 'Dark'}
                                 </button>
-                                <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid color-mix(in oklab, var(--pnl-down) 30%, transparent)', background: 'color-mix(in oklab, var(--pnl-down) 12%, transparent)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--pnl-down)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
+                                <button onClick={() => handleLogout()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid color-mix(in oklab, var(--pnl-down) 30%, transparent)', background: 'color-mix(in oklab, var(--pnl-down) 12%, transparent)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--pnl-down)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.16)'}
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--pnl-down) 12%, transparent)'}>
                                     <LogOut size={13}/> Logout

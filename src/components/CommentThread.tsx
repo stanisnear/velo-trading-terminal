@@ -4,6 +4,7 @@
  * Imported by App.tsx — drop-in replacement for the inline comment sections in
  * PostCard and SinglePostView.
  */
+import { postPath } from '../../shared/socialLinks.mjs';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Heart, Trash2, MessageCircle, ChevronDown, ChevronUp, Link2, Check } from 'lucide-react';
@@ -361,7 +362,7 @@ function CommentRow({
     };
 
     const previewUrl = extractFirstUrl(comment.content);
-    const commentUrl = `${window.location.origin}/social/post/${postId}/comment/${comment.id}`;
+    const commentUrl = `${window.location.origin}${postPath(postId, comment.id)}`;
     const shareComment = async () => {
         if (navigator.share) {
             try {
@@ -406,7 +407,7 @@ function CommentRow({
                         style={{ ...S.display, fontSize: depth === 0 ? 14 : 13, color: 'var(--fg)', cursor: 'pointer', fontWeight: 600 }}>
                         {comment.authorHandle}
                     </span>
-                    <a href={`/social/post/${postId}/comment/${comment.id}`} style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', textDecoration: 'none' }} title="Open this reply">{timeStr}</a>
+                    <a href={postPath(postId, comment.id) || undefined} style={{ ...S.mono, fontSize: 10, color: 'var(--fg-subtle)', textDecoration: 'none' }} title="Open this reply">{timeStr}</a>
                     {canDelete && (
                         <button
                             onClick={() => onDeleteComment(postId, comment.id)}
@@ -649,13 +650,13 @@ export function CommentThread({
             {isFocusedThread && (
                 <div className="comment-thread-context">
                     <span>Showing this reply and its conversation</span>
-                    <a href={`/social/post/${post.id}`}>View all comments</a>
+                    <a href={postPath(post.id) || undefined}>View all comments</a>
                 </div>
             )}
             {focusCommentId && !focusedComment && (
                 <div role="status" className="comment-thread-context">
                     <span>This reply is unavailable or has been deleted.</span>
-                    <a href={`/social/post/${post.id}`}>View the conversation</a>
+                    <a href={postPath(post.id) || undefined}>View the conversation</a>
                 </div>
             )}
 

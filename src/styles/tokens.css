@@ -20,6 +20,7 @@
 
   --pnl-up: #77c995;
   --pnl-down: #df7774;
+  --trade-action-fg: #101713;
 
   /* Brand gradient — used sparingly: thin hairline accents, the wordmark
      sweep, small 3D accents. Never a full-bleed background. */
@@ -51,16 +52,16 @@
 html.dark,
 body.dark,
 .dark {
-  --bg: #0a0e0c;
-  --bg-2: #111714;
-  --bg-3: #19211c;
-  --surface: rgba(225, 238, 228, 0.055);
-  --surface-raised: rgba(22, 30, 25, 0.92);
-  --surface-inset: rgba(4, 9, 6, 0.28);
-  --surface-hover: rgba(225, 238, 228, 0.09);
-  --fg: #edf2ee;
-  --fg-2: #a2afa6;
-  --fg-3: #717d75;
+  --bg: #101212;
+  --bg-2: #171a19;
+  --bg-3: #202423;
+  --surface: rgba(240, 243, 241, 0.045);
+  --surface-raised: rgba(27, 30, 29, 0.96);
+  --surface-inset: rgba(0, 0, 0, 0.18);
+  --surface-hover: rgba(240, 243, 241, 0.08);
+  --fg: #f0f2f1;
+  --fg-2: #b0b8b3;
+  --fg-3: #929d96;
   --hr: rgba(224, 238, 228, 0.09);
   --hr-2: rgba(224, 238, 228, 0.16);
   --accent: #91b99f;
@@ -69,23 +70,23 @@ body.dark,
   --control-bg-hover: rgba(225, 238, 228, 0.10);
   --control-border: rgba(225, 238, 228, 0.15);
   --focus-ring: rgba(145, 185, 159, 0.3);
-  --primary-bg: #28322b;
-  --primary-bg-hover: #333e36;
+  --primary-bg: #2e3531;
+  --primary-bg-hover: #3b443e;
   --primary-fg: #f4f8f4;
   --disabled-bg: #27312b;
   --disabled-fg: #c1cbc4;
   --secondary-bg: rgba(225, 238, 228, 0.075);
   --secondary-fg: #e2ebe4;
-  --form-bg: rgba(4, 9, 6, 0.26);
+  --form-bg: rgba(0, 0, 0, 0.18);
   --form-border: rgba(225, 238, 228, 0.16);
-  --overlay: rgba(3, 7, 5, 0.72);
-  --modal-surface: rgba(19, 27, 22, 0.96);
+  --overlay: rgba(8, 10, 9, 0.76);
+  --modal-surface: rgba(26, 29, 28, 0.98);
   /* Real frosted glass — neutral white transparency over obsidian, not a
      tinted gray box. The blur + hairline + inset highlight carry the surface. */
-  --glass: rgba(226, 238, 229, 0.055);
+  --glass: rgba(240, 243, 241, 0.045);
   /* Strong glass stays near-opaque obsidian so modals, dropdowns and dialogs
      read crisply over the dark scrim (the frosted --glass alone is too sheer). */
-  --glass-2: rgba(20, 27, 23, 0.91);
+  --glass-2: rgba(27, 30, 29, 0.96);
   --gl-edge: rgba(223, 239, 227, 0.18);
   --glass-ring: rgba(223, 239, 227, 0.07);
   --chip: rgba(223, 239, 227, 0.055);
@@ -95,7 +96,7 @@ body.dark,
   --app-bg: var(--bg);
   --glass-shadow:
     0 12px 34px -24px rgba(0, 0, 0, 0.5);
-  --modal-bg: rgba(9, 13, 11, 0.78);
+  --modal-bg: rgba(10, 12, 11, 0.78);
   --podium-gold-bg: rgba(145, 185, 159, 0.09);
   --podium-silver-bg: rgba(226, 238, 229, 0.04);
   --podium-bronze-bg: rgba(145, 185, 159, 0.055);
@@ -151,6 +152,7 @@ body.light,
   --accent-text: #365b43;
   --pnl-up: #347b50;
   --pnl-down: #b64e4c;
+  --trade-action-fg: #ffffff;
   --control-bg: rgba(100, 136, 108, 0.075);
   --control-bg-hover: rgba(100, 136, 108, 0.12);
   --control-border: rgba(48, 79, 56, 0.18);
@@ -298,10 +300,9 @@ select {
   }
 }
 
-/* ── Light mode: chart background matches page bg ─────────────────────────── */
-html.light .tv-lightweight-charts,
-html.light iframe[id*="tradingview"] {
-  background: #dfe8e0 !important;
+/* The chart surface uses the same palette as the trading panels. */
+.tv-lightweight-charts {
+  background: var(--bg-2) !important;
 }
 
 /* ── Mobile content offset: navbar = 60px + safe-area-inset-top ──────────── */
@@ -749,6 +750,10 @@ html.light iframe[id*="tradingview"] {
 }
 
 /* ── Typography scale-down on very small screens ──────────────────────────── */
+.velo-pending-spinner { animation: velo-pending-spin 800ms linear infinite; flex-shrink: 0; }
+@keyframes velo-pending-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .velo-pending-spinner { animation: none; } }
+
 @media (max-width: 380px) {
   /* Equity hero */
   .dash-equity-hero {

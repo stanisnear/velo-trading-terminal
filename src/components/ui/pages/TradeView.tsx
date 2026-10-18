@@ -1,7 +1,8 @@
 import { LEGACY_V31_RESTRICTED } from '@/services/testnetReleaseGate';
+import { validateTradeForm } from '@/services/tradeFormValidation.mjs';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2, Plus, Check, RefreshCw } from 'lucide-react';
+import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2, Plus, Check, RefreshCw, Loader2 } from 'lucide-react';
 import { TradingViewChart, TV_INTERVALS, TV_INTERVALS_QUICK, CHART_STYLES, INDICATORS, ChartStyleCode } from '@/components/TradingViewChart';
 import { OrderBook } from '@/components/OrderBook';
 import { Button, Input, VeloAssetIcon, formatMoney, formatPrice, formatTime, playSound } from '@/components/ui/shared';
@@ -1248,6 +1249,7 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
 // Main TradeView
 // ─────────────────────────────────────────────────────────────────────────────
 export const TradeView = ({
+    tradingPending = false,
     activePair, setActivePair, marketPrices, marketChanges = {}, candles, chartHistoryStatus = 'loading', onRetryChartHistory, onLoadOlderHistory, user, positions, onOpenPosition, onClosePosition, onRequireAuth, onEditPosition, onSharePosition, onShareHistory, openOrders, handleCancelOrder, onTimeframeChange, appTheme,
     savedChartPrefs, onChartPrefsChange, tradeFocus, autoOpenHistoryId,
     orderlyBalance = 0, orderlyIsReady = false,
@@ -1573,20 +1575,14 @@ export const TradeView = ({
 
     const handleSubmit = () => {
         if (!user) return onRequireAuth();
+        if (tradingPending) return;
         const price = orderType === 'MARKET' ? currentPrice : parseFloat(limitPrice);
-        if (!price) return;
-        if (Date.now() - (window as any)._lastTradeTime < 1000) return;
-        (window as any)._lastTradeTime = Date.now();
+        const error = validateTradeForm({ price, size: Number(sizeAmount), side, takeProfit, stopLoss });
+        if (error) { setToast({ message: error, type: 'ERROR' }); return; }
 
         // Validate TP/SL: must be valid numbers on correct side
         const tpVal = takeProfit ? parseFloat(takeProfit) : NaN;
         const slVal = stopLoss ? parseFloat(stopLoss) : NaN;
-        if (takeProfit && (isNaN(tpVal) || tpVal <= 0)) return; // reject non-numeric TP
-        if (stopLoss && (isNaN(slVal) || slVal <= 0)) return;   // reject non-numeric SL
-        if (!isNaN(tpVal) && side === 'LONG' && tpVal <= price) return;
-        if (!isNaN(tpVal) && side === 'SHORT' && tpVal >= price) return;
-        if (!isNaN(slVal) && side === 'LONG' && slVal >= price) return;
-        if (!isNaN(slVal) && side === 'SHORT' && slVal <= price) return;
 
         onOpenPosition(activePair.id, side, parseFloat(sizeAmount), leverage, orderType, price, isNaN(tpVal) ? undefined : tpVal, isNaN(slVal) ? undefined : slVal, marginMode);
     };
@@ -1914,23 +1910,23 @@ export const TradeView = ({
                             </div>
 
                             {/* Submit button */}
-                            <button onClick={handleSubmit} disabled={parseFloat(sizeAmount) <= 0} style={{
+                            <button onClick={handleSubmit} aria-busy={tradingPending} disabled={tradingPending || !Number.isFinite(Number(sizeAmount)) || Number(sizeAmount) <= 0} style={{
                                 width: '100%', padding: isMobile ? '15px 0' : '11px 0', borderRadius: 14, cursor: parseFloat(sizeAmount) <= 0 ? 'not-allowed' : 'pointer', ...S.sans, fontSize: isMobile ? 14 : 12, transition: 'all 0.15s',
                                 opacity: 1,
                                 background: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-bg)' : side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
-                                color: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-fg)' : side === 'LONG' ? '#0a1a10' : '#fff',
+                                color: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-fg)' : 'var(--trade-action-fg)',
                                 border: parseFloat(sizeAmount) <= 0 ? '1px solid var(--control-border)' : 'none',
                                 boxShadow: parseFloat(sizeAmount) <= 0 ? 'none' : side === 'LONG' ? '0 4px 18px rgba(62,207,142,0.24)' : '0 4px 18px rgba(255,60,60,0.24)',
                                 marginTop: 2,
                                 touchAction: 'manipulation',
                                 WebkitTapHighlightColor: 'transparent',
                             }}>
-                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                                {tradingPending ? <span role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 18 }}><Loader2 size={16} className="velo-pending-spinner" />Transaction in progress...</span> : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                                     <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: '0.15em' }}>{activePosition ? `${activePosition.leverage}x ${side}` : side}</span>
                                     <span style={{ opacity: 0.45 }}>·</span>
                                     <span style={{ ...S.display, fontSize: 14 }}>{activePair.id.split('/')[0]}</span>
                                     <span>{side === 'LONG' ? '↗' : '↘'}</span>
-                                </span>
+                                </span>}
                             </button>
                             {/* Subtle demo notice only — live mode no longer needs a label,
                                 the user already knows they connected a wallet. */}

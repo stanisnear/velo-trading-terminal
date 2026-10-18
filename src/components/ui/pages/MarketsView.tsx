@@ -236,7 +236,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
           </div>;
         })}
       </section>
-      <p className="markets-label" style={{ margin: '11px 2px 0', fontSize: 11, textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}><Activity size={11} style={{ verticalAlign: '-2px', marginRight: 5 }} /><a href="https://coinmarketcap.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--fg-muted)' }}>Data: CoinMarketCap</a>. Reference snapshot{discovery.data?.fetchedAt ? ` · Updated ${new Date(discovery.data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}. Perpetual availability is shown per market.</p>
+      <p className="markets-label" style={{ margin: '11px 2px 0', fontSize: 11, textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}><a href="https://coinmarketcap.com/" target="_blank" rel="noopener noreferrer" title={discovery.data?.fetchedAt ? `Market data updated ${new Date(discovery.data.fetchedAt).toLocaleString()}` : 'Market data provider'} style={{ color: 'var(--fg-muted)' }}>CoinMarketCap</a></p>
     </main>
   );
 };

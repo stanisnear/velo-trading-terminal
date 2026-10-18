@@ -585,9 +585,12 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const pricePrecisionRef = useRef<number | null>(null);
   const indicatorKey = useMemo(() => [...externalIndicators].sort().join('|'), [externalIndicators]);
   const isDark = theme === 'dark';
-  const background = isDark ? '#0e1511' : '#dfe8e0';
-  const foreground = isDark ? '#a2afa6' : '#516257';
-  const grid = isDark ? 'rgba(224,238,228,0.075)' : 'rgba(38,69,47,0.085)';
+  // Canvas colors mirror the surrounding --bg-2 and --fg-muted surfaces.
+  const background = isDark ? '#171a19' : '#dfe8e0';
+  const foreground = isDark ? '#b0b8b3' : '#516257';
+  const grid = isDark ? 'rgba(240,243,241,0.06)' : 'rgba(38,69,47,0.07)';
+  const crosshair = isDark ? 'rgba(208,215,211,0.30)' : 'rgba(81,98,87,0.30)';
+  const crosshairLabel = isDark ? '#303634' : '#d5e1d7';
   const candleUp = isDark ? COLORS.up : '#638a6d';
   const candleUpStrong = isDark ? COLORS.upStrong : '#52765f';
   const candleDown = isDark ? COLORS.down : '#b96863';
@@ -650,8 +653,8 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', style: LineStyle.Dashed, labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
-        horzLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', style: LineStyle.Dashed, labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
+        vertLine: { color: crosshair, style: LineStyle.Dashed, labelBackgroundColor: crosshairLabel },
+        horzLine: { color: crosshair, style: LineStyle.Dashed, labelBackgroundColor: crosshairLabel },
       },
       localization: {
         locale: 'en-US',
@@ -700,7 +703,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       case '3':
         series = chart.addSeries(AreaSeries, {
           lineColor: candleUpStrong,
-          topColor: isDark ? 'rgba(145,185,159,0.24)' : 'rgba(82,118,95,0.17)',
+          topColor: isDark ? 'rgba(145,185,159,0.12)' : 'rgba(82,118,95,0.10)',
           bottomColor: isDark ? 'rgba(145,185,159,0.015)' : 'rgba(82,118,95,0.015)',
           lineWidth: 2,
           ...seriesOptions,
@@ -726,7 +729,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       vertAlign: 'bottom',
       lines: [{
         text: 'Velo',
-        color: isDark ? 'rgba(180,213,191,0.10)' : 'rgba(82,118,95,0.11)',
+        color: isDark ? 'rgba(208,215,211,0.08)' : 'rgba(82,118,95,0.09)',
         fontSize: 50,
         fontStyle: 'italic',
         fontFamily: 'Fraunces, Georgia, serif',
@@ -784,14 +787,14 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       rightPriceScale: { borderColor: grid },
       timeScale: { borderColor: grid },
       crosshair: {
-        vertLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
-        horzLine: { color: isDark ? 'rgba(180,213,191,0.30)' : 'rgba(82,118,95,0.32)', labelBackgroundColor: isDark ? '#26342b' : '#d5e2d7' },
+        vertLine: { color: crosshair, labelBackgroundColor: crosshairLabel },
+        horzLine: { color: crosshair, labelBackgroundColor: crosshairLabel },
       },
     });
     const priceColor = candleUpStrong;
     series.applyOptions({ priceLineColor: priceColor });
     if (externalChartStyle === '2') series.applyOptions({ color: priceColor });
-    if (externalChartStyle === '3') series.applyOptions({ lineColor: priceColor, topColor: isDark ? 'rgba(145,185,159,0.24)' : 'rgba(82,118,95,0.17)', bottomColor: isDark ? 'rgba(145,185,159,0.015)' : 'rgba(82,118,95,0.015)' });
+    if (externalChartStyle === '3') series.applyOptions({ lineColor: priceColor, topColor: isDark ? 'rgba(145,185,159,0.12)' : 'rgba(82,118,95,0.10)', bottomColor: isDark ? 'rgba(145,185,159,0.015)' : 'rgba(82,118,95,0.015)' });
     if (externalChartStyle === '0') series.applyOptions({ upColor: candleUp, downColor: candleDown });
     if (externalChartStyle !== '0' && externalChartStyle !== '2' && externalChartStyle !== '3') {
       series.applyOptions({
@@ -806,13 +809,13 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     watermarkRef.current?.applyOptions({
       lines: [{
         text: 'Velo',
-        color: isDark ? 'rgba(180,213,191,0.10)' : 'rgba(82,118,95,0.11)',
+        color: isDark ? 'rgba(208,215,211,0.08)' : 'rgba(82,118,95,0.09)',
         fontSize: 50,
         fontStyle: 'italic',
         fontFamily: 'Fraunces, Georgia, serif',
       }],
     });
-  }, [background, externalChartStyle, foreground, grid, isDark]);
+  }, [background, crosshair, crosshairLabel, externalChartStyle, foreground, grid, isDark]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -1168,6 +1171,18 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     indicatorRefreshRef.current = data => liveRefreshers.forEach(refresh => refresh(data));
   }, [averageColor, bandColor, candleDown, candleUp, candleUpStrong, externalChartStyle, externalIndicators, externalTimeframe, initialData, indicatorKey, isDark, pairName]);
 
+  // Price-axis formatting also applies to read-only exchange candles.
+  useEffect(() => {
+    const series = seriesRef.current;
+    const referencePrice = currentPrice > 0 ? currentPrice : initialData.at(-1)?.close;
+    if (!series || !referencePrice || !Number.isFinite(referencePrice)) return;
+    const precision = referencePrice < 1 ? 6 : referencePrice < 100 ? 4 : 2;
+    if (pricePrecisionRef.current !== precision) {
+      series.applyOptions({ priceFormat: { type: 'price', precision, minMove: 10 ** -precision } });
+      pricePrecisionRef.current = precision;
+    }
+  }, [currentPrice, initialData, externalChartStyle, externalTimeframe, pairName]);
+
   // Append each fresh oracle mark to the active interval candle. The stream
   // supplies prices only; candle OHLC remains derived from those marks and the
   // real Pyth history, with no fabricated volume.
@@ -1179,13 +1194,6 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     if (initialData[0]?.source !== 'pyth' || !meta || Date.now() / 1000 - meta.publishTime > 30) return;
     // Calendar bars are not fixed-duration Unix buckets.
     if (externalTimeframe === '1M' || externalTimeframe === '1W') return;
-    const nextPrecision = currentPrice < 1 ? 6 : currentPrice < 100 ? 4 : 2;
-    if (pricePrecisionRef.current !== nextPrecision) {
-      const priceFormat = { type: 'price' as const, precision: nextPrecision, minMove: 10 ** -nextPrecision };
-      series.applyOptions({ priceFormat });
-      for (const indicatorSeries of indicatorSeriesRef.current) indicatorSeries.applyOptions({ priceFormat });
-      pricePrecisionRef.current = nextPrecision;
-    }
     const source = candlesRef.current;
     const previous = liveCandleRef.current;
     const last = source[source.length - 1];

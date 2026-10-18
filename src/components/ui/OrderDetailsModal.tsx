@@ -171,6 +171,10 @@ export const OrderDetailsModal = ({
 }) => {
   const [mounted, setMounted] = useState(false);
   const [isSmall, setIsSmall] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const dialogKey = payload ? `${payload.kind}:${payload.item.id}` : null;
 
   useEffect(() => {
     setMounted(true);
@@ -181,16 +185,26 @@ export const OrderDetailsModal = ({
   }, []);
 
   useEffect(() => {
-    if (!payload) return;
+    if (!dialogKey || !mounted) return;
+    const trigger = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    dialogRef.current?.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); onCloseRef.current(); }
+      if (e.key !== 'Tab') return;
+      const targets = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),[tabindex="0"]') || []);
+      const first = targets[0], last = targets[targets.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first?.focus(); }
+    };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKey);
+      if (trigger?.isConnected) trigger.focus();
     };
-  }, [payload, onClose]);
+  }, [dialogKey, mounted]);
 
   if (!payload || !mounted) return null;
 
@@ -551,6 +565,7 @@ export const OrderDetailsModal = ({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="velo-order-details-title"

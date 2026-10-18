@@ -11,7 +11,8 @@ import { build } from 'esbuild';
 import { MARKETS } from '../shared/markets.mjs';
 
 if (!process.argv.includes('--live-testnet')) throw new Error('Requires --live-testnet; never run against mainnet.');
-const fixturePath = new URL('../audit/testnet-acceptance.local', import.meta.url);
+const fixtureName = process.argv.includes('--fresh-fixture') ? `testnet-acceptance-${Date.now()}.local` : 'testnet-acceptance.local';
+const fixturePath = new URL(`../audit/${fixtureName}`, import.meta.url);
 await mkdir(new URL('../audit/', import.meta.url), { recursive: true, mode: 0o700 });
 let fixture;
 try { fixture = JSON.parse(await readFile(fixturePath, 'utf8')); }

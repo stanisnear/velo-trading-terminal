@@ -66,6 +66,7 @@ import {
 } from './veloUsdcService';
 import { fetchPriceUpdate, PYTH_FEED_IDS } from './pythService';
 import { requireBurnerGas as ensureBurnerGas } from './veloGasSponsor';
+import { readTradingPreflight } from './tradePreflight.mjs';
 import { isEnabledTradingMarket } from '../../shared/markets.mjs';
 import {
   loadStoredBurner,
@@ -318,16 +319,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
       setLastError(null);
       try {
         const pairIndex = PAIR_INDEX[args.pair];
-        const [feedId, tradable] = await Promise.all([
-          publicClient.readContract({
-            address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_V3_ABI,
-            functionName: 'pairFeedId', args: [pairIndex],
-          }),
-          publicClient.readContract({
-            address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_V3_ABI,
-            functionName: 'pairTradable', args: [pairIndex],
-          }),
-        ]);
+        const { feedId, tradable, gasBalance } = await readTradingPreflight(publicClient, VELO_PERPS_ADDRESS, VELO_PERPS_V3_ABI, pairIndex, traderAddress);
         if (!feedId || feedId === '0x0000000000000000000000000000000000000000000000000000000000000000') {
           throw new Error(`${args.pair} isn't listed on the contract yet. The protocol owner needs to register it.`);
         }
@@ -335,7 +327,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
           throw new Error(`${args.pair} is registered but paused. Contact the protocol owner.`);
         }
 
-        await ensureBurnerGas(publicClient, traderAddress);
+        await ensureBurnerGas(publicClient, traderAddress, { checkedBalance: gasBalance });
 
         const result = await openPositionTx(tradingClient as any, publicClient, args);
         void refresh();

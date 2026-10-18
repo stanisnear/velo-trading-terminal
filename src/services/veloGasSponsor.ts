@@ -41,12 +41,12 @@ export interface SponsorResult {
 export async function ensureBurnerGas(
   publicClient: PublicClient,
   burnerAddress: Address,
-  options: { minWei?: bigint } = {},
+  options: { minWei?: bigint; checkedBalance?: bigint } = {},
 ): Promise<SponsorResult> {
   const min = options.minWei ?? MIN_BURNER_GAS_WEI;
   let currentBalance: bigint;
   try {
-    currentBalance = await publicClient.getBalance({ address: burnerAddress });
+    currentBalance = options.checkedBalance ?? await publicClient.getBalance({ address: burnerAddress });
   } catch (e: any) {
     return { ok: false, reason: 'Unable to check Base Sepolia gas balance. Retry when the network is available.' };
   }
@@ -77,8 +77,8 @@ export async function ensureBurnerGas(
   }
 }
 
-export async function requireBurnerGas(publicClient: PublicClient, address: Address) {
-  const result = await ensureBurnerGas(publicClient, address);
+export async function requireBurnerGas(publicClient: PublicClient, address: Address, options: { checkedBalance?: bigint } = {}) {
+  const result = await ensureBurnerGas(publicClient, address, options);
   if (!result.ok) throw new Error(result.reason || 'Testnet gas funding is unavailable. Please retry.');
   return result;
 }

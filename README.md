@@ -4,7 +4,7 @@
 
 VELO combines a crypto perpetuals terminal with profiles, posts, replies and follows on **Base Sepolia (84532)**. Trading uses mock USDC and a custom Pyth-priced contract. This is a restricted, experimental testnet, **not an independently audited exchange or a real-money product**.
 
-**Status: 17 October 2026.** Cloudflare serves both sites. Supabase runs the database, authentication and backend. A Cloudflare timer calls the trading keepers every minute. Vercel is paused. The migration retained the existing database and contracts.
+**Status: 18 October 2026.** Cloudflare serves both sites. Supabase runs the database, authentication and backend. A Cloudflare timer calls the trading keepers every minute. Vercel is paused. The migration retained the existing database and contracts.
 
 The engineering review found serious contract accounting and legacy account-authorization defects. New signature login, private contact APIs, owner-only notification reads and receipt-verified incoming transfers are deployed, but the legacy-account/social cutover is still pending. The frontend blocks new cross-margin activity, margin adjustments and reduce-only entry orders on the current contract. These client checks do not prevent direct contract calls. **Do not use real funds.**
 
@@ -41,6 +41,7 @@ not executable Pyth prices. Missing data is shown as unavailable, not fabricated
 | [docs/AUDIT-2026-10-15.md](docs/AUDIT-2026-10-15.md) | Findings, evidence, test coverage and release gates |
 | [docs/RELIABILITY-2026-10-16.md](docs/RELIABILITY-2026-10-16.md) | Close-request recovery, shared replies and comment database integrity |
 | [docs/RELEASE-2026-10-17.md](docs/RELEASE-2026-10-17.md) | Market discovery, social persistence, dialog checks and live testnet evidence |
+| [docs/RELEASE-2026-10-18.md](docs/RELEASE-2026-10-18.md) | Account choice, short social links, reactions, notification checks and trade feedback |
 | [contracts/README.md](contracts/README.md) | Contract addresses, accounting defects and reproduction tests |
 | [audit-plans/README.md](audit-plans/README.md) | Unapplied account/social cutover and its approval requirements |
 | [migration/STATUS.md](migration/STATUS.md) | Historical hosting migration and transaction evidence |

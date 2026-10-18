@@ -99,7 +99,7 @@ test('real post renderer survives Supabase HTML rewriting and escapes untrusted 
     return response;
   };
   try {
-    const response = await worker.fetch(new Request('https://app.example/social/post/%22%3E%3Cscript%3E?id=ignored', {
+    const response = await worker.fetch(new Request('https://app.example/social/post/00000000-0000-4000-8000-000000000001?id=ignored', {
       headers: { 'User-Agent': 'Twitterbot' },
     }), { VELO_BACKEND_URL: 'https://project.supabase.co/functions/v1/velo-api', VELO_PROXY_TOKEN: token });
     assert.equal(response.status, 200);
@@ -111,8 +111,27 @@ test('real post renderer survives Supabase HTML rewriting and escapes untrusted 
     assert.doesNotMatch(body, /<script>/);
   } finally { globalThis.fetch = originalFetch; }
   const direct = await serve(request('post-og?id=' + encodeURIComponent('\"><script>')));
-  assert.match(await direct.text(), /&quot;&gt;&lt;script&gt;/);
+  assert.doesNotMatch(await direct.text(), /<script>/);
   assert.equal((await serve(request('post-og?id=one&id=two'))).status, 400);
+});
+
+test('reply previews query the matching parent and escape actual post content', async () => {
+  const { default: render } = await import('../supabase/functions/velo-api/generated/post-og.js');
+  const originalFetch = globalThis.fetch;
+  const id = '00000000-0000-4000-8000-000000000001';
+  const comment = '00000000-0000-4000-8000-000000000002';
+  let queried; let html;
+  globalThis.fetch = async url => { queried = new URL(url); return Response.json([{content: '<script>alert("x")</script>', profiles: {handle: '@tester'}}]); };
+  try {
+    const res = {setHeader() {}, status(code) { assert.equal(code, 200); return this; }, send(body) { html = body; }};
+    await render({query: {id, comment}}, res);
+    assert.match(queried.pathname, /\/comments$/);
+    assert.equal(queried.searchParams.get('id'), 'eq.' + comment);
+    assert.equal(queried.searchParams.get('post_id'), 'eq.' + id);
+    assert.match(html, /Reply by @tester on Velo/);
+    assert.match(html, /&lt;script&gt;/); assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /\/p\/AAAAAAAAQACAAAAAAAAAAQ\/r\/AAAAAAAAQACAAAAAAAAAAg/);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test('HTML promotion is restricted to successful post-og responses', async () => {

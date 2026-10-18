@@ -294,9 +294,10 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
       .select('id, post_id, author_id, content, created_at, parent_id, profiles!author_id(username, handle, avatar_url)')
       .in('post_id', postIds).order('created_at', { ascending: true }),
     publicSupabase.from('reposts').select('post_id, user_id').in('post_id', postIds),
+    publicSupabase.from('post_reactions').select('post_id, user_id, kind').in('post_id', postIds),
   ]);
   if (results.some(result => result.error)) throw new Error('Could not load this conversation. Please retry.');
-  const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }] = results;
+  const [{ data: likesRaw }, { data: commentsRaw }, { data: repostsRaw }, { data: reactionsRaw }] = results;
 
   // Comment likes — fetched after comments since we need their ids. Soft-fails
   // to an empty set on DBs where the comment_likes table isn't migrated yet,
@@ -340,6 +341,7 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
   });
 
   return posts.map((p: any): Post => ({
+    reactions: (reactionsRaw || []).filter(r => r.post_id === p.id).map(r => ({ userId: r.user_id, kind: r.kind })),
     id:            p.id,
     authorId:      p.author_id,
     authorHandle:  p.profiles?.handle     || '@unknown',

@@ -52,6 +52,24 @@ test('trade detail tooltip stays open while market prices update',async()=>{
   await act(async()=>render(51010));assert.match(document.body.textContent,/The average price at which this position was opened/);
  } finally {await f.close();}
 });
+test('order details preserves keyboard focus during updates, traps Tab and restores its trigger',async()=>{
+ const f=setup(); const trigger=document.createElement('button');document.body.append(trigger);trigger.focus();
+ const item={id:'fixture',pair:'BTC/USD',side:'LONG',entryPrice:50000,exitPrice:51000,size:1000,pnl:20,timestamp:Date.now(),action:'CLOSE',leverage:10};
+ const render=price=>f.root.render(React.createElement(OrderDetailsModal,{payload:{kind:'HISTORY',item:{...item}},marketPrices:{'BTC/USD':price},onClose:()=>{},onClosePosition:()=>{},onEditPosition:()=>{},handleCancelOrder:()=>{}}));
+ try {
+  await act(async()=>render(51000));
+  const dialog=document.querySelector('[role="dialog"]');
+  const targets=[...dialog.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),[tabindex="0"]')];
+  assert.equal(document.activeElement,dialog.querySelector('[aria-label="Close"]'));
+  const last=targets.at(-1);last.focus();
+  await act(async()=>render(51010));assert.equal(document.activeElement,last);
+  await act(async()=>last.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true})));
+  assert.equal(document.activeElement,targets[0]);
+  await act(async()=>targets[0].dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true})));
+  assert.equal(document.activeElement,last);
+  await act(async()=>f.root.render(null));assert.equal(document.activeElement,trigger);
+ } finally {await f.close();}
+});
 test('failed fills request shows an error, and Retry recovers without clearing browser storage',async()=>{
  const f=setup();globalThis.__veloTestQuery=()=>({data:null,error:{message:'Offline'}});
  try {

@@ -55,7 +55,7 @@ export interface VeloOnboardingModalProps {
   onBurnerReady?: (args: { burnerAddress: `0x${string}`; amount: number; txHash: `0x${string}` | null }) => void;
   onUsernameClaimed?: (handle: string, txHash: `0x${string}`) => void;
   required?: boolean;
-  disconnectRef?: React.MutableRefObject<(() => void) | null>;
+  disconnectRef?: React.MutableRefObject<(() => Promise<void>) | null>;
   returningName?: string;
 }
 
@@ -178,7 +178,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   required = false, disconnectRef, returningName,
 }) => {
   const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
+  const { disconnect, disconnectAsync } = useDisconnect();
   const chainId = useChainId();
   const { embeddedWalletInfo } = useAppKitAccount();
   const publicClient = usePublicClient();
@@ -205,7 +205,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   const usernameCheckRef = useRef<string | null>(null);
   const flowAbortedRef = useRef(false);
 
-  useEffect(() => { if (disconnectRef) disconnectRef.current = disconnect; }, [disconnect, disconnectRef]);
+  useEffect(() => { if (disconnectRef) disconnectRef.current = () => disconnectAsync(); }, [disconnectAsync, disconnectRef]);
 
   // HELLO splash animation — 3 phases
   useEffect(() => {

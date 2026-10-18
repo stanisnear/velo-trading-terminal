@@ -17,7 +17,7 @@ interface AuthModalProps {
   onClose: () => void;
   onAuth: (user: any, profile: any, isNewAccount?: boolean) => void;
   required?: boolean;
-  disconnectRef?: React.MutableRefObject<(() => void) | null>;
+  disconnectRef?: React.MutableRefObject<(() => Promise<void>) | null>;
 }
 
 type Step =
@@ -146,7 +146,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen, onClose, onAuth, required = false, disconnectRef,
 }) => {
   const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
+  const { disconnect, disconnectAsync } = useDisconnect();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
   const { open: openAppKit } = useAppKit();
@@ -172,8 +172,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   useEffect(() => {
-    if (disconnectRef) disconnectRef.current = disconnect;
-  }, [disconnect, disconnectRef]);
+    if (disconnectRef) disconnectRef.current = () => disconnectAsync();
+  }, [disconnectAsync, disconnectRef]);
 
   const [step, setStep] = useState<Step>('connect');
   const [username, setUsername] = useState('');

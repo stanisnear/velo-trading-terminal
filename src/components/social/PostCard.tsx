@@ -11,6 +11,8 @@ import { CommentThread } from '@/components/CommentThread';
 import { VerifiedBadge } from '@/components/ui/shared';
 import { Post } from '@/utils/types';
 import { useMarketDiscovery } from '@/services/marketDiscovery';
+import { postPath } from '../../../shared/socialLinks.mjs';
+import { PostReactions } from './PostReactions';
 
 // ── Comment-like dispatch bus ────────────────────────────────────────────────
 // PostCard renders deep inside several views; App wires the actual handler at
@@ -212,24 +214,14 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
         : null;
 
     const handleShare = async () => {
-        const postUrl = `${window.location.origin}/social/post/${post.id}`;
+        const path = postPath(post.id);
+        if (!path) return;
+        const postUrl = `${window.location.origin}${path}`;
         const shareTitle = `Post by ${post.authorHandle} on Velo`;
         const shareText = post.content.slice(0, 200) + (post.content.length > 200 ? '…' : '');
 
-        // Dynamically update OG meta tags so the link previews correctly when shared
-        const setMeta = (prop: string, content: string) => {
-            let el = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement | null;
-            if (!el) { el = document.createElement('meta'); el.setAttribute('property', prop); document.head.appendChild(el); }
-            el.setAttribute('content', content);
-        };
-        setMeta('og:url', postUrl);
-        setMeta('og:title', shareTitle);
-        setMeta('og:description', shareText);
-        if (post.authorAvatar) setMeta('og:image', post.authorAvatar);
-        setMeta('og:type', 'article');
-
         if (navigator.share) {
-            try { await navigator.share({ title: shareTitle, text: shareText, url: postUrl }); return; } catch (_) {}
+            try { await navigator.share({ title: shareTitle, text: shareText, url: postUrl }); return; } catch (error) { if ((error as DOMException)?.name === 'AbortError') return; }
         }
         // Fallback: copy post URL to clipboard
         try {
@@ -316,7 +308,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                             { icon: <Heart size={15} fill={hasLiked ? 'currentColor' : 'none'}/>, count: post.likes, onClick: () => onLike(post.id), active: hasLiked, hoverColor: 'var(--iris-magenta)' },
                             { icon: <Share2 size={15}/>, count: null, onClick: handleShare, active: false, hoverColor: 'var(--iris-cyan)' },
                         ].map((action, i) => (
-                            <button key={i} onClick={action.onClick}
+                            <button key={i} onClick={action.onClick} aria-label={['Comments', 'Repost', 'Like', 'Share'][i]} title={['Comments', 'Repost', 'Like', 'Share'][i]}
                                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', ...S.mono, fontSize: 11, color: action.active ? action.hoverColor : 'var(--fg-subtle)', transition: 'all 0.1s' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = action.hoverColor; (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = action.active ? action.hoverColor : 'var(--fg-subtle)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -324,6 +316,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                             </button>
                         ))}
                     </div>
+                    <PostReactions post={post} />
                     {/* Comments section */}
                     {showComments && (
                         <CommentThread

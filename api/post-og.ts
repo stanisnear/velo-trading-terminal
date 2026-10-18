@@ -24,24 +24,27 @@ const esc = (x: any) =>
 
 export default async function handler(req: any, res: any) {
   const id = String((req.query && req.query.id) || '').trim();
+  const comment = String(req.query?.comment || '').trim();
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validComment = uuid.test(comment);
 
   // Defaults if the post can't be fetched — still a valid branded card.
   let title = 'Velo — Social perps on Base';
   let desc =
-    'Trade real on-chain perpetuals and copy provable performance. Up to 25× leverage, Pyth oracle, non-custodial.';
+    'Pyth-priced perpetuals on Base Sepolia. Market conversations and on-chain trading history.';
 
-  if (/^[0-9a-f-]{8,40}$/i.test(id)) {
+  if (uuid.test(id)) {
     try {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/posts?id=eq.${encodeURIComponent(id)}` +
+        `${SUPABASE_URL}/rest/v1/${validComment ? `comments?id=eq.${comment}&post_id=eq.${id}` : `posts?id=eq.${id}`}` +
           `&select=content,profiles!author_id(handle,username)`,
-        { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` } },
+        { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` }, signal: AbortSignal.timeout(5000) },
       );
       const rows = await r.json();
       const p = Array.isArray(rows) ? rows[0] : null;
       if (p) {
         const handle = p.profiles?.handle || p.profiles?.username || '@trader';
-        title = `${handle} on Velo`;
+        title = `${validComment ? 'Reply by ' : ''}${handle} on Velo`;
         const body = String(p.content || '').replace(/\s+/g, ' ').trim();
         if (body) desc = body.length > 180 ? body.slice(0, 177) + '…' : body;
       }
@@ -50,7 +53,8 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const url = `${SITE}/social/post/${esc(id)}`;
+  const compact = (value: string) => btoa(value.replaceAll('-', '').match(/../g)!.map(byte => String.fromCharCode(parseInt(byte, 16))).join('')).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  const url = uuid.test(id) ? `${SITE}/p/${compact(id)}${validComment ? `/r/${compact(comment)}` : ''}` : `${SITE}/social`;
   const img = `${SITE}/og-image.png`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');

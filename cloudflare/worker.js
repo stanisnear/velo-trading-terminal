@@ -1,4 +1,5 @@
 import { handleMarketData } from './market-data.js';
+import { parsePostPath } from '../shared/socialLinks.mjs';
 // A narrow Pages gateway. The API implementation must be deployed separately.
 // Runtime secrets: VELO_BACKEND_URL and VELO_PROXY_TOKEN.
 const routes = new Map([
@@ -33,11 +34,13 @@ export default {
       catch { return error('Price service temporarily unavailable', 503); }
     }
     let route = url.pathname;
-    const sharedPost = route.match(/^\/social\/post\/([^/]+)\/?$/);
+    const sharedPost = parsePostPath(route);
     if (sharedPost && bot.test(request.headers.get('user-agent') || '')) {
       route = '/api/post-og';
       // Match the existing bot rewrite, using the path ID rather than user input.
-      url.searchParams.set('id', sharedPost[1]);
+      url.searchParams.set('id', sharedPost.postId);
+      url.searchParams.delete('comment');
+      if (sharedPost.commentId) url.searchParams.set('comment', sharedPost.commentId);
     } else if (!route.startsWith('/api/') && route !== '/api') {
       const asset = await env.ASSETS.fetch(request);
       const response = new Response(asset.body, asset);

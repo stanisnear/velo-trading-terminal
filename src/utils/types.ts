@@ -124,6 +124,7 @@ export interface Comment {
 }
 
 export interface Post {
+  reactions?: { userId: string; kind: 'insightful' | 'celebrate' | 'bullish' }[];
   id: string;
   authorId: string;
   authorHandle: string;
