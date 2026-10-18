@@ -1,3 +1,4 @@
+import { builderAttribution } from './baseBuilderAttribution.mjs';
 import { decodeConfirmedClose, waitForSuccessfulReceipt, tradeEventId, type ConfirmedClose } from './tradeReceipts';
 /**
  * veloPerpsService — wrapper around the VeloPerps contract (V3-primary).
@@ -721,7 +722,7 @@ export async function openPosition(
       args: [account!.address, VELO_PERPS_ADDRESS],
     }) as bigint;
     if (allowance < amount) {
-      const approveTx = await walletClient.writeContract({
+      const approveTx = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: usdcAbi,
         functionName: 'approve',
@@ -755,7 +756,7 @@ export async function openPosition(
       if (crossFree < collateral_6) {
         const shortfall = collateral_6 - crossFree;
         await ensureApproval(shortfall);
-        const depositHash = await walletClient.writeContract({
+        const depositHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
           address: VELO_PERPS_ADDRESS,
           abi: [{ type: 'function', name: 'depositCross', stateMutability: 'nonpayable',
             inputs: [{ name: 'amountUSDC_6', type: 'uint64' }], outputs: [] }] as const,
@@ -770,7 +771,7 @@ export async function openPosition(
 
     const { updateData } = await fetchPriceUpdate([feedId]);
     const feeWei = await getExactPythFee(publicClient, updateData);
-    txHash = await walletClient.writeContract({
+    txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
       address: VELO_PERPS_ADDRESS,
       abi: VELO_PERPS_V3_ABI,
       functionName: 'openPosition',
@@ -796,7 +797,7 @@ export async function openPosition(
     ] as const;
     const { updateData } = await fetchPriceUpdate([feedId]);
     const feeWei = await getExactPythFee(publicClient, updateData);
-    txHash = await walletClient.writeContract({
+    txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
       address: VELO_PERPS_ADDRESS,
       abi: legacyAbi,
       functionName: 'openPosition',
@@ -852,7 +853,7 @@ export async function closePosition(
   if (closeParsedPrice > 0) console.debug(`[velo] closePosition ${pair} oracle price: $${closeParsedPrice.toFixed(4)}`);
   const feeWei = await getExactPythFee(publicClient, updateData);
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'closePosition',
@@ -897,7 +898,7 @@ export async function addMargin(
     args: [account.address, VELO_PERPS_ADDRESS],
   }) as bigint;
   if (allowance < amount_6) {
-    const approveTx = await walletClient.writeContract({
+    const approveTx = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
       address: VELO_USDC_BASE,
       abi: [{ type: 'function', name: 'approve', stateMutability: 'nonpayable',
         inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [{ type: 'bool' }] }],
@@ -908,7 +909,7 @@ export async function addMargin(
     await waitForSuccessfulReceipt(publicClient, approveTx);
   }
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'increaseCollateral',
@@ -931,7 +932,7 @@ export async function reduceMargin(
   if (!account) throw new Error('Wallet not connected');
   const amount_6 = toUsdc6(amountUSDC);
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'decreaseCollateral',
@@ -955,7 +956,7 @@ export async function partialClose(
   if (!account) throw new Error('Wallet not connected');
   if (fractionBps < 1 || fractionBps > 10_000) throw new Error('fractionBps out of range');
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'partialClose',
@@ -981,7 +982,7 @@ export async function setTriggers(
   const tp_E18 = toE18(takeProfit);
   const sl_E18 = toE18(stopLoss);
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'setTriggers',
@@ -1019,7 +1020,7 @@ export async function depositCross(
     args: [account.address, VELO_PERPS_ADDRESS],
   }) as bigint;
   if (allowance < amount_6) {
-    const approveTx = await walletClient.writeContract({
+    const approveTx = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
       address: VELO_USDC_BASE,
       abi: [{ type: 'function', name: 'approve', stateMutability: 'nonpayable',
         inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [{ type: 'bool' }] }],
@@ -1030,7 +1031,7 @@ export async function depositCross(
     await waitForSuccessfulReceipt(publicClient, approveTx);
   }
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'depositCross',
@@ -1051,7 +1052,7 @@ export async function withdrawCross(
   if (!account) throw new Error('Wallet not connected');
   const amount_6 = toUsdc6(amountUSDC);
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'withdrawCross',
@@ -1110,7 +1111,7 @@ export async function placeConditionalOrder(
       args: [account.address, VELO_PERPS_ADDRESS],
     }) as bigint;
     if (allowance < collateral_6) {
-      const approveTx = await walletClient.writeContract({
+      const approveTx = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: [{ type: 'function', name: 'approve', stateMutability: 'nonpayable',
           inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [{ type: 'bool' }] }],
@@ -1122,7 +1123,7 @@ export async function placeConditionalOrder(
     }
   }
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'placeConditionalOrder',
@@ -1167,7 +1168,7 @@ export async function cancelConditionalOrder(
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
     abi: VELO_PERPS_V3_ABI,
     functionName: 'cancelConditionalOrder',

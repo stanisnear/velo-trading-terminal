@@ -73,6 +73,10 @@ Copy trading, bots and traditional instruments are **planned and not yet availab
 
 ## How it works
 
+### Base Builder Code
+
+Velo uses registered code `bc_s0k82w2v` for [ERC-8021 transaction attribution](https://docs.base.org/specifications/builder-codes/for-app-developers). Base and Base Sepolia writes pass the suffix before signing, including injected-wallet calls. Other chains are unchanged. The optional public build setting `VITE_BASE_BUILDER_CODE` overrides the registered default. Attribution does not guarantee funding or require a contract redeployment.
+
 ### First run
 
 ```mermaid

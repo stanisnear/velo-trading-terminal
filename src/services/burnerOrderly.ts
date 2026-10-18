@@ -1,3 +1,4 @@
+import { builderAttribution } from './baseBuilderAttribution.mjs';
 // ═══════════════════════════════════════════════════════════════════════════════
 // BURNER-WALLET INTEGRATION FOR ORDERLY
 // ──────────────────────────────────────────────────────────────────────────────
@@ -284,7 +285,7 @@ export async function depositFromBurner(
     let approveTx: `0x${string}` | undefined;
     if (allowance < amountWei) {
       onProgress?.('Approving USDC…');
-      approveTx = await walletClient.writeContract({
+      approveTx = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address:      USDC_BASE_SEPOLIA as `0x${string}`,
         abi:          ERC20_ABI,
         functionName: 'approve',
@@ -349,7 +350,7 @@ export async function depositFromBurner(
     onProgress?.('Submitting deposit…');
     let depositTx: `0x${string}`;
     try {
-      depositTx = await walletClient.writeContract({
+      depositTx = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address:      ORDERLY_VAULT_ADDRESS as `0x${string}`,
         abi:          ORDERLY_VAULT_ABI,
         functionName: 'deposit',
@@ -363,7 +364,7 @@ export async function depositFromBurner(
         if (ethBal < depositFee + parseUnits('0.0001', 18)) {
           return { success: false, approveTx, error: firstErr?.shortMessage || firstErr?.message || 'Deposit failed' };
         }
-        depositTx = await walletClient.writeContract({
+        depositTx = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
           address:      ORDERLY_VAULT_ADDRESS as `0x${string}`,
           abi:          ORDERLY_VAULT_ABI,
           functionName: 'deposit',

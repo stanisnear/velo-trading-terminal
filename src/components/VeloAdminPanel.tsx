@@ -1,3 +1,4 @@
+import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 /**
  * VeloAdminPanel — protocol owner dashboard.
  *
@@ -386,7 +387,7 @@ export const VeloAdminPanel: React.FC = () => {
     try {
       const existing = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'pairFeedId', args: [pair.index] });
       if (existing !== `0x${'0'.repeat(64)}`) throw new Error('This registry slot is already occupied. Refresh before continuing.');
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
         functionName: 'registerPair',
         args: [pair.index, pair.expectedFeedId as `0x${string}`, pair.label.replace('-', '/')],
@@ -411,7 +412,7 @@ export const VeloAdminPanel: React.FC = () => {
       for (const p of toRegister) {
         const existing = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'pairFeedId', args: [p.index] });
         if (existing !== `0x${'0'.repeat(64)}`) throw new Error(`${p.label} registry slot is already occupied. Refresh before continuing.`);
-        const hash = await walletClient.writeContract({
+        const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
           address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
           functionName: 'registerPair',
           args: [p.index, p.expectedFeedId as `0x${string}`, p.label.replace('-', '/')],
@@ -435,7 +436,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionBusy(`toggle-${pair.index}`);
     setActionError(null);
     try {
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
         functionName: 'setPairTradable',
         args: [pair.index, !pair.tradable],
@@ -455,7 +456,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionBusy('faucet');
     setActionError(null);
     try {
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'mint',
@@ -487,7 +488,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionError(null);
     try {
       const raw = parseUnits(amount.toFixed(6), 6);
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'transfer',
@@ -519,7 +520,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionError(null);
     try {
       const raw = parseUnits(amount.toFixed(6), 6);
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'mintTo',
@@ -541,7 +542,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionError(null);
     try {
       const amount = parseUnits(feeBalance.toFixed(6), 6);
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
         functionName: 'withdrawFees',
         args: [address, amount],

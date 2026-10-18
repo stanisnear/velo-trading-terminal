@@ -1,3 +1,4 @@
+import { builderAttribution } from './baseBuilderAttribution.mjs';
 /**
  * usernameService — wrapper for VeloRegistry.
  *
@@ -133,7 +134,7 @@ export async function claimUsername(
   const err = validateUsername(normalized);
   if (err) throw new Error(err);
 
-  return walletClient.writeContract({
+  return walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_REGISTRY_ADDRESS,
     abi: VELO_REGISTRY_ABI,
     functionName: 'setUsername',

@@ -1,3 +1,4 @@
+import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 // ═══════════════════════════════════════════════════════════════════════════════
 // VELO SETTINGS MODAL — Wallet & Settings
 // Deep glass · CSS-var theming · Velo sage and graphite palette
@@ -116,7 +117,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
         } catch {}
       }
       const amount = parseUnits(ownerUsdc.toFixed(6), 6);
-      const hash = await walletClient.writeContract({ address: USDC_BASE_SEPOLIA as `0x${string}`, abi: ERC20_BAL_ABI, functionName: 'transfer', args: [burner.veloAddress, amount] });
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id), address: USDC_BASE_SEPOLIA as `0x${string}`, abi: ERC20_BAL_ABI, functionName: 'transfer', args: [burner.veloAddress, amount] });
       await publicClient.waitForTransactionReceipt({ hash });
     } catch (e: any) {
       const msg = e?.shortMessage || e?.message || 'Move failed';

@@ -1,3 +1,4 @@
+import { builderAttribution } from './baseBuilderAttribution.mjs';
 /**
  * bridgeService — cross-chain VeloMockUSDC transfer via LayerZero V2 OFT.
  *
@@ -225,7 +226,7 @@ export async function executeBridge(
   };
   const fee = { nativeFee: quote.nativeFee, lzTokenFee: 0n };
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_USDC_ADDRESS[source],
     abi: OFT_ABI,
     functionName: 'send',
