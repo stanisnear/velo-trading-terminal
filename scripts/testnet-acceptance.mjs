@@ -87,6 +87,17 @@ if (process.argv.includes('--faucet-transfer')) {
     else if (await client.getBalance({ address: account.address }) === 0n) throw new Error('Sponsor returned no funding');
   });
   const abi = parseAbi(['function mint()', 'function transfer(address to,uint256 amount) returns(bool)', 'function balanceOf(address owner) view returns(uint256)']);
+  if (process.argv.includes('--register-username')) {
+    const compiled = await build({ entryPoints: ['src/services/usernameService.ts'], bundle: true, write: false, platform: 'node', format: 'esm', define: { 'import.meta.env': JSON.stringify(tradeConfig) } });
+    const registry = await import('data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+    const username = `velo_${account.address.slice(2, 10).toLowerCase()}`;
+    await timed('confirmed on-chain username registration', async () => {
+      const hash = await registry.ensureUsernameRegistered(client, wallet, username);
+      if (hash) console.log(JSON.stringify({ username, confirmedHash: hash }));
+      if (await registry.resolveUsername(client, username) !== account.address) throw new Error('Registry recipient mismatch');
+      if (await registry.ensureUsernameRegistered(client, wallet, username) !== null) throw new Error('Registration retry was not idempotent');
+    });
+  }
   if (await client.readContract({ address: publicConfig.MUSDC_ADDRESS, abi, functionName: 'balanceOf', args: [account.address] }) < 20000000n) {
     await timed('faucet mint', async () => confirm(await wallet.writeContract({ address: publicConfig.MUSDC_ADDRESS, abi, functionName: 'mint' })));
   }

@@ -2,7 +2,7 @@ import { findRecentPositionClose, findRecentOrderOutcome, type ConfirmedClose } 
 import { validateUsername as validateRegistryUsername } from './services/usernameService';
 import { createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
 import { publicSupabase } from './services/supabaseStore';
-import { signInWithWallet, cancelWalletSignIn } from './services/walletAuth';
+import { signInWithWallet, cancelWalletSignIn, walletSignInError } from './services/walletAuth';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { VeloOnboardingModal, useOnboardingGuard } from './components/VeloOnboardingModal';
@@ -2482,7 +2482,7 @@ const App = () => {
         } catch (error: any) {
           if (attempt !== authAttemptRef.current) return;
           socialLoginHandledRef.current = false;
-          setToast({ message: error?.shortMessage || error?.message || 'Sign-in cancelled. Click Log In to retry.', type: 'ERROR' });
+          setToast({ message: walletSignInError(error), type: 'ERROR' });
           return;
         } finally { if (attempt === authAttemptRef.current) { signInBusyRef.current = false; setSignInBusy(false); } }
 
@@ -4940,7 +4940,7 @@ const App = () => {
         } catch (error: any) {
             if (attempt !== authAttemptRef.current) return;
             socialLoginHandledRef.current = false;
-            setToast({ message: error?.shortMessage || error?.message || 'Unable to sign in. Please try again.', type: 'ERROR' });
+            setToast({ message: walletSignInError(error), type: 'ERROR' });
         } finally { if (attempt === authAttemptRef.current) { signInBusyRef.current = false; setSignInBusy(false); } }
     };
     const handleLogout = async (reason: 'manual' | 'idle' = 'manual') => {

@@ -12,6 +12,8 @@ import { builderAttribution } from './baseBuilderAttribution.mjs';
  *   • 30-day cooldown between changes.
  */
 import { type Address, type PublicClient, type WalletClient, zeroAddress } from 'viem';
+import { waitForSuccessfulReceipt } from './tradeReceipts';
+import { pendingTransaction, recoverPendingTransaction } from './baseTransport.mjs';
 
 export const VELO_REGISTRY_ADDRESS = (import.meta.env.VITE_VELO_REGISTRY_ADDRESS ||
   '0x7e510d615a8afDfaa324F790F3E54e520756ECe2') as Address;
@@ -142,4 +144,33 @@ export async function claimUsername(
     account,
     chain: walletClient.chain,
   });
+}
+
+/** Idempotent onboarding: only a confirmed mapping counts as registration. */
+export async function ensureUsernameRegistered(publicClient: PublicClient, walletClient: WalletClient, username: string) {
+  const account = walletClient.account;
+  if (!account) throw new Error('Trading wallet not connected');
+  const normalized = username.replace(/^@/, '').toLowerCase();
+  const error = validateUsername(normalized);
+  if (error) throw new Error(error);
+  const pending = pendingTransaction(account.address);
+  if (pending) {
+    const recovered = await recoverPendingTransaction(publicClient, account.address, pending.hash);
+    if (!recovered) await waitForSuccessfulReceipt(publicClient, pending.hash);
+  }
+  const read = () => publicClient.readContract({ address: VELO_REGISTRY_ADDRESS, abi: VELO_REGISTRY_ABI,
+    functionName: 'usernameOf', args: [account.address] });
+  // Do not turn an RPC failure into an unclaimed name or silently rename a wallet.
+  const existing = await read();
+  if (existing === normalized) return null;
+  if (existing) throw new Error(`This trading wallet is registered as @${existing}. Use that handle to continue.`);
+  const owner = await publicClient.readContract({ address: VELO_REGISTRY_ADDRESS, abi: VELO_REGISTRY_ABI,
+    functionName: 'resolve', args: [normalized] });
+  if (owner !== zeroAddress && owner.toLowerCase() !== account.address.toLowerCase()) {
+    throw new Error(`@${normalized} is already registered on-chain. Choose another handle.`);
+  }
+  const hash = await claimUsername(walletClient, normalized);
+  await waitForSuccessfulReceipt(publicClient, hash);
+  if (await read() !== normalized) throw new Error('Username registration could not be confirmed. Retry account setup.');
+  return hash;
 }

@@ -170,6 +170,10 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
   const [isInitialLoading, setInitialLoading] = useState(true);
   const [isPending, setPending] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
+  // Write callbacks outlive loading renders; readiness must belong to the current account.
+  const loadedAccountRef = useRef<Address | null>(null);
+  const readyRef = useRef(isReady);
+  readyRef.current = isReady;
   const writeLock = useRef(false);
   const pendingTxRef = useRef<Hex | null>(null);
   const [pendingTxHash, setPendingTxHash] = useState<Hex | null>(null);
@@ -187,7 +191,8 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
     pendingTxRef.current = hash; setPendingTxHash(hash);
   }, [traderAddress]);
   const beginWrite = () => {
-    if (isInitialLoading) throw new Error('Account data is still loading. Please wait before submitting.');
+    if (!readyRef.current || identityRef.current !== traderAddress) throw new Error('Trading wallet changed. Reconnect before submitting.');
+    if (loadedAccountRef.current !== traderAddress) throw new Error('Account data is still loading. Please wait before submitting.');
     const journal = pendingTransaction(traderAddress);
     if (journal) rememberPending(journal.hash);
     if (pendingTxRef.current) throw new Error('A submitted transaction is still awaiting confirmation. Check the transaction link before sending another.');
@@ -217,6 +222,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
   const refreshInFlight = useRef<{ identity: Address; promise: Promise<void> } | null>(null);
 
   useEffect(() => {
+    loadedAccountRef.current = null;
     setInitialLoading(true);
     setOpenPositions([]);
     setConditionalOrders([]);
@@ -240,6 +246,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
           fetchCrossTotalBalance(publicClient, identity), publicClient.getBalance({ address: identity }),
         ]);
         if (!mountedRef.current || identityRef.current !== identity) return;
+        loadedAccountRef.current = identity;
         setOpenPositions(positions); setConditionalOrders(orders); setUsdcBalance(balance);
         setPoolBalance(pool); setCrossFreeBalance(cross.free); setCrossTotalBalance(cross.total);
         setCrossLockedBalance(cross.locked); setTraderEthBalance(ethBal); setReadError(null);
@@ -280,6 +287,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
 
   useEffect(() => {
     if (!isReady) {
+      loadedAccountRef.current = null;
       setInitialLoading(false);
       setOpenPositions([]);
       setConditionalOrders([]);

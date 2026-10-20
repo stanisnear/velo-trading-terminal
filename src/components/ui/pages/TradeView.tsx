@@ -1926,11 +1926,16 @@ export const TradeView = ({
                                     </div>
                                 ))}
                             </div>
-                            {IS_V4 && <dl style={{display:'grid',gridTemplateColumns:'1fr auto',gap:'6px 12px',fontSize:11,fontFamily:'var(--font-sans)',margin:0}}>
-                                <dt>Entry fee</dt><dd>${formatMoney(cost * leverage * .001)}</dd>
-                                <dt>Net position size</dt><dd>${formatMoney(cost * (1 - leverage * .001) * leverage)}</dd>
-                                <dt>Gross profit cap</dt><dd>${formatMoney(cost * (1 - leverage * .001) * leverage)}</dd>
-                                <dt>Borrow / hour</dt><dd>{(Number(risk.data?.[6] || 0)/100).toFixed(2)}% of notional</dd>
+                            {IS_V4 && <dl aria-label="Execution costs and limits" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '6px 12px', margin: 0, padding: '8px 0', borderTop: '1px solid var(--hairline)' }}>
+                                {[
+                                    ['Entry fee', `$${formatMoney(cost * leverage * .001)}`],
+                                    ['Net position size', `$${formatMoney(cost * (1 - leverage * .001) * leverage)}`],
+                                    ['Gross profit cap', `$${formatMoney(cost * (1 - leverage * .001) * leverage)}`],
+                                    ['Borrow / hour', `${(Number(risk.data?.[6] || 0) / 100).toFixed(2)}% of notional`],
+                                ].map(([label, value]) => <React.Fragment key={label}>
+                                    <dt style={{ ...S.label, fontSize: 9.5, letterSpacing: 0, alignSelf: 'center' }}>{label}</dt>
+                                    <dd style={{ ...S.mono, fontSize: 10.5, fontWeight: 600, color: 'var(--fg)', margin: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{value}</dd>
+                                </React.Fragment>)}
                             </dl>}
 
                             {/* Submit button */}
