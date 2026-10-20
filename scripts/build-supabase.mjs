@@ -74,6 +74,8 @@ for (const [filename, names] of definitions) {
   if (Object.keys(names).some(name => !found.has(name))) throw new Error(`Missing ABI definition in ${filename}`);
 }
 abiSource += 'export const CORE_ABI = [...new Map([...TP_CORE, ...LIQ_CORE].map(f => [f.name, f])).values()];\n';
+const v4 = await readFile(new URL('src/services/veloPerpsV4Abi.ts', root), 'utf8');
+abiSource += ts.transpileModule(v4, { compilerOptions: { target:ts.ScriptTarget.ES2022, module:ts.ModuleKind.ESNext } }).outputText;
 await writeFile(new URL('abi.js', keeperOutput), abiSource);
 for (const name of ['velo-api', 'velo-keepers']) {
 const result = await build({

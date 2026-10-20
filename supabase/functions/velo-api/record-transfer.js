@@ -3,7 +3,7 @@ import { createPublicClient, http, decodeEventLog, parseAbi } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { runtimeEnv } from './env.js';
 const TOKEN='0x5efaf3f69b09bc2abf3439bdc0c93bf611026699';
-const PERPS='0x41fdb544d7247a5ddc6b4c06f29d09f2b20de907';
+const PERPS=new Set(['0x41fdb544d7247a5ddc6b4c06f29d09f2b20de907','0xe9aecfbc5814ce3b2db0107594d80f054e6db52f']);
 const ABI=parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']);
 export function matchingTransfers(logs, addresses) {
   const targets=new Set(addresses.filter(Boolean).map(a=>a.toLowerCase()));
@@ -11,7 +11,7 @@ export function matchingTransfers(logs, addresses) {
     if(log.address.toLowerCase()!==TOKEN) return [];
     try {
       const {args}=decodeEventLog({abi:ABI,data:log.data,topics:log.topics});
-      return targets.has(args.to.toLowerCase()) && args.value>0n && args.from.toLowerCase()!==PERPS && !targets.has(args.from.toLowerCase())
+      return targets.has(args.to.toLowerCase()) && args.value>0n && !PERPS.has(args.from.toLowerCase()) && !targets.has(args.from.toLowerCase())
         ? [{log_index:log.logIndex,from:args.from.toLowerCase(),amount:Number(args.value)/1e6}] : [];
     } catch {return [];}
   });

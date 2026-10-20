@@ -46,11 +46,11 @@ Copy trading, bots and traditional instruments are **planned and not yet availab
 ## What you can do today
 
 ### Trade
-- Perpetual markets priced by [Pyth](https://pyth.network): **BTC, ETH, SOL, DOGE**
-- Isolated margin, leverage up to **25x**, minimum 1 USDC collateral. Fees are 0.10% at open and 0.10% at close (see [Economics](#economics))
-- **Market, limit and stop** entries. A limit order rests until the price reaches your level, then opens at that level
+- Perpetual markets priced by [Pyth](https://pyth.network): **BTC, ETH, SOL, DOGE, PYTH, BNB, XRP, HYPE, STETH**
+- Isolated margin, market-specific leverage up to **25x**, minimum 1 mUSDC net collateral. Fees are 0.10% of notional per side, plus time-based borrowing fees (see [Economics](#economics))
+- **Market, limit and stop** entries. Limits execute at the current adjusted oracle price, no worse than their limit; stop entries have a price bound and orders expire
 - **Take-profit and stop-loss** on any position
-- Automatic **liquidation** when a position loses 90% of its collateral
+- Keeper-triggered **liquidation** when remaining equity after settlement costs reaches the market's maintenance requirement
 - Charts built on Lightweight Charts with Velo's own data feed, chart tools and indicators
 - Live fills tape, open orders, position history and receipt-backed trade records
 - Shareable trade cards
@@ -110,7 +110,7 @@ sequenceDiagram
   K->>C: Execute limit/stop entries, TP/SL and liquidations when triggered
 ```
 
-- **Market orders** settle immediately at the oracle price.
+- **Market orders** settle after confirmation at the fresh oracle price with an adverse execution spread and a user price bound.
 - **Limit, stop, take-profit and stop-loss** conditions are stored on-chain. A keeper checks them every minute and executes when the condition is met. A trigger is a condition, not a guaranteed fill price or deadline.
 - Positions, fills and activity are recorded from confirmed transaction receipts.
 
@@ -166,20 +166,21 @@ Built and tested with Foundry.
 
 | Contract | Role |
 | --- | --- |
-| `VeloPerpsV3_1` | Pool-based perpetuals: positions, conditional orders, TP/SL, liquidation and Pyth price verification |
+| `VeloPerpsV4` | Active isolated engine with segregated escrow, reserved liquidity, bounded execution and market-specific risk |
+| `VeloPerpsV3_1` | Legacy engine; existing positions, orders and free cross balances retain exit controls |
 | `VeloRegistry` | Username to wallet mapping |
 | `VeloMockUSDC` | 6-decimal test collateral with a faucet, bridgeable with LayerZero OFT |
 
-Key parameters: 25x maximum leverage, 1 USDC minimum collateral, 0.10% open and close fees, 90% liquidation threshold, 1% liquidator bounty, and Pyth prices rejected when older than 60 seconds. Addresses are in [`contracts/deployments/base_sepolia.json`](contracts/deployments/base_sepolia.json). Build and test instructions are in [`contracts/README.md`](contracts/README.md).
+V4 rejects Pyth updates older than five seconds and reserves each position's maximum gross profit at entry. Addresses are in [`contracts/deployments/base_sepolia.json`](contracts/deployments/base_sepolia.json). Build instructions and the risk specification are in [`contracts/README.md`](contracts/README.md).
 
 ## Economics
 
 How money moves in the current testnet protocol, taken from the contract code:
 
-- **Trading fees.** 0.10% of collateral when a position opens and 0.10% of the gross payout when it closes. Fees accumulate in a protocol fee balance that only the contract owner can withdraw. This is Velo's revenue today.
-- **The liquidity pool.** Traders trade against the contract's USDC pool: the USDC held by the contract minus accrued fees. Trader losses stay in the pool and winners are paid from it, so the pool takes the opposite side of net trader PnL. If the pool cannot cover a payout, the close reverts. Today the pool is funded by the team. **There is no public liquidity-provider deposit yet.** A permissionless liquidity vault is a planned feature (see [VISION.md](VISION.md)) and needs a new accounting design and an audit first.
-- **Liquidations.** A position is liquidatable once its loss reaches 90% of collateral. The account that liquidates earns a 1% bounty, which is what makes the keeper network economically self-sustaining.
-- **What the owner can and cannot do.** The owner can register or pause markets and withdraw accrued fees. The contract does not let the owner withdraw the pool balance.
+- **Trading fees.** Opening costs 0.10% of requested notional. Position notional is then fixed from net collateral and leverage. Closing costs 0.10% of that fixed notional. Borrowing defaults to 1 basis point per hour on notional, capped by remaining equity. Exact settlements are authoritative.
+- **The liquidity pool.** Protocol-owned liquidity is separate from position collateral, pending-order escrow and accrued fees. Each position reserves its entire notional as maximum gross profit. **Gross profit is capped at one notional; loss is capped at collateral.** There are no public LP shares or deposits. This is a bounded testnet model, not an uncapped perpetual exchange.
+- **Liquidations.** Maintenance defaults to 0.50% of notional, with market-specific settings. Borrowing costs and closing fees affect equity. Keeper execution pays up to 0.05% of notional from remaining equity. The one-minute keeper schedule is not a guaranteed execution deadline.
+- **What the owner can and cannot do.** The owner can fund liquidity, withdraw unreserved liquidity and fees, pause new entries, and configure risk when a market has no positions or orders. A guardian can pause entries but cannot resume or withdraw. Neither can withdraw trader escrow or reserved profit. Pausing entries does not disable closing or cancellation.
 - **Revenue share and copy trading.** Revenue sharing with traders who are copied, and fees on copy trading and bots, are planned and not implemented. See [VISION.md](VISION.md) for the model under consideration.
 
 ## Repository layout
@@ -219,9 +220,9 @@ The app needs public configuration (`VITE_*` variables for RPC endpoints, contra
 
 ## Status
 
-Velo is an early-stage product running on **Base Sepolia testnet with mock USDC**. The contracts have **not been independently audited** and some risk controls are still being built, so do not use real funds with it. Independent security review is a prerequisite for a mainnet launch. A next-generation margin and accounting contract is in development and is not deployed.
+Velo is an early-stage product running on **Base Sepolia testnet with mock USDC**. V4 is deployed at `0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f`. The contracts have **not been independently audited**; independent security review is a prerequisite for any mainnet launch.
 
-Some parts are deliberately conservative today. Only four perpetual markets are enabled, margin adjustment and cross-margin entry are switched off in the interface, and the leaderboard ranks stored profile metrics rather than independently reconstructed on-chain results. Moving that last item to verifiable history is a core part of the roadmap.
+Nine perpetual markets are enabled in V4. Cross margin, partial closes and margin adjustment are absent from its contract. Legacy positions are not automatically migrated. The leaderboard still ranks stored profile metrics rather than independently reconstructed on-chain results.
 
 ## Roadmap, vision and business model
 

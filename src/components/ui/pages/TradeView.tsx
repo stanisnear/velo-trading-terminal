@@ -1,4 +1,8 @@
 import { LEGACY_V31_RESTRICTED } from '@/services/testnetReleaseGate';
+import { positionPnl } from '@/services/positionValuation.mjs';
+import { IS_V4, PAIR_INDEX, VELO_PERPS_V4_ADDRESS, type VeloPairLabel } from '@/services/veloPerpsService';
+import { VELO_PERPS_V4_ABI } from '@/services/veloPerpsV4Abi';
+import { useReadContract } from 'wagmi';
 import { validateTradeForm } from '@/services/tradeFormValidation.mjs';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -811,7 +815,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                 : (() => {
                                     return pos.items.map((p: Position) => {
                                     const cp = marketPrices[p.pair] || p.entryPrice;
-                                    const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                                    const pnl = positionPnl(p, cp);
                                     const roe = (pnl / (p.size / p.leverage)) * 100;
                                     // V3 liquidation threshold is 90% of collateral lost (LIQUIDATION_THRESHOLD_BPS = 9000).
                                     // Liq price formula: entry ± (collateral * 0.9 / notional) * entry
@@ -904,7 +908,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                     <div className="md:hidden" style={{ padding: 7, display: isMobile ? 'flex' : 'none', flexDirection: 'column', gap: 6 }}>
                         {pos.items.length === 0 ? <Empty msg="No open positions." /> : pos.items.map((p: Position) => {
                             const cp = marketPrices[p.pair] || p.entryPrice;
-                            const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                            const pnl = positionPnl(p, cp);
                             const roe = (pnl / (p.size / p.leverage)) * 100;
                             return (
                                 <div
@@ -1276,6 +1280,15 @@ export const TradeView = ({
     const [limitPrice, setLimitPrice] = useState('');
     const [takeProfit, setTakeProfit] = useState('');
     const [stopLoss, setStopLoss]     = useState('');
+    const risk = useReadContract({ address:VELO_PERPS_V4_ADDRESS, abi:VELO_PERPS_V4_ABI, functionName:'marketRisk',
+        args:[PAIR_INDEX[activePair.id.replace('/', '-') as VeloPairLabel]],
+        chainId:84532, query:{enabled:IS_V4,refetchInterval:30000} });
+    const maxLeverage = IS_V4 ? Number(risk.data?.[3] || 1) : 25;
+    useEffect(() => {
+        if (!IS_V4) return;
+        setLeverage(value => Math.min(value, maxLeverage));
+        setMarginMode('ISOLATED');
+    }, [maxLeverage, activePair.id, leverage]);
 
     // UI state
     const [pairOpen, setPairOpen]     = useState(false);
@@ -1515,7 +1528,7 @@ export const TradeView = ({
         .filter((p: Position) => p?.marginMode === 'CROSS' && !p.isCopyTrade)
         .reduce((acc: number, p: Position) => {
             const cp = marketPrices?.[p.pair] || p.entryPrice;
-            return acc + (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+            return acc + positionPnl(p, cp);
         }, 0);
 
     // Locked margin already committed to cross positions — part of the shared pool
@@ -1532,7 +1545,7 @@ export const TradeView = ({
     const crossBuyingPower    = Math.max(0, effectiveBalance + crossPnl);
     const buyingPower = marginMode === 'CROSS' ? crossBuyingPower : isolatedBuyingPower;
 
-    const mm = 0.005, cpn = parseFloat(String(currentPrice));
+    const mm = IS_V4 ? Number(risk.data?.[4] || 50) / 10000 + 0.001 : 0.005, cpn = parseFloat(String(currentPrice));
     let estLiqPrice = 0;
     const sz = parseFloat(sizeAmount);
     if (marginMode === 'ISOLATED') {
@@ -1565,7 +1578,8 @@ export const TradeView = ({
     // This prevents the UI from defaulting back to ISOLATED on refresh when the user has a CROSS position.
     useEffect(() => {
         const existingPos = (positions || []).find((p: Position) => p?.pair === activePair.id && !p.isCopyTrade);
-        if (existingPos?.marginMode) {
+        if (IS_V4) setMarginMode('ISOLATED');
+        else if (existingPos?.marginMode) {
             setMarginMode(existingPos.marginMode);
         }
     }, [mergedPositions, activePair.id]);
@@ -1576,6 +1590,10 @@ export const TradeView = ({
     const handleSubmit = () => {
         if (!user) return onRequireAuth();
         if (tradingPending) return;
+        if (IS_V4 && (!risk.data || risk.isError)) { setToast({ message:'Market risk limits are unavailable. Please retry.',type:'ERROR' }); return; }
+        if (IS_V4 && (leverage > maxLeverage || Number(sizeAmount) > Number(risk.data![0]) / 1e6)) {
+            setToast({ message:'Order exceeds this market’s leverage or position-size limit.',type:'ERROR' }); return;
+        }
         const price = orderType === 'MARKET' ? currentPrice : parseFloat(limitPrice);
         const error = validateTradeForm({ price, size: Number(sizeAmount), side, takeProfit, stopLoss });
         if (error) { setToast({ message: error, type: 'ERROR' }); return; }
@@ -1841,7 +1859,7 @@ export const TradeView = ({
                                             setLeverage(v);
                                         }
                                     }} style={{ ...S.display, fontSize: 16, color: 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', cursor: 'pointer' }}>
-                                        {[1, 2, 5, 10, 20, 25].map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
+                                        {[1, 2, 5, 10, 15, 20, 25].filter(l => l <= maxLeverage).map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -1908,9 +1926,15 @@ export const TradeView = ({
                                     </div>
                                 ))}
                             </div>
+                            {IS_V4 && <dl style={{display:'grid',gridTemplateColumns:'1fr auto',gap:'6px 12px',fontSize:11,fontFamily:'var(--font-sans)',margin:0}}>
+                                <dt>Entry fee</dt><dd>${formatMoney(cost * leverage * .001)}</dd>
+                                <dt>Net position size</dt><dd>${formatMoney(cost * (1 - leverage * .001) * leverage)}</dd>
+                                <dt>Gross profit cap</dt><dd>${formatMoney(cost * (1 - leverage * .001) * leverage)}</dd>
+                                <dt>Borrow / hour</dt><dd>{(Number(risk.data?.[6] || 0)/100).toFixed(2)}% of notional</dd>
+                            </dl>}
 
                             {/* Submit button */}
-                            <button onClick={handleSubmit} aria-busy={tradingPending} disabled={tradingPending || !Number.isFinite(Number(sizeAmount)) || Number(sizeAmount) <= 0} style={{
+                            <button onClick={handleSubmit} aria-busy={tradingPending} disabled={tradingPending || (IS_V4 && (!risk.data || risk.isError)) || !Number.isFinite(Number(sizeAmount)) || Number(sizeAmount) <= 0} style={{
                                 width: '100%', padding: isMobile ? '15px 0' : '11px 0', borderRadius: 14, cursor: parseFloat(sizeAmount) <= 0 ? 'not-allowed' : 'pointer', ...S.sans, fontSize: isMobile ? 14 : 12, transition: 'all 0.15s',
                                 opacity: 1,
                                 background: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-bg)' : side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',

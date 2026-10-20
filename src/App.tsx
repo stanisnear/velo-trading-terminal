@@ -42,8 +42,10 @@ import { VeloShareCard, type ShareCardData } from './components/VeloShareCard';
 import { VeloManagePositionModal } from './components/VeloManagePositionModal';
 import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
 import { VeloAdminPanel } from './components/VeloAdminPanel';
+import { VeloLegacyPositions } from './components/VeloLegacyPositions';
+import { positionPnl, liquidationEstimate } from './services/positionValuation.mjs';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
-import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE } from './services/veloPerpsService';
+import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE, IS_V4 } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentThread } from './components/CommentThread';
@@ -1649,7 +1651,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
     }, [activeTab, trader.id]);
     const unrealizedPnl = traderPositions.reduce((acc, p) => {
         const price = marketPrices?.[p.pair] || p.entryPrice;
-        return acc + (price - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+        return acc + positionPnl(p, price);
     }, 0);
     const stats = { winRate: trader.winRate ?? 0, realizedPnl: (trader.pnl ?? 0) + unrealizedPnl };
     const tabBtn = (t: string): React.CSSProperties => ({
@@ -1710,7 +1712,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                             )}
                             {traderPositions.map((p: Position) => {
                                 const curPrice = marketPrices?.[p.pair] || p.entryPrice;
-                                const posUnreal = (curPrice - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                                const posUnreal = positionPnl(p, curPrice);
                                 return (
                                     <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                                         <div>
@@ -2132,7 +2134,7 @@ const App = () => {
     const [isVeloSendOpen, setVeloSendOpen] = useState(false);
     const [isVeloWithdrawOpen, setVeloWithdrawOpen] = useState(false);
     const [managingPosition, setManagingPosition] = useState<Position | null>(null);
-    const [managingPositionTab, setManagingPositionTab] = useState<'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS'>('ADD');
+    const [managingPositionTab, setManagingPositionTab] = useState<'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS'>('PARTIAL');
     const [isCrossAccountOpen, setCrossAccountOpen] = useState(false);
     const [crossAccountTab, setCrossAccountTab] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
     const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
@@ -2221,7 +2223,7 @@ const App = () => {
     // New on-chain trading layer. Runs alongside Orderly during the migration.
     // `useVeloPerpsTrading` polls VeloPerps every 5s — single source of truth
     // for any position cards rendered by VeloPerpsPanel.
-    const veloPerpsTrading = useVeloPerpsTrading();
+    const veloPerpsTrading = useVeloPerpsTrading(marketPrices);
 
     useEffect(() => {
       if (!user?.id || !authChecked || !publicClient || !burnerAddress) return;
@@ -2526,11 +2528,11 @@ const App = () => {
       // the tx hash, so we stored it at open time; this lets the details modal
       // link to the exact opening transaction even after a reload.
       let openTxMap: Record<string, string> = {};
-      try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
+      try { openTxMap = JSON.parse(localStorage.getItem(IS_V4 ? `velo_open_tx_${VELO_PERPS_ADDRESS.toLowerCase()}` : 'velo_open_tx') || '{}'); } catch {}
 
       const onChainPositions: Position[] = veloPerpsTrading.openPositions.map((p) => {
         const uiPair = p.pair.replace('-', '/'); // BTC-USD → BTC/USD etc.
-        const notional = p.collateralUSDC * p.leverage;
+        const notional = p.notionalUSDC;
         // marginMode comes straight from the V3 contract's Position struct.
         // Falls back to 'ISOLATED' for V1/V2 positions which don't have the field.
         const mm: MarginMode = (p.marginMode === 'CROSS' || p.marginMode === 'ISOLATED')
@@ -2563,6 +2565,7 @@ const App = () => {
           // liqMove (in price terms) = (collateral × 0.9) / positionSize.
           // Adding collateral increases liqMove → pushes liq further from entry.
           liquidationPrice: (() => {
+            if (p.v4) return liquidationEstimate({ entryPrice:p.entryPrice, size:notional, side:p.isLong?'LONG':'SHORT', timestamp:p.openedAt*1000, v4:p.v4 });
             const maintainable = (p.collateralUSDC * 0.9);
             const liqMove = notional > 0 ? (maintainable / notional) * p.entryPrice : 0;
             return p.isLong
@@ -2570,11 +2573,13 @@ const App = () => {
               : p.entryPrice + liqMove;
           })(),
           timestamp: p.openedAt * 1000,
+          v4: p.v4,
           onChain: true,
           // ── V2 fields required for manage modal routing ──────────────────────
           // Without onChainTradeId the manage modal can't be reached — the UI
           // falls back to the legacy EditPositionModal which only saves to Supabase.
           onChainTradeId: tradeIdKey,
+          onChainContract: VELO_PERPS_ADDRESS,
           takeProfit: overlayTp,
           stopLoss: overlaySl,
           // Reuse the orderly fields for tx link surfacing (modal already reads them).
@@ -2597,10 +2602,10 @@ const App = () => {
     const previousHistoryOwner = useRef(veloPerpsTrading.traderAddress);
     const activeHistoryUser = useRef(user?.id);
     activeHistoryUser.current = user?.id;
-    const recordConfirmedClose = (pos: any, result: ConfirmedClose) => {
+    const recordConfirmedClose = (pos: any, result: ConfirmedClose, activeEngine = true) => {
       if (!user || activeHistoryUser.current !== user.id) return;
       const fraction = result.fractionBps / 10000;
-      if (fraction === 1) markVeloTradeClosed(result.tradeId.toString());
+      if (fraction === 1 && activeEngine) markVeloTradeClosed(result.tradeId.toString());
       const historyItem: TradeHistoryItem = {
         id: result.id, pair: pos.pair, side: pos.side, entryPrice: pos.entryPrice,
         exitPrice: result.exitPrice, size: pos.size * fraction, pnl: result.pnlUSDC,
@@ -2671,6 +2676,7 @@ const App = () => {
           size: o.collateralUSDC * o.leverage,
           leverage: o.leverage,
           timestamp: o.createdAt * 1000,
+          onChain: true, onChainContract: VELO_PERPS_ADDRESS,
         } as OpenOrder;
       });
       setOpenOrders((prev) => {
@@ -2826,7 +2832,10 @@ const App = () => {
      */
     const handleEditPosition = (p: Position | null, initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS') => {
       if (!p) { setEditingPosition(null); setManagingPosition(null); return; }
-      if (p.onChain && p.onChainTradeId) { setManagingPositionTab(initialTab || 'ADD'); setManagingPosition(p); }
+      if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+        setToast({message:'Refresh this position before managing it. Legacy positions have separate exit controls.',type:'INFO'}); return;
+      }
+      if (p.onChain && p.onChainTradeId) { setManagingPositionTab(initialTab === 'TRIGGERS' ? 'TRIGGERS' : 'PARTIAL'); setManagingPosition(p); }
       else setEditingPosition(p);
     };
     const [activeSocialTicker, setActiveSocialTicker] = useState<string | null>(null);
@@ -3112,7 +3121,7 @@ const App = () => {
     const totalUnrealizedPnl = useMemo(() =>
         positions.reduce((acc, p) => {
             const mark = marketPrices[p.pair] || p.entryPrice;
-            return acc + (mark - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+            return acc + positionPnl(p, mark);
         }, 0),
     [positions, marketPrices]);
 
@@ -3147,7 +3156,7 @@ const App = () => {
             .filter(p => p.marginMode === 'CROSS' && !p.isCopyTrade)
             .reduce((acc, p) => {
                 const mark = marketPrices[p.pair] || p.entryPrice;
-                return acc + (mark - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                return acc + positionPnl(p, mark);
             }, 0),
     [positions, marketPrices]);
 
@@ -5442,7 +5451,7 @@ const App = () => {
               // Resolve UI pair (e.g. "BTC/USD") to Velo pair label ("BTC-USD")
               const veloPair = uiPairToVeloPair(pairId);
               if (!veloPair) {
-                setToast({ message: `${pairId} is not available for trading. Current perpetuals: BTC, ETH, SOL and DOGE.`, type: 'INFO' });
+                setToast({ message: `${pairId} is not available for trading. Select an available perpetual market.`, type: 'INFO' });
                 releaseLock();
                 return;
               }
@@ -5484,6 +5493,7 @@ const App = () => {
                 collateralUSDC: collateral,
                 leverage,
                 marginMode,
+                takeProfit:tp, stopLoss:sl,
               }).then((result) => {
                 // The 5s poll inside useVeloPerpsTrading will pick up the new position
                 // and our sync effect will mirror it into local state. We don't call
@@ -5499,13 +5509,13 @@ const App = () => {
                     side,
                     entryPrice: result.entryPrice,
                     exitPrice: 0,
-                    size,
+                    size: result.notionalUSDC,
                     pnl: 0,
                     timestamp: Date.now(),
                     openedAt: Date.now(),
                     leverage,
                     marginMode,
-                    liquidationPrice: side === 'LONG'
+                    liquidationPrice: IS_V4 ? undefined : side === 'LONG'
                       ? result.entryPrice * (1 - 0.9 / leverage)
                       : result.entryPrice * (1 + 0.9 / leverage),
                     action: 'OPEN',
@@ -5533,9 +5543,10 @@ const App = () => {
                 // modal can link to the exact opening transaction even after reload.
                 // (The contract position sync doesn't carry the tx hash.)
                 try {
-                  const m = JSON.parse(localStorage.getItem('velo_open_tx') || '{}');
+                  const key = IS_V4 ? `velo_open_tx_${VELO_PERPS_ADDRESS.toLowerCase()}` : 'velo_open_tx';
+                  const m = JSON.parse(localStorage.getItem(key) || '{}');
                   m[result.tradeId.toString()] = (result as any).txHash || (result as any).explorerUrl;
-                  localStorage.setItem('velo_open_tx', JSON.stringify(m));
+                  localStorage.setItem(key, JSON.stringify(m));
                 } catch {}
 
                 // ── Attach TP/SL on-chain via setTriggers ─────────────────────
@@ -5567,7 +5578,7 @@ const App = () => {
                 }
                 const hasTp = tpValid;
                 const hasSl = slValid;
-                if (hasTp || hasSl) {
+                if ((hasTp || hasSl) && !IS_V4) {
                   const tradeIdKey = result.tradeId.toString();
                   const newPosId = `velo_${tradeIdKey}`;
                   // 1. Optimistic overlay onto the position (right-side panel,
@@ -5686,6 +5697,7 @@ const App = () => {
                 triggerPrice: price,
                 collateralUSDC: collateral,
                 reduceOnly: false,
+                takeProfit:tp, stopLoss:sl,
               }).then((r) => {
                 // Optimistic local echo: the sync effect mirrors veloPerpsTrading.conditionalOrders
                 // into openOrders, but that runs on the next refresh tick. Insert the order
@@ -5701,6 +5713,7 @@ const App = () => {
                   leverage,
                   timestamp: Date.now(),
                   onChain: true,
+                  onChainContract: VELO_PERPS_ADDRESS,
                   orderlyOrderUrl: r.explorerUrl,
                 } as OpenOrder;
                 setOpenOrders((prev) => {
@@ -5745,6 +5758,10 @@ const App = () => {
         if (processingIds.current.has(id)) return;
         const p = positionsRef.current.find(x => x.id === id);
         if (!p || !user) return;
+        if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+          setToast({ message:'Refresh this position before closing. Legacy positions have separate exit controls.',type:'INFO' });
+          return;
+        }
 
         // Close = instant 100% market close. The Manage modal (partial close,
         // add margin, TP/SL edit) is still reachable via the Edit/Manage
@@ -5765,7 +5782,7 @@ const App = () => {
 
         const price = marketPrices[p.pair] || p.entryPrice;
         // PnL = price movement in the direction of the trade, scaled by position size in base units
-        const pnl = (price - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+        const pnl = positionPnl(p, price);
         // Margin that was locked when opening this position
         const marginReturned = p.size / p.leverage;
         const isOnChainClose = (p as any).onChain && p.id.startsWith('velo_');
@@ -5849,6 +5866,9 @@ const App = () => {
     const handleCancelOrder = (id: string) => {
         // On-chain conditional order? Route to V3 cancelConditionalOrder.
         if (id.startsWith('velo_ord_')) {
+            if (IS_V4 && openOrders.find(o => o.id === id)?.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+                setToast({message:'Refresh this order before cancelling. Legacy orders have separate exit controls.',type:'INFO'}); return;
+            }
             const orderId = BigInt(id.slice('velo_ord_'.length));
             // Optimistically remove from UI; the 5s poll will reconcile.
             setOpenOrders(prev => prev.filter(o => o.id !== id));
@@ -6852,7 +6872,7 @@ const App = () => {
             {/* ── Velo Manage Position Modal (V2: add/reduce margin, partial close, TP/SL) ── */}
             <VeloManagePositionModal
               isOpen={!!managingPosition}
-              onClose={() => { setManagingPosition(null); setManagingPositionTab('ADD'); }}
+              onClose={() => { setManagingPosition(null); setManagingPositionTab('PARTIAL'); }}
               position={managingPosition}
               currentPrice={managingPosition ? (marketPrices[managingPosition.pair] || managingPosition.entryPrice) : 0}
               userBalance={veloPerpsTrading.usdcBalance ?? user?.balance ?? 0}
@@ -6871,7 +6891,9 @@ const App = () => {
                 },
                 partialClose: async (tradeId, fracBps, pair) => {
                   const pos = managingPosition;
-                  const r = await veloPerpsTrading.partialClose(tradeId, fracBps, pair.replace('/', '-') as any);
+                  const r = IS_V4
+                    ? await veloPerpsTrading.closePosition(tradeId, pair.replace('/', '-') as any)
+                    : await veloPerpsTrading.partialClose(tradeId, fracBps, pair.replace('/', '-') as any);
                   if (pos) {
                     recordConfirmedClose(pos, r);
                     setPositions(prev => fracBps === 10000 ? prev.filter(p => p.id !== pos.id)
@@ -7169,6 +7191,11 @@ const App = () => {
                 {user && veloPerpsTrading.readError && <div role="alert" style={{ padding: '10px 16px', color: 'var(--pnl-down)' }}>
                   {veloPerpsTrading.readError} <button onClick={() => void veloPerpsTrading.refresh()}>Retry account data</button>
                 </div>}
+                {IS_V4 && user && (activeTab === TabView.DASHBOARD || activeTab === TabView.TRADE) && <VeloLegacyPositions
+                  key={veloPerpsTrading.traderAddress} trading={veloPerpsTrading}
+                  onClosePosition={(p, result) => recordConfirmedClose({ pair:p.pair.replace('-', '/'), side:p.isLong?'LONG':'SHORT',
+                    size:p.notionalUSDC, entryPrice:p.entryPrice, leverage:p.leverage, marginMode:p.marginMode,
+                    timestamp:p.openedAt*1000 }, result, false)}/>}
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
@@ -7206,7 +7233,7 @@ const App = () => {
 
                   <TradeView tradingPending={veloPerpsTrading.isPending} activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} chartHistoryStatus={chartHistoryStatus} onRetryChartHistory={() => setChartHistoryRetry(retry => retry + 1)} onLoadOlderHistory={loadOlderChartHistory} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
-                    const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                    const pnl = positionPnl(p, cp);
                     const collateral = p.size / p.leverage;
                     setShareCardData({
                       pair: p.pair,

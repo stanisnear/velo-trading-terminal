@@ -77,7 +77,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   // fall back to local calculation for backwards compatibility.
   const allPositionsPnl = unrealizedProp !== undefined ? unrealizedProp : positions.reduce((acc: number, p: Position) => {
     const cp = marketPrices[p.pair] || p.entryPrice;
-    return acc + (p.side === 'LONG' ? (cp - p.entryPrice) / p.entryPrice * p.size : (p.entryPrice - cp) / p.entryPrice * p.size);
+    return acc + positionPnl(p, cp);
   }, 0);
   const totalMarginUsed = lockedMarginProp !== undefined ? lockedMarginProp : positions.reduce((acc: number, p: Position) => acc + (p.size / p.leverage), 0);
   const equity = equityProp !== undefined ? equityProp : user.balance + totalMarginUsed + allPositionsPnl;
@@ -402,7 +402,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                 <tr><td colSpan={9} style={{ padding: '28px', textAlign: 'center' as const, ...S.mono, fontSize: 12, color: 'var(--fg-subtle)' }}>No active positions running.</td></tr>
               ) : positions.map((p: Position) => {
                 const cp = marketPrices[p.pair] || p.entryPrice;
-                const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                const pnl = positionPnl(p, cp);
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--hairline)', cursor: 'pointer' }}
                     onClick={() => setDetailsItem({ kind: 'POSITION', item: p })}
@@ -835,3 +835,4 @@ const FailedDepositPill: React.FC<{ deposit: any; onClaimTestnetUsdc?: () => voi
     )}
   </div>
 );
+import { positionPnl } from '@/services/positionValuation.mjs';

@@ -24,5 +24,17 @@ export const MARKETS = definitions.map(([symbol, name, feed, geckoId, logo, cont
 }));
 export const EXCLUDED_PERPETUALS = new Set(['USDT', 'USDC', 'WBTC', 'JITOSOL']);
 export const ELIGIBLE_PERPETUALS = MARKETS.filter(market => !EXCLUDED_PERPETUALS.has(market.symbol));
-export const TRADING_MARKETS = ELIGIBLE_PERPETUALS.filter(market => market.contractIndex !== null);
+const v4Indices = { PYTH:17, BNB:18, XRP:19, HYPE:20, STETH:21 };
+export const V4_TRADING_MARKETS = ELIGIBLE_PERPETUALS.map(market => Object.freeze({
+  ...market, contractIndex: market.contractIndex ?? v4Indices[market.symbol],
+}));
+export const V4_MAX_LEVERAGE = Object.freeze({ BTC:25, ETH:25, SOL:20, DOGE:10, PYTH:10, BNB:20, XRP:15, HYPE:10, STETH:10 });
+export function v4DefaultRisk(symbol) {
+  if (!Object.hasOwn(V4_MAX_LEVERAGE, symbol)) throw new Error('Market is not approved for V4');
+  return { maxPositionUSDC_6:25_000_000_000n, maxOpenInterestUSDC_6:250_000_000_000n,
+    maxBlockVolumeUSDC_6:50_000_000_000n, maxLeverage:V4_MAX_LEVERAGE[symbol],
+    maintenanceBps:50, maxConfidenceBps:100, borrowBpsPerHour:1 };
+}
+export const V4_ENABLED = (import.meta.env?.VITE_VELO_PERPS_V4_ACTIVE ?? globalThis.process?.env?.VITE_VELO_PERPS_V4_ACTIVE) === 'true';
+export const TRADING_MARKETS = V4_ENABLED ? V4_TRADING_MARKETS : ELIGIBLE_PERPETUALS.filter(market => market.contractIndex !== null);
 export const isEnabledTradingMarket = pair => TRADING_MARKETS.some(market => market.id === pair?.replace('-', '/'));

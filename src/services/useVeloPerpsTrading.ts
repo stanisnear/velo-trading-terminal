@@ -58,6 +58,7 @@ import {
   VELO_USDC_BASE,
   PAIR_INDEX,
   IS_V3,
+  IS_V4,
 } from './veloPerpsService';
 import {
   fetchUsdcBalance,
@@ -100,6 +101,10 @@ export interface UseVeloPerpsTradingState {
   usingBurner: boolean;
   traderEthBalance: bigint;
   isV3: boolean;
+  legacyPositions: VeloPosition[];
+  legacyOrders: VeloConditionalOrder[];
+  legacyFreeBalance: number;
+  legacyReadError: string | null;
 }
 
 export interface UseVeloPerpsTradingActions {
@@ -111,6 +116,7 @@ export interface UseVeloPerpsTradingActions {
     txHash: `0x${string}`;
     tradeId: bigint;
     entryPrice: number;
+    notionalUSDC: number;
     explorerUrl: string;
   }>;
   closePosition: (tradeId: bigint, pair: VeloPairLabel) => Promise<ConfirmedClose & { explorerUrl: string }>;
@@ -123,9 +129,12 @@ export interface UseVeloPerpsTradingActions {
   placeConditionalOrder: (args: PlaceConditionalOrderArgs) => Promise<{ txHash: `0x${string}`; orderId: bigint; explorerUrl: string }>;
   cancelConditionalOrder: (orderId: bigint) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
   reloadBurner: () => void;
+  legacyExit: (action: 'close' | 'cancel' | 'withdraw', id?: bigint, pair?: VeloPairLabel) => Promise<{ txHash: Hex; close?: ConfirmedClose }>;
 }
 
-export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTradingActions {
+export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVeloPerpsTradingState & UseVeloPerpsTradingActions {
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
   const { address: mainAddress, isConnected } = useAccount();
   const chainId = useChainId();
   const publicClient = usePublicClient({ chainId: BASE_SEPOLIA_CHAIN_ID });
@@ -178,6 +187,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     pendingTxRef.current = hash; setPendingTxHash(hash);
   }, [traderAddress]);
   const beginWrite = () => {
+    if (isInitialLoading) throw new Error('Account data is still loading. Please wait before submitting.');
     const journal = pendingTransaction(traderAddress);
     if (journal) rememberPending(journal.hash);
     if (pendingTxRef.current) throw new Error('A submitted transaction is still awaiting confirmation. Check the transaction link before sending another.');
@@ -194,6 +204,11 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
   const [crossTotalBalance, setCrossTotalBalance] = useState(0);
   const [crossLockedBalance, setCrossLockedBalance] = useState(0);
   const [traderEthBalance, setTraderEthBalance] = useState<bigint>(0n);
+  const [legacyPositions, setLegacyPositions] = useState<VeloPosition[]>([]);
+  const [legacyOrders, setLegacyOrders] = useState<VeloConditionalOrder[]>([]);
+  const [legacyFreeBalance, setLegacyFreeBalance] = useState(0);
+  const [legacyReadError, setLegacyReadError] = useState<string | null>(null);
+  const legacyReading = useRef(false);
 
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
@@ -210,6 +225,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     setCrossTotalBalance(0);
     setCrossLockedBalance(0);
     setTraderEthBalance(0n);
+    setLegacyPositions([]); setLegacyOrders([]); setLegacyFreeBalance(0); setLegacyReadError(null);
   }, [traderAddress]);
 
   const refresh = useCallback(async () => {
@@ -219,7 +235,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     const run = (async () => {
       try {
         const [positions, orders, balance, pool, cross, ethBal] = await Promise.all([
-          fetchOpenPositions(publicClient, identity), fetchConditionalOrders(publicClient, identity),
+          fetchOpenPositions(publicClient, identity, 'active', marksRef.current), fetchConditionalOrders(publicClient, identity),
           fetchUsdcBalance(publicClient, VELO_USDC_BASE, identity), fetchPoolBalance(publicClient),
           fetchCrossTotalBalance(publicClient, identity), publicClient.getBalance({ address: identity }),
         ]);
@@ -238,6 +254,29 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     refreshInFlight.current = { identity, promise: run };
     return run;
   }, [isReady, traderAddress, publicClient]);
+
+  const refreshLegacy = useCallback(async () => {
+    if (!IS_V4 || !isReady || !traderAddress || !publicClient || legacyReading.current) return;
+    const identity = traderAddress;
+    legacyReading.current = true;
+    try {
+      const [positions, orders, cross] = await Promise.all([
+        fetchOpenPositions(publicClient, identity, 'legacy'),
+        fetchConditionalOrders(publicClient, identity, 'legacy'),
+        fetchCrossTotalBalance(publicClient, identity, 'legacy'),
+      ]);
+      if (!mountedRef.current || identityRef.current !== identity) return;
+      setLegacyPositions(positions); setLegacyOrders(orders); setLegacyFreeBalance(cross.free); setLegacyReadError(null);
+    } catch {
+      if (mountedRef.current && identityRef.current === identity) setLegacyReadError('Legacy account could not refresh. Retry before exiting.');
+    } finally { legacyReading.current = false; }
+  }, [isReady, traderAddress, publicClient]);
+
+  useEffect(() => {
+    void refreshLegacy();
+    const timer = setInterval(refreshLegacy, 15000);
+    return () => clearInterval(timer);
+  }, [refreshLegacy]);
 
   useEffect(() => {
     if (!isReady) {
@@ -536,6 +575,32 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     [tradingClient, publicClient, traderAddress, refresh],
   );
 
+  const legacyExit: UseVeloPerpsTradingActions['legacyExit'] = async (action, id, pair) => {
+    if (!IS_V4 || !isReady || !tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
+    beginWrite(); setLastError(null);
+    try {
+      await ensureBurnerGas(publicClient, traderAddress);
+      let result: { txHash: Hex; close?: ConfirmedClose };
+      if (action === 'close' && id !== undefined && pair) {
+        const close = await closePositionTx(tradingClient as any, publicClient, id, pair, 'legacy');
+        result = { txHash: close.txHash, close };
+      } else if (action === 'cancel' && id !== undefined) {
+        result = await cancelConditionalOrderTx(tradingClient as any, publicClient, id, 'legacy');
+      } else if (action === 'withdraw') {
+        const cross = await fetchCrossTotalBalance(publicClient, traderAddress, 'legacy');
+        if (cross.free <= 0) throw new Error('No free legacy collateral to withdraw');
+        result = await withdrawCrossTx(tradingClient as any, publicClient, cross.free, 'legacy');
+      } else throw new Error('Invalid legacy exit action');
+      await refreshLegacy(); void refresh();
+      return result;
+    } catch (error: any) {
+      const e = transactionError(error);
+      if (e?.txHash) rememberPending(e.txHash);
+      setLastError(e?.shortMessage || e?.message || 'Legacy exit failed');
+      throw e;
+    } finally { writeLock.current = false; setPending(false); }
+  };
+
   return {
     isReady,
     isInitialLoading,
@@ -555,6 +620,7 @@ export function useVeloPerpsTrading(): UseVeloPerpsTradingState & UseVeloPerpsTr
     usingBurner,
     traderEthBalance,
     isV3: IS_V3,
+    legacyPositions, legacyOrders, legacyFreeBalance, legacyReadError, legacyExit,
     refresh,
     mintTestUsdc,
     openPosition,

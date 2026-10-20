@@ -47,6 +47,11 @@ async function countRows(table: string, filter = ''): Promise<number> {
 
 // ── Active contract (version resolution mirrors veloPerpsService) ────────────
 function activeAddress(): `0x${string}` | null {
+  if (process.env.VITE_VELO_PERPS_V4_ACTIVE === 'true') {
+    const v4 = process.env.VITE_VELO_PERPS_V4_ADDRESS || '';
+    if (!/^0x[0-9a-fA-F]{40}$/.test(v4)) throw new Error('Active V4 address is not configured');
+    return v4 as `0x${string}`;
+  }
   // Default to the deployed V3.1 address so stats track the ACTIVE contract
   // even when the env var is missing (same hardening as the keepers).
   const v3 = process.env.VITE_VELO_PERPS_V3_ADDRESS || '0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907';
@@ -59,6 +64,8 @@ const VERSION_ABI = [
   { type: 'function', name: 'VERSION',     stateMutability: 'view', inputs: [], outputs: [{ type: 'uint16' }] },
   { type: 'function', name: 'nextTradeId', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'feeBalance',  stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'openPositionCount', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'reservedProfit', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   {
     type: 'function', name: 'getPosition', stateMutability: 'view',
     inputs: [{ name: 'tradeId', type: 'uint256' }],
@@ -129,17 +136,9 @@ interface TradeRow {
   created_at: string;
 }
 
-// A close is treated as a liquidation when the exit landed on the liquidation
-// price, or (fallback) when the loss wiped ~the entire margin.
+// Only a confirmed liquidation event is a liquidation, never a loss estimate.
 function isLiquidation(r: TradeRow): boolean {
-  if (r.action !== 'CLOSE') return false;
-  if (r.liquidation_price != null && r.exit_price != null &&
-      Math.abs(r.exit_price - r.liquidation_price) < 1e-9) return true;
-  if (r.leverage && r.leverage > 0 && r.size && r.pnl != null) {
-    const margin = r.size / r.leverage;
-    if (r.pnl <= -margin * 0.999) return true;
-  }
-  return false;
+  return r.action === 'LIQUIDATION';
 }
 
 export default async function handler(req: any, res: any) {
@@ -154,15 +153,20 @@ export default async function handler(req: any, res: any) {
     const addr = activeAddress();
     if (addr) {
       const rpcUrl = process.env.VITE_BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com';
-      const client: any = createPublicClient({ chain: baseSepolia, transport: http(rpcUrl) });
+      const client: any = createPublicClient({ chain: baseSepolia, transport: http(rpcUrl, { timeout: 8000, retryCount: 1 }) });
       const [version, nextId, fee] = await Promise.all([
         client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'VERSION' }).catch(() => 0),
         client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'nextTradeId' }).catch(() => 0n),
         client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'feeBalance' }).catch(() => 0n),
       ]);
       const nextIdNum = Number(nextId);
-      // Enumerate live positions on-chain (closed ones are deleted → zeroed).
-      const openInfo = await countOpenPositionsOnChain(client, addr, nextIdNum).catch(() => null);
+      // V4 reserves exactly one notional per position, so both metrics are O(1).
+      const openInfo = await (Number(version) === 4
+        ? Promise.all([
+            client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'openPositionCount' }),
+            client.readContract({ address: addr, abi: VERSION_ABI, functionName: 'reservedProfit' }),
+          ]).then(([count, notional]) => ({ open: Number(count), openInterestUsd: Number(notional) / 1e6, partial: false }))
+        : countOpenPositionsOnChain(client, addr, nextIdNum)).catch(() => null);
       if (openInfo) onchainOpen = openInfo.open;
       out.onchain = {
         active_address: addr,
@@ -238,7 +242,7 @@ export default async function handler(req: any, res: any) {
         if (within(r.created_at, 1))  { roll.v24 += size; roll.t24 += 1; roll.f24 += fee; }
         if (within(r.created_at, 7))  { roll.v7  += size; roll.t7  += 1; roll.f7  += fee; }
         if (within(r.created_at, 30)) { roll.v30 += size; roll.t30 += 1; roll.f30 += fee; }
-      } else if (r.action === 'CLOSE') {
+      } else if (r.action === 'CLOSE' || isLiquidation(r)) {
         totalCloses += 1; totalFees += fee;
         b.closes += 1; b.fees_usd += fee;
         realizedPnl += Number(r.pnl || 0);
@@ -269,16 +273,18 @@ export default async function handler(req: any, res: any) {
         // Gross lifetime fees, estimated as 0.10% of collateral per side
         // (open + close). Live accrued fees (net of withdrawals) come from the
         // on-chain feeBalance read above → out.onchain.fee_balance_usd.
-        total_fees_usd: totalFees,
-        total_open_fees_usd: totalFees,
+        // History spans engines with different fee bases and has no exact fee
+        // field. Do not publish an estimate as earned revenue.
+        total_fees_usd: null,
+        total_open_fees_usd: null,
       },
       rollups: {
         volume_24h: roll.v24, volume_7d: roll.v7, volume_30d: roll.v30,
         trades_24h: roll.t24, trades_7d: roll.t7, trades_30d: roll.t30,
         liquidations_24h: roll.liq24, liquidations_7d: roll.liq7, liquidations_30d: roll.liq30,
-        fees_24h: roll.f24, fees_7d: roll.f7, fees_30d: roll.f30,
+        fees_24h: null, fees_7d: null, fees_30d: null,
       },
-      daily_buckets: dailyBuckets,
+      daily_buckets: dailyBuckets.map(({ fees_usd, ...bucket }) => bucket),
     });
   } catch (e: any) {
     console.error('[protocol-stats] error:', e);

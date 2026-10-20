@@ -11,6 +11,13 @@ import { build } from 'esbuild';
 import { MARKETS } from '../shared/markets.mjs';
 
 if (!process.argv.includes('--live-testnet')) throw new Error('Requires --live-testnet; never run against mainnet.');
+const testV4 = process.argv.includes('--v4');
+const tradePair = process.argv.find(arg => arg.startsWith('--pair='))?.slice(7) || 'SOL-USD';
+if (!MARKETS.some(m => m.symbol.replace('/', '-') === tradePair || `${m.symbol}-USD` === tradePair || m.pair === tradePair)) {
+  throw new Error(`Unknown acceptance market: ${tradePair}`);
+}
+const tradeConfig = testV4 ? { ...publicConfig, VITE_VELO_PERPS_V4_ACTIVE: 'true',
+  VITE_VELO_PERPS_V4_ADDRESS: '0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f' } : publicConfig;
 const fixtureName = process.argv.includes('--fresh-fixture') ? `testnet-acceptance-${Date.now()}.local` : 'testnet-acceptance.local';
 const fixturePath = new URL(`../audit/${fixtureName}`, import.meta.url);
 await mkdir(new URL('../audit/', import.meta.url), { recursive: true, mode: 0o700 });
@@ -90,7 +97,7 @@ if (process.argv.includes('--faucet-transfer')) {
     if (balance !== 1000000n) throw new Error('Recipient did not receive exact test amount');
   });
   if (process.argv.includes('--trade')) {
-    const compiled = await build({ entryPoints: ['src/services/veloPerpsService.ts'], bundle: true, write: false, platform: 'node', format: 'esm', define: { 'import.meta.env': JSON.stringify(publicConfig) },
+    const compiled = await build({ entryPoints: ['src/services/veloPerpsService.ts'], bundle: true, write: false, platform: 'node', format: 'esm', define: { 'import.meta.env': JSON.stringify(tradeConfig) },
       plugins: [{ name: 'test-session', setup(b) {
         b.onResolve({ filter: /pythConnection$/ }, () => ({ path: 'session', namespace: 'test' }));
         b.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const fetchPyth = (...args) => globalThis.__acceptancePyth(...args);' }));
@@ -101,12 +108,34 @@ if (process.argv.includes('--faucet-transfer')) {
     for (const existing of await perps.fetchOpenPositions(client, account.address)) {
       await timed('recover disposable test position', () => perps.closePosition(wallet, client, existing.tradeId, existing.pair));
     }
-    const position = await timed('open isolated SOL position', () => perps.openPosition(wallet, client, { pair: 'SOL-USD', isLong: true, collateralUSDC: 10, leverage: 2, marginMode: 'ISOLATED' }));
+    const position = await timed(`open isolated ${tradePair} position`, () => perps.openPosition(wallet, client, { pair: tradePair, isLong: true, collateralUSDC: 10, leverage: 2, marginMode: 'ISOLATED' }));
     console.log(JSON.stringify({ openedTradeId: position.tradeId.toString(), hash: position.txHash }));
-    const closed = await timed('close isolated SOL position', () => perps.closePosition(wallet, client, position.tradeId, 'SOL-USD'));
+    // V4's minimum hold is enforced on-chain, including for the test wallet.
+    if (testV4) await new Promise(resolve => setTimeout(resolve, 2500));
+    const livePositions = await perps.fetchOpenPositions(client, account.address);
+    if (!livePositions.some(p => p.tradeId === position.tradeId && (!testV4 || p.v4))) throw new Error('Live position or V4 accounting metadata missing');
+    const closed = await timed(`close isolated ${tradePair} position`, () => perps.closePosition(wallet, client, position.tradeId, tradePair));
     console.log(JSON.stringify({ closeReason: closed.reason, hash: closed.txHash }));
-    const order = await timed('place distant SOL limit order', () => perps.placeConditionalOrder(wallet, client, { pair: 'SOL-USD', isLong: true, leverage: 2, marginMode: 'ISOLATED', triggerKind: 'LIMIT', triggerPrice: 1, collateralUSDC: 10, reduceOnly: false }));
-    await timed('cancel SOL limit order', () => perps.cancelConditionalOrder(wallet, client, order.orderId));
+    const order = await timed('place distant limit order', () => perps.placeConditionalOrder(wallet, client, { pair: tradePair, isLong: true, leverage: 2, marginMode: 'ISOLATED', triggerKind: 'LIMIT', triggerPrice: 0.001, collateralUSDC: 10, reduceOnly: false }));
+    await timed('cancel limit order', () => perps.cancelConditionalOrder(wallet, client, order.orderId));
+    if (testV4 && process.argv.includes('--keeper-order')) {
+      const executable = await timed('place eligible keeper limit order', () => perps.placeConditionalOrder(wallet, client, { pair: tradePair, isLong: true, leverage: 2, marginMode: 'ISOLATED', triggerKind: 'LIMIT', triggerPrice: position.entryPrice * 1.1, collateralUSDC: 10, reduceOnly: false }));
+      console.log(JSON.stringify({ awaitingKeeper: true, orderId: executable.orderId.toString(), pair: tradePair }));
+      await timed('keeper executes real test order', async () => {
+        const deadline = Date.now() + 180000;
+        while (Date.now() < deadline) {
+          const positions = await perps.fetchOpenPositions(client, account.address);
+          if (positions.length) {
+            await new Promise(resolve => setTimeout(resolve, 2500));
+            for (const p of positions) await perps.closePosition(wallet, client, p.tradeId, p.pair);
+            return;
+          }
+          await new Promise(resolve => setTimeout(resolve, 4000));
+        }
+        await perps.cancelConditionalOrder(wallet, client, executable.orderId);
+        throw new Error('Keeper did not execute within acceptance window; test order cancelled');
+      });
+    }
     delete globalThis.__acceptancePyth;
   }
 }

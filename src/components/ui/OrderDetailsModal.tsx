@@ -329,7 +329,7 @@ export const OrderDetailsModal = ({
   if (payload.kind === 'POSITION') {
     const p          = payload.item;
     const mark       = marketPrices[p.pair] || p.entryPrice;
-    const pnl        = (mark - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+    const pnl        = positionPnl(p, mark);
     const marginUsed = p.leverage > 0 ? p.size / p.leverage : 0;
     const roe        = marginUsed > 0 ? (pnl / marginUsed) * 100 : 0;
     const priceMove  = p.entryPrice > 0 ? ((mark - p.entryPrice) / p.entryPrice) * 100 : 0;
@@ -629,3 +629,4 @@ export const OrderDetailsModal = ({
   return ReactDOM.createPortal(overlay, document.body);
 };
 
+import { positionPnl } from '@/services/positionValuation.mjs';
