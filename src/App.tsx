@@ -2,7 +2,7 @@ import { findRecentPositionClose, findRecentOrderOutcome, type ConfirmedClose } 
 import { validateUsername as validateRegistryUsername } from './services/usernameService';
 import { createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
 import { publicSupabase } from './services/supabaseStore';
-import { signInWithWallet, cancelWalletSignIn } from './services/walletAuth';
+import { signInWithWallet, cancelWalletSignIn, walletSignInError } from './services/walletAuth';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { VeloOnboardingModal, useOnboardingGuard } from './components/VeloOnboardingModal';
@@ -42,8 +42,10 @@ import { VeloShareCard, type ShareCardData } from './components/VeloShareCard';
 import { VeloManagePositionModal } from './components/VeloManagePositionModal';
 import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
 import { VeloAdminPanel } from './components/VeloAdminPanel';
+import { VeloLegacyPositions } from './components/VeloLegacyPositions';
+import { positionPnl, liquidationEstimate } from './services/positionValuation.mjs';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
-import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE } from './services/veloPerpsService';
+import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE, IS_V4 } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentThread } from './components/CommentThread';
@@ -129,6 +131,7 @@ import { TradeView } from '@/components/ui/pages/TradeView';
 import { AccountChoiceDialog } from './components/AccountChoiceDialog';
 import { postPath, parsePostPath } from '../shared/socialLinks.mjs';
 import { coinOverview } from '../shared/coinOverview.mjs';
+import { mergeNotifications } from './services/notificationState.mjs';
 import { ReactionContext, PostReactions, type ReactionKind } from './components/social/PostReactions';
 import { Dashboard } from '@/components/ui/pages/Dashboard';
 import { MarketsView } from '@/components/ui/pages/MarketsView';
@@ -1648,7 +1651,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
     }, [activeTab, trader.id]);
     const unrealizedPnl = traderPositions.reduce((acc, p) => {
         const price = marketPrices?.[p.pair] || p.entryPrice;
-        return acc + (price - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+        return acc + positionPnl(p, price);
     }, 0);
     const stats = { winRate: trader.winRate ?? 0, realizedPnl: (trader.pnl ?? 0) + unrealizedPnl };
     const tabBtn = (t: string): React.CSSProperties => ({
@@ -1709,7 +1712,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                             )}
                             {traderPositions.map((p: Position) => {
                                 const curPrice = marketPrices?.[p.pair] || p.entryPrice;
-                                const posUnreal = (curPrice - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                                const posUnreal = positionPnl(p, curPrice);
                                 return (
                                     <div key={p.id} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                                         <div>
@@ -2015,6 +2018,11 @@ const App = () => {
     const olderHistoryRequestsRef = useRef(new Set<string>());
     const exhaustedHistoryRef = useRef(new Set<string>());
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const notificationReadIds = useRef(new Set<string>());
+    const notificationSeenIds = useRef(new Set<string>());
+    const notificationOwner = useRef(user?.id);
+    notificationOwner.current = user?.id;
+    useEffect(() => { notificationReadIds.current.clear(); notificationSeenIds.current.clear(); }, [user?.id]);
     // Notification-driven focus for the Trade view. tradeFocus.tab forces the
     // PositionsPanel tab; tradeFocus.highlightId briefly outlines a matching row.
     const [tradeFocus, setTradeFocus] = useState<{ tab?: 'POSITIONS' | 'OPEN ORDERS' | 'HISTORY'; highlightId?: string; key: number } | null>(null);
@@ -2126,7 +2134,7 @@ const App = () => {
     const [isVeloSendOpen, setVeloSendOpen] = useState(false);
     const [isVeloWithdrawOpen, setVeloWithdrawOpen] = useState(false);
     const [managingPosition, setManagingPosition] = useState<Position | null>(null);
-    const [managingPositionTab, setManagingPositionTab] = useState<'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS'>('ADD');
+    const [managingPositionTab, setManagingPositionTab] = useState<'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS'>('PARTIAL');
     const [isCrossAccountOpen, setCrossAccountOpen] = useState(false);
     const [crossAccountTab, setCrossAccountTab] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
     const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
@@ -2215,7 +2223,7 @@ const App = () => {
     // New on-chain trading layer. Runs alongside Orderly during the migration.
     // `useVeloPerpsTrading` polls VeloPerps every 5s — single source of truth
     // for any position cards rendered by VeloPerpsPanel.
-    const veloPerpsTrading = useVeloPerpsTrading();
+    const veloPerpsTrading = useVeloPerpsTrading(marketPrices);
 
     useEffect(() => {
       if (!user?.id || !authChecked || !publicClient || !burnerAddress) return;
@@ -2474,7 +2482,7 @@ const App = () => {
         } catch (error: any) {
           if (attempt !== authAttemptRef.current) return;
           socialLoginHandledRef.current = false;
-          setToast({ message: error?.shortMessage || error?.message || 'Sign-in cancelled. Click Log In to retry.', type: 'ERROR' });
+          setToast({ message: walletSignInError(error), type: 'ERROR' });
           return;
         } finally { if (attempt === authAttemptRef.current) { signInBusyRef.current = false; setSignInBusy(false); } }
 
@@ -2520,11 +2528,11 @@ const App = () => {
       // the tx hash, so we stored it at open time; this lets the details modal
       // link to the exact opening transaction even after a reload.
       let openTxMap: Record<string, string> = {};
-      try { openTxMap = JSON.parse(localStorage.getItem('velo_open_tx') || '{}'); } catch {}
+      try { openTxMap = JSON.parse(localStorage.getItem(IS_V4 ? `velo_open_tx_${VELO_PERPS_ADDRESS.toLowerCase()}` : 'velo_open_tx') || '{}'); } catch {}
 
       const onChainPositions: Position[] = veloPerpsTrading.openPositions.map((p) => {
         const uiPair = p.pair.replace('-', '/'); // BTC-USD → BTC/USD etc.
-        const notional = p.collateralUSDC * p.leverage;
+        const notional = p.notionalUSDC;
         // marginMode comes straight from the V3 contract's Position struct.
         // Falls back to 'ISOLATED' for V1/V2 positions which don't have the field.
         const mm: MarginMode = (p.marginMode === 'CROSS' || p.marginMode === 'ISOLATED')
@@ -2557,6 +2565,7 @@ const App = () => {
           // liqMove (in price terms) = (collateral × 0.9) / positionSize.
           // Adding collateral increases liqMove → pushes liq further from entry.
           liquidationPrice: (() => {
+            if (p.v4) return liquidationEstimate({ entryPrice:p.entryPrice, size:notional, side:p.isLong?'LONG':'SHORT', timestamp:p.openedAt*1000, v4:p.v4 });
             const maintainable = (p.collateralUSDC * 0.9);
             const liqMove = notional > 0 ? (maintainable / notional) * p.entryPrice : 0;
             return p.isLong
@@ -2564,11 +2573,13 @@ const App = () => {
               : p.entryPrice + liqMove;
           })(),
           timestamp: p.openedAt * 1000,
+          v4: p.v4,
           onChain: true,
           // ── V2 fields required for manage modal routing ──────────────────────
           // Without onChainTradeId the manage modal can't be reached — the UI
           // falls back to the legacy EditPositionModal which only saves to Supabase.
           onChainTradeId: tradeIdKey,
+          onChainContract: VELO_PERPS_ADDRESS,
           takeProfit: overlayTp,
           stopLoss: overlaySl,
           // Reuse the orderly fields for tx link surfacing (modal already reads them).
@@ -2591,10 +2602,10 @@ const App = () => {
     const previousHistoryOwner = useRef(veloPerpsTrading.traderAddress);
     const activeHistoryUser = useRef(user?.id);
     activeHistoryUser.current = user?.id;
-    const recordConfirmedClose = (pos: any, result: ConfirmedClose) => {
+    const recordConfirmedClose = (pos: any, result: ConfirmedClose, activeEngine = true) => {
       if (!user || activeHistoryUser.current !== user.id) return;
       const fraction = result.fractionBps / 10000;
-      if (fraction === 1) markVeloTradeClosed(result.tradeId.toString());
+      if (fraction === 1 && activeEngine) markVeloTradeClosed(result.tradeId.toString());
       const historyItem: TradeHistoryItem = {
         id: result.id, pair: pos.pair, side: pos.side, entryPrice: pos.entryPrice,
         exitPrice: result.exitPrice, size: pos.size * fraction, pnl: result.pnlUSDC,
@@ -2665,6 +2676,7 @@ const App = () => {
           size: o.collateralUSDC * o.leverage,
           leverage: o.leverage,
           timestamp: o.createdAt * 1000,
+          onChain: true, onChainContract: VELO_PERPS_ADDRESS,
         } as OpenOrder;
       });
       setOpenOrders((prev) => {
@@ -2820,7 +2832,10 @@ const App = () => {
      */
     const handleEditPosition = (p: Position | null, initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS') => {
       if (!p) { setEditingPosition(null); setManagingPosition(null); return; }
-      if (p.onChain && p.onChainTradeId) { setManagingPositionTab(initialTab || 'ADD'); setManagingPosition(p); }
+      if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+        setToast({message:'Refresh this position before managing it. Legacy positions have separate exit controls.',type:'INFO'}); return;
+      }
+      if (p.onChain && p.onChainTradeId) { setManagingPositionTab(initialTab === 'TRIGGERS' ? 'TRIGGERS' : 'PARTIAL'); setManagingPosition(p); }
       else setEditingPosition(p);
     };
     const [activeSocialTicker, setActiveSocialTicker] = useState<string | null>(null);
@@ -3106,7 +3121,7 @@ const App = () => {
     const totalUnrealizedPnl = useMemo(() =>
         positions.reduce((acc, p) => {
             const mark = marketPrices[p.pair] || p.entryPrice;
-            return acc + (mark - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+            return acc + positionPnl(p, mark);
         }, 0),
     [positions, marketPrices]);
 
@@ -3141,7 +3156,7 @@ const App = () => {
             .filter(p => p.marginMode === 'CROSS' && !p.isCopyTrade)
             .reduce((acc, p) => {
                 const mark = marketPrices[p.pair] || p.entryPrice;
-                return acc + (mark - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                return acc + positionPnl(p, mark);
             }, 0),
     [positions, marketPrices]);
 
@@ -4137,18 +4152,11 @@ const App = () => {
 
         const load = async (isRetry = false) => {
             try {
+                const startedAt = Date.now();
                 const notifs = await fetchNotifications(user.id);
                 if (!mounted) return;
-                if (notifs.length > 0) {
-                    setNotifications(prev => {
-                        const serverIds = new Set(notifs.map((n: any) => n.id));
-                        const localOnly = (prev || []).filter((n: any) => !serverIds.has(n.id));
-                        return [...notifs, ...localOnly];
-                    });
-                } else if (!isRetry) {
-                    // Empty could be a genuine zero or a JWT-race — retry once.
-                    retryTimer = setTimeout(() => { void load(true); }, 2200);
-                }
+                notifs.forEach(n => notificationSeenIds.current.add(n.id));
+                setNotifications(prev => mergeNotifications(prev, notifs, notificationReadIds.current, startedAt));
             } catch (e) {
                 if (!isRetry && mounted) retryTimer = setTimeout(() => { void load(true); }, 3000);
             }
@@ -4157,8 +4165,11 @@ const App = () => {
         const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
         document.addEventListener('visibilitychange', onVisible);
         void load();
+        const poll = setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 60000);
+        const unsubscribe = onSessionHealth(health => { if (health === 'fresh') void load(); });
         return () => {
             mounted = false;
+            clearInterval(poll); unsubscribe();
             if (retryTimer) clearTimeout(retryTimer);
             document.removeEventListener('visibilitychange', onVisible);
         };
@@ -4458,7 +4469,7 @@ const App = () => {
             });
         }, 30000);
         return () => { unsub(); pythPriceStream.disconnect(); clearInterval(restTimer); };
-    }, []);
+    }, [user?.id]);
 
     // Real-time social feed is handled by the unified social-sync channel above
 
@@ -4494,15 +4505,21 @@ const App = () => {
         // ── notifications ─────────────────────────────────────────────────
         const notifR = makeReconnector(() =>
             subscribeUserNotifications(user.id, (rawNotif: any) => {
-                if (!mounted || rawNotif.suppressed) return;
+                if (!mounted) return;
                 const notif: Notification = {
                     id: rawNotif.id, type: rawNotif.type, message: rawNotif.message,
                     timestamp: new Date(rawNotif.created_at).getTime(),
-                    read: false, relatedId: rawNotif.related_id,
+                    read: rawNotif.read, relatedId: rawNotif.related_id,
+                    postId: rawNotif.post_id, commentId: rawNotif.comment_id,
                 };
-                setNotifications(prev => prev.some(n => n.id === notif.id) ? prev : [notif, ...prev]);
-                setToast({ message: rawNotif.message, type: 'INFO' });
-                playSound('CLICK');
+                setNotifications(prev => mergeNotifications(prev, [{ ...notif, suppressed: rawNotif.suppressed, __event: rawNotif.__event }], notificationReadIds.current));
+                const isNew = !notificationSeenIds.current.has(notif.id);
+                notificationSeenIds.current.add(notif.id);
+                if (notificationSeenIds.current.size > 500) notificationSeenIds.current.delete(notificationSeenIds.current.values().next().value!);
+                if (isNew && rawNotif.__event === 'INSERT' && !rawNotif.suppressed && !notif.read) {
+                    setToast({ message: rawNotif.message, type: 'INFO' });
+                    playSound('CLICK');
+                }
             }, notifR.onStatus)
         );
         notifR.launch();
@@ -4846,6 +4863,19 @@ const App = () => {
         setSessionNotice(null);
         setAccountChoiceOpen(true);
     };
+    const markNotificationIdsRead = async (ids: string[]) => {
+        if (!user || !ids.length) return;
+        const owner = user.id;
+        ids.forEach(id => notificationReadIds.current.add(id));
+        setNotifications(rows => rows.map(row => ids.includes(row.id) ? { ...row, read: true } : row));
+        try { await markAllNotificationsRead(user.id, ids); }
+        catch {
+            if (notificationOwner.current !== owner) return;
+            ids.forEach(id => notificationReadIds.current.delete(id));
+            setNotifications(rows => rows.map(row => ids.includes(row.id) ? { ...row, read: false } : row));
+            setToast({ message: 'Could not save notification read status. Please try again.', type: 'ERROR' });
+        }
+    };
     const reactionWritesRef = useRef(new Set<string>());
     const handleReaction = async (postId: string, kind: ReactionKind | null) => {
         if (!user) { void handleRequireAuth(); return; }
@@ -4910,7 +4940,7 @@ const App = () => {
         } catch (error: any) {
             if (attempt !== authAttemptRef.current) return;
             socialLoginHandledRef.current = false;
-            setToast({ message: error?.shortMessage || error?.message || 'Unable to sign in. Please try again.', type: 'ERROR' });
+            setToast({ message: walletSignInError(error), type: 'ERROR' });
         } finally { if (attempt === authAttemptRef.current) { signInBusyRef.current = false; setSignInBusy(false); } }
     };
     const handleLogout = async (reason: 'manual' | 'idle' = 'manual') => {
@@ -5421,7 +5451,7 @@ const App = () => {
               // Resolve UI pair (e.g. "BTC/USD") to Velo pair label ("BTC-USD")
               const veloPair = uiPairToVeloPair(pairId);
               if (!veloPair) {
-                setToast({ message: `${pairId} is not available for trading. Current perpetuals: BTC, ETH, SOL and DOGE.`, type: 'INFO' });
+                setToast({ message: `${pairId} is not available for trading. Select an available perpetual market.`, type: 'INFO' });
                 releaseLock();
                 return;
               }
@@ -5463,6 +5493,7 @@ const App = () => {
                 collateralUSDC: collateral,
                 leverage,
                 marginMode,
+                takeProfit:tp, stopLoss:sl,
               }).then((result) => {
                 // The 5s poll inside useVeloPerpsTrading will pick up the new position
                 // and our sync effect will mirror it into local state. We don't call
@@ -5478,13 +5509,13 @@ const App = () => {
                     side,
                     entryPrice: result.entryPrice,
                     exitPrice: 0,
-                    size,
+                    size: result.notionalUSDC,
                     pnl: 0,
                     timestamp: Date.now(),
                     openedAt: Date.now(),
                     leverage,
                     marginMode,
-                    liquidationPrice: side === 'LONG'
+                    liquidationPrice: IS_V4 ? undefined : side === 'LONG'
                       ? result.entryPrice * (1 - 0.9 / leverage)
                       : result.entryPrice * (1 + 0.9 / leverage),
                     action: 'OPEN',
@@ -5512,10 +5543,14 @@ const App = () => {
                 // modal can link to the exact opening transaction even after reload.
                 // (The contract position sync doesn't carry the tx hash.)
                 try {
-                  const m = JSON.parse(localStorage.getItem('velo_open_tx') || '{}');
+                  const key = IS_V4 ? `velo_open_tx_${VELO_PERPS_ADDRESS.toLowerCase()}` : 'velo_open_tx';
+                  const m = JSON.parse(localStorage.getItem(key) || '{}');
                   m[result.tradeId.toString()] = (result as any).txHash || (result as any).explorerUrl;
-                  localStorage.setItem('velo_open_tx', JSON.stringify(m));
+                  localStorage.setItem(key, JSON.stringify(m));
                 } catch {}
+
+                // V4 emits the position and its protection in the same receipt.
+                if (IS_V4) return;
 
                 // ── Attach TP/SL on-chain via setTriggers ─────────────────────
                 // The order form lets the user set TP/SL at open time. The contract's
@@ -5546,7 +5581,7 @@ const App = () => {
                 }
                 const hasTp = tpValid;
                 const hasSl = slValid;
-                if (hasTp || hasSl) {
+                if ((hasTp || hasSl) && !IS_V4) {
                   const tradeIdKey = result.tradeId.toString();
                   const newPosId = `velo_${tradeIdKey}`;
                   // 1. Optimistic overlay onto the position (right-side panel,
@@ -5665,6 +5700,7 @@ const App = () => {
                 triggerPrice: price,
                 collateralUSDC: collateral,
                 reduceOnly: false,
+                takeProfit:tp, stopLoss:sl,
               }).then((r) => {
                 // Optimistic local echo: the sync effect mirrors veloPerpsTrading.conditionalOrders
                 // into openOrders, but that runs on the next refresh tick. Insert the order
@@ -5680,6 +5716,7 @@ const App = () => {
                   leverage,
                   timestamp: Date.now(),
                   onChain: true,
+                  onChainContract: VELO_PERPS_ADDRESS,
                   orderlyOrderUrl: r.explorerUrl,
                 } as OpenOrder;
                 setOpenOrders((prev) => {
@@ -5724,6 +5761,10 @@ const App = () => {
         if (processingIds.current.has(id)) return;
         const p = positionsRef.current.find(x => x.id === id);
         if (!p || !user) return;
+        if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+          setToast({ message:'Refresh this position before closing. Legacy positions have separate exit controls.',type:'INFO' });
+          return;
+        }
 
         // Close = instant 100% market close. The Manage modal (partial close,
         // add margin, TP/SL edit) is still reachable via the Edit/Manage
@@ -5744,7 +5785,7 @@ const App = () => {
 
         const price = marketPrices[p.pair] || p.entryPrice;
         // PnL = price movement in the direction of the trade, scaled by position size in base units
-        const pnl = (price - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+        const pnl = positionPnl(p, price);
         // Margin that was locked when opening this position
         const marginReturned = p.size / p.leverage;
         const isOnChainClose = (p as any).onChain && p.id.startsWith('velo_');
@@ -5828,6 +5869,9 @@ const App = () => {
     const handleCancelOrder = (id: string) => {
         // On-chain conditional order? Route to V3 cancelConditionalOrder.
         if (id.startsWith('velo_ord_')) {
+            if (IS_V4 && openOrders.find(o => o.id === id)?.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+                setToast({message:'Refresh this order before cancelling. Legacy orders have separate exit controls.',type:'INFO'}); return;
+            }
             const orderId = BigInt(id.slice('velo_ord_'.length));
             // Optimistically remove from UI; the 5s poll will reconcile.
             setOpenOrders(prev => prev.filter(o => o.id !== id));
@@ -6831,7 +6875,7 @@ const App = () => {
             {/* ── Velo Manage Position Modal (V2: add/reduce margin, partial close, TP/SL) ── */}
             <VeloManagePositionModal
               isOpen={!!managingPosition}
-              onClose={() => { setManagingPosition(null); setManagingPositionTab('ADD'); }}
+              onClose={() => { setManagingPosition(null); setManagingPositionTab('PARTIAL'); }}
               position={managingPosition}
               currentPrice={managingPosition ? (marketPrices[managingPosition.pair] || managingPosition.entryPrice) : 0}
               userBalance={veloPerpsTrading.usdcBalance ?? user?.balance ?? 0}
@@ -6850,7 +6894,9 @@ const App = () => {
                 },
                 partialClose: async (tradeId, fracBps, pair) => {
                   const pos = managingPosition;
-                  const r = await veloPerpsTrading.partialClose(tradeId, fracBps, pair.replace('/', '-') as any);
+                  const r = IS_V4
+                    ? await veloPerpsTrading.closePosition(tradeId, pair.replace('/', '-') as any)
+                    : await veloPerpsTrading.partialClose(tradeId, fracBps, pair.replace('/', '-') as any);
                   if (pos) {
                     recordConfirmedClose(pos, r);
                     setPositions(prev => fracBps === 10000 ? prev.filter(p => p.id !== pos.id)
@@ -6996,9 +7042,7 @@ const App = () => {
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
             <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
             <Navbar activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
-                    // Mark this notification (and all others) as read
-                    setNotifications(prev => prev.map(x => ({ ...x, read: true })));
-                    if (isSupabaseConfigured() && user) markAllNotificationsRead(user.id).catch(() => {});
+                    if (!n.read) void markNotificationIdsRead([n.id]);
 
                     // Route based on notification type so the click actually lands somewhere useful
                     const t = n?.type;
@@ -7055,13 +7099,9 @@ const App = () => {
                         // Generic trade alert — jump to Positions
                         setTradeFocus({ tab: 'POSITIONS', highlightId: rid, key: focusKey });
                         setActiveTab(TabView.TRADE);
-                    } else if (t === 'COMMENT' || t === 'MENTION') {
-                        // Open the specific post with comments expanded
-                        if (rid) { setSocialFocusPostId(rid); setSocialOpenCommentsPostId(rid); }
-                        setActiveTab(TabView.SOCIAL);
-                    } else if (t === 'LIKE' || t === 'REPOST') {
-                        // Scroll to the specific post
-                        if (rid) { setSocialFocusPostId(rid); setSocialOpenCommentsPostId(null); }
+                    } else if (['COMMENT', 'MENTION', 'LIKE', 'REPOST', 'WALL_POST'].includes(t)) {
+                        setSinglePostId(n.postId || rid || null);
+                        setSingleCommentId(n.commentId || null);
                         setActiveTab(TabView.SOCIAL);
                     } else if (t === 'FOLLOW') {
                         // Someone followed the user — show the follower's profile if we can resolve it,
@@ -7070,18 +7110,26 @@ const App = () => {
                             const trader = traders.find((x: Trader) => x.id === rid);
                             if (trader) { handleViewProfile(trader); return; }
                         }
-                        setActiveTab(TabView.PROFILE);
-                    } else if (t === 'DEPOSIT' || t === 'WITHDRAW' || t === 'EARN') {
+                        if (rid) {
+                            const requestPath = window.location.pathname;
+                            setViewingProfile(null); setActiveTab(TabView.PUBLIC_PROFILE);
+                            void supabase.from('profiles').select('*').eq('id', rid).maybeSingle().then(({ data }) => {
+                                if (window.location.pathname !== requestPath) return;
+                                if (data) setViewingProfile(dbProfileToUserProfile(data));
+                                else { setActiveTab(TabView.SOCIAL); setToast({ message: 'This profile is no longer available.', type: 'INFO' }); }
+                            });
+                        }
+                    } else if (t === 'EARN') {
                         // Account / balance events — Dashboard is the right home
                         setActiveTab(TabView.DASHBOARD);
-                    } else if (t === 'TRANSFER_SENT' || t === 'TRANSFER_RECEIVED') {
+                    } else if (['TRANSFER_SENT', 'TRANSFER_RECEIVED', 'DEPOSIT', 'WITHDRAW'].includes(t)) {
                         // Peer-to-peer mUSDC transfer — open the matching
                         // transaction row in OrderDetailsModal. `rid` is the
                         // tx_hash we passed to createNotification. We match by
                         // txHash first (authoritative); if local state hasn't
                         // hydrated the row yet (realtime race), fetch it.
                         const findInHistory = () => (user?.transactionHistory ?? []).find((tx: any) =>
-                            tx.txHash === rid || tx.tx_hash === rid || tx.id === rid,
+                            tx.txHash?.replace(/^faucet:/, '') === rid?.replace(/^faucet:/, '') || tx.tx_hash === rid || tx.id === rid,
                         );
                         const local = findInHistory();
                         if (local) {
@@ -7094,7 +7142,9 @@ const App = () => {
                                         .from('transactions')
                                         .select('*')
                                         .eq('user_id', user.id)
-                                        .eq('tx_hash', rid)
+                                        .eq('suppressed', false)
+                                        .in('tx_hash', [rid, `faucet:${rid}`])
+                                        .limit(1)
                                         .maybeSingle();
                                     if (data) {
                                         const item: any = {
@@ -7129,30 +7179,26 @@ const App = () => {
                 }} isNotifOpen={notifOpen} setNotifOpen={(open: boolean) => {
                     setNotifOpen(open);
                     if (open && user && isSupabaseConfigured()) {
-                        // Always pull the latest notifications from Supabase when the
-                        // panel opens, so existing/older rows show — not just realtime ones.
+                        const owner = user.id;
+                        const startedAt = Date.now();
                         fetchNotifications(user.id).then(fresh => {
-                            if (fresh.length > 0) {
-                                setNotifications(prev => {
-                                    const ids = new Set(fresh.map((n: any) => n.id));
-                                    const localOnly = (prev || []).filter((n: any) => !ids.has(n.id));
-                                    return [...fresh, ...localOnly];
-                                });
-                            }
-                        }).catch(() => {});
-                        // Mark all read shortly after (clears the unread highlight).
-                        setTimeout(() => {
-                            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-                            markAllNotificationsRead(user.id).catch(() => {});
-                        }, 800);
+                            if (notificationOwner.current !== owner) return;
+                            fresh.forEach(n => notificationSeenIds.current.add(n.id));
+                            setNotifications(prev => mergeNotifications(prev, fresh, notificationReadIds.current, startedAt));
+                        }).catch(() => setToast({ message: 'Notifications could not refresh. Reopen the panel to retry.', type: 'ERROR' }));
                     }
-                }} totalEquity={totalEquity}/>
+                }} onMarkAllRead={() => void markNotificationIdsRead(notifications.filter(n => !n.read).map(n => n.id))} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
             <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {user && veloPerpsTrading.pendingTxHash && <TransactionRecoveryNotice key={veloPerpsTrading.pendingTxHash} hash={veloPerpsTrading.pendingTxHash} onReset={veloPerpsTrading.resetLegacyTracking}/>}
                 {user && veloPerpsTrading.readError && <div role="alert" style={{ padding: '10px 16px', color: 'var(--pnl-down)' }}>
                   {veloPerpsTrading.readError} <button onClick={() => void veloPerpsTrading.refresh()}>Retry account data</button>
                 </div>}
+                {IS_V4 && user && (activeTab === TabView.DASHBOARD || activeTab === TabView.TRADE) && <VeloLegacyPositions
+                  key={veloPerpsTrading.traderAddress} trading={veloPerpsTrading}
+                  onClosePosition={(p, result) => recordConfirmedClose({ pair:p.pair.replace('-', '/'), side:p.isLong?'LONG':'SHORT',
+                    size:p.notionalUSDC, entryPrice:p.entryPrice, leverage:p.leverage, marginMode:p.marginMode,
+                    timestamp:p.openedAt*1000 }, result, false)}/>}
                 {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
@@ -7190,7 +7236,7 @@ const App = () => {
 
                   <TradeView tradingPending={veloPerpsTrading.isPending} activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} chartHistoryStatus={chartHistoryStatus} onRetryChartHistory={() => setChartHistoryRetry(retry => retry + 1)} onLoadOlderHistory={loadOlderChartHistory} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
-                    const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                    const pnl = positionPnl(p, cp);
                     const collateral = p.size / p.leverage;
                     setShareCardData({
                       pair: p.pair,

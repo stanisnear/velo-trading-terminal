@@ -38,10 +38,13 @@ export function decodeConfirmedClose(receipt: TransactionReceipt, contract: Addr
       return [{ ...decoded, log }];
     } catch { return []; }
   });
-  const event = events.find(e => e.eventName !== 'TriggerFired');
+  const liquidationEvent = events.find(e => e.eventName === 'PositionLiquidated');
+  const settlementEvent = events.find(e => e.eventName === 'PositionClosed');
+  const event = settlementEvent || events.find(e => e.eventName !== 'TriggerFired');
   if (!event) return null;
   const args = event.args as any;
-  const liquidation = event.eventName === 'PositionLiquidated';
+  const liquidation = !!liquidationEvent;
+  const legacyLiquidation = liquidation && !settlementEvent;
   const trigger = events.find(e => e.eventName === 'TriggerFired');
   return {
     id: tradeEventId(contract, receipt.transactionHash, event.log.logIndex),
@@ -53,9 +56,9 @@ export function decodeConfirmedClose(receipt: TransactionReceipt, contract: Addr
     exitPrice: Number(args.exitPrice_E18) / 1e18,
     // V3.1's known cross-ledger defect only debits the bounty on liquidation.
     // Never claim that defective contract actually forfeited all cross margin.
-    pnlUSDC: liquidation ? (marginMode === 'CROSS' ? -Number(args.bountyUSDC_6) / 1e6 : -collateralUSDC) : Number(args.pnlUSDC_6) / 1e6,
-    payoutUSDC: liquidation ? 0 : Number(args.payoutUSDC_6) / 1e6,
-    feeUSDC: liquidation ? 0 : Number(args.feeUSDC_6) / 1e6,
+    pnlUSDC: legacyLiquidation ? (marginMode === 'CROSS' ? -Number(args.bountyUSDC_6) / 1e6 : -collateralUSDC) : Number(args.pnlUSDC_6) / 1e6,
+    payoutUSDC: legacyLiquidation ? 0 : Number(args.payoutUSDC_6) / 1e6,
+    feeUSDC: legacyLiquidation ? 0 : Number(args.feeUSDC_6) / 1e6,
   };
 }
 

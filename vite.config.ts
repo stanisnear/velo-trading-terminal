@@ -2,6 +2,7 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { handleMarketData } from './cloudflare/market-data.js';
+import { publicConfig } from './supabase/functions/_shared/public-config.js';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -30,6 +31,8 @@ export default defineConfig(({ mode }) => {
         },
       }],
       define: {
+        ...Object.fromEntries(Object.entries(publicConfig).filter(([key]) => key.startsWith('VITE_') && !env[key])
+          .map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])),
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         // Required for WalletConnect / Reown AppKit internals in the browser

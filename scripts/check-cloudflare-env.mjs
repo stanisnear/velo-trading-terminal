@@ -19,6 +19,10 @@ const required = [
   'VITE_VELO_PERPS_V2_ADDRESS',
 ];
 const missing = required.filter((name) => !process.env[name]?.trim());
+if (process.env.VITE_VELO_PERPS_V4_ACTIVE === 'true' &&
+    !/^0x[0-9a-fA-F]{40}$/.test(process.env.VITE_VELO_PERPS_V4_ADDRESS || '')) {
+  missing.push('VITE_VELO_PERPS_V4_ADDRESS');
+}
 if (missing.length) {
   console.error('Missing build variables (values are never printed):\n' + missing.join('\n'));
   process.exitCode = 1;

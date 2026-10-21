@@ -23,7 +23,7 @@ import { isConfigured as isSupabaseConfigured, supabase } from '../services/supa
 import { setupBurnerWallet, createBurnerWalletClient } from '../services/veloBurnerSetup';
 import { fetchUsdcBalance } from '../services/veloUsdcService';
 import { VELO_USDC_BASE, baseScanTxUrl } from '../services/veloPerpsService';
-import { claimUsername, fetchUsernameForAddress } from '../services/usernameService';
+import { ensureUsernameRegistered } from '../services/usernameService';
 import { ensureBurnerGas } from '../services/veloGasSponsor';
 
 const EXPECTED_CHAIN_ID = 84532;
@@ -313,6 +313,10 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
         onWalletReady: async (burner) => {
           const { error } = await supabase.from('profiles').update({ velo_wallet_address: burner.veloAddress.toLowerCase() }).eq('id', authUser.id);
           if (error) throw new Error('Unable to save the trading wallet. Please retry before claiming funds.');
+          const gas = await ensureBurnerGas(publicClient, burner.veloAddress);
+          if (!gas.ok) throw new Error(gas.reason || 'Unable to fund username registration. Retry account setup.');
+          const usernameTx = await ensureUsernameRegistered(publicClient, createBurnerWalletClient(burner.privateKey) as any, uname);
+          if (usernameTx) onUsernameClaimed?.(uname, usernameTx);
         },
         onStep: (s: string) => {
           if (s === 'SIGNING') setStep('BURNER_SIGN');
@@ -323,19 +327,6 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       });
       setBurnerAddr(result.burner.veloAddress);
       setClaimTxHash(result.faucetTxHash ?? null);
-
-      if (uname) {
-        try {
-          const existing = await fetchUsernameForAddress(publicClient, address);
-          if (!existing) {
-            await ensureBurnerGas(publicClient, result.burner.veloAddress as `0x${string}`);
-            const burnerWc = createBurnerWalletClient(result.burner.privateKey);
-            const unameTx = await claimUsername(burnerWc as any, uname);
-            await (await import('@/services/tradeReceipts')).waitForSuccessfulReceipt(publicClient, unameTx);
-            onUsernameClaimed?.(uname, unameTx);
-          }
-        } catch (e) { console.warn('[velo] on-chain username claim skipped:', e); }
-      }
 
       const bal = await fetchUsdcBalance(publicClient, VELO_USDC_BASE, result.burner.veloAddress);
       setClaimBalance(bal);

@@ -27,3 +27,13 @@ test('cancelling while the wallet prompt is open never exchanges its late signat
  const operation=signInWithWallet(address,()=>new Promise(r=>{release=r;prompted()}),{force:true});
  try{await ready;cancelWalletSignIn();release('0x11');await assert.rejects(operation,/Sign-in cancelled/);assert.equal(f.counts().verified,0);assert.equal(f.counts().api,1);}finally{f.restore();}
 });
+test('a transient challenge network failure retries without another wallet prompt',async()=>{
+ const f=fixture();const fetchFixture=globalThis.fetch;let requests=0;
+ globalThis.fetch=(...args)=>{if(++requests===1)throw new TypeError('Failed to fetch');return fetchFixture(...args);};
+ try{await signInWithWallet(address,f.sign,{force:true});assert.equal(requests,3);assert.equal(f.counts().signed,1);}finally{f.restore();}
+});
+test('a failed signed-proof request is not replayed and a new login can recover',async()=>{
+ const f=fixture();const fetchFixture=globalThis.fetch;let verifies=0;
+ globalThis.fetch=(url,options)=>{if(JSON.parse(options.body).action==='verify'){verifies++;throw new TypeError('Failed to fetch');}return fetchFixture(url,options);};
+ try{await assert.rejects(signInWithWallet(address,f.sign,{force:true}),/connection interrupted/);assert.equal(verifies,1);globalThis.fetch=fetchFixture;await signInWithWallet(address,f.sign,{force:true});assert.equal(f.counts().verified,1);}finally{f.restore();}
+});

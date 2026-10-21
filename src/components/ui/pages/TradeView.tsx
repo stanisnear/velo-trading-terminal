@@ -1,4 +1,8 @@
 import { LEGACY_V31_RESTRICTED } from '@/services/testnetReleaseGate';
+import { positionPnl } from '@/services/positionValuation.mjs';
+import { IS_V4, PAIR_INDEX, VELO_PERPS_V4_ADDRESS, type VeloPairLabel } from '@/services/veloPerpsService';
+import { VELO_PERPS_V4_ABI } from '@/services/veloPerpsV4Abi';
+import { useReadContract } from 'wagmi';
 import { validateTradeForm } from '@/services/tradeFormValidation.mjs';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
@@ -9,6 +13,8 @@ import { Button, Input, VeloAssetIcon, formatMoney, formatPrice, formatTime, pla
 import { Position, OpenOrder, OrderType, MarginMode, PAIRS, ORDERLY_PAIRS, TradeHistoryItem } from '@/utils/types';
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 import { Dialog } from '@/components/ui/Dialog';
+import './TradeView.css';
+import { TradeRail } from './TradeRail';
 // ── Orderly helpers inlined to avoid circular-dependency bundler errors ────────
 // (TradeView → OrderBook → orderlyOrderbookStream → orderlyService → viem causes
 //  a "cannot access before initialization" ReferenceError in the Vite bundle)
@@ -811,7 +817,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                 : (() => {
                                     return pos.items.map((p: Position) => {
                                     const cp = marketPrices[p.pair] || p.entryPrice;
-                                    const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                                    const pnl = positionPnl(p, cp);
                                     const roe = (pnl / (p.size / p.leverage)) * 100;
                                     // V3 liquidation threshold is 90% of collateral lost (LIQUIDATION_THRESHOLD_BPS = 9000).
                                     // Liq price formula: entry ± (collateral * 0.9 / notional) * entry
@@ -904,7 +910,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                     <div className="md:hidden" style={{ padding: 7, display: isMobile ? 'flex' : 'none', flexDirection: 'column', gap: 6 }}>
                         {pos.items.length === 0 ? <Empty msg="No open positions." /> : pos.items.map((p: Position) => {
                             const cp = marketPrices[p.pair] || p.entryPrice;
-                            const pnl = (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+                            const pnl = positionPnl(p, cp);
                             const roe = (pnl / (p.size / p.leverage)) * 100;
                             return (
                                 <div
@@ -1276,6 +1282,15 @@ export const TradeView = ({
     const [limitPrice, setLimitPrice] = useState('');
     const [takeProfit, setTakeProfit] = useState('');
     const [stopLoss, setStopLoss]     = useState('');
+    const risk = useReadContract({ address:VELO_PERPS_V4_ADDRESS, abi:VELO_PERPS_V4_ABI, functionName:'marketRisk',
+        args:[PAIR_INDEX[activePair.id.replace('/', '-') as VeloPairLabel]],
+        chainId:84532, query:{enabled:IS_V4,refetchInterval:30000} });
+    const maxLeverage = IS_V4 ? Number(risk.data?.[3] || 1) : 25;
+    useEffect(() => {
+        if (!IS_V4) return;
+        setLeverage(value => Math.min(value, maxLeverage));
+        setMarginMode('ISOLATED');
+    }, [maxLeverage, activePair.id, leverage]);
 
     // UI state
     const [pairOpen, setPairOpen]     = useState(false);
@@ -1515,7 +1530,7 @@ export const TradeView = ({
         .filter((p: Position) => p?.marginMode === 'CROSS' && !p.isCopyTrade)
         .reduce((acc: number, p: Position) => {
             const cp = marketPrices?.[p.pair] || p.entryPrice;
-            return acc + (cp - p.entryPrice) * (p.side === 'LONG' ? 1 : -1) * (p.size / p.entryPrice);
+            return acc + positionPnl(p, cp);
         }, 0);
 
     // Locked margin already committed to cross positions — part of the shared pool
@@ -1532,7 +1547,7 @@ export const TradeView = ({
     const crossBuyingPower    = Math.max(0, effectiveBalance + crossPnl);
     const buyingPower = marginMode === 'CROSS' ? crossBuyingPower : isolatedBuyingPower;
 
-    const mm = 0.005, cpn = parseFloat(String(currentPrice));
+    const mm = IS_V4 ? Number(risk.data?.[4] || 50) / 10000 + 0.001 : 0.005, cpn = parseFloat(String(currentPrice));
     let estLiqPrice = 0;
     const sz = parseFloat(sizeAmount);
     if (marginMode === 'ISOLATED') {
@@ -1565,7 +1580,8 @@ export const TradeView = ({
     // This prevents the UI from defaulting back to ISOLATED on refresh when the user has a CROSS position.
     useEffect(() => {
         const existingPos = (positions || []).find((p: Position) => p?.pair === activePair.id && !p.isCopyTrade);
-        if (existingPos?.marginMode) {
+        if (IS_V4) setMarginMode('ISOLATED');
+        else if (existingPos?.marginMode) {
             setMarginMode(existingPos.marginMode);
         }
     }, [mergedPositions, activePair.id]);
@@ -1576,6 +1592,10 @@ export const TradeView = ({
     const handleSubmit = () => {
         if (!user) return onRequireAuth();
         if (tradingPending) return;
+        if (IS_V4 && (!risk.data || risk.isError)) { setToast({ message:'Market risk limits are unavailable. Please retry.',type:'ERROR' }); return; }
+        if (IS_V4 && (leverage > maxLeverage || Number(sizeAmount) > Number(risk.data![0]) / 1e6)) {
+            setToast({ message:'Order exceeds this market’s leverage or position-size limit.',type:'ERROR' }); return;
+        }
         const price = orderType === 'MARKET' ? currentPrice : parseFloat(limitPrice);
         const error = validateTradeForm({ price, size: Number(sizeAmount), side, takeProfit, stopLoss });
         if (error) { setToast({ message: error, type: 'ERROR' }); return; }
@@ -1595,10 +1615,33 @@ export const TradeView = ({
     const changeLabel = activePairChange !== undefined ? `${activePairChange >= 0 ? '+' : ''}${activePairChange.toFixed(2)}%` : '+0.01%';
     const isActivePairDemo = !isLiveMode && !ORDERLY_SYMBOL_MAP[activePair.id];
     const isActivePairLiveCapable = !isLiveMode && !!ORDERLY_SYMBOL_MAP[activePair.id];
+    const marketFeed = (
+        <div className="velo-trade-feed" style={{ display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' }}>
+            {!isMobile && <div style={{ flexShrink: 0, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
+                <button onClick={() => setPairOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+                    <div style={{ textAlign: 'left' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{activePair.id}</span>
+                            <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
+                            {isActivePairDemo && <span style={{ ...S.label, fontSize: 8, color: 'var(--iris-violet)' }}>DEMO</span>}
+                        </div>
+                        <div style={{ ...S.label, marginTop: 2, color: 'var(--fg-subtle)' }}>Perpetual</div>
+                    </div>
+                </button>
+                <div style={{ textAlign: 'right' }}>
+                    <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
+                    <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
+                </div>
+            </div>}
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
+            </div>
+        </div>
+    );
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 84px)', background: 'transparent', overflow: isMobile ? 'auto' : 'hidden', gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100dvh - 84px)', background: 'transparent', overflow: isMobile ? 'visible' : 'hidden', gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
             <PairSelector isOpen={pairOpen} onClose={() => setPairOpen(false)} onSelect={setActivePair} marketPrices={marketPrices} marketChanges={marketChanges} isLiveMode={isLiveMode} />
 
             {/* Order Details Modal — clicked from History row */}
@@ -1692,41 +1735,11 @@ export const TradeView = ({
                 )}
             </div>
 
-            {/* ── Right: two glass bubbles stacked vertically ── */}
-            <div style={{ width: isMobile ? '100%' : 316, flexShrink: 0, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', alignSelf: isMobile ? 'flex-start' : undefined, gap: isMobile ? 0 : 10, overflow: isMobile ? 'visible' : 'hidden' }}>
+            {/* Order entry takes priority over the public market feed. */}
+            <TradeRail isMobile={isMobile} orderType={orderType} feed={marketFeed}>
 
-                {/* BUBBLE 1 ── Pair header + Order book */}
-                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(44% - 5px)' : '0 0 calc(34% - 5px)'), display: 'flex', flexDirection: 'column', height: isMobile ? 272 : undefined, minHeight: isMobile ? 272 : 200, maxHeight: isMobile ? 272 : undefined, flexShrink: 0, borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden', margin: isMobile ? '8px 10px 0' : undefined, transition: 'flex-basis 0.3s ease' }}>
-
-                    {/* Pair header (desktop only) */}
-                    <div style={{ flexShrink: 0, padding: '10px 14px', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
-                        <button onClick={() => setPairOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
-                            <div style={{ textAlign: 'left' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ ...S.display, fontSize: 16, color: 'var(--fg)' }}>{activePair.id}</span>
-                                    <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
-                                    {isActivePairDemo && (
-                                        <span style={{ padding: '1px 5px', borderRadius: 4, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)', fontFamily: 'var(--font-mono)', fontSize: 8, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.06em' }}>DEMO</span>
-                                    )}
-                                </div>
-                                <div style={{ ...S.label, marginTop: 2, color: 'var(--fg-subtle)' }}>Perpetual</div>
-                            </div>
-                        </button>
-                        <div style={{ textAlign: 'right' }}>
-                            <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
-                            <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
-                        </div>
-                    </div>
-
-                    {/* Order book */}
-                    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
-                    </div>
-                </div>
-
-                {/* BUBBLE 2 ── Order form */}
-                <div style={{ flex: isMobile ? 'none' : (orderType === 'MARKET' ? '0 0 calc(56% - 5px)' : '0 0 calc(66% - 5px)'), minHeight: !user && isMobile ? 230 : 0, display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: isMobile && user ? 'visible' : 'hidden', margin: isMobile ? '8px 10px' : undefined, transition: 'flex-basis 0.3s ease' }}>
-                    <div style={{ overflowY: isMobile ? 'visible' : 'auto', position: 'relative', display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%' }} className={isMobile ? '' : 'custom-scrollbar'}>
+                {/* Order form */}
+                <section className="velo-order-ticket" aria-label="Order ticket" style={{ borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)' }}>
                         {!user ? (
                             <TradeAuthGate
                                 onRequireAuth={onRequireAuth}
@@ -1734,7 +1747,8 @@ export const TradeView = ({
                                 description="Sign in to size an order, set risk and manage positions."
                             />
                         ) : (
-                        <div style={{ padding: isMobile ? '8px 12px 10px' : '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: isMobile ? 9 : 10, flex: isMobile ? 'none' : 1 }}>
+                        <>
+                        <div className="velo-order-ticket__body custom-scrollbar" tabIndex={0} role="group" aria-label="Order parameters">
 
                             {/* Order type */}
                             <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
@@ -1791,6 +1805,7 @@ export const TradeView = ({
                                     {/* Native range input — transparent, sits on top for interaction */}
                                     <input
                                         type="range" min="0" max="100" step="1"
+                                        aria-label="Margin percentage"
                                         value={sizeSlider}
                                         onChange={e => setSizeSlider(parseInt(e.target.value))}
                                         className="velo-range-thumb w-full"
@@ -1807,7 +1822,7 @@ export const TradeView = ({
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Leverage</div>
-                                    <select value={leverage} onChange={e => {
+                                    <select aria-label="Leverage" value={leverage} onChange={e => {
                                         const v = parseInt(e.target.value);
                                         const ex = mergedPositions.find((p: Position) => p.pair === activePair.id && !p.isCopyTrade);
                                         // Only a CROSS position re-levers in place (shared margin pool),
@@ -1841,7 +1856,7 @@ export const TradeView = ({
                                             setLeverage(v);
                                         }
                                     }} style={{ ...S.display, fontSize: 16, color: 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', cursor: 'pointer' }}>
-                                        {[1, 2, 5, 10, 20, 25].map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
+                                        {[1, 2, 5, 10, 15, 20, 25].filter(l => l <= maxLeverage).map(l => <option key={l} value={l} style={{ background: 'var(--bg-base-2)', ...S.mono }}>{l}x</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -1908,9 +1923,22 @@ export const TradeView = ({
                                     </div>
                                 ))}
                             </div>
+                            {IS_V4 && <dl aria-label="Execution costs and limits" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '6px 12px', margin: 0, padding: '8px 0', borderTop: '1px solid var(--hairline)' }}>
+                                {[
+                                    ['Entry fee', `$${formatMoney(cost * leverage * .001)}`],
+                                    ['Net position size', `$${formatMoney(cost * (1 - leverage * .001) * leverage)}`],
+                                    ['Gross profit cap', `$${formatMoney(cost * (1 - leverage * .001) * leverage)}`],
+                                    ['Borrow / hour', `${(Number(risk.data?.[6] || 0) / 100).toFixed(2)}% of notional`],
+                                ].map(([label, value]) => <React.Fragment key={label}>
+                                    <dt style={{ ...S.label, fontSize: 9.5, letterSpacing: 0, alignSelf: 'center' }}>{label}</dt>
+                                    <dd style={{ ...S.mono, fontSize: 10.5, fontWeight: 600, color: 'var(--fg)', margin: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{value}</dd>
+                                </React.Fragment>)}
+                            </dl>}
+                        </div>
 
                             {/* Submit button */}
-                            <button onClick={handleSubmit} aria-busy={tradingPending} disabled={tradingPending || !Number.isFinite(Number(sizeAmount)) || Number(sizeAmount) <= 0} style={{
+                        <div className="velo-order-ticket__footer">
+                            <button onClick={handleSubmit} aria-busy={tradingPending} disabled={tradingPending || (IS_V4 && (!risk.data || risk.isError)) || !Number.isFinite(Number(sizeAmount)) || Number(sizeAmount) <= 0} style={{
                                 width: '100%', padding: isMobile ? '15px 0' : '11px 0', borderRadius: 14, cursor: parseFloat(sizeAmount) <= 0 ? 'not-allowed' : 'pointer', ...S.sans, fontSize: isMobile ? 14 : 12, transition: 'all 0.15s',
                                 opacity: 1,
                                 background: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-bg)' : side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',
@@ -1922,7 +1950,7 @@ export const TradeView = ({
                                 WebkitTapHighlightColor: 'transparent',
                             }}>
                                 {tradingPending ? <span role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 18 }}><Loader2 size={16} className="velo-pending-spinner" />Transaction in progress...</span> : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                                    <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: '0.15em' }}>{activePosition ? `${activePosition.leverage}x ${side}` : side}</span>
+                                    <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: 0 }}>{leverage}x {side}</span>
                                     <span style={{ opacity: 0.45 }}>·</span>
                                     <span style={{ ...S.display, fontSize: 14 }}>{activePair.id.split('/')[0]}</span>
                                     <span>{side === 'LONG' ? '↗' : '↘'}</span>
@@ -1939,10 +1967,10 @@ export const TradeView = ({
                                 </div>
                             )}
                         </div>
+                        </>
                         )}
-                    </div>
-                </div>
-            </div>
+                </section>
+            </TradeRail>
 
             {/* ── Mobile-only: Positions panel below order form ── */}
             {isMobile && (

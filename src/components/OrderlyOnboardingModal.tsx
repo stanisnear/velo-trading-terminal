@@ -1,3 +1,4 @@
+import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 // ═══════════════════════════════════════════════════════════════════════════════
 // VELO ONBOARDING — three steps, Apple-class.
 //
@@ -328,7 +329,7 @@ export const OrderlyOnboardingModal: React.FC<Props> = ({ isOpen, onClose, onRea
     setAdvStatus(`Sending ${formatUnits(ownerUsdc, 6)} USDC to your Velo wallet…`);
     try {
       const data = encodeFunctionData({ abi: TRANSFER_ABI, functionName: 'transfer', args: [burner.veloAddress, ownerUsdc] });
-      const hash = await sendTransactionAsync({ to: USDC_BASE_SEPOLIA as `0x${string}`, data, value: 0n });
+      const hash = await sendTransactionAsync({ ...builderAttribution(84532), to: USDC_BASE_SEPOLIA as `0x${string}`, data, value: 0n });
       setAdvStatus(`Confirming on-chain (${hash.slice(0, 8)}…)`);
       setAdvBusy(false);
     } catch (e: any) {

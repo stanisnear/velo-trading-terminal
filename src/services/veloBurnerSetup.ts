@@ -88,7 +88,7 @@ export async function setupBurnerWallet(args: BurnerSetupArgs): Promise<BurnerSe
     const receipt = recovered || await waitForSuccessfulReceipt(publicClient, pending.hash);
     const tx = parseTransaction(pending.raw);
     if (receipt.status === 'success' && tx.to?.toLowerCase() === VELO_USDC_BASE.toLowerCase()
-      && tx.data === encodeFunctionData({ abi: VELO_USDC_ABI, functionName: 'mint' })) {
+      && tx.data?.startsWith(encodeFunctionData({ abi: VELO_USDC_ABI, functionName: 'mint' }))) {
       onStep?.('DONE');
       return { burner, faucetTxHash: pending.hash, ethFundSource: 'skipped' };
     }

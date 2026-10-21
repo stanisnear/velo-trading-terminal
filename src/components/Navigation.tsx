@@ -124,7 +124,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
     );
 };
 
-export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen, onSocialClick }: any) => {
+export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen, onSocialClick, onMarkAllRead }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -135,6 +135,15 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
     ].filter(item => !item.requiresAuth || user);
     const [avatarPopupOpen, setAvatarPopupOpen] = React.useState(false);
     const avatarBtnRef = React.useRef<HTMLButtonElement>(null);
+    const notificationBtnRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (!isNotifOpen) return;
+        const dismiss = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') { setNotifOpen(false); notificationBtnRef.current?.focus(); }
+        };
+        document.addEventListener('keydown', dismiss);
+        return () => document.removeEventListener('keydown', dismiss);
+    }, [isNotifOpen, setNotifOpen]);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' },
         label: { fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.14em' },
@@ -226,7 +235,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--fg-2)' }}>TESTNET</span>
                 </div>
                 <div style={{ position: 'relative' }}>
-                    <button onClick={() => setNotifOpen(!isNotifOpen)} className="navbar-icon-btn" style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', position: 'relative', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
+                    <button ref={notificationBtnRef} aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'} aria-expanded={isNotifOpen} onClick={() => setNotifOpen(!isNotifOpen)} className="navbar-icon-btn" style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', position: 'relative', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
                         onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
                         <Bell size={18}/>
                         {unreadCount > 0 && <span style={{ position: 'absolute', top: 8, right: 8, width: 6, height: 6, background: 'var(--pnl-down)', borderRadius: '50%', border: '1.5px solid var(--bg)' }}/>}
@@ -266,7 +275,8 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                                             }}>{unreadCount}</span>
                                         )}
                                     </div>
-                                    {notifications.length > 0 && (
+                                    {unreadCount > 0 && <button type="button" onClick={onMarkAllRead} title="Mark all read" aria-label="Mark all notifications read" style={{ display:'flex', gap:5, alignItems:'center', background:'transparent', border:0, color:'var(--fg)', cursor:'pointer', fontSize:11 }}><Check size={13}/> Mark all read</button>}
+                                    {notifications.length > 0 && !unreadCount && (
                                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
                                             {notifications.length} total
                                         </span>
@@ -286,7 +296,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                                             const isToday = d.toDateString() === now.toDateString();
                                             const isYesterday = d.toDateString() === new Date(now.getTime() - 86400000).toDateString();
                                             const dateLabel = isToday ? 'Today' : isYesterday ? 'Yesterday' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
-                                            const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                                            const timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
                                             const type: string = n.type || '';
                                             const iconColor =
                                                 type === 'TAKE_PROFIT' ? 'var(--pnl-up)' :
@@ -309,6 +319,8 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                                             return (
                                                 <div
                                                     key={n.id}
+                                                    role="button" tabIndex={0}
+                                                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNotificationClick(n); setNotifOpen(false); } }}
                                                     onClick={() => { onNotificationClick(n); setNotifOpen(false); }}
                                                     style={{
                                                         padding: '11px 18px',

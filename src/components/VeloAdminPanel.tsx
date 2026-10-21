@@ -1,3 +1,4 @@
+import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 /**
  * VeloAdminPanel — protocol owner dashboard.
  *
@@ -13,6 +14,7 @@
  *   - Contract metadata (addresses, fees, leverage cap)
  */
 import React, { useEffect, useState } from 'react';
+import VeloV4Admin from './VeloV4Admin';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { formatUnits, parseUnits, formatEther } from 'viem';
 import {
@@ -24,12 +26,12 @@ import {
   CartesianGrid,
 } from 'recharts';
 import {
-  VELO_PERPS_ADDRESS, VELO_PERPS_V1_ADDRESS, VELO_PERPS_V2_ADDRESS, VELO_PERPS_V3_ADDRESS, IS_V2, IS_V3,
+  VELO_PERPS_ADDRESS, VELO_PERPS_V1_ADDRESS, VELO_PERPS_V2_ADDRESS, VELO_PERPS_V3_ADDRESS, IS_V2, IS_V3, IS_V4,
   VELO_PERPS_ABI, VELO_USDC_BASE,
   fetchPoolBalance, baseScanAddressUrl, baseScanTxUrl,
   PAIR_LABEL, type VeloPairLabel, type PairIndex,
 } from '@/services/veloPerpsService';
-import { ELIGIBLE_PERPETUALS, isEnabledTradingMarket } from '../../shared/markets.mjs';
+import { ELIGIBLE_PERPETUALS, V4_TRADING_MARKETS, isEnabledTradingMarket } from '../../shared/markets.mjs';
 import { waitForSuccessfulReceipt } from '@/services/tradeReceipts';
 import {
   fetchAllProfiles,
@@ -75,13 +77,13 @@ interface ProtocolStats {
     total_liquidations: number;
     currently_open: number;
     realized_pnl_usd?: number;
-    total_open_fees_usd: number;
-    total_fees_usd: number;
+    total_open_fees_usd: number | null;
+    total_fees_usd: number | null;
   };
   rollups?: {
     volume_24h: number; volume_7d: number; volume_30d: number;
     trades_24h: number; trades_7d: number; trades_30d: number;
-    fees_24h: number;   fees_7d: number;   fees_30d: number;
+    fees_24h: number | null;   fees_7d: number | null;   fees_30d: number | null;
     liquidations_24h: number; liquidations_7d: number; liquidations_30d: number;
   };
   daily_buckets: Array<{
@@ -261,7 +263,7 @@ export const VeloAdminPanel: React.FC = () => {
 
       // Pair states
       const pairResults: PairState[] = await Promise.all(
-        KNOWN_PAIRS.map(async (p) => {
+        (IS_V4 ? V4_TRADING_MARKETS.map(m => ({ index: m.contractIndex as PairIndex, label: `${m.symbol}-USD` as VeloPairLabel, feedId: `0x${m.feed}` })) : KNOWN_PAIRS).map(async (p) => {
           const [feedId, tradable] = await Promise.all([
             publicClient.readContract({
               address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
@@ -386,7 +388,7 @@ export const VeloAdminPanel: React.FC = () => {
     try {
       const existing = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'pairFeedId', args: [pair.index] });
       if (existing !== `0x${'0'.repeat(64)}`) throw new Error('This registry slot is already occupied. Refresh before continuing.');
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
         functionName: 'registerPair',
         args: [pair.index, pair.expectedFeedId as `0x${string}`, pair.label.replace('-', '/')],
@@ -411,7 +413,7 @@ export const VeloAdminPanel: React.FC = () => {
       for (const p of toRegister) {
         const existing = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'pairFeedId', args: [p.index] });
         if (existing !== `0x${'0'.repeat(64)}`) throw new Error(`${p.label} registry slot is already occupied. Refresh before continuing.`);
-        const hash = await walletClient.writeContract({
+        const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
           address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
           functionName: 'registerPair',
           args: [p.index, p.expectedFeedId as `0x${string}`, p.label.replace('-', '/')],
@@ -435,7 +437,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionBusy(`toggle-${pair.index}`);
     setActionError(null);
     try {
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
         functionName: 'setPairTradable',
         args: [pair.index, !pair.tradable],
@@ -455,7 +457,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionBusy('faucet');
     setActionError(null);
     try {
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'mint',
@@ -487,7 +489,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionError(null);
     try {
       const raw = parseUnits(amount.toFixed(6), 6);
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'transfer',
@@ -519,7 +521,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionError(null);
     try {
       const raw = parseUnits(amount.toFixed(6), 6);
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'mintTo',
@@ -541,7 +543,7 @@ export const VeloAdminPanel: React.FC = () => {
     setActionError(null);
     try {
       const amount = parseUnits(feeBalance.toFixed(6), 6);
-      const hash = await walletClient.writeContract({
+      const hash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
         address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI,
         functionName: 'withdrawFees',
         args: [address, amount],
@@ -625,7 +627,7 @@ export const VeloAdminPanel: React.FC = () => {
         />
         <StatCard
           label="Lifetime fees"
-          value={statsLoading ? '…' : stats ? `$${stats.lifetime.total_fees_usd.toFixed(2)}` : '—'}
+          value={statsLoading ? '…' : stats?.lifetime.total_fees_usd != null ? `$${stats.lifetime.total_fees_usd.toFixed(2)}` : '—'}
         />
         <StatCard
           label="Open positions"
@@ -655,7 +657,7 @@ export const VeloAdminPanel: React.FC = () => {
         />
         <StatCard
           label="24h fees"
-          value={statsLoading ? '…' : stats?.rollups ? `$${stats.rollups.fees_24h.toFixed(2)}` : '—'}
+          value={statsLoading ? '…' : stats?.rollups?.fees_24h != null ? `$${stats.rollups.fees_24h.toFixed(2)}` : '—'}
         />
         <StatCard
           label="24h liquidations"
@@ -848,7 +850,7 @@ export const VeloAdminPanel: React.FC = () => {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Daily fees (est.)" icon={<Activity size={13} style={{ color: 'var(--iris-coral)' }} />}>
+          {stats.daily_buckets.some(b => b.fees_usd != null) && <ChartCard title="Daily fees" icon={<Activity size={13} style={{ color: 'var(--iris-coral)' }} />}>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={stats.daily_buckets.map(b => ({ ...b, total_fees: b.fees_usd ?? 0 }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" opacity={0.3} />
@@ -862,7 +864,7 @@ export const VeloAdminPanel: React.FC = () => {
                 <Bar dataKey="total_fees" fill="oklch(0.70 0.22 340)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </ChartCard>
+          </ChartCard>}
 
           <ChartCard title="Daily opens & closes" icon={<ChevronRight size={13} style={{ color: 'var(--iris-lime)' }} />}>
             <ResponsiveContainer width="100%" height={180}>
@@ -936,6 +938,8 @@ export const VeloAdminPanel: React.FC = () => {
       )}
 
       {/* Pair registry */}
+      <VeloV4Admin />
+      {!IS_V4 && <>
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
         background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',
@@ -1274,6 +1278,7 @@ export const VeloAdminPanel: React.FC = () => {
       </div>
 
       {/* ── Verifications (admin-controlled badges) ─────────────────────── */}
+      </>}
       <div style={{
         padding: 20, borderRadius: 16, marginBottom: 16,
         background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', boxShadow: 'var(--glass-shadow)',

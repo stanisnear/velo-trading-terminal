@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { keccak256 } from 'viem';
+import { keccak256, serializeTransaction } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { normalisePrice, triggerFor, scanIds } from '../supabase/functions/velo-keepers/math.js';
 import { createKeepers } from '../supabase/functions/velo-keepers/bridge.js';
-import { runKeeper } from '../supabase/functions/velo-keepers/engine.js';
+import { runKeeper, runEngine } from '../supabase/functions/velo-keepers/engine.js';
 import { withSigner } from '../supabase/functions/_shared/signer.js';
 import { createSponsor } from '../supabase/functions/velo-api/sponsor.js';
 
@@ -130,9 +131,43 @@ test('duplicate delivery uses the saved result without RPC reads or transaction 
  f.deps.db=async()=>({duplicate:true,result:{ok:true,executed:[]}});
  assert.equal((await runKeeper(job,input,getEnv,f.deps)).duplicate,true);
 });
+test('V4 and legacy keepers retain separate contract-scoped journals', async()=>{
+ const f=engineFixture();const read=f.deps.clients.publicClient.readContract;
+ f.deps.clients.publicClient.readContract=p=>{
+  if(p.functionName==='VERSION')return p.address===Y?4:31;
+  if(p.functionName==='orderTerms')return [0,false,0n,0,0n,0n,0n,BigInt(NOW/1000+100)];
+  return read(p);
+ };
+ const result=await runKeeper(job,input,k=>({VITE_VELO_PERPS_V4_ACTIVE:'true',VITE_VELO_PERPS_V4_ADDRESS:Y}[k]??getEnv(k)),f.deps);
+ assert.equal(result.version,4);assert.equal(result.legacy.version,31);assert.equal(result.ok,true);
+ const scopes=f.calls.filter(c=>c.action==='claim_job').map(c=>c.p.scope);
+ assert.equal(new Set(scopes).size,2);assert(scopes.some(s=>s.includes(Y.toLowerCase())));
+});
+test('V4 expired orders refund without an oracle fetch, and liquidation uses contract accounting', async()=>{
+ const f=engineFixture();const read=f.deps.clients.publicClient.readContract;
+ f.deps.clients.publicClient.readContract=p=>{
+  if(p.functionName==='VERSION')return 4;
+  if(p.functionName==='orderTerms')return [0,false,0n,0,0n,0n,0n,BigInt(NOW/1000-1)];
+  return read(p);
+ };
+ f.deps.fetch=async()=>{throw Error('expired orders must not fetch prices')};
+ const expired=await runEngine(job,{...input,dryRun:false},getEnv,f.deps,P);
+ assert.equal(expired.ok,true);assert.equal(expired.executed[0].trigger,'EXPIRED');
+ const g=engineFixture();const original=g.deps.clients.publicClient.readContract;
+ g.deps.clients.publicClient.readContract=p=>{
+  if(p.functionName==='VERSION')return 4;
+  if(p.functionName==='nextTradeId')return 2n;
+  if(p.functionName==='getPosition')return {owner:P,pairIndex:0,isLong:true,collateralUSDC_6:1n,entryPrice_E18:100n};
+  if(p.functionName==='liquidationCheck')return false;
+  if(p.functionName==='LIQUIDATION_THRESHOLD_BPS')throw Error('legacy threshold must not be used');
+  return original(p);
+ };
+ const checked=await runEngine('cron-liquidate',input,getEnv,g.deps,P);
+ assert.equal(checked.ok,true);assert.equal(checked.triggered,0);
+});
 
 function signerFixture({pending=false,timeout=false,status='success',busy=false}={}){
- const events=[],raw='0x02',hash=keccak256(raw);
+ const events=[],raw=serializeTransaction({type:'eip1559',chainId:84532,nonce:0,gas:21000n,maxFeePerGas:10n,maxPriorityFeePerGas:1n,to:Y}),hash=keccak256(raw);
  const clients={db:async(action,p)=>{events.push(action);if(action==='claim_signer')return {busy,pendingHash:pending?hash:null,pendingRaw:pending?raw:null};return {saved:true}},
   account:{address:P,signTransaction:async()=>{events.push('sign');return raw}},
   walletClient:{prepareTransactionRequest:async x=>x},
@@ -162,6 +197,27 @@ test('busy wallet cannot sign; reverted and replaced receipts cannot claim succe
  const replaced=signerFixture();replaced.clients.publicClient.waitForTransactionReceipt=async()=>({status:'success',transactionHash:'0x'+'ff'.repeat(32)});
  await assert.rejects(withSigner(replaced.clients,send=>send({to:Y,value:1n})),/TRANSACTION_REPLACED/);
  assert(!replaced.events.includes('clear_tx'));
+});
+test('stale RPC nonces never reuse a confirmed signer nonce',async()=>{
+ const f=signerFixture();const original=f.clients.db;
+ f.clients.db=async(a,p)=>a==='claim_signer'?{lastHash:'0x'+'aa'.repeat(32),lastStatus:'success'}:original(a,p);
+ f.clients.publicClient.getTransaction=async()=>({nonce:4,blockNumber:9n});
+ f.clients.publicClient.getTransactionCount=async()=>4;
+ await assert.rejects(withSigner(f.clients,send=>send({to:Y})),/RPC_BEHIND_CONFIRMED_NONCE/);
+ assert(!f.events.includes('sign'));assert(!f.events.includes('record_tx'));
+});
+test('recovered transactions advance the nonce floor before new work',async()=>{
+ const f=signerFixture({pending:true});
+ await assert.rejects(withSigner(f.clients,send=>send({to:Y})),/RPC_BEHIND_CONFIRMED_NONCE/);
+ assert(f.events.includes('clear_tx'));assert(!f.events.includes('sign'));
+});
+test('a known consumed nonce is cleared as replaced without reporting success',async()=>{
+ const f=signerFixture();const account=privateKeyToAccount('0x'+'01'.repeat(32));
+ const raw=await account.signTransaction({chainId:84532,type:'eip1559',nonce:4,gas:21000n,maxFeePerGas:10n,maxPriorityFeePerGas:1n,to:Y,value:0n});
+ const cleared=[];f.clients.db=async(a,p)=>{if(a==='claim_signer')return{pendingHash:keccak256(raw),pendingRaw:raw,lastHash:'0x'+'aa'.repeat(32),lastStatus:'success'};if(a==='clear_tx')cleared.push(p);return{saved:true};};
+ f.clients.publicClient.getTransaction=async()=>({hash:'0x'+'aa'.repeat(32),nonce:4,blockNumber:9n});
+ await assert.rejects(withSigner(f.clients,async()=>{throw Error('must not submit')}),/TRANSACTION_REPLACED/);
+ assert.equal(cleared[0].status,'replaced');assert(!f.events.includes('sign'));
 });
 test('sponsor checks funding under the same lock and enforces durable rate limits',async()=>{
  const res={status(n){this.code=n;return this},json(v){this.data=v;return this},setHeader(){return this}};

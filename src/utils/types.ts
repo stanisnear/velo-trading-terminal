@@ -1,4 +1,4 @@
-import { MARKETS } from '../../shared/markets.mjs';
+import { MARKETS, TRADING_MARKETS } from '../../shared/markets.mjs';
 export interface Candle {
   time: number; 
   open: number;
@@ -58,6 +58,7 @@ export interface OpenOrder {
   copyTraderId?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;            // true if placed on Orderly matching engine
+  onChainContract?: string;
   orderlyOrderId?: number;      // Orderly order id for cancel / lookup
   orderlyOrderUrl?: string;
 }
@@ -108,6 +109,8 @@ export interface Notification {
   timestamp: number;
   read: boolean;
   relatedId?: string;
+  postId?: string;
+  commentId?: string;
 }
 
 export interface Comment {
@@ -164,11 +167,13 @@ export interface Position {
   takeProfit?: number;
   timestamp: number;
   pnl?: number;
+  v4?: { collateral: number; openFee: number; spreadRatio: number; borrowBpsPerHour: number; maintenanceBps: number };
   isCopyTrade?: boolean;
   copyTraderId?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;
   onChainTradeId?: string;      // VeloPerps V2 tradeId (as string to survive JSON)
+  onChainContract?: string;
   orderlyOrderId?: number;      // open order id
   orderlyOrderUrl?: string;
 }
@@ -240,7 +245,7 @@ export type ProfileTab = 'POSTS' | 'REPLIES' | 'MEDIA' | 'LIKES' | 'TRADES';
 
 // Shared with the price gateway. Unknown or unavailable assets are not listed.
 export const PAIRS = MARKETS.map(market => ({ ...market, basePrice: 0 }));
-export const VELO_PAIRS = PAIRS.filter(market => market.contractIndex !== null && !['USDT', 'USDC', 'WBTC', 'JITOSOL'].includes(market.symbol));
+export const VELO_PAIRS = TRADING_MARKETS.map(market => ({ ...market, basePrice:0 }));
 
 // Backwards-compat alias — many call sites still reference ORDERLY_PAIRS.
 // New code should use VELO_PAIRS.

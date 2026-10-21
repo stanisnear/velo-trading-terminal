@@ -1,3 +1,4 @@
+import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 /**
  * VeloSendModal — peer-to-peer mUSDC transfer.
  *
@@ -255,7 +256,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
       }
 
       const amountWei = parseUnits(amountNum.toFixed(6), 6);
-      const hash = await signingClient.writeContract({
+      const hash = await signingClient.writeContract({ ...builderAttribution(signingClient.chain?.id),
         address: VELO_USDC_BASE,
         abi: VELO_USDC_ABI,
         functionName: 'transfer',

@@ -1,3 +1,4 @@
+import { builderAttribution } from './baseBuilderAttribution.mjs';
 /**
  * veloUsdcService — wrapper for VeloMockUSDC (ERC-20 + OFT + faucet).
  *
@@ -145,7 +146,7 @@ export async function approveUsdcIfNeeded(
   });
   if (current >= required) return null;
 
-  const txHash = await walletClient.writeContract({
+  const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: usdcAddress,
     abi: VELO_USDC_ABI,
     functionName: 'approve',
@@ -164,7 +165,7 @@ export async function mintMockUsdc(
 ): Promise<`0x${string}`> {
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
-  return walletClient.writeContract({
+  return walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: usdcAddress,
     abi: VELO_USDC_ABI,
     functionName: 'mint',
@@ -183,7 +184,7 @@ export async function transferUsdc(
 ): Promise<`0x${string}`> {
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
-  return walletClient.writeContract({
+  return walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: usdcAddress,
     abi: VELO_USDC_ABI,
     functionName: 'transfer',

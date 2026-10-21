@@ -31,10 +31,15 @@ export const PYTH_FEED_IDS = {
   'RENDER-USD': '0x3d4a2bd9535be6ce8059d75eadeba507b043257321aa544717c56fa19b49e35d',
   'WLFI-USD':   '0xd41369178d64f41d51ca95465c144a2c74d2fff30be69164835911943fa64c3e',
   'POL-USD':    '0xffd11c5a1cfd42f80afb2df4d9f264c15f956d68153335374ec10722edd70472',
+  'PYTH-USD':   '0x0bbf28e9a841a1cc788f6a361b17ca072d0ea3098a1e5df1c3922d06719579ff',
+  'BNB-USD':    '0x2f95862b045670cd22bee3114c39763a4a08beeb663b145d283c31d7d1101c4f',
+  'XRP-USD':    '0xec5d399846a9209f3fe5881d70aae9268c94339ff9817e8d18ff19fa05eea1c8',
+  'HYPE-USD':   '0x4279e31cc369bbcc2faf022b382b080e32a8e689ff20fbc530d2a603eb6cd98b',
+  'STETH-USD':  '0x846ae1bdb6300b817cee5fdee2a6da192775030db5615b94a465f53bd40850b5',
 } as const;
 
 import { fetchPyth } from './pythConnection';
-import { MARKETS } from '../../shared/markets.mjs';
+import { MARKETS, V4_ENABLED } from '../../shared/markets.mjs';
 const availableFeeds = new Set(MARKETS.map(market => market.feed));
 const HERMES_URL = '/api/pyth';
 
@@ -43,7 +48,7 @@ const HERMES_URL = '/api/pyth';
  * The contract enforces 60s via getPriceNoOlderThan. We enforce 30s
  * client-side so we never submit data that's borderline stale.
  */
-const MAX_DATA_AGE_SECONDS = 30;
+const MAX_DATA_AGE_SECONDS = V4_ENABLED ? 2 : 30;
 
 /**
  * Minimum sane price for any asset we trade ($0.001).

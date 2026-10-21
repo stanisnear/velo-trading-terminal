@@ -4,6 +4,13 @@ type SignMessage = (args: { message: string }) => Promise<`0x${string}`>;
 const pending = new Map<string, Promise<any>>();
 let loginGeneration = 0;
 export function cancelWalletSignIn() { loginGeneration++; pending.clear(); }
+export function walletSignInError(error: any): string {
+  const message = error?.shortMessage || error?.message || '';
+  if (/failed to fetch|networkerror|fetch failed|load failed|timed? ?out/i.test(message) || error?.name === 'TimeoutError') {
+    return 'Sign-in connection interrupted. Check your connection, then select Sign in to retry. Your account is unchanged.';
+  }
+  return message || 'Unable to sign in. Please try again.';
+}
 
 export function signInWithWallet(address: string, signMessage: SignMessage, options: { force?: boolean } = {}) {
   const wallet = address.toLowerCase();
@@ -17,14 +24,26 @@ export function signInWithWallet(address: string, signMessage: SignMessage, opti
     if (!options.force && session?.user.app_metadata?.velo_wallet_verified === wallet && session.expires_at && session.expires_at * 1000 > Date.now() + 60_000) {
       return { data: { user: session.user, session }, error: null };
     }
-    const post = async (body: object) => {
-      const response = await fetch('/api/wallet-auth', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body), cache: 'no-store', signal: AbortSignal.timeout(20_000),
-      });
-      const value = await response.json();
-      if (!response.ok) throw new Error(value.error || 'Wallet sign-in unavailable');
-      return value;
+    const post = async (body: { action: string; [key: string]: unknown }) => {
+      // A challenge is safe to replace; a signed proof is single-use and must not be replayed.
+      const attempts = body.action === 'challenge' ? 2 : 1;
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        assertActive();
+        let response: Response;
+        try {
+          response = await fetch('/api/wallet-auth', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body), cache: 'no-store', signal: AbortSignal.timeout(20_000),
+          });
+        } catch (error) {
+          if (attempt + 1 < attempts) continue;
+          throw new Error(walletSignInError(error));
+        }
+        if (response.status >= 500 && attempt + 1 < attempts) continue;
+        const value = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(value.error || 'Sign-in service is temporarily unavailable. Please retry.');
+        return value;
+      }
     };
     const challenge = await post({ action: 'challenge', address: wallet });
     if (typeof challenge.message !== 'string' || !challenge.message.startsWith('app.velotrading.live wants you to sign in with your Ethereum account:\n')) throw new Error('Unexpected sign-in message');
