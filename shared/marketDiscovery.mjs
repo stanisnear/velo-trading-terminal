@@ -39,6 +39,7 @@ export function resolveMarketAsset(assets, identifier) {
 }
 
 export function mentionsTicker(content, symbol) {
+  if (typeof symbol !== 'string' || !symbol) return false;
   const tokens = String(content || '').match(/\$[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*/g) || [];
   return tokens.some(token => token.slice(1).toUpperCase() === symbol.toUpperCase());
 }

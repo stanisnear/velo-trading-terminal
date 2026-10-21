@@ -37,3 +37,27 @@ test('a failed signed-proof request is not replayed and a new login can recover'
  globalThis.fetch=(url,options)=>{if(JSON.parse(options.body).action==='verify'){verifies++;throw new TypeError('Failed to fetch');}return fetchFixture(url,options);};
  try{await assert.rejects(signInWithWallet(address,f.sign,{force:true}),/connection interrupted/);assert.equal(verifies,1);globalThis.fetch=fetchFixture;await signInWithWallet(address,f.sign,{force:true});assert.equal(f.counts().verified,1);}finally{f.restore();}
 });
+test('a missing wallet prompt times out, clears the app lock and prevents a second pending prompt',async()=>{
+ const f=fixture();let release;const phases=[];
+ try{
+   await assert.rejects(signInWithWallet(address,()=>new Promise(resolve=>release=resolve),{force:true,signatureTimeoutMs:5,onPhase:p=>phases.push(p)}),/No wallet response/);
+   assert.deepEqual(phases,['session','challenge','signature']);
+   await assert.rejects(signInWithWallet(address,f.sign,{force:true}),/already open/);
+   assert.equal(f.counts().verified,0);
+   release('0x11');await new Promise(r=>setTimeout(r,0));
+   await signInWithWallet(address,f.sign,{force:true});assert.equal(f.counts().verified,1);
+ }finally{f.restore();}
+});
+test('cancel releases a stalled signature immediately and never authenticates its late response',async()=>{
+ const f=fixture();let release,ready;const requested=new Promise(r=>ready=r);
+ const operation=signInWithWallet(address,()=>new Promise(resolve=>{release=resolve;ready();}),{force:true});
+ try{await requested;cancelWalletSignIn();await assert.rejects(operation,/cancelled/);release('0x11');await new Promise(r=>setTimeout(r,0));assert.equal(f.counts().verified,0);await signInWithWallet(address,f.sign,{force:true});assert.equal(f.counts().verified,1);}finally{f.restore();}
+});
+test('a cancelled late OTP is cleared before a newer login commits its session',async()=>{
+ const f=fixture();let release,ready;const reached=new Promise(r=>ready=r);let commits=0,cleared=0;
+ const original=globalThis.__authFixture.verifyOtp;
+ globalThis.__authFixture.verifyOtp=async()=>{commits++;if(commits===1){ready();await new Promise(r=>release=r);}return original();};
+ globalThis.__authFixture.signOut=async()=>{cleared++;return {error:null};};
+ const old=signInWithWallet(address,f.sign,{force:true});
+ try{await reached;cancelWalletSignIn();await assert.rejects(old,/cancelled/);const next=signInWithWallet(address,f.sign,{force:true});release();await next;assert.equal(cleared,1);assert.equal(commits,2);}finally{f.restore();}
+});

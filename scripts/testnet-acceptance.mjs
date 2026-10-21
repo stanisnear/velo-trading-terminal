@@ -9,6 +9,7 @@ import { baseSepoliaTransport } from '../src/services/baseTransport.mjs';
 import { publicConfig } from '../supabase/functions/_shared/public-config.js';
 import { build } from 'esbuild';
 import { MARKETS } from '../shared/markets.mjs';
+import { activeTradingOrders, protectionAfterCancellation } from '../src/services/activeTradingOrders.mjs';
 
 if (!process.argv.includes('--live-testnet')) throw new Error('Requires --live-testnet; never run against mainnet.');
 const testV4 = process.argv.includes('--v4');
@@ -138,10 +139,22 @@ if (process.argv.includes('--faucet-transfer')) {
       const active = livePositions.find(p => p.tradeId === position.tradeId);
       if (Math.abs(active.takeProfit - protection.takeProfit) > .000001 || Math.abs(active.stopLoss - protection.stopLoss) > .000001) throw new Error('Atomic protection missing from the opened position');
       console.log(JSON.stringify({ atomicProtectionVerified: true, takeProfit: active.takeProfit, stopLoss: active.stopLoss }));
+      const rows = activeTradingOrders([], [active], tradeConfig.VITE_VELO_PERPS_V4_ADDRESS);
+      if (rows.length !== 2 || !rows.some(o => o.type === 'TAKE_PROFIT') || !rows.some(o => o.type === 'STOP_LOSS')) throw new Error('Protection missing from Open Orders projection');
       await timed('edit and confirm on-chain TP/SL', async () => {
         await perps.setTriggers(wallet, client, position.tradeId, protection.takeProfit * 1.01, protection.stopLoss * .99);
         const updated = (await perps.fetchOpenPositions(client, account.address)).find(p => p.tradeId === position.tradeId);
         if (Math.abs(updated.takeProfit - protection.takeProfit * 1.01) > .000001 || Math.abs(updated.stopLoss - protection.stopLoss * .99) > .000001) throw new Error('Edited protection missing');
+      });
+      await timed('cancel TP on-chain while preserving SL', async () => {
+        const current = (await perps.fetchOpenPositions(client, account.address)).find(p => p.tradeId === position.tradeId);
+        const [tpRow] = activeTradingOrders([], [current], tradeConfig.VITE_VELO_PERPS_V4_ADDRESS);
+        const next = protectionAfterCancellation(tpRow, { id: tpRow.relatedPositionId, onChainTradeId: String(current.tradeId), onChain: true,
+          onChainContract: tradeConfig.VITE_VELO_PERPS_V4_ADDRESS, takeProfit: current.takeProfit, stopLoss: current.stopLoss }, tradeConfig.VITE_VELO_PERPS_V4_ADDRESS);
+        await perps.setTriggers(wallet, client, next.tradeId, next.takeProfit, next.stopLoss);
+        const updated = (await perps.fetchOpenPositions(client, account.address)).find(p => p.tradeId === position.tradeId);
+        const remaining = activeTradingOrders([], [updated], tradeConfig.VITE_VELO_PERPS_V4_ADDRESS);
+        if (updated.takeProfit || updated.stopLoss !== current.stopLoss || remaining.length !== 1 || remaining[0].type !== 'STOP_LOSS') throw new Error('Cancelling TP damaged remaining protection');
       });
     }
     const closed = await timed(`close isolated ${tradePair} position`, () => perps.closePosition(wallet, client, position.tradeId, tradePair));

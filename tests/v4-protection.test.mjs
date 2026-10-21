@@ -12,7 +12,7 @@ await build({entryPoints:['src/services/veloPerpsService.ts'],outfile:file,bundl
   b.onResolve({filter:/pythService$/},()=>({path:'price',namespace:'fixture'}));
   b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:"export const PYTH_FEED_IDS={'HYPE-USD':'0x01'},fetchPriceUpdate=async()=>({updateData:['0x01'],parsedPrice:80});"}));
 }}]});
-const { openPosition } = await import(pathToFileURL(file));
+const { openPosition, addMargin, reduceMargin, partialClose, depositCross, withdrawCross } = await import(pathToFileURL(file));
 const contract=publicConfig.VITE_VELO_PERPS_V4_ADDRESS, trader='0x0000000000000000000000000000000000000001',hash='0x'+'ab'.repeat(32);
 const abi=parseAbi(['event PositionOpened(uint256 indexed tradeId,address indexed trader,uint16 indexed pairIndex,bool isLong,uint16 leverage,uint8 marginMode,uint64 collateralUSDC_6,uint128 entryPrice_E18)','event TriggersSet(uint256 indexed tradeId,uint128 takeProfit_E18,uint128 stopLoss_E18)']);
 function event(name,values){const item=abi.find(e=>e.name===name);return {address:contract,logIndex:name==='TriggersSet'?2:1,topics:encodeEventTopics({abi:[item],eventName:name,args:values}),data:encodeAbiParameters(item.inputs.filter(i=>!i.indexed),item.inputs.filter(i=>!i.indexed).map(i=>values[i.name]))};}
@@ -34,5 +34,14 @@ test('V4 market entry includes and confirms both triggers in one transaction, fo
 });
 test('missing or unrelated protection event preserves the hash and never reports protected success',async()=>{
   for(const mode of ['missing','wrong']){const f=fixture(true,mode);await assert.rejects(openPosition(f.wallet,f.client,f.args),e=>e.txHash===hash&&/protection could not be verified/.test(e.message));assert.equal(f.calls.length,1);}
+});
+test('V4 rejects legacy margin, cross and partial-close methods before any approval or transaction',async()=>{
+  const f=fixture();
+  await assert.rejects(addMargin(f.wallet,f.client,5n,10),/V4/);
+  await assert.rejects(reduceMargin(f.wallet,f.client,5n,10,[],0n),/V4/);
+  await assert.rejects(partialClose(f.wallet,f.client,5n,5000,[],0n),/V4/);
+  await assert.rejects(depositCross(f.wallet,f.client,10),/V4/);
+  await assert.rejects(withdrawCross(f.wallet,f.client,10),/legacy exit/);
+  assert.equal(f.calls.length,0);
 });
 test.after(()=>rm(folder,{recursive:true,force:true}));

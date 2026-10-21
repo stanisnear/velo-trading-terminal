@@ -94,7 +94,7 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
         ? <p className="velo-manage-note">Mark has crossed this price. Saving can make it eligible for immediate keeper execution.</p> : null}
     </div>;
   };
-  return <Dialog open={isOpen} onClose={onClose} title={`Manage ${p.pair}`} busy={busy}>
+  return <Dialog open={isOpen} onClose={onClose} title={p.pair} busy={busy} className="velo-glass-dialog velo-position-dialog">
     <div className="velo-manage">
       <div className="velo-manage-overview">
         <div className="velo-manage-direction"><span style={{ color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span><span>{p.leverage}x</span><span>Isolated</span></div>

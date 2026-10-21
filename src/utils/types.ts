@@ -55,6 +55,7 @@ export interface OpenOrder {
   leverage: number;
   timestamp: number;
   relatedPositionId?: string; // Links TP/SL orders to a position
+  onChainTradeId?: string;
   copyTraderId?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;            // true if placed on Orderly matching engine

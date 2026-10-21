@@ -55,6 +55,7 @@ import {
   baseScanTxUrl,
   VELO_PERPS_ADDRESS,
   VELO_PERPS_V3_ABI,
+  VELO_PERPS_ABI,
   VELO_USDC_BASE,
   PAIR_INDEX,
   IS_V3,
@@ -366,7 +367,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       setLastError(null);
       try {
         const pairIndex = PAIR_INDEX[args.pair];
-        const { feedId, tradable, gasBalance } = await readTradingPreflight(publicClient, VELO_PERPS_ADDRESS, VELO_PERPS_V3_ABI, pairIndex, traderAddress);
+        const { feedId, tradable, gasBalance } = await readTradingPreflight(publicClient, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, pairIndex, traderAddress);
         if (!feedId || feedId === '0x0000000000000000000000000000000000000000000000000000000000000000') {
           throw new Error(`${args.pair} isn't listed on the contract yet. The protocol owner needs to register it.`);
         }

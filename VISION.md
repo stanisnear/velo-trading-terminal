@@ -2,6 +2,8 @@
 
 This document is for investors and contributors. It explains where Velo is going, how it can make money, and which ideas are open. The [README](README.md) describes what exists today.
 
+**Reviewed 21 October 2026.** The V4 testnet release is the current implementation, not the final mainnet risk design. Supporting evidence and the application checklist are in [docs/FUNDING-READINESS.md](docs/FUNDING-READINESS.md).
+
 **Reading guide.** Everything under "Today" is built and running on testnet. Everything else is a plan or an idea. Plans are intentions, not commitments, and none of this is financial advice or an offer of any kind.
 
 ## The thesis
@@ -20,26 +22,28 @@ New entrants bring growth, traders bring volume, and followers bring the audienc
 
 ## Today
 
-- Perpetual futures terminal on Base Sepolia testnet: market, limit and stop entries, take-profit and stop-loss, up to 25x leverage, automated liquidations, Pyth pricing
-- Social layer: posts, replies, follows, profiles, notifications, link previews, verified badges
+- V4 perpetual futures terminal on Base Sepolia testnet: nine crypto markets, isolated market/limit/stop entries, atomic take-profit and stop-loss, market-specific leverage up to 25x, keeper-triggered liquidations and Pyth pricing
+- Social layer: posts, threaded replies, reactions, reposts, follows, profiles, notifications, short post/reply links, cashtags and link previews
 - Top-50 market directory with a discussion thread per asset, a news tab and a leaderboard
 - Guided onboarding, faucet and gas sponsorship, testnet bridge routes
 - Production-style infrastructure: Cloudflare Pages and Workers, Supabase, a one-minute keeper scheduler with durable transaction handling
-- Public contracts and a Foundry test suite
+- Public contracts, verified V4 source on BaseScan and Sourcify, and a Foundry test suite. Source verification is not an independent security audit
+
+Active positions and orders come from V4 contract state. Legacy positions have separate exit controls and are not automatically migrated. Public market data and social records are distinct from the settlement oracle and the on-chain ledger. Copy trading, bots and non-crypto trading are not live.
 
 ## Roadmap
 
 ### Phase 1: make the core trustworthy
-- Independent smart-contract review and a redesigned margin and accounting model, before any real funds
+- Independent review of V4's segregated ledgers and reserved-profit model, followed by a mainnet-specific risk and liquidity design before any real funds. The testnet accounting replacement is deployed; independent review is not complete
 - An indexer that reconstructs every trader's history from on-chain events, so profiles, PnL and the leaderboard rest on verifiable results rather than stored profile metrics
-- More markets and better order management (partial closes, margin adjustment, cross margin)
+- Validate the nine-market V4 release and improve order management. Partial closes, margin adjustment and cross margin are possible future designs, not promised V4 features; they require new accounting, tests and review
 - Permission-scoped session keys instead of a browser-held trading key
 
 ### Phase 2: social trading
 - **Copy trading** with per-follower allocation, slippage limits, loss limits and a clear pause switch
 - **Trading bots** that run under scoped permissions, spend limits and kill switches, with transparent public performance
 - Trader pages that show verified results next to their posts
-- Alerts, watchlists and better discovery
+- Richer alerts and discovery, building on the existing watchlist and market directory
 
 ### Phase 3: a hub for all markets
 - Classic instruments alongside crypto, such as stocks and commodities, starting with exposure that fits the existing on-chain model
@@ -48,7 +52,7 @@ New entrants bring growth, traders bring volume, and followers bring the audienc
 
 ## Revenue model
 
-**Today:** trading fees only. The testnet contract charges 0.10% of collateral when a position opens and 0.10% of the gross payout when it closes, accrued to a fee balance the owner can withdraw. On testnet this is not real revenue.
+**Today:** the V4 contract models trading fees in mock USDC only. Opening costs 0.10% of requested notional (submitted collateral times leverage); the position's fixed notional is then net collateral times leverage. Closing costs 0.10% of that fixed notional, subject to available equity. Borrowing defaults to 0.01% per hour on notional. Keeper-triggered settlement can pay up to 0.05% of notional to the keeper. None of this is real revenue on testnet. The [contract reference](contracts/README.md) and deployed parameters govern the details.
 
 **Streams we are considering.** These are ideas, ordered roughly by how directly they follow from the product:
 
@@ -65,7 +69,7 @@ We have not published financial projections, and this document does not contain 
 
 ## Liquidity and the counterparty question
 
-Today, traders trade against a single USDC pool inside the contract. Their losses stay in the pool and their gains are paid from it, so the pool carries the risk of net trader profit. The team funds it and there is no public liquidity-provider deposit.
+Today, V4 uses protocol-owned mock-USDC liquidity, segregated from trader collateral, pending-order escrow and accrued fees. Trader losses increase pool assets and profits are paid from them. Every position reserves its fixed notional as its maximum gross profit; gross profit is capped at one notional, and trader losses are capped at collateral. The owner can withdraw only unreserved liquidity and accrued fees. There are no public LP shares, funding-rate transfers or insurance fund. This is a deliberately bounded testnet model, not an uncapped exchange or a yield product.
 
 Opening the pool to outside liquidity is a natural next step and an important design problem. Open questions we are working through:
 
@@ -74,7 +78,7 @@ Opening the pool to outside liquidity is a natural next step and an important de
 - **Who bears losses.** How profit and loss are shared between vault depositors and any protocol backstop
 - **Oracle and liquidation risk.** What happens when prices gap or keepers fall behind
 
-This requires the Phase 1 accounting redesign and an independent audit first. Nothing here should be read as a promise of yield.
+An external-liquidity vault requires a separate specification and implementation, adversarial testing and independent review; V4 does not supply one. Nothing here should be read as a promise of yield.
 
 ## Why we think it can work
 
@@ -84,7 +88,7 @@ This requires the Phase 1 accounting redesign and an independent audit first. No
 
 ## Risks we take seriously
 
-- **Smart-contract risk.** The current contracts are unaudited. Mainnet depends on the Phase 1 redesign and review
+- **Smart-contract risk.** V4 source is verified but unaudited. Mainnet depends on independent review, a production risk design and the Phase 1 release gates
 - **Regulation.** Leveraged derivatives, copy trading and traditional instruments are regulated differently across jurisdictions, and the design must account for that before launch in any region
 - **Counterparty and liquidity risk** as described above
 - **Oracle and keeper dependence.** Liquidation and order execution depend on price feeds and scheduled jobs
@@ -95,5 +99,7 @@ This requires the Phase 1 accounting redesign and an independent audit first. No
 **Contributors.** Good starting areas are indexing and verifiable performance, order-management features, accessibility and onboarding, test coverage for the keeper and settlement paths, and the social experience. Open an issue describing what you would like to work on before starting a large change.
 
 **Investors and partners.** For questions about the business, the plan or a partnership, contact the Velo team directly.
+
+For cohort and funding applications, use the [application facts and readiness checklist](docs/FUNDING-READINESS.md). Testnet transactions are evidence of implementation, not users, revenue, TVL or product-market fit. Team details, traction, incorporation, budget and the amount being raised must be supplied and verified before submission.
 
 **Security researchers.** Please report vulnerabilities privately to the maintainers rather than through public issues.
