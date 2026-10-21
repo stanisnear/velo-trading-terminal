@@ -5549,6 +5549,9 @@ const App = () => {
                   localStorage.setItem(key, JSON.stringify(m));
                 } catch {}
 
+                // V4 emits the position and its protection in the same receipt.
+                if (IS_V4) return;
+
                 // ── Attach TP/SL on-chain via setTriggers ─────────────────────
                 // The order form lets the user set TP/SL at open time. The contract's
                 // openPosition() doesn't accept triggers as args, so we set them in a

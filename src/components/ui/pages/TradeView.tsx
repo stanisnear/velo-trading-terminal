@@ -14,6 +14,7 @@ import { Position, OpenOrder, OrderType, MarginMode, PAIRS, ORDERLY_PAIRS, Trade
 import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsModal';
 import { Dialog } from '@/components/ui/Dialog';
 import './TradeView.css';
+import { TradeRail } from './TradeRail';
 // ── Orderly helpers inlined to avoid circular-dependency bundler errors ────────
 // (TradeView → OrderBook → orderlyOrderbookStream → orderlyService → viem causes
 //  a "cannot access before initialization" ReferenceError in the Vite bundle)
@@ -1735,9 +1736,7 @@ export const TradeView = ({
             </div>
 
             {/* Order entry takes priority over the public market feed. */}
-            <div className="velo-trade-rail">
-
-                {!isMobile && marketFeed}
+            <TradeRail isMobile={isMobile} orderType={orderType} feed={marketFeed}>
 
                 {/* Order form */}
                 <section className="velo-order-ticket" aria-label="Order ticket" style={{ borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)' }}>
@@ -1971,8 +1970,7 @@ export const TradeView = ({
                         </>
                         )}
                 </section>
-                {isMobile && marketFeed}
-            </div>
+            </TradeRail>
 
             {/* ── Mobile-only: Positions panel below order form ── */}
             {isMobile && (

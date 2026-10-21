@@ -12,7 +12,7 @@ export const tradeFixturePlugin = {
     const stubs = {
       wagmi: 'export const useReadContract=()=>({data:[100000000000n,0n,0n,10n,50n,0n,1n],isError:false});',
       testnetReleaseGate: 'export const LEGACY_V31_RESTRICTED=true;',
-      veloPerpsService: "export const IS_V4=true,PAIR_INDEX={'HYPE-USD':7},VELO_PERPS_V4_ADDRESS='0x01';",
+      veloPerpsService: "export const IS_V4=true,PAIR_INDEX={'HYPE-USD':7},VELO_PERPS_V4_ADDRESS='0x01',baseScanTxUrl=h=>'https://sepolia.basescan.org/tx/'+h;",
       TradingViewChart: "export const TradingViewChart=()=>null, TV_INTERVALS={'1m':1},TV_INTERVALS_QUICK={'1m':1},CHART_STYLES=[],INDICATORS=[];",
       OrderBook: "import React from 'react'; export const OrderBook=()=>React.createElement('div',{style:{padding:12,fontSize:11}},'TRADES / VOLUME / ORDERS');",
       OrderDetailsModal: 'export const OrderDetailsModal=()=>null;',

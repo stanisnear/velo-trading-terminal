@@ -715,6 +715,8 @@ export interface OpenPositionResult {
   tradeId: bigint;
   entryPrice: number;
   notionalUSDC: number;
+  takeProfit?: number;
+  stopLoss?: number;
 }
 
 /**
@@ -867,21 +869,29 @@ export async function openPosition(
   let entryPrice = 0;
   let notionalUSDC = args.collateralUSDC * args.leverage;
   let logIndex = -1;
+  let confirmedTriggers: { takeProfit: bigint; stopLoss: bigint; tradeId: bigint } | undefined;
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) continue;
     try {
-      const decoded = decodeEventLog({ abi: VELO_PERPS_V3_ABI, data: log.data, topics: log.topics });
+      const decoded = decodeEventLog({ abi: VELO_PERPS_ABI, data: log.data, topics: log.topics });
+      if (decoded.eventName === 'TriggersSet') {
+        const values = decoded.args as any;
+        confirmedTriggers = { tradeId: values.tradeId, takeProfit: values.takeProfit_E18, stopLoss: values.stopLoss_E18 };
+      }
       if (decoded.eventName === 'PositionOpened' && decoded.args.trader.toLowerCase() === account.address.toLowerCase()) {
         logIndex = log.logIndex;
         tradeId = (decoded.args as any).tradeId;
         entryPrice = fromE18((decoded.args as any).entryPrice_E18);
         notionalUSDC = fromUsdc6((decoded.args as any).collateralUSDC_6) * args.leverage;
-        break;
       }
     } catch { /* not our event */ }
   }
   if (tradeId == null) {
     throw new Error('Transaction confirmed but PositionOpened event not found');
+  }
+  if (IS_V4 && (!confirmedTriggers || confirmedTriggers.tradeId !== tradeId
+    || confirmedTriggers.takeProfit !== toE18(args.takeProfit || 0) || confirmedTriggers.stopLoss !== toE18(args.stopLoss || 0))) {
+    throw Object.assign(new Error('Position confirmed, but its protection could not be verified. Check the transaction before retrying.'), { txHash });
   }
   // Warn (don't throw) if the contract stored a corrupt near-zero entry price.
   // This is a Base Sepolia testnet Pyth quirk — the position exists on-chain and
@@ -889,7 +899,9 @@ export async function openPosition(
   if (entryPrice > 0 && entryPrice < 0.0001) {
     console.warn(`[velo] Corrupt entry price detected: $${entryPrice} — Pyth oracle cache was stale on-chain. Position opened but entry price is invalid.`);
   }
-  return { id: tradeEventId(VELO_PERPS_ADDRESS, txHash, logIndex), txHash, tradeId, entryPrice, notionalUSDC };
+  return { id: tradeEventId(VELO_PERPS_ADDRESS, txHash, logIndex), txHash, tradeId, entryPrice, notionalUSDC,
+    takeProfit: confirmedTriggers?.takeProfit ? fromE18(confirmedTriggers.takeProfit) : undefined,
+    stopLoss: confirmedTriggers?.stopLoss ? fromE18(confirmedTriggers.stopLoss) : undefined };
 }
 
 export type ClosePositionResult = ConfirmedClose;

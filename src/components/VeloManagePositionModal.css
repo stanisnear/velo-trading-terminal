@@ -1,0 +1,59 @@
+.velo-manage { font: 13px/1.45 var(--font-sans); letter-spacing: 0; }
+.velo-manage button, .velo-manage input { letter-spacing: 0; }
+.velo-manage-overview { padding: 18px 20px; }
+.velo-manage-direction { display: flex; gap: 12px; color: var(--fg-muted); font: 600 11px var(--font-mono); }
+.velo-manage-direction span + span { border-left: 1px solid var(--hairline); padding-left: 12px; }
+.velo-manage-pnl { display: grid; gap: 3px; margin: 14px 0 18px; }
+.velo-manage-pnl > span { font-size: 12px; color: var(--fg-muted); }
+.velo-manage-pnl strong { font: 600 32px/1.25 var(--font-sans); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.velo-manage-pnl small { font: 11px var(--font-mono); color: var(--fg-muted); }
+.velo-manage-quotes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.velo-manage dt { color: var(--fg-muted); font-size: 11px; }
+.velo-manage dd { margin: 4px 0 0; font: 600 12px var(--font-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.velo-manage-tabs { display: grid; grid-template-columns: 1fr 1fr; border-block: 1px solid var(--hairline); padding: 0 20px; }
+.velo-manage-tabs button { min-height: 46px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--fg-muted); font: 600 12px var(--font-sans); display: flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; transition: color 180ms, border-color 180ms; }
+.velo-manage-tabs button[aria-selected=true] { color: var(--fg); border-bottom-color: var(--accent); }
+.velo-manage-panel { padding: 18px 20px; animation: velo-manage-reveal 220ms ease-out; }
+.velo-manage-close-label { display: flex; justify-content: space-between; align-items: baseline; }
+.velo-manage-close-label strong { font: italic 28px var(--font-display); }
+.velo-manage-close-track { height: 5px; background: var(--chip-bg); margin: 10px 0 18px; border-radius: 4px; overflow: hidden; }
+.velo-manage-close-track span { display: block; width: 100%; height: 100%; background: var(--accent); transform-origin: left; animation: velo-manage-track 480ms cubic-bezier(.22,1,.36,1); }
+.velo-manage-breakdown { margin: 0; display: grid; gap: 10px; }
+.velo-manage-breakdown > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.velo-manage-breakdown .is-total { padding-top: 12px; border-top: 1px solid var(--hairline); }
+.velo-manage-breakdown .is-total dt, .velo-manage-breakdown .is-total dd { color: var(--fg); font-size: 13px; }
+.velo-manage-note { color: var(--fg-muted); font-size: 11px; line-height: 1.6; margin: 14px 0 0; }
+.velo-manage-note svg { display: inline; vertical-align: middle; margin-right: 4px; }
+.velo-trigger-fields { display: grid; gap: 18px; }
+.velo-trigger-field { --trigger-color: var(--pnl-up); min-width: 0; }
+.velo-trigger-field.is-loss { --trigger-color: var(--pnl-down); border-top: 1px solid var(--hairline); padding-top: 16px; }
+.velo-trigger-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.velo-trigger-heading label { display: flex; align-items: center; gap: 7px; font-weight: 600; }
+.velo-trigger-heading svg { color: var(--trigger-color); }
+.velo-trigger-heading button { color: var(--fg-muted); background: none; border: 0; font: 11px var(--font-sans); padding: 4px; cursor: pointer; }
+.velo-trigger-input { display: flex; align-items: center; gap: 8px; border: 1px solid var(--hairline-strong); border-radius: 8px; background: var(--chip-bg); padding: 0 12px; transition: border-color 180ms, box-shadow 180ms; }
+.velo-trigger-input:focus-within { border-color: var(--trigger-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--trigger-color) 12%, transparent); }
+.velo-trigger-input > span { color: var(--fg-muted); }
+.velo-trigger-input input { width: 100%; min-width: 0; min-height: 42px; color: var(--fg); background: none; border: 0; outline: none; font: 600 14px var(--font-mono); }
+.velo-trigger-preview { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin: 8px 0; font-size: 11px; color: var(--fg-muted); }
+.velo-trigger-preview strong { font: 600 11px var(--font-mono); font-variant-numeric: tabular-nums; }
+.velo-trigger-field > input[type=range] { width: 100%; display: block; min-height: 24px; accent-color: var(--trigger-color); cursor: pointer; }
+.velo-trigger-scale { display: flex; justify-content: space-between; color: var(--fg-subtle); font: 10px var(--font-mono); }
+.velo-manage-footer { position: sticky; bottom: 0; padding: 12px 20px 18px; background: var(--bg-base-2); border-top: 1px solid var(--hairline); display: grid; gap: 10px; }
+.velo-manage-footer a { display: inline-flex; align-items: center; gap: 7px; color: var(--accent-text); font-size: 12px; }
+.velo-manage-action { min-height: 44px; padding: 10px 14px; display: flex; justify-content: center; align-items: center; gap: 8px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--accent); color: var(--trade-action-fg); font: 600 13px var(--font-sans); cursor: pointer; transition: transform 150ms, opacity 150ms; }
+.velo-manage-action.is-close { background: color-mix(in srgb,var(--pnl-down) 12%,var(--bg-base-2)); color: var(--pnl-down); border-color: color-mix(in srgb,var(--pnl-down) 35%,transparent); }
+.velo-manage-action:not(:disabled):active { transform: scale(.985); }
+.velo-manage-action:disabled { opacity: .5; cursor: not-allowed; }
+.velo-manage-error { margin: 0; color: var(--pnl-down); font-size: 12px; line-height: 1.5; }
+.velo-manage-success { display: grid; justify-items: center; text-align: center; padding: 30px 20px; gap: 8px; animation: velo-manage-reveal 250ms ease-out; }
+.velo-manage-success svg { color: var(--pnl-up); animation: velo-manage-track 300ms ease-out; }
+.velo-manage-success h3 { margin: 0; font: italic 28px var(--font-display); }
+.velo-manage-success p { margin: 0; color: var(--fg-muted); }
+.velo-manage-progress { position: relative; display: flex; align-items: center; gap: 8px; padding-bottom: 10px; overflow: hidden; font-size: 12px; color: var(--fg-muted); }
+.velo-manage-progress > span { position: absolute; bottom: 0; height: 2px; width: 35%; background: var(--accent); animation: velo-manage-confirm 1.3s ease-in-out infinite; }
+@keyframes velo-manage-reveal { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes velo-manage-track { from { transform: scaleX(.2); opacity: .3; } to { transform: scaleX(1); opacity: 1; } }
+@keyframes velo-manage-confirm { from { left: -35%; } to { left: 100%; } }
+@media (max-width: 420px) { .velo-manage-overview, .velo-manage-panel { padding: 16px; } .velo-manage-tabs { padding-inline: 12px; } .velo-manage-tabs button { font-size: 11px; } .velo-manage-footer { padding: 12px 16px 16px; } }
+@media (prefers-reduced-motion: reduce) { .velo-manage-panel, .velo-manage-close-track span, .velo-manage-success, .velo-manage-success svg, .velo-manage-progress > span { animation: none; } .velo-manage button, .velo-trigger-input { transition: none; } }

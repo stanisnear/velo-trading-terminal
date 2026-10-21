@@ -27,14 +27,20 @@ test('market, limit and stop share a persistent submit area outside the scrollin
     const ticket = document.querySelector('[aria-label="Order ticket"]');
     const body = ticket.querySelector('[aria-label="Order parameters"]');
     const submit = ticket.querySelector('.velo-order-ticket__footer > button');
+    const divider = document.querySelector('[role="separator"]');
+    const marketHeight = Number(divider.getAttribute('aria-valuenow'));
     assert.ok(submit && !body.contains(submit));
     assert.equal(ticket.querySelectorAll('dt').length, 4, 'all cost and profit-limit disclosures remain');
     for (const type of ['MARKET', 'LIMIT', 'STOP']) {
       const tab = [...ticket.querySelectorAll('button')].find(button => button.textContent === type);
       await act(async () => tab.click());
+      assert.equal(Number(divider.getAttribute('aria-valuenow')), type === 'MARKET' ? marketHeight : marketHeight - 60);
       assert.equal(ticket.querySelector('.velo-order-ticket__footer > button'), submit);
       assert.equal([...body.querySelectorAll('label')].some(label => label.textContent === 'Price'), type !== 'MARKET');
     }
+    const initialHeight = Number(divider.getAttribute('aria-valuenow'));
+    await act(async () => divider.dispatchEvent(new window.KeyboardEvent('keydown', {key:'ArrowDown',bubbles:true,cancelable:true})));
+    assert.equal(Number(divider.getAttribute('aria-valuenow')), initialHeight + 16);
     await act(async () => [...ticket.querySelectorAll('button')].find(button => button.textContent === 'MARKET').click());
     const leverage = ticket.querySelector('[aria-label="Leverage"]');
     await act(async () => { leverage.value = '5'; leverage.dispatchEvent(new window.Event('change', { bubbles: true })); });

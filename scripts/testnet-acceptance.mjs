@@ -119,12 +119,31 @@ if (process.argv.includes('--faucet-transfer')) {
     for (const existing of await perps.fetchOpenPositions(client, account.address)) {
       await timed('recover disposable test position', () => perps.closePosition(wallet, client, existing.tradeId, existing.pair));
     }
-    const position = await timed(`open isolated ${tradePair} position`, () => perps.openPosition(wallet, client, { pair: tradePair, isLong: true, collateralUSDC: 10, leverage: 2, marginMode: 'ISOLATED' }));
+    let protection = {};
+    if (testV4 && process.argv.includes('--with-triggers')) {
+      const market = MARKETS.find(m => `${m.symbol}-USD` === tradePair);
+      const response = await globalThis.__acceptancePyth(`/api/pyth/v2/updates/price/latest?ids[]=${market.feed}&parsed=true&encoding=hex`);
+      if (!response.ok) throw new Error('Unable to price protection test');
+      const quote = (await response.json()).parsed[0].price;
+      const mark = Number(quote.price) * 10 ** quote.expo;
+      protection = { takeProfit: Number((mark * 1.2).toFixed(6)), stopLoss: Number((mark * .8).toFixed(6)) };
+    }
+    const position = await timed(`open isolated ${tradePair} position`, () => perps.openPosition(wallet, client, { pair: tradePair, isLong: true, collateralUSDC: 10, leverage: 2, marginMode: 'ISOLATED', ...protection }));
     console.log(JSON.stringify({ openedTradeId: position.tradeId.toString(), hash: position.txHash }));
     // V4's minimum hold is enforced on-chain, including for the test wallet.
     if (testV4) await new Promise(resolve => setTimeout(resolve, 2500));
     const livePositions = await perps.fetchOpenPositions(client, account.address);
     if (!livePositions.some(p => p.tradeId === position.tradeId && (!testV4 || p.v4))) throw new Error('Live position or V4 accounting metadata missing');
+    if (protection.takeProfit) {
+      const active = livePositions.find(p => p.tradeId === position.tradeId);
+      if (Math.abs(active.takeProfit - protection.takeProfit) > .000001 || Math.abs(active.stopLoss - protection.stopLoss) > .000001) throw new Error('Atomic protection missing from the opened position');
+      console.log(JSON.stringify({ atomicProtectionVerified: true, takeProfit: active.takeProfit, stopLoss: active.stopLoss }));
+      await timed('edit and confirm on-chain TP/SL', async () => {
+        await perps.setTriggers(wallet, client, position.tradeId, protection.takeProfit * 1.01, protection.stopLoss * .99);
+        const updated = (await perps.fetchOpenPositions(client, account.address)).find(p => p.tradeId === position.tradeId);
+        if (Math.abs(updated.takeProfit - protection.takeProfit * 1.01) > .000001 || Math.abs(updated.stopLoss - protection.stopLoss * .99) > .000001) throw new Error('Edited protection missing');
+      });
+    }
     const closed = await timed(`close isolated ${tradePair} position`, () => perps.closePosition(wallet, client, position.tradeId, tradePair));
     console.log(JSON.stringify({ closeReason: closed.reason, hash: closed.txHash }));
     const order = await timed('place distant limit order', () => perps.placeConditionalOrder(wallet, client, { pair: tradePair, isLong: true, leverage: 2, marginMode: 'ISOLATED', triggerKind: 'LIMIT', triggerPrice: 0.001, collateralUSDC: 10, reduceOnly: false }));
