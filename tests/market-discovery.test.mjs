@@ -39,6 +39,12 @@ test('asset identity cannot be hijacked by a matching ticker', () => {
   assert.equal(mentionsTicker('I watch $1INCH and $USDE.E.', 'USDE.E'), true);
 });
 
+test('ticker discussion rejects event objects and malformed identifiers without crashing', () => {
+  for (const identifier of [undefined, null, {}, { type: 'click' }, 42, ['BTC'], '']) {
+    assert.equal(mentionsTicker('I watch $BTC', identifier), false);
+  }
+});
+
 test('gateway rejects invalid methods and ranges before any upstream request', async () => {
   for (const [query, method, status] of [['?kind=chart&id=bitcoin&days=365', 'GET', 400], ['?kind=coin&id=../secret', 'GET', 400], ['', 'POST', 405]]) {
     assert.equal((await handleMarketData(new Request('https://velo.test/api/market-data' + query, { method }))).status, status);

@@ -19,6 +19,8 @@
 
 ## What Velo is
 
+**Documentation reviewed: 21 October 2026.** Start with the [documentation index](docs/README.md) for the architecture, operations, release evidence and funding-readiness checklist. [VISION.md](VISION.md) owns the long-term direction; this README describes the current testnet product.
+
 Most people who get into crypto end up juggling five tabs: an exchange to trade, a chart site, a news feed, a social app to see what traders are saying, and a spreadsheet to remember how they did. Velo puts those in one product.
 
 It is a trading terminal with a social network built into it. You can open a position, share it, watch someone else's, argue about it in the replies, and check the market news without leaving the page. The goal is to be the place anyone with an interest in crypto and finance opens first, whether they have traded for ten years or ten minutes.
@@ -61,13 +63,13 @@ Copy trading, bots and traditional instruments are **planned and not yet availab
 - **Leaderboard** of top traders by profile performance
 
 ### Connect
-- Posts, threaded replies, likes, reposts, follows, mentions and wall posts
+- Posts, threaded replies, reactions, reposts, follows, mentions and asset discussions; profile feeds show their author's posts
 - Public profiles with trade history and activity
 - Notifications, link previews for shared posts, and verified badges for recognised accounts
 - Installable as a PWA on desktop and mobile
 
 ### Move funds (testnet)
-- Test-USDC faucet and gas sponsorship, so a new user can trade within a minute
+- Test-USDC faucet and gas sponsorship, subject to cooldowns, rate limits, network confirmation and available sponsor funds
 - Wallet-to-wallet transfers with on-chain receipt verification
 - Bridge routes across Base, Ethereum, Optimism and Arbitrum Sepolia using LayerZero OFT
 
@@ -111,7 +113,7 @@ sequenceDiagram
 ```
 
 - **Market orders** settle after confirmation at the fresh oracle price with an adverse execution spread and a user price bound.
-- **Limit, stop, take-profit and stop-loss** conditions are stored on-chain. A keeper checks them every minute and executes when the condition is met. A trigger is a condition, not a guaranteed fill price or deadline.
+- **Limit, stop, take-profit and stop-loss** conditions are stored on-chain. TP/SL can be attached atomically at entry and are projected into Open Orders from confirmed positions. Cancelling one protection leg preserves the other. A keeper checks conditions every minute; a trigger is not a guaranteed fill price or deadline.
 - Positions, fills and activity are recorded from confirmed transaction receipts.
 
 ### Social
@@ -141,9 +143,11 @@ flowchart TD
 React 19, TypeScript, Vite, wagmi v2 and viem, Reown AppKit for wallets, TanStack Query and Zustand for state.
 
 - `src/App.tsx` is the application shell: Dashboard, Trade, Markets, Social, Leaderboard and Profile views.
-- `src/components/` holds the UI: trading panels, order book and fills tape, charts, modals, social components and shared primitives.
+- `src/components/` holds the UI: trading panels, informational activity/depth views and fills tape, charts, modals, social components and shared primitives. The engine is not a matching-engine order book.
 - `src/services/` holds everything that touches the outside world: contract calls, Pyth streaming, wallet and session handling, Supabase access, and transfer and trade-receipt verification.
 - **No optimistic state for money.** Balances and positions come from contract reads and confirmed receipts, not from what the UI expects to have happened.
+- V4 contract reads own active positions and orders. Old database snapshots and Realtime position/order rows do not repopulate the V4 view; legacy exits remain separate. Supabase still supplies social content, notifications and receipt-backed history.
+- Sign-in has cancellable stages, bounded wallet waiting and an explicit switch-wallet path. App sessions warn before the 30-minute inactivity limit and require renewed sign-in after eight hours. Logout does not close positions.
 - Design system in `src/styles/`: OKLCH colour tokens, glass surfaces, light and dark modes, Fraunces for display type and Geist for the interface.
 
 ### Backend
@@ -157,7 +161,7 @@ Velo runs on Cloudflare and Supabase.
 | **Supabase `velo-api`** | Edge Function for wallet sign-in, gas sponsorship, incoming-transfer verification, link previews and protocol stats. Source lives in `api/` and is compiled into the function by `npm run build:supabase` |
 | **Supabase `velo-keepers`** | Edge Function that scans and executes conditional orders, take-profit / stop-loss and liquidations. Signed transactions are persisted before broadcast and recovered after timeouts, and a durable lock prevents nonce collisions |
 | **Keeper scheduler** | A Cloudflare Worker on a one-minute cron that calls the three keeper jobs in sequence, with retry and idempotent run IDs |
-| **Supabase Postgres** | Profiles, posts, comments, reactions, follows, notifications, activity and fills, behind row-level security. Base schema in `supabase/schema/`, versioned changes in `supabase/migrations/` |
+| **Supabase Postgres** | Profiles, posts, comments, reactions, follows, notifications, activity and fills, with row-level security and event-validation functions. Incremental changes are in `supabase/migrations/`; these are not a complete fresh-database baseline. See the [operations runbook](docs/OPERATIONS.md) for remaining schema/history reconciliation |
 | **Market data** | `/api/market-data` serves the top-50 directory and coin history using a server-side provider key, with caching and bounded requests |
 
 ### Smart contracts
@@ -171,7 +175,7 @@ Built and tested with Foundry.
 | `VeloRegistry` | Username to wallet mapping |
 | `VeloMockUSDC` | 6-decimal test collateral with a faucet, bridgeable with LayerZero OFT |
 
-V4 rejects Pyth updates older than five seconds and reserves each position's maximum gross profit at entry. Addresses are in [`contracts/deployments/base_sepolia.json`](contracts/deployments/base_sepolia.json). Build instructions and the risk specification are in [`contracts/README.md`](contracts/README.md).
+V4 rejects Pyth updates older than five seconds and reserves each position's maximum gross profit at entry. Addresses are in [`contracts/deployments/base_sepolia.json`](contracts/deployments/base_sepolia.json). Build instructions and the implemented risk model are in [`contracts/README.md`](contracts/README.md). Source is verified on [BaseScan](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code) and exact-match verified on [Sourcify](https://repo.sourcify.dev/contracts/full_match/84532/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f/). Verification is not an audit.
 
 ## Economics
 
@@ -194,12 +198,13 @@ contracts/           Solidity contracts, scripts and Foundry tests
 shared/              Market allow-list shared by the app and the price proxy
 scripts/             Build, packaging and acceptance scripts
 tests/               Node test suite
+docs/                Current architecture, operations, release evidence and application preparation
 public/              PWA manifest, icons, service worker, social images
 ```
 
 ## Run it locally
 
-Requires Node 20 or newer.
+Use Node 22.12 or newer for the application and jsdom-based test suite.
 
 ```sh
 npm ci
@@ -209,11 +214,11 @@ npm test             # Node test suite
 npm run build        # Production build
 ```
 
-The app needs public configuration (`VITE_*` variables for RPC endpoints, contract addresses and a WalletConnect project ID); `scripts/check-cloudflare-env.mjs` lists them. Never put a private key, a Supabase service-role key or an oracle provider key in a `VITE_*` variable, because those are embedded in browser code. Local Vite does not emulate the Cloudflare gateway, the Pyth proxy or the live backend secrets.
+Vite uses reviewed public contract defaults from `supabase/functions/_shared/public-config.js`; local environment values override them. V4 requires `VITE_VELO_PERPS_V4_ACTIVE=true` and its deployed address. The app also needs public RPC, bridge and Reown configuration; `scripts/check-cloudflare-env.mjs` lists the production build requirements. Never put a private key, a Supabase service-role key or an oracle provider key in a `VITE_*` variable, because those are embedded in browser code. Local Vite does not emulate the Cloudflare gateway or private Pyth Worker. Its reference-market middleware reads an optional ignored `.env.cmc.local` server-side secret. See [local setup and releases](docs/OPERATIONS.md).
 
 ## Deployment
 
-- **Frontend and gateway.** Cloudflare Pages builds the production branch with `npm run build:cloudflare` (typecheck, env check, Vite build, gateway packaging) and publishes `dist`.
+- **Frontend and gateway.** Cloudflare Pages project `velo-trading-terminal` builds `codex/cloudflare-migration` with `npm run build:cloudflare` (typecheck, env check, Vite build, gateway packaging) and publishes `dist`. Pushing to `main` alone does not publish the configured production site.
 - **Backend.** Supabase functions are deployed separately with the Supabase CLI after `npm run build:supabase`. Workers are deployed with Wrangler using the configs in `cloudflare/`. A frontend push does not deploy either.
 - **Secrets** live in Cloudflare and Supabase secret stores, never in the repository.
 - **Keepers.** Run exactly one scheduler against the keeper wallet. Two schedulers on one wallet cause nonce conflicts.
@@ -223,6 +228,8 @@ The app needs public configuration (`VITE_*` variables for RPC endpoints, contra
 Velo is an early-stage product running on **Base Sepolia testnet with mock USDC**. V4 is deployed at `0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f`. The contracts have **not been independently audited**; independent security review is a prerequisite for any mainnet launch.
 
 Nine perpetual markets are enabled in V4. Cross margin, partial closes and margin adjustment are absent from its contract. Legacy positions are not automatically migrated. The leaderboard still ranks stored profile metrics rather than independently reconstructed on-chain results.
+
+Known release gates include independent contract review, a chain indexer, constrained trading-wallet permissions, remaining database/privacy hardening, operator-key controls and sustained recovery/mobile testing. This is a working testnet, not a certification of industry-wide or mainnet readiness. See [release evidence](docs/RELEASE-2026-10-21.md) and [funding readiness](docs/FUNDING-READINESS.md).
 
 ## Roadmap, vision and business model
 

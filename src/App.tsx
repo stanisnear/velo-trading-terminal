@@ -748,7 +748,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
     return (
         <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "18px 24px max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))" }} className="animate-fade-in token-page">
             {/* Back button */}
-            <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 14, padding: 0 }}
+            <button onClick={() => onClose()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 14, padding: 0 }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg)'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg-muted)'}>
                 ← ALL MARKETS
@@ -1003,7 +1003,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                                 const pc = changes[p.pairId] ?? 0;
                                 const pu = pc >= 0;
                                 return (
-                                    <div key={p.symbol} onClick={() => onClose(p.symbol)}
+                                    <div key={p.symbol} onClick={() => onNavigateToTicker(p.symbol)}
                                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--hairline)', cursor: 'pointer', gap: 8 }}
                                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
@@ -1385,7 +1385,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                     user={user}
                     prices={prices}
                     changes={changes}
-                    onClose={(sym?: string) => { if (sym && typeof sym === 'string') setActiveTickerWithURL(sym); else { setActiveTickerWithURL(null); onNavigateToMarkets?.(); } }}
+                    onClose={() => { setActiveTickerWithURL(null); onNavigateToMarkets?.(); }}
                     onLike={onLike}
                     onRepost={onRepost}
                     onComment={onComment}
@@ -2838,6 +2838,7 @@ const App = () => {
     };
     const [activeSocialTicker, setActiveSocialTicker] = useState<string | null>(null);
     const openCoin = (identifier: string) => {
+        if (typeof identifier !== 'string' || !identifier.trim()) return;
         setActiveSocialTicker(identifier);
         setSinglePostId(null);
         setSingleCommentId(null);
@@ -7304,7 +7305,7 @@ const App = () => {
                 {activeTab === TabView.COIN && activeSocialTicker && <TokenPage
                     key={activeSocialTicker} ticker={activeSocialTicker} posts={posts} traders={traders} user={user}
                     prices={marketPrices} changes={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist}
-                    onClose={(identifier?: string) => identifier ? openCoin(identifier) : setActiveTab(TabView.MARKETS)}
+                    onClose={() => { setActiveSocialTicker(null); setActiveTab(TabView.MARKETS); }}
                     onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onViewProfile={handleViewProfile}
                     showUsersModal={(title: string, userIds: string[]) => setUsersListModal({ isOpen: true, title, userIds })}
                     onDeletePost={(id: string) => handleDeletePostWithConfirm(id, async pid => { await supabaseDeletePost(pid); setPosts(rows => rows.filter(row => row.id !== pid)); })}
