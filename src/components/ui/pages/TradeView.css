@@ -1,0 +1,93 @@
+.velo-trade-rail {
+  width: clamp(316px, 26vw, 380px);
+  height: 100%;
+  min-height: 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.velo-trade-feed {
+  flex: 1 2 0;
+  min-height: 132px;
+  max-height: 240px;
+}
+
+.velo-order-ticket {
+  flex: 3 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Only the fields scroll on short screens; the execution action never does. */
+.velo-order-ticket__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  scroll-padding-block: 12px;
+}
+
+.velo-order-ticket__body > * {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.velo-order-ticket__body .velo-field {
+  min-width: 0;
+}
+
+.velo-order-ticket__body .velo-input {
+  min-width: 0;
+  min-height: 36px;
+}
+
+.velo-order-ticket__footer {
+  flex: 0 0 auto;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--hairline);
+  background: var(--bg-base-2);
+}
+
+.velo-order-ticket__footer > button {
+  min-height: 44px;
+}
+
+@media (max-width: 1023px) {
+  .velo-trade-rail {
+    width: 100%;
+    height: auto;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    gap: 10px;
+  }
+
+  .velo-order-ticket {
+    flex: none;
+    min-height: 230px;
+  }
+
+  .velo-trade-feed {
+    flex: none;
+    height: 240px;
+  }
+
+  .velo-order-ticket__body {
+    flex: none;
+    overflow: visible;
+    scrollbar-gutter: auto;
+    gap: 10px;
+  }
+
+  .velo-order-ticket__body .velo-input {
+    min-height: 44px;
+  }
+}
