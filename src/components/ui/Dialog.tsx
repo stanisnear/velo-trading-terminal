@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export function Dialog({ open, onClose, title, busy = false, children }: {
-  open: boolean; onClose: () => void; title: string; busy?: boolean; children: React.ReactNode;
+export function Dialog({ open, onClose, title, busy = false, children, className = '' }: {
+  open: boolean; onClose: () => void; title: string; busy?: boolean; children: React.ReactNode; className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -18,7 +18,7 @@ export function Dialog({ open, onClose, title, busy = false, children }: {
     };
   }, [open]);
   if (!open) return null;
-  return createPortal(<dialog ref={ref} className="velo-native-dialog" aria-labelledby={titleId} aria-busy={busy}
+  return createPortal(<dialog ref={ref} className={`velo-native-dialog ${className}`} aria-labelledby={titleId} aria-busy={busy}
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
     onClick={event => {
       if (event.target !== event.currentTarget || busy) return;

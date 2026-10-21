@@ -14,7 +14,7 @@ const fixture = 'globalThis.__tradingFixture';
 const writes = ['openPosition', 'closePosition', 'addMargin', 'reduceMargin', 'partialClose', 'setTriggers', 'depositCross', 'withdrawCross', 'placeConditionalOrder', 'cancelConditionalOrder'];
 const stubs = {
   wagmi: `export const useAccount=()=>(${fixture}.account); export const useChainId=()=>84532; export const usePublicClient=()=>(${fixture}.client); export const useWalletClient=()=>({data:${fixture}.wallet});`,
-  veloPerpsService: `export const IS_V3=false, IS_V4=true, VELO_PERPS_ADDRESS='0x01', VELO_USDC_BASE='0x02', VELO_PERPS_V3_ABI=[], PAIR_INDEX={'SOL-USD':2};
+  veloPerpsService: `export const IS_V3=false, IS_V4=true, VELO_PERPS_ADDRESS='0x01', VELO_USDC_BASE='0x02', VELO_PERPS_V3_ABI=[], VELO_PERPS_ABI=[], PAIR_INDEX={'SOL-USD':2};
     export const fetchOpenPositions=(_c,a,engine)=>engine==='legacy'?Promise.resolve([]):${fixture}.read(a);
     export const fetchConditionalOrders=async()=>[],fetchPoolBalance=async()=>1000000,fetchCrossFreeBalance=async()=>0,fetchCrossTotalBalance=async()=>({free:0,total:0,locked:0});
     export const baseScanTxUrl=h=>'https://sepolia.basescan.org/tx/'+h;

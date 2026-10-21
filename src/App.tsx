@@ -3,6 +3,9 @@ import { validateUsername as validateRegistryUsername } from './services/usernam
 import { createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
 import { publicSupabase } from './services/supabaseStore';
 import { signInWithWallet, cancelWalletSignIn, walletSignInError } from './services/walletAuth';
+import { activeTradingOrders, protectionAfterCancellation } from './services/activeTradingOrders.mjs';
+import { WalletSignInDialog } from './components/WalletSignInDialog';
+import type { WalletSignInPhase } from './services/walletAuth';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { VeloOnboardingModal, useOnboardingGuard } from './components/VeloOnboardingModal';
@@ -26,7 +29,7 @@ import { fetchPricesResilient, pythPriceStream, fetchPythKlines, fetchOlderPythK
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient, useSignMessage, useSwitchChain } from 'wagmi';
-import { useAppKit } from '@reown/appkit/react';
+import { useAppKit, useAppKitState } from '@reown/appkit/react';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 // VeloWelcomeModal merged into VeloOnboardingModal
 import { VeloBridgeModal } from './components/VeloBridgeModal';
@@ -1967,7 +1970,9 @@ const App = () => {
     // Bumped after intentional logout clears, to re-arm socialLoginEffect when wallet stays connected
     const [retryAuthTick, setRetryAuthTick] = useState(0);
     const [signInBusy, setSignInBusy] = useState(false);
+    const [signInPhase, setSignInPhase] = useState<WalletSignInPhase>('session');
     const signInBusyRef = useRef(false);
+    const signInWalletRef = useRef('');
     const [sessionNotice, setSessionNotice] = useState<'signed-out' | 'expired' | null>(null);
     const [sessionWarning, setSessionWarning] = useState<number | null>(null);
     const [sessionHardExpiry, setSessionHardExpiry] = useState(false);
@@ -2156,6 +2161,7 @@ const App = () => {
     const { address: walletAddress, isConnected: isWalletConnected, status: wagmiStatus } = useAccount();
     const { switchChain } = useSwitchChain();
     const { open: openAppKitModal } = useAppKit();
+    const { open: appKitOpen } = useAppKitState();
     const publicClient = usePublicClient({ chainId: 84532 });
     const { signMessageAsync } = useSignMessage();
     // Guard so the auto-recovery signature prompt fires at most once per session.
@@ -2434,7 +2440,10 @@ const App = () => {
         freshWalletConnectRef.current = false;
         socialLoginHandledRef.current = false;
       }
-    }, [wagmiStatus]);
+      if (signInBusyRef.current && signInWalletRef.current && (wagmiStatus === 'disconnected' || (walletAddress && walletAddress.toLowerCase() !== signInWalletRef.current))) {
+        ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false);
+      }
+    }, [wagmiStatus, walletAddress]);
     // ── Social login / onboarding trigger ─────────────────────────────────
     // Fires ONLY when the user actively connected their wallet this session
     // (freshWalletConnectRef=true, set when wagmiStatus passes through 'connecting').
@@ -2468,9 +2477,11 @@ const App = () => {
         if (signInBusyRef.current) return;
         const attempt = ++authAttemptRef.current;
         signInBusyRef.current = true; setSignInBusy(true);
+        signInWalletRef.current = walletAddress.toLowerCase();
         try {
-          const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
+          const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true, onPhase: setSignInPhase });
           if (attempt !== authAttemptRef.current || intentionalLogoutRef.current || freshSignupRef.current) return;
+          setSignInPhase('profile');
           const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
           if (attempt !== authAttemptRef.current || intentionalLogoutRef.current) return;
           if (error) throw error;
@@ -2594,7 +2605,7 @@ const App = () => {
       setPositions((prev) => {
         // Keep any non-Velo positions (demo-mode legacy) intact, replace the Velo subset.
         const nonVelo = prev.filter((p) => !p.id.startsWith('velo_'));
-        return [...nonVelo, ...onChainPositions];
+        return IS_V4 ? onChainPositions : [...nonVelo, ...onChainPositions];
       });
     }, [user, isWalletConnected, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
@@ -2664,27 +2675,14 @@ const App = () => {
     useEffect(() => {
       if (!user || !isWalletConnected) return;
       if (veloPerpsTrading.isInitialLoading) return;
-      const mapped: OpenOrder[] = veloPerpsTrading.conditionalOrders.map((o) => {
-        const uiPair = o.pair.replace('-', '/');
-        const orderType: OrderType = o.triggerKind === 'LIMIT' ? 'LIMIT' : 'STOP';
-        return {
-          id: `velo_ord_${o.orderId.toString()}`,
-          pair: uiPair,
-          side: o.isLong ? 'LONG' : 'SHORT',
-          type: orderType,
-          price: o.triggerPrice,
-          size: o.collateralUSDC * o.leverage,
-          leverage: o.leverage,
-          timestamp: o.createdAt * 1000,
-          onChain: true, onChainContract: VELO_PERPS_ADDRESS,
-        } as OpenOrder;
-      });
+      const mapped: OpenOrder[] = activeTradingOrders(veloPerpsTrading.conditionalOrders, veloPerpsTrading.openPositions, VELO_PERPS_ADDRESS);
       setOpenOrders((prev) => {
+        if (IS_V4) return mapped;
         // Replace the on-chain subset, keep any non-on-chain orders intact.
         const nonVelo = prev.filter((o) => !o.id.startsWith('velo_ord_'));
         return [...nonVelo, ...mapped];
       });
-    }, [user, isWalletConnected, veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading]);
+    }, [user, isWalletConnected, veloPerpsTrading.conditionalOrders, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
     const orderLookups = useRef(new Set<string>());
     // A cancelled order also disappears. Only its receipt can identify a fill.
@@ -2832,7 +2830,7 @@ const App = () => {
      */
     const handleEditPosition = (p: Position | null, initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS') => {
       if (!p) { setEditingPosition(null); setManagingPosition(null); return; }
-      if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+      if (IS_V4 && (!p.onChain || p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase())) {
         setToast({message:'Refresh this position before managing it. Legacy positions have separate exit controls.',type:'INFO'}); return;
       }
       if (p.onChain && p.onChainTradeId) { setManagingPositionTab(initialTab === 'TRIGGERS' ? 'TRIGGERS' : 'PARTIAL'); setManagingPosition(p); }
@@ -2996,8 +2994,8 @@ const App = () => {
           setUser({ ...restoredUser });
           setAuthChecked(true);
           const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-            fetchPositions(authUser.id),
-            fetchOpenOrders(authUser.id),
+            IS_V4 ? Promise.resolve([]) : fetchPositions(authUser.id),
+            IS_V4 ? Promise.resolve([]) : fetchOpenOrders(authUser.id),
             fetchTradeHistory(authUser.id),
             fetchTransactions(authUser.id),
             fetchNotifications(authUser.id),
@@ -3027,8 +3025,7 @@ const App = () => {
           if (attempt !== authAttemptRef.current || intentionalLogoutRef.current || window.__veloLogoutLock) return;
           setUser(restoredUser);
           recordSessionWallet();
-          setPositions(positions);
-          setOpenOrders(orders);
+          if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
           setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
           if (loadedPosts.length > 0) setPosts(loadedPosts);
           try { const prefs = await fetchPreferences(authUser.id); applyPreferences(prefs); } catch (_) {}
@@ -3363,8 +3360,8 @@ const App = () => {
                 if (!profile) { sessionRestoredRef.current = false; setAuthChecked(true); setSessionNotice('expired'); return; }
                 const restoredUser = dbProfileToUserProfile(profile);
                 const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-                    fetchPositions(session.user.id),
-                    fetchOpenOrders(session.user.id),
+                    IS_V4 ? Promise.resolve([]) : fetchPositions(session.user.id),
+                    IS_V4 ? Promise.resolve([]) : fetchOpenOrders(session.user.id),
                     fetchTradeHistory(session.user.id),
                     fetchTransactions(session.user.id),
                     fetchNotifications(session.user.id),
@@ -3442,8 +3439,7 @@ const App = () => {
                 if (intentionalLogoutRef.current || window.__veloLogoutLock) return;
                 setUser(restoredUser);
                 recordSessionWallet();
-                setPositions(positions);
-                setOpenOrders(orders);
+                if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
                 setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
                 if (loadedPosts.length > 0) setPosts(loadedPosts);
                 try {
@@ -4585,7 +4581,7 @@ const App = () => {
     // KEY REQUIREMENT: tables must have REPLICA IDENTITY FULL (set in the database schema)
     // so that DELETE events carry the full old row — not just the PK.
     useEffect(() => {
-        if (!user || !isSupabaseConfigured()) return;
+        if (IS_V4 || !user || !isSupabaseConfigured()) return;
 
         const rowToPosition = (r: any): Position => ({
             id:               r.id,
@@ -4926,7 +4922,10 @@ const App = () => {
             if (!isWalletConnected || !walletAddress) { await openAppKitModal({ view: 'Connect' }); return; }
             socialLoginHandledRef.current = true;
             signInBusyRef.current = true; setSignInBusy(true);
-            const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
+            signInWalletRef.current = walletAddress.toLowerCase();
+            const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true, onPhase: setSignInPhase });
+            if (attempt !== authAttemptRef.current) return;
+            setSignInPhase('profile');
             const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
             if (attempt !== authAttemptRef.current || intentionalLogoutRef.current) return;
             if (error) throw error;
@@ -5761,7 +5760,7 @@ const App = () => {
         if (processingIds.current.has(id)) return;
         const p = positionsRef.current.find(x => x.id === id);
         if (!p || !user) return;
-        if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+        if (IS_V4 && (!p.onChain || p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase())) {
           setToast({ message:'Refresh this position before closing. Legacy positions have separate exit controls.',type:'INFO' });
           return;
         }
@@ -5867,6 +5866,19 @@ const App = () => {
         }
     };
     const handleCancelOrder = (id: string) => {
+        const protection = openOrders.find(order => order.id === id);
+        if (protection?.onChain && ['TAKE_PROFIT', 'STOP_LOSS'].includes(protection.type)) {
+            try {
+                const position = positionsRef.current.find(p => p.id === protection.relatedPositionId);
+                const next = protectionAfterCancellation(protection, position, VELO_PERPS_ADDRESS);
+                void veloPerpsTrading.setTriggers(next.tradeId, next.takeProfit, next.stopLoss).then(() => {
+                    setPositions(prev => prev.map(p => p.id === position!.id ? { ...p, takeProfit: next.takeProfit || undefined, stopLoss: next.stopLoss || undefined } : p));
+                    setOpenOrders(prev => prev.filter(order => order.id !== id));
+                    setToast({ message: 'Protection cancelled on-chain', type: 'SUCCESS' });
+                }).catch(error => setToast({ message: error.shortMessage || error.message || 'Cancellation not confirmed', type: 'ERROR' }));
+            } catch (error: any) { setToast({ message: error.message, type: 'ERROR' }); }
+            return;
+        }
         // On-chain conditional order? Route to V3 cancelConditionalOrder.
         if (id.startsWith('velo_ord_')) {
             if (IS_V4 && openOrders.find(o => o.id === id)?.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
@@ -6405,7 +6417,11 @@ const App = () => {
     return (
         <>
         <ReactionContext.Provider value={{ userId: user?.id, react: handleReaction, requireAuth: () => void handleRequireAuth() }}>
-        {(sessionNotice || sessionWarning !== null || signInBusy) && (
+        <WalletSignInDialog open={signInBusy && !appKitOpen} phase={signInPhase}
+          onCancel={() => { ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); socialLoginHandledRef.current = false; }}
+          onSwitchWallet={() => { ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); void handleChooseAnotherAccount(); }}
+          onOpenWallet={() => void openAppKitModal({ view: 'Account' })} />
+        {!signInBusy && (sessionNotice || sessionWarning !== null) && (
           <div role="dialog" aria-modal="true" aria-label={signInBusy ? 'Wallet sign-in' : 'Session status'} style={{ position: 'fixed', inset: 0, zIndex: 30000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.6)', padding: 20 }}>
             <div style={{ background: 'var(--glass-bg-strong)', color: 'var(--fg)', border: '1px solid var(--hairline)', borderRadius: 18, padding: 28, maxWidth: 410, width: '100%' }}>
               <h2 style={{ fontSize: 22, marginBottom: 12 }}>{signInBusy ? 'Complete sign-in in your wallet' : sessionWarning !== null ? 'Still here?' : sessionNotice === 'expired' ? 'Sign in again' : 'You’re signed out'}</h2>
@@ -6593,8 +6609,8 @@ const App = () => {
                             joinedDate: new Date().toISOString(), likes: [], reposts: [],
                         } as UserProfile;
                         const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-                            fetchPositions(authUser.id),
-                            fetchOpenOrders(authUser.id),
+                            IS_V4 ? Promise.resolve([]) : fetchPositions(authUser.id),
+                            IS_V4 ? Promise.resolve([]) : fetchOpenOrders(authUser.id),
                             fetchTradeHistory(authUser.id),
                             fetchTransactions(authUser.id),
                             fetchNotifications(authUser.id),
@@ -6620,8 +6636,7 @@ const App = () => {
                         else if (passedProfile?.wallet_address) restoredUser.walletAddress = passedProfile.wallet_address;
                         setUser(restoredUser);
                         recordSessionWallet();
-                        setPositions(positions);
-                        setOpenOrders(orders);
+                        if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
                         setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
                         if (loadedPosts.length > 0) setPosts(loadedPosts);
                         try {
@@ -6914,7 +6929,9 @@ const App = () => {
                     setPositions((prev: any[]) => prev.map((p: any) =>
                       p.id === pos.id ? { ...p, takeProfit: tp || undefined, stopLoss: sl || undefined } : p
                     ));
-                    // Sync openOrders: replace any existing TP/SL orders for this position
+                    // V4 protection rows are rebuilt from confirmed contract positions.
+                    if (IS_V4) return r;
+                    // Legacy/demo protection retains its existing local projection.
                     const id = pos.id;
                     setOpenOrders((prevOrders: any[]) => {
                       const filtered = prevOrders.filter((o: any) => o.relatedPositionId !== id);
