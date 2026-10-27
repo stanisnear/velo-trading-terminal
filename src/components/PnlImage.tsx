@@ -3,7 +3,10 @@ import type { TradeShare } from '../utils/tradeShare';
 import { renderTradePng } from '../utils/tradeImage';
 import { useStoredShareImage } from '../utils/shareBehavior.mjs';
 export function PnlImage({ data, imageUrl, active = true, quality = 1.5, retryable = true }: { data: TradeShare; imageUrl?: string; active?: boolean; quality?: number; retryable?: boolean }) {
-  const [url, setUrl] = useState(''), [failed, setFailed] = useState(false), [broken, setBroken] = useState(''), [retry, setRetry] = useState(0);
+  const [image, setImage] = useState({url:'',key:''}), [failed, setFailed] = useState(false), [broken, setBroken] = useState(''), [retry, setRetry] = useState(0);
+  // Keep quote updates smooth, but never show a previous theme/amount display
+  // after the author changes presentation or selects a different trade.
+  const presentationKey = JSON.stringify([data.pair,data.tradeId,data.trader,data.theme,data.design,data.hideAmounts,data.side,data.leverage,data.entryPrice,data.collateral,data.traderHandle]);
   const currentUrl = useRef(''), retired = useRef(new Set<string>()), lastRender = useRef(0);
   const releaseRetired = () => { retired.current.forEach(value=>URL.revokeObjectURL(value)); retired.current.clear(); };
   useEffect(() => {
@@ -16,13 +19,13 @@ export function PnlImage({ data, imageUrl, active = true, quality = 1.5, retryab
         if (!mounted) return;
         const next = URL.createObjectURL(blob);
         if (currentUrl.current) retired.current.add(currentUrl.current);
-        currentUrl.current = next; setUrl(next); setFailed(false);
+        currentUrl.current = next; setImage({url:next,key:presentationKey}); setFailed(false);
       }).catch(() => { if (mounted) setFailed(true); });
     }, Math.max(0, 1000 - (Date.now() - lastRender.current)));
     return () => { mounted = false; clearTimeout(timer); };
-  }, [active, data.pnl, data.pnlPct, data.markPrice, data.closePrice, data.status, data.theme, data.design, data.hideAmounts, data.updateMode, data.closedSnapshot, data.tradeId, data.pair, data.entryPrice, data.collateral, data.leverage, data.traderHandle, imageUrl, quality, retry]);
+  }, [active, data.pnl, data.pnlPct, data.markPrice, data.closePrice, data.status, presentationKey, data.updateMode, data.closedSnapshot, imageUrl, quality, retry]);
   useEffect(() => () => { if (currentUrl.current) URL.revokeObjectURL(currentUrl.current); releaseRetired(); }, []);
-  const src = imageUrl && useStoredShareImage(data) ? imageUrl : url;
+  const src = imageUrl && useStoredShareImage(data) ? imageUrl : image.key === presentationKey ? image.url : '';
   return src && broken !== src ? <img className="pnl-image" src={src} width="1200" height="800" decoding="async" loading="lazy" onLoad={releaseRetired} onError={()=>{setBroken(src);releaseRetired();}} key={retry}
     alt={`${data.pair} ${data.side.toLowerCase()} · ${data.status === 'OPEN' ? 'Open position' : 'Position closed'} · ${data.closedSnapshot ? 'PnL snapshot' : data.status === 'OPEN' ? 'Estimated PnL' : 'Realized PnL'} ${data.hideAmounts ? `${data.pnlPct.toFixed(2)}%` : `$${data.pnl.toFixed(2)}`}`} />
     : <div className="pnl-image-placeholder" role="status">{failed || broken ? <>Image could not load. {retryable && <button type="button" onClick={()=>{setBroken('');setRetry(value=>value+1);}}>Retry image</button>}</> : 'Preparing PnL image…'}</div>;

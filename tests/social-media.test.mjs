@@ -52,6 +52,21 @@ test('shared editor selects people and coins without submitting, preserves surro
   }finally{await view.close();}
 });
 
+test('blank ticker suggestions support arrow selection, composition input and touch choice',async()=>{
+  let value='';
+  function View(){const [text,setText]=React.useState('');value=text;return React.createElement(SocialTextField,{'aria-label':'Note',value:text,onValueChange:setText});}
+  const view=mount(React.createElement(View));try{await view.render();const field=view.target.querySelector('textarea');
+    await type(field,'$');await key(field,'ArrowDown');await key(field,'Enter');assert.equal(value,'$SOL ');
+    await type(field,'@st');await act(async()=>field.dispatchEvent(new dom.window.CompositionEvent('compositionstart',{bubbles:true})));
+    assert.ok(!document.querySelector('[role=listbox]'));await key(field,'Enter');assert.equal(value,'@st');
+    await act(async()=>field.dispatchEvent(new dom.window.CompositionEvent('compositionend',{bubbles:true})));
+    const option=document.querySelector('[role=option]');assert.ok(option);
+    const touch=new dom.window.Event('pointerdown',{bubbles:true,cancelable:true});Object.defineProperty(touch,'pointerType',{value:'touch'});
+    await act(async()=>option.dispatchEvent(touch));assert.equal(touch.defaultPrevented,true);await click(option);
+    await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));assert.equal(value,'@stan ');assert.ok(document.activeElement===field);
+  }finally{await view.close();}
+});
+
 test('PnL sharing note provides tagging inside its native dialog and keeps the completed note on publish failure',async()=>{
   let submitted;
   const view=mount(React.createElement(VeloShareCard,{isOpen:true,data:share,onClose(){},onPost:async content=>{submitted=content;throw Error('Offline; draft preserved');}}));
