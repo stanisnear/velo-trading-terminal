@@ -1516,7 +1516,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                             />
                             <MentionDropdown results={feedMentionResults} anchorRef={feedTextareaRef} activeIndex={feedMentionIdx} onSelect={completeFeedMention} onHover={setFeedMentionIdx} />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
-                                <div style={{flex:1,minWidth:0}}><PositionComposerTools choices={sharePositions} attachment={positionAttachment} onChange={setPositionAttachment} onPnl={()=>user ? onSharePosition?.() : onRequireAuth?.()}/></div>
+                                <div style={{flex:1,minWidth:0}}><PositionComposerTools authenticated={!!user} onRequireAuth={onRequireAuth} choices={sharePositions} attachment={positionAttachment} onChange={setPositionAttachment} onPnl={()=>user ? onSharePosition?.() : onRequireAuth?.()}/></div>
                                 <button onClick={async () => { if (publishingPost) return; setPublishingPost(true); try { const attachment = positionAttachment ? {...positionAttachment,updatedAt:Date.now()} : undefined; const id = await onPostCreate(newPostContent, attachment ? {pair:attachment.pair,side:attachment.side,leverage:attachment.leverage,entry:attachment.entryPrice,snapshot:attachment} : undefined); if (id) { setNewPostContent('');setPositionAttachment(null); } } finally { setPublishingPost(false); } }} disabled={publishingPost || !newPostContent.trim()}
                                     style={{alignSelf:'flex-end',padding:'8px 18px',borderRadius:20,background:'var(--fg)',border:0,font:'600 12px var(--font-sans)',color:'var(--bg)',cursor:'pointer',opacity:!newPostContent.trim() || publishingPost ? .4 : 1}}>{publishingPost ? 'Posting…' : 'Post'}</button>
                             </div>
@@ -3380,6 +3380,7 @@ const App = () => {
                     profileData = await getProfile(session.user.id);
                 }
                 const profile = profileData?.profile;
+                if (!profileHydrationGate.current(hydration) || intentionalLogoutRef.current) return;
                 if (!profile) { sessionRestoredRef.current = false; setAuthChecked(true); setSessionNotice('expired'); return; }
                 if (!profileHydrationGate.current(hydration) || isWalletPlaceholder(profile.username)) return;
                 const restoredUser = dbProfileToUserProfile(profile);

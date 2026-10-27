@@ -66,7 +66,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
                     <img src={user.avatar} style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid var(--hairline-strong)', objectFit: 'cover', flexShrink: 0 }} alt="" />
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, color: 'var(--fg)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileDisplayName(user)}</div>
-                        <div style={{ ...S.label, fontSize: 9, marginTop: 1 }}>{user.handle}</div>
+                        <div style={{ ...S.label, fontSize: 9, marginTop: 1 }}>{`@${profileDisplayName(user)}`}</div>
                     </div>
                 </div>
 
@@ -523,7 +523,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                                 <img src={user.avatar} style={{ width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--hr-2)', flexShrink: 0, objectFit: 'cover' }} alt=""/>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{profileDisplayName(user)}</div>
-                                    <div style={{ ...S.label, fontSize: 9, marginTop: 2, color: 'var(--fg-2)' }}>{user.handle}</div>
+                                    <div style={{ ...S.label, fontSize: 9, marginTop: 2, color: 'var(--fg-2)' }}>{`@${profileDisplayName(user)}`}</div>
                                 </div>
                                 <div style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--chip)', border: '1px solid var(--hr)', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-2)' }}>TESTNET</div>
                             </div>
