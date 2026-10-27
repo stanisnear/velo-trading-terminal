@@ -61,6 +61,7 @@ export interface OpenOrder {
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;            // true if placed on Orderly matching engine
   onChainContract?: string;
+  openTxHash?: string;
   orderlyOrderId?: number;      // Orderly order id for cancel / lookup
   orderlyOrderUrl?: string;
 }

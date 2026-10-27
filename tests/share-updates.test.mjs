@@ -9,9 +9,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 await mkdir('audit',{recursive:true});
 const folder=await mkdtemp(path.resolve('audit/share-updates-')),file=path.join(folder,'hook.mjs');
-await build({entryPoints:['src/components/SharedPositionCard.tsx'],outfile:file,bundle:true,platform:'node',format:'esm',external:['react'],loader:{'.css':'empty'},plugins:[{name:'rpc-fixture',setup(b){
+await build({entryPoints:['src/components/useSharedTrade.ts'],outfile:file,bundle:true,platform:'node',format:'esm',external:['react'],loader:{'.css':'empty'},plugins:[{name:'rpc-fixture',setup(b){
   b.onResolve({filter:/services\/sharedPosition$/},()=>({path:'rpc',namespace:'fixture'}));
-  b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const hasPositionReference = d => !!d.tradeId; export const readSharedPosition = d => globalThis.__readPosition(d);'}));
+  b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const hasPositionReference = d => !!d.tradeId; export const readSharedPosition = d => globalThis.__readPosition(d); export const readPositionEvidence = async () => ({}); export const SHARED_ENGINE = "0x0000000000000000000000000000000000000001";'}));
 }}]});
 const {useSharedTrade,SharedMarkContext}=await import(pathToFileURL(file));
 test('snapshot hook ignores live prices and RPC; live hook settles and freeze keeps captured PnL',async()=>{
@@ -26,6 +26,8 @@ test('snapshot hook ignores live prices and RPC; live hook settles and freeze ke
     await render({...original,updateMode:'snapshot'},120);assert.equal(calls,0);assert.equal(result.data.pnl,1);assert.equal(result.pending,false);
     await render({...original,updateMode:'snapshot'},140);assert.equal(result.data.markPrice,101);assert.equal(calls,0);
     await render({...original,updateMode:'live'});assert.equal(calls,1);assert.equal(result.data.status,'OPEN');
+    await render({...original,updateMode:'live',hideAmounts:true});assert.equal(result.data.hideAmounts,true);
+    await render({...original,updateMode:'live',hideAmounts:false});assert.equal(result.data.hideAmounts,false);
     closed=true;await act(async()=>window.dispatchEvent(new dom.window.Event('online')));assert.equal(result.data.status,'CLOSED');assert.equal(result.data.pnl,4);
     await render({...original,updateMode:'live',onClose:'freeze'});assert.equal(result.data.status,'CLOSED');assert.equal(result.data.pnl,1);assert.equal(result.data.closedSnapshot,true);
   }finally{await act(async()=>root.unmount());dom.window.close();}

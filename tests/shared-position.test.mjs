@@ -8,7 +8,7 @@ import { encodeEventTopics, encodeAbiParameters, parseAbi } from 'viem';
 await mkdir('audit',{recursive:true});
 const folder=await mkdtemp(path.resolve('audit/shared-position-')), file=path.join(folder,'service.mjs');
 await build({stdin:{contents:"export * from './src/services/sharedPosition';export {parseTradeShare} from './src/utils/tradeShare';",resolveDir:process.cwd(),loader:'ts'},outfile:file,bundle:true,platform:'node',format:'esm',define:{'import.meta.env':'{}'}});
-const {readSharedPosition,hasPositionReference,SHARED_ENGINE,parseTradeShare}=await import(pathToFileURL(file));
+const {readSharedPosition,hasPositionReference,SHARED_ENGINE,parseTradeShare,readPositionEvidence}=await import(pathToFileURL(file));
 after(()=>rm(folder,{recursive:true,force:true}));
 const trader='0x0000000000000000000000000000000000000001', hash='0x'+'ab'.repeat(32);
 const share={pair:'BTC/USD',side:'LONG',leverage:10,entryPrice:100,size:100,collateral:10,pnl:0,pnlPct:0,status:'OPEN',chainId:84532,contract:SHARED_ENGINE,tradeId:'1',trader};
@@ -50,4 +50,22 @@ test('public card settings survive persistence while unknown modes are discarded
   assert.equal(parsed.presentation,'pnl');assert.equal(parsed.updateMode,'snapshot');assert.equal(parsed.theme,'light');assert.equal(parsed.hideAmounts,true);assert.equal(parsed.onClose,'freeze');
   const invalid=parseTradeShare({...share,updateMode:'execute',theme:'javascript:alert(1)',design:{bad:true}});
   assert.equal(invalid.updateMode,undefined);assert.equal(invalid.theme,undefined);assert.equal(invalid.design,undefined);
+});
+
+const openAbi=parseAbi(['event PositionOpened(uint256 indexed tradeId,address indexed trader,uint16 indexed pairIndex,bool isLong,uint16 leverage,uint8 marginMode,uint64 collateralUSDC_6,uint128 entryPrice_E18)']);
+const openLog={address:SHARED_ENGINE,logIndex:1,topics:encodeEventTopics({abi:openAbi,eventName:'PositionOpened',args:{tradeId:1n,trader,pairIndex:2}}),data:encodeAbiParameters(openAbi[0].inputs.filter(x=>!x.indexed),[true,10,0,6000000n,100000000000000000000n])};
+test('position details verify an opening receipt and use block time and opening terms',async()=>{
+  const result=await readPositionEvidence({...share,openTxHash:hash},{getTransactionReceipt:async()=>({status:'success',transactionHash:hash,blockNumber:500n,logs:[openLog]}),getBlock:async()=>({timestamp:1000n})});
+  assert.equal(result.openTxHash,hash);assert.equal(result.openedAt,1000000);assert.equal(result.opening.pair,'SOL/USD');assert.equal(result.opening.size,60);assert.equal(result.opening.entryPrice,100);
+});
+test('an unrelated transaction, another owner or another engine never becomes a verified receipt',async()=>{
+  for(const log of [{...openLog,address:trader},{...openLog,topics:encodeEventTopics({abi:openAbi,eventName:'PositionOpened',args:{tradeId:2n,trader,pairIndex:2}})}]){
+    const result=await readPositionEvidence({...share,openTxHash:hash},{getTransactionReceipt:async()=>({status:'success',transactionHash:hash,blockNumber:500n,logs:[log]})});assert.equal(result.openTxHash,undefined);
+  }
+  assert.deepEqual(await readPositionEvidence({...share,contract:trader},{}),{});
+});
+test('older shares can recover an opening receipt from a bounded observed-time log window',async()=>{
+  let span;
+  const rpc={getBlock:async({blockNumber}={})=>blockNumber===0n?{number:0n,timestamp:0n}:blockNumber===500n?{number:500n,timestamp:1000n}:{number:1000n,timestamp:2000n},getLogs:async query=>{span=query.toBlock-query.fromBlock;assert.equal(query.args.tradeId,1n);assert.equal(query.address,SHARED_ENGINE);return[{transactionHash:hash}];},getTransactionReceipt:async()=>({status:'success',transactionHash:hash,blockNumber:500n,logs:[openLog]})};
+  const result=await readPositionEvidence({...share,openedAt:1000000},rpc);assert.ok(span<=512n);assert.equal(result.openedAt,1000000);assert.equal(result.openTxHash,hash);
 });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Image, Layers, X } from 'lucide-react';
+import { ShareValueControl } from './ShareValueControl';
 import { Dialog } from './ui/Dialog';
 import { CompactPosition, SharedPositionCard } from './SharedPositionCard';
 import type { TradeShare } from '../utils/tradeShare';
@@ -8,7 +9,7 @@ export function PositionComposerTools({ choices, attachment, onChange, onPnl, au
 }) {
   const [open, setOpen] = useState(false);
   return <>
-    {attachment && <div className="composer-position"><SharedPositionCard snapshot={attachment}/><button type="button" className="remove-attachment" aria-label="Remove position attachment" onClick={()=>onChange(null)}><X size={14}/></button></div>}
+    {attachment && <div className="composer-position"><SharedPositionCard snapshot={attachment}/><div className="composer-position-options"><ShareValueControl hidden={!!attachment.hideAmounts} onChange={hidden=>onChange({...attachment,hideAmounts:hidden})}/></div><button type="button" className="remove-attachment" aria-label="Remove position attachment" onClick={()=>onChange(null)}><X size={14}/></button></div>}
     <div className="composer-share-tools"><button type="button" onClick={()=>authenticated ? setOpen(true) : onRequireAuth?.()}><Layers size={14}/>Position</button><button type="button" onClick={onPnl}><Image size={14}/>PnL image</button></div>
     <Dialog open={open} onClose={()=>setOpen(false)} title="Attach a position"><div className="trade-share-body">
       <p className="trade-share-feedback">Add a compact live position to your post. Its status and PnL follow the position through settlement.</p>

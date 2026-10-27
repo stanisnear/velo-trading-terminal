@@ -1,3 +1,4 @@
+import { positionShareMetadata } from './utils/positionShareMetadata.mjs';
 import { PositionComposerTools } from './components/PositionComposerTools';
 import { TradeCloseReceipt } from './components/TradeCloseReceipt';
 import { isWalletPlaceholder, createProfileHydrationGate } from './utils/profileIdentity.mjs';
@@ -2599,6 +2600,7 @@ const App = () => {
           // Without onChainTradeId the manage modal can't be reached — the UI
           // falls back to the legacy EditPositionModal which only saves to Supabase.
           onChainTradeId: tradeIdKey,
+          openTxHash: p.openTxHash || openTxMap[tradeIdKey],
           onChainContract: VELO_PERPS_ADDRESS,
           takeProfit: overlayTp,
           stopLoss: overlaySl,
@@ -2650,6 +2652,7 @@ const App = () => {
         traderHandle: user.handle, status: result.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
         contract: VELO_PERPS_ADDRESS, chainId: 84532, tradeId: result.tradeId.toString(),
         trader: veloPerpsTrading.traderAddress, txHash: result.txHash,
+        ...positionShareMetadata(pos,user.tradeHistory),closedAt:Date.now(),
       } as ShareCardData;
     };
 
@@ -6468,12 +6471,12 @@ const App = () => {
           onPosition={p => {
             const mark = marketPrices[p.pair] || p.entryPrice, pnl = positionPnl(p, mark);
             const collateral = p.v4 ? p.v4.collateral + p.v4.openFee : p.size / p.leverage;
-            setShareCardData({ pair:p.pair,side:p.side,leverage:p.leverage,entryPrice:p.entryPrice,markPrice:mark,size:p.size,
+            setShareCardData({ presentation:'pnl',...positionShareMetadata(p,user?.tradeHistory),pair:p.pair,side:p.side,leverage:p.leverage,entryPrice:p.entryPrice,markPrice:mark,size:p.size,
               collateral,pnl,pnlPct:collateral > 0 ? pnl/collateral*100 : 0,status:'OPEN',traderHandle:user?.handle,
               chainId:84532,contract:p.onChainContract,tradeId:p.onChainTradeId,trader:veloPerpsTrading.traderAddress,openedAt:p.timestamp,v4:p.v4 });
           }} onHistory={t => {
             const collateral = t.size / (t.leverage || 1);
-            setShareCardData({pair:t.pair,side:t.side,leverage:t.leverage || 1,entryPrice:t.entryPrice,closePrice:t.exitPrice,size:t.size,
+            setShareCardData({presentation:'pnl',...positionShareMetadata(t,user?.tradeHistory),pair:t.pair,side:t.side,leverage:t.leverage || 1,entryPrice:t.entryPrice,closePrice:t.exitPrice,size:t.size,
               collateral,pnl:t.pnl,pnlPct:collateral > 0 ? t.pnl/collateral*100 : 0,status:t.action === 'LIQUIDATION' ? 'LIQUIDATED':'CLOSED',
               traderHandle:user?.handle,chainId:84532,contract:VELO_PERPS_ADDRESS,tradeId:t.positionId?.replace('velo_',''),
               trader:veloPerpsTrading.traderAddress,txHash:t.txHash});
@@ -7338,6 +7341,7 @@ const App = () => {
                     const pnl = positionPnl(p, cp);
                     const collateral = p.v4 ? p.v4.collateral + p.v4.openFee : p.size / p.leverage;
                     setShareCardData({
+                      ...positionShareMetadata(p,user?.tradeHistory),
                       pair: p.pair,
                       side: p.side as 'LONG' | 'SHORT',
                       leverage: p.leverage,
@@ -7358,6 +7362,7 @@ const App = () => {
                     const collateral = t.size && t.leverage ? t.size / t.leverage : (t.collateralUSDC || 0);
                     const pnlPct = collateral > 0 ? (t.pnl / collateral) * 100 : 0;
                     setShareCardData({
+                      ...positionShareMetadata(t,user?.tradeHistory),
                       pair: t.pair,
                       side: t.side as 'LONG' | 'SHORT',
                       leverage: t.leverage,
@@ -7402,7 +7407,7 @@ const App = () => {
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
                     <SinglePostView setPosts={setPosts} postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { openCoin(ticker); }}/>
                 ) : (
-                    <SocialFeed sharePositions={positions.map(p=>{const mark=marketPrices[p.pair] || p.entryPrice;const pnl=positionPnl(p,mark);const collateral=p.v4 ? p.v4.collateral+p.v4.openFee : p.size/p.leverage;return {pair:p.pair,side:p.side,leverage:p.leverage,entryPrice:p.entryPrice,markPrice:mark,size:p.size,collateral,pnl,pnlPct:pnl/collateral*100,status:'OPEN',chainId:84532,contract:p.onChainContract,tradeId:p.onChainTradeId,trader:veloPerpsTrading.traderAddress,traderHandle:user?.handle,openedAt:p.timestamp,v4:p.v4};})} onSharePosition={() => setPositionSharePickerOpen(true)} traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={null} onTickerChange={(t: string | null) => { if (t) openCoin(t); }} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
+                    <SocialFeed sharePositions={positions.map(p=>{const mark=marketPrices[p.pair] || p.entryPrice;const pnl=positionPnl(p,mark);const collateral=p.v4 ? p.v4.collateral+p.v4.openFee : p.size/p.leverage;return {...positionShareMetadata(p,user?.tradeHistory),pair:p.pair,side:p.side,leverage:p.leverage,entryPrice:p.entryPrice,markPrice:mark,size:p.size,collateral,pnl,pnlPct:pnl/collateral*100,status:'OPEN',chainId:84532,contract:p.onChainContract,tradeId:p.onChainTradeId,trader:veloPerpsTrading.traderAddress,traderHandle:user?.handle,openedAt:p.timestamp,v4:p.v4};})} onSharePosition={() => setPositionSharePickerOpen(true)} traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={null} onTickerChange={(t: string | null) => { if (t) openCoin(t); }} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
                 ))}
                 {(activeTab === TabView.SOCIAL || activeTab === TabView.COIN || activeTab === TabView.LEADERBOARD || activeTab === TabView.PUBLIC_PROFILE) && (publicLoading || publicLoadErrors.posts || publicLoadErrors.profiles) && (
                   <div role="status" style={{ padding: '10px 16px', color: 'var(--fg-muted)', background: 'var(--chip-bg)', borderRadius: 10, marginBottom: 12 }}>
