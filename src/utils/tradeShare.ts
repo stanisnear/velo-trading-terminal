@@ -1,4 +1,11 @@
 export type TradeShare = {
+  presentation?: 'position' | 'pnl';
+  updateMode?: 'live' | 'snapshot';
+  theme?: 'light' | 'dark';
+  design?: 'editorial' | 'ledger' | 'aurora';
+  onClose?: 'settle' | 'freeze';
+  hideAmounts?: boolean;
+  closedSnapshot?: boolean;
   pair: string;
   side: 'LONG' | 'SHORT';
   leverage: number;
@@ -31,6 +38,10 @@ export function parseTradeShare(value: unknown): TradeShare | undefined {
   const numbers = ['entryPrice','size','collateral','leverage','pnl','pnlPct'];
   if (numbers.some(name => typeof v[name] !== 'number' || !Number.isFinite(v[name])) || v.entryPrice <= 0 || v.leverage <= 0 || v.collateral <= 0 || v.size <= 0) return;
   const result: TradeShare = { pair:v.pair,side:v.side,status:v.status,entryPrice:v.entryPrice,size:v.size,collateral:v.collateral,leverage:v.leverage,pnl:v.pnl,pnlPct:v.pnlPct };
+  for (const [name, allowed] of Object.entries({presentation:['position','pnl'],updateMode:['live','snapshot'],theme:['light','dark'],design:['editorial','ledger','aurora'],onClose:['settle','freeze']})) {
+    if (allowed.includes(v[name])) (result as any)[name] = v[name];
+  }
+  for (const name of ['hideAmounts','closedSnapshot'] as const) if (typeof v[name] === 'boolean') result[name] = v[name];
   for (const name of ['closePrice','markPrice','openedAt','updatedAt'] as const) if (typeof v[name] === 'number' && Number.isFinite(v[name]) && v[name] >= 0) result[name] = v[name];
   if (typeof v.traderHandle === 'string') result.traderHandle = v.traderHandle.slice(0,40);
   if (v.chainId === 84532) result.chainId = 84532;

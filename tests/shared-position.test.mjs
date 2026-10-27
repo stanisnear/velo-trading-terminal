@@ -44,3 +44,10 @@ test('posts cannot redirect reads to an arbitrary contract, chain or owner',asyn
   assert.equal(hasPositionReference({...share,tradeId:'-1'}),false);
   await assert.rejects(readSharedPosition(share,101,{readContract:async()=>({owner:'0x0000000000000000000000000000000000000002'})}),/owner/);
 });
+
+test('public card settings survive persistence while unknown modes are discarded',()=>{
+  const parsed=parseTradeShare({...share,presentation:'pnl',updateMode:'snapshot',theme:'light',design:'ledger',hideAmounts:true,onClose:'freeze'});
+  assert.equal(parsed.presentation,'pnl');assert.equal(parsed.updateMode,'snapshot');assert.equal(parsed.theme,'light');assert.equal(parsed.hideAmounts,true);assert.equal(parsed.onClose,'freeze');
+  const invalid=parseTradeShare({...share,updateMode:'execute',theme:'javascript:alert(1)',design:{bad:true}});
+  assert.equal(invalid.updateMode,undefined);assert.equal(invalid.theme,undefined);assert.equal(invalid.design,undefined);
+});

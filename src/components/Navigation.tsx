@@ -1,3 +1,4 @@
+import { profileDisplayName } from '../utils/profileIdentity.mjs';
 /**
  * Navigation — desktop Navbar (with notifications dropdown + profile popup),
  * MobileSidebar, and MobileBottomNav. Extracted from App.tsx (stage 2 of the
@@ -64,7 +65,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
                 <div style={{ padding: '14px 16px 10px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--hairline)' }}>
                     <img src={user.avatar} style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid var(--hairline-strong)', objectFit: 'cover', flexShrink: 0 }} alt="" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, color: 'var(--fg)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.username}</div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, color: 'var(--fg)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileDisplayName(user)}</div>
                         <div style={{ ...S.label, fontSize: 9, marginTop: 1 }}>{user.handle}</div>
                     </div>
                 </div>
@@ -376,11 +377,11 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                         <button
                             onClick={() => setAvatarPopupOpen(prev => !prev)}
                             className="hidden lg:flex"
-                            style={{ alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                            style={{ maxWidth: 190, minWidth: 0, flexShrink: 1, alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--velo-violet)')}
                             onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                                <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{user.username}</span>
+                            <div style={{ display: 'flex', minWidth: 0, overflow: 'hidden', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                                <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{profileDisplayName(user)}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}>${formatMoney(totalEquity > 0 ? totalEquity : user.balance)}</span>
                             </div>
                             <img src={user.avatar} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--hr-2)' }} />
@@ -521,7 +522,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'var(--chip)', borderRadius: 16, border: '1px solid var(--hr)' }}>
                                 <img src={user.avatar} style={{ width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--hr-2)', flexShrink: 0, objectFit: 'cover' }} alt=""/>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.username}</div>
+                                    <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{profileDisplayName(user)}</div>
                                     <div style={{ ...S.label, fontSize: 9, marginTop: 2, color: 'var(--fg-2)' }}>{user.handle}</div>
                                 </div>
                                 <div style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--chip)', border: '1px solid var(--hr)', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-2)' }}>TESTNET</div>

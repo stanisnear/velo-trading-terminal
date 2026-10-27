@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { positionSettlement, liquidationEstimate, triggerPriceForRoe } from '@/services/positionValuation.mjs';
-import { CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { Share2, CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { formatMoney, formatPrice } from './ui/shared';
 import { baseScanTxUrl } from '@/services/veloPerpsService';
+import type { TradeShare } from '../utils/tradeShare';
 import type { Position } from '@/utils/types';
 import './VeloManagePositionModal.css';
 
@@ -16,11 +17,11 @@ interface Actions {
 }
 interface Props {
   isOpen: boolean; onClose: () => void; position: Position | null; currentPrice: number;
-  userBalance?: number; actions: Actions; initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS';
+  settled?: TradeShare; onShareClosed?: () => void; userBalance?: number; actions: Actions; initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS';
 }
 const signedMoney = (value: number) => `${value >= 0 ? '+' : '-'}$${formatMoney(Math.abs(value))}`;
 
-export function VeloManagePositionModal({ isOpen, onClose, position, currentPrice, actions, initialTab }: Props) {
+export function VeloManagePositionModal({ isOpen, onClose, position, currentPrice, actions, initialTab, onShareClosed, settled }: Props) {
   const [tab, setTab] = useState<'CLOSE' | 'TRIGGERS'>('CLOSE');
   const [tp, setTp] = useState(''), [sl, setSl] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -36,7 +37,8 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
   if (!position) return null;
   const p = position, now = Date.now();
   const estimate = positionSettlement(p, currentPrice, now);
-  const margin = estimate.collateral + estimate.openFee;
+  if (success && tab === 'CLOSE' && settled) estimate.pnl = settled.pnl;
+  const margin = success && tab === 'CLOSE' && settled ? settled.collateral : estimate.collateral + estimate.openFee;
   const roe = margin > 0 ? estimate.pnl / margin * 100 : 0;
   const liquidation = liquidationEstimate(p, now);
   const direction = p.side === 'LONG' ? 1 : -1;
@@ -98,10 +100,10 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
     <div className="velo-manage">
       <div className="velo-manage-overview">
         <div className="velo-manage-direction"><span style={{ color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span><span>{p.leverage}x</span><span>Isolated</span></div>
-        <div className="velo-manage-pnl"><span>{p.v4 ? 'Estimated net PnL' : 'PnL before fees'}</span><strong style={{ color: estimate.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{signedMoney(estimate.pnl)}</strong><small>{roe >= 0 ? '+' : ''}{roe.toFixed(2)}% return on margin</small></div>
+        <div className="velo-manage-pnl"><span>{success && tab === 'CLOSE' ? 'Realized PnL' : p.v4 ? 'Estimated net PnL' : 'PnL before fees'}</span><strong style={{ color: estimate.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{signedMoney(estimate.pnl)}</strong><small>{roe >= 0 ? '+' : ''}{roe.toFixed(2)}% return on margin</small></div>
         <dl className="velo-manage-quotes"><div><dt>Entry</dt><dd>${formatPrice(p.entryPrice)}</dd></div><div><dt>Mark</dt><dd>${formatPrice(currentPrice)}</dd></div><div><dt>Margin</dt><dd>${formatMoney(margin)}</dd></div></dl>
       </div>
-      {success ? <div role="status" className="velo-manage-success"><CheckCircle2 size={40} /><h3>{tab === 'CLOSE' ? 'Position closed' : 'Protection updated'}</h3><p>{tab === 'CLOSE' ? 'Settlement confirmed on Base Sepolia.' : 'Your TP and SL settings are confirmed on-chain.'}</p></div> : <>
+      {success ? <div role="status" className="velo-manage-success"><CheckCircle2 size={40} /><h3>{tab === 'CLOSE' ? 'Position closed' : 'Protection updated'}</h3><p>{tab === 'CLOSE' ? 'Settlement confirmed on Base Sepolia.' : 'Your TP and SL settings are confirmed on-chain.'}</p>{tab === 'CLOSE' && onShareClosed && <button className="close-receipt-share" type="button" onClick={onShareClosed}><Share2 size={14}/>Share</button>}</div> : <>
         <div role="tablist" aria-label="Position action" className="velo-manage-tabs">
           {(['CLOSE', 'TRIGGERS'] as const).map(mode => <button key={mode} role="tab" aria-selected={tab === mode} aria-controls="velo-manage-panel" disabled={disabled}
             onClick={() => { setTab(mode); setError(''); }}>{mode === 'CLOSE' ? <XCircle size={16} /> : <SlidersHorizontal size={16} />}{mode === 'CLOSE' ? 'Close position' : 'Take profit / Stop loss'}</button>)}

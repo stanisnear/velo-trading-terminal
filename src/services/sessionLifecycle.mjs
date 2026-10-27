@@ -20,7 +20,7 @@ export const SESSION_WARNING_MS = 60_000;
 // A cached profile can paint the shell only for the persisted authenticated user.
 // Never mistake a connector reconnect or a slow profile request for sign-out.
 export function canRestoreCachedProfile(profile, auth, loggedOut, now = Date.now(), started = 0) {
-  return !loggedOut && !!profile?.id && auth?.user?.id === profile.id &&
+  return !loggedOut && !/^wallet_[0-9a-f]{40}$/i.test(profile?.username || '') && !!profile?.id && auth?.user?.id === profile.id &&
     !!auth.refresh_token && now - (profile._cachedAt || 0) < 24 * 60 * 60_000 &&
     (!started || now - started < SESSION_MAX_MS);
 }

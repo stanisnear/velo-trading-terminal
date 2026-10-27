@@ -1,3 +1,4 @@
+import { profileDisplayName } from '../utils/profileIdentity.mjs';
 import { boundedFetch } from './sessionLifecycle.mjs';
 import { createCommentWriter } from './commentPersistence.mjs';
 import { createPostWriter } from './postPersistence.mjs';
@@ -218,8 +219,8 @@ export async function fetchAllProfiles(limit = 50) {
 export function dbProfileToUserProfile(row: any): UserProfile {
   return {
     id:                  row.id,
-    username:            row.username || 'Trader',
-    handle:              row.handle   || `@${row.username}`,
+    username:            profileDisplayName(row),
+    handle:              `@${profileDisplayName(row)}`,
     bio:                 row.bio      || '',
     avatar:              row.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.username}`,
     banner:              row.banner_url || '',

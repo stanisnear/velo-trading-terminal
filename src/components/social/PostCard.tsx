@@ -290,7 +290,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                         {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, socialAssets.map(asset => asset.symbol))}
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
-                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot}/>}
+                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image}/>}
                     {!post.tradeSnapshot && post.isTradeSignal && post.tradeDetails && (
                         <div style={{ background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                             <div>

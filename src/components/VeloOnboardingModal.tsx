@@ -302,10 +302,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       if (taken && taken.id !== authUser.id) {
         setGlobalError(`@${uname} is already taken. Choose another username.`); setStep('REVIEW'); return;
       }
-      const { error: profileError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', authUser.id);
+      const { data: savedProfile, error: profileError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', authUser.id).select('*').single();
       if (profileError) throw profileError;
+      if (savedProfile?.username !== uname) throw new Error('Your username was not saved. Please retry.');
       if (contactEmail) { const { error } = await supabase.rpc('set_my_contact_email', { contact_email: contactEmail }); if (error) throw error; }
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+      const profile = savedProfile;
 
       setStep('BURNER_SIGN');
       const result = await setupBurnerWallet({
