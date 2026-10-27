@@ -12,6 +12,7 @@ Reviewed 21 October 2026. Velo is a trader hub combining execution, market disco
 | [Contract reference](../contracts/README.md) | Implemented accounting, risk limits and contract tests |
 | [Operations](OPERATIONS.md) | Configuration, deployment, verification, recovery and outstanding operational risks |
 | [Release evidence](RELEASE-2026-10-21.md) | Dated test and transaction evidence, with its limits |
+| [Profile and sharing release](RELEASE-2026-10-27.md) | Image permissions, mobile session recovery and linked position cards |
 | [Funding readiness](FUNDING-READINESS.md) | Application-ready product facts and information still needed from the team |
 | [Public product docs](https://velotrading.live/docs) | User-facing behavior and limitations |
 

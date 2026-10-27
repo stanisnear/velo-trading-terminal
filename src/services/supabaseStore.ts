@@ -1,6 +1,7 @@
 import { boundedFetch } from './sessionLifecycle.mjs';
 import { createCommentWriter } from './commentPersistence.mjs';
 import { createPostWriter } from './postPersistence.mjs';
+import { parseTradeShare } from '../utils/tradeShare';
 /**
  * supabaseStore.ts
  * ─────────────────────────────────────────────────────────────────
@@ -174,8 +175,8 @@ export async function getProfile(userId: string) {
 }
 
 export async function updateProfile(userId: string, updates: Record<string, any>) {
-  const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
-  return { error };
+  const { data, error } = await supabase.from('profiles').update(updates).eq('id', userId).select('id').maybeSingle();
+  return { error: error || (data?.id !== userId ? new Error('Profile update was not confirmed. Please retry.') : null) };
 }
 
 export async function fetchAllProfiles(limit = 50) {
@@ -244,25 +245,21 @@ export function dbProfileToUserProfile(row: any): UserProfile {
   };
 }
 
-export async function uploadAvatar(userId: string, file: File) {
-  const ext  = file.name.split('.').pop();
-  const path = `${userId}/avatar.${ext}`;
-  const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-  if (uploadError) return { url: null, error: uploadError.message };
+async function uploadProfileImage(userId: string, file: File, kind: 'avatar' | 'banner') {
+  const extensions: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  if (!extensions[file.type] || !file.size || file.size > 5 * 1024 * 1024) return { url: null, error: 'Choose a PNG, JPEG or WebP image under 5 MB.' };
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user.id !== userId) return { url: null, error: 'Reconnect your account before changing your profile image.' };
+  // Immutable URLs avoid a cached old avatar/banner across devices and CDNs.
+  const path = `${userId}/${kind}-${crypto.randomUUID()}.${extensions[file.type]}`;
+  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: false, contentType: file.type, cacheControl: '31536000' });
+  if (error) return { url: null, error: 'Your image could not be uploaded. Please retry.' };
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  await updateProfile(userId, { avatar_url: data.publicUrl });
+  // The profile form commits both image URLs and its text in one saved update.
   return { url: data.publicUrl, error: null };
 }
-
-export async function uploadBanner(userId: string, file: File) {
-  const ext  = file.name.split('.').pop();
-  const path = `${userId}/banner.${ext}`;
-  const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-  if (uploadError) return { url: null, error: uploadError.message };
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  await updateProfile(userId, { banner_url: data.publicUrl });
-  return { url: data.publicUrl, error: null };
-}
+export const uploadAvatar = (userId: string, file: File) => uploadProfileImage(userId, file, 'avatar');
+export const uploadBanner = (userId: string, file: File) => uploadProfileImage(userId, file, 'banner');
 
 // ══════════════════════════════════════════════════════════════════
 // FOLLOWS
@@ -355,6 +352,7 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
     repostedBy:    repostsMap[p.id]  || [],
     comments:      commentsMap[p.id] || [],
     isTradeSignal:   p.is_trade_signal || false,
+    tradeSnapshot: parseTradeShare(p.trade_snapshot),
     targetProfileId: p.target_profile_id || undefined,
     tradeDetails:    p.is_trade_signal
       ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry }
@@ -394,7 +392,7 @@ export async function createPost(
   authorId: string,
   content: string,
   imageUrl?: string,
-  tradeSignal?: { pair: string; side: string; leverage: number; entry: number },
+  tradeSignal?: { pair: string; side: string; leverage: number; entry?: number; entryPrice?: number; snapshot?: import('../utils/tradeShare').TradeShare },
   targetProfileId?: string,
 ) {
   return writePost({
@@ -403,7 +401,8 @@ export async function createPost(
     trade_pair:     tradeSignal?.pair     || null,
     trade_side:     tradeSignal?.side     || null,
     trade_leverage: tradeSignal?.leverage || null,
-    trade_entry:    tradeSignal?.entry    || null,
+    trade_entry:    tradeSignal?.entry || tradeSignal?.entryPrice || null,
+    trade_snapshot: tradeSignal?.snapshot || null,
     target_profile_id: targetProfileId || null,
   });
 }

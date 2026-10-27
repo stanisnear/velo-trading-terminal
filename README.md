@@ -120,6 +120,8 @@ sequenceDiagram
 
 Posts, replies, reactions and follows are written to Supabase under row-level security and update live over Realtime. Mentions and follows generate notifications. Shared links get server-rendered previews, so a Velo post looks right when pasted into X, Discord or Telegram.
 
+Share an open position or a closed result from the terminal, history or the social composer. Linked V4 position cards refresh their chain state every ten seconds while visible and recalculate estimated PnL as the app's prices change. A confirmed settlement updates the card to its realized result. Image downloads are explicitly snapshots. Profile pictures and banners use immutable URLs and owner-only Storage writes.
+
 ## Architecture
 
 ```mermaid

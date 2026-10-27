@@ -92,7 +92,7 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
                         <ImageIcon size={16} style={{ color: '#fff' }} />
                         <span style={{ ...S.label, color: '#fff', fontSize: 10 }}>Click to change banner</span>
                     </div>
-                    <input id="velo-banner-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'banner')} />
+                    <input id="velo-banner-upload" type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'banner')} />
                 </div>
 
                 {/* Avatar upload zone */}
@@ -104,7 +104,7 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <Edit size={14} style={{ color: '#fff' }} />
                         </div>
-                        <input id="velo-avatar-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'avatar')} />
+                        <input id="velo-avatar-upload" type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'avatar')} />
                     </div>
                 </div>
 

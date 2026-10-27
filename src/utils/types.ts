@@ -1,4 +1,5 @@
 import { MARKETS, TRADING_MARKETS } from '../../shared/markets.mjs';
+import type { TradeShare } from './tradeShare';
 export interface Candle {
   time: number; 
   open: number;
@@ -144,6 +145,7 @@ export interface Post {
   isTradeSignal?: boolean;
   targetProfileId?: string;  // wall post: posted on another user's profile
   mentions?: string[];        // user ids mentioned via @handle
+  tradeSnapshot?: TradeShare;
   tradeDetails?: {
     pair: string;
     side: 'LONG' | 'SHORT';

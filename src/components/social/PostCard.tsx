@@ -13,6 +13,7 @@ import { Post } from '@/utils/types';
 import { useMarketDiscovery } from '@/services/marketDiscovery';
 import { postPath } from '../../../shared/socialLinks.mjs';
 import { PostReactions } from './PostReactions';
+import { SharedPositionCard } from '../SharedPositionCard';
 
 // ── Comment-like dispatch bus ────────────────────────────────────────────────
 // PostCard renders deep inside several views; App wires the actual handler at
@@ -289,7 +290,8 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                         {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, socialAssets.map(asset => asset.symbol))}
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
-                    {post.isTradeSignal && post.tradeDetails && (
+                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot}/>}
+                    {!post.tradeSnapshot && post.isTradeSignal && post.tradeDetails && (
                         <div style={{ background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

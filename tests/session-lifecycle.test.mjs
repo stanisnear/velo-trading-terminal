@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '@supabase/supabase-js';
-import { createDeferredAuthListener, sessionTimeLeft, IDLE_TIMEOUT_MS, SESSION_MAX_MS, boundedFetch } from '../src/services/sessionLifecycle.mjs';
+import { canRestoreCachedProfile, createDeferredAuthListener, sessionTimeLeft, IDLE_TIMEOUT_MS, SESSION_MAX_MS, boundedFetch } from '../src/services/sessionLifecycle.mjs';
+
+test('mobile refresh restores only the persisted authenticated account and respects logout and expiry', () => {
+  const now = 1000000, profile = {id:'owner',_cachedAt:now}, auth = {user:{id:'owner'},refresh_token:'fixture'};
+  assert.equal(canRestoreCachedProfile(profile,auth,false,now,now),true);
+  assert.equal(canRestoreCachedProfile(profile,{...auth,user:{id:'other'}},false,now,now),false);
+  assert.equal(canRestoreCachedProfile(profile,auth,true,now,now),false);
+  assert.equal(canRestoreCachedProfile(profile,null,false,now,now),false);
+  assert.equal(canRestoreCachedProfile(profile,auth,false,now+SESSION_MAX_MS+1,now),false);
+});
 
 const deadline = (promise, ms=2000) => {
   let timer;

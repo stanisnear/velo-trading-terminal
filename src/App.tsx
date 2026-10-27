@@ -1,6 +1,6 @@
 import { findRecentPositionClose, findRecentOrderOutcome, type ConfirmedClose } from './services/tradeReceipts';
 import { validateUsername as validateRegistryUsername } from './services/usernameService';
-import { createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
+import { canRestoreCachedProfile, createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
 import { publicSupabase } from './services/supabaseStore';
 import { signInWithWallet, cancelWalletSignIn, walletSignInError } from './services/walletAuth';
 import { activeTradingOrders, protectionAfterCancellation } from './services/activeTradingOrders.mjs';
@@ -34,7 +34,8 @@ import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 // VeloWelcomeModal merged into VeloOnboardingModal
 import { VeloBridgeModal } from './components/VeloBridgeModal';
 import { VeloDepositModal } from './components/VeloDepositModal';
-import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
+import { SharedMarkContext, SharedPositionCard } from './components/SharedPositionCard';
+import { PositionSharePicker } from './components/PositionSharePicker';
 import { VeloUsernameModal } from './components/VeloUsernameModal';
 import { VeloSendModal } from './components/VeloSendModal';
 import { VeloFaucetModal } from './components/VeloFaucetModal';
@@ -217,7 +218,8 @@ function readSessionCache(): any | null {
       localStorage.removeItem(VELO_SESSION_CACHE_KEY);
       return null;
     }
-    return parsed;
+    const auth = JSON.parse(localStorage.getItem('velo-auth-token') || 'null');
+    return canRestoreCachedProfile(parsed, auth, localStorage.getItem('velo_logged_out') === '1', Date.now(), Number(localStorage.getItem('velo_session_started_at') || 0)) ? parsed : null;
   } catch { return null; }
 }
 
@@ -1130,8 +1132,6 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                     <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                         <div style={{ cursor: 'pointer', position: 'relative' as const }} onClick={() => onViewProfile({ id: post.authorId })}>
                             <img src={post.authorAvatar} style={{ width: 52, height: 52, borderRadius: '50%', border: '2px solid var(--hairline-strong)', display: 'block' }} />
-                            {/* Online pulse dot */}
-                            <div style={{ position: 'absolute', bottom: 1, right: 1, width: 12, height: 12, borderRadius: '50%', background: 'var(--pnl-up)', border: '2px solid var(--glass-bg)' }} />
                         </div>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -1161,10 +1161,11 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                         {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
+                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot}/>}
                 </div>
 
                 {/* Trade signal card */}
-                {post.isTradeSignal && post.tradeDetails && (
+                {!post.tradeSnapshot && post.isTradeSignal && post.tradeDetails && (
                     <div style={{ margin: '16px 24px 0', background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -1230,7 +1231,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
     );
 };
 
-const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
+const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost, onSharePosition }: any) => {
     const { socialAssets } = useMarketDiscovery();
     const [newPostContent, setNewPostContent] = useState('');
     const [filter, setFilter] = useState<'LATEST' | 'TRENDING' | 'FOLLOWING' | 'SIGNALS'>('LATEST');
@@ -1510,8 +1511,8 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                             />
                             <MentionDropdown results={feedMentionResults} anchorRef={feedTextareaRef} activeIndex={feedMentionIdx} onSelect={completeFeedMention} onHover={setFeedMentionIdx} />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.06em' }}>@handle · $TICKER to tag</span>
-                                <button onClick={() => { onPostCreate(newPostContent); setNewPostContent(''); }} disabled={!newPostContent.trim()}
+                                <button onClick={() => user ? onSharePosition?.() : onRequireAuth?.()} style={{border:0,background:'transparent',color:'var(--fg-muted)',cursor:'pointer',font:'11px var(--font-mono)',display:'flex',gap:6,alignItems:'center'}}><Share2 size={14}/>Share a position</button>
+                                <button onClick={async () => { const id = await onPostCreate(newPostContent); if (id) setNewPostContent(''); }} disabled={!newPostContent.trim()}
                                     style={{ padding: '7px 18px', borderRadius: 20, background: 'var(--fg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--bg-base)', cursor: 'pointer', letterSpacing: '0.05em', opacity: !newPostContent.trim() ? 0.4 : 1, transition: 'opacity 0.15s' }}>Post</button>
                             </div>
                         </div>
@@ -1962,7 +1963,7 @@ const App = () => {
     // Initialize from localStorage cache immediately — eliminates the "Log In" flash
     // on every page load while Supabase session restore runs in the background.
     // Supabase INITIAL_SESSION overwrites this with fresh data once it resolves.
-    const [user, setUser] = useState<UserProfile | null>(null);
+    const [user, setUser] = useState<UserProfile | null>(() => readSessionCache());
     // Tracks whether the initial auth check is complete — prevents flash of "not logged in" on refresh
     // If we have a cached user, skip the loading screen — Supabase refreshes in background.
     // If no cache, show loading until session restore completes.
@@ -2143,7 +2144,7 @@ const App = () => {
     const [isCrossAccountOpen, setCrossAccountOpen] = useState(false);
     const [crossAccountTab, setCrossAccountTab] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
     const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
-    const [shareTradeData, setShareTradeData] = useState<ClosedTradeShareData | null>(null);
+    const [positionSharePickerOpen, setPositionSharePickerOpen] = useState(false);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
     const [orderlyDWModal, setOrderlyDWModal] = useState<{ open: boolean; type: 'DEPOSIT' | 'WITHDRAW' }>({ open: false, type: 'DEPOSIT' });
 
@@ -2624,6 +2625,7 @@ const App = () => {
         leverage: pos.leverage, marginMode: pos.marginMode,
         liquidationPrice: pos.liquidationPrice, action: result.action,
         onChain: true, txHash: result.txHash,
+        positionId: `velo_${result.tradeId}`,
         orderlyOrderUrl: `https://sepolia.basescan.org/tx/${result.txHash}`,
       };
       setUser(prev => {
@@ -2632,6 +2634,14 @@ const App = () => {
       });
       if (isSupabaseConfigured()) insertTradeHistory(user.id, historyItem).catch(() => {
         setToast({ message: 'Trade confirmed on-chain, but history could not be saved. Please retry the refresh.', type: 'ERROR' });
+      });
+      if (IS_V4 && activeEngine) setShareCardData({
+        pair: pos.pair, side: pos.side, leverage: pos.leverage, entryPrice: pos.entryPrice,
+        closePrice: result.exitPrice, size: pos.size, collateral: pos.size / pos.leverage,
+        pnl: result.pnlUSDC, pnlPct: result.pnlUSDC / (pos.size / pos.leverage) * 100,
+        traderHandle: user.handle, status: result.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
+        contract: VELO_PERPS_ADDRESS, chainId: 84532, tradeId: result.tradeId.toString(),
+        trader: veloPerpsTrading.traderAddress, txHash: result.txHash,
       });
     };
 
@@ -3360,6 +3370,8 @@ const App = () => {
                 const profile = profileData?.profile;
                 if (!profile) { sessionRestoredRef.current = false; setAuthChecked(true); setSessionNotice('expired'); return; }
                 const restoredUser = dbProfileToUserProfile(profile);
+                // Profile hydration is independent of slower history/social reads.
+                if (!intentionalLogoutRef.current && !window.__veloLogoutLock) setUser(restoredUser);
                 const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
                     IS_V4 ? Promise.resolve([]) : fetchPositions(session.user.id),
                     IS_V4 ? Promise.resolve([]) : fetchOpenOrders(session.user.id),
@@ -3425,7 +3437,7 @@ const App = () => {
                         if (liveWallet) break;
                     }
                 }
-                if (liveWallet && profileWallet && liveWallet !== profileWallet) {
+                if (freshWalletConnectRef.current && liveWallet && profileWallet && liveWallet !== profileWallet) {
                     console.warn('[velo:auth] session/wallet mismatch — connected', liveWallet.slice(0,8), 'but session is', profileWallet.slice(0,8), '→ signing out stale session');
                     sessionRestoredRef.current = false;
                     clearSessionCache();
@@ -3449,7 +3461,7 @@ const App = () => {
                 } catch (_) { /* use defaults */ }
                 // Restore to the page the user was on — don't force /trade
                 // navigateFromPath is called separately on mount and handles the URL
-            } catch(e) { sessionRestoredRef.current = false; setSessionNotice('expired'); console.warn('Session restore error:', e); }
+            } catch(e) { sessionRestoredRef.current = false; console.warn('Session restore interrupted; will retry on reconnect.'); }
             finally { setAuthChecked(true); }
         };
 
@@ -3495,9 +3507,15 @@ const App = () => {
         
         // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession.
         // This is also the authoritative source — only this path marks authChecked on null session.
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
-            await restoreSession(session, true);
-        });
+        const recoverSession = () => {
+            if (document.visibilityState !== 'visible' || intentionalLogoutRef.current || window.__veloLogoutLock) return;
+            void supabase.auth.getSession().then(({ data: { session }, error }) => {
+                if (!error) return restoreSession(session, true);
+            }).catch(() => { /* Preserve the session through an offline refresh. */ });
+        };
+        recoverSession();
+        window.addEventListener('online', recoverSession);
+        document.addEventListener('visibilitychange', recoverSession);
         
         // ── Cross-tab auth broadcast ─────────────────────────────────────
         // Converge sessions across tabs proactively. When THIS tab's auth
@@ -3552,6 +3570,8 @@ const App = () => {
             authEvents.cancel();
             subscription.unsubscribe();
             clearTimeout(authTimeout);
+            window.removeEventListener('online', recoverSession);
+            document.removeEventListener('visibilitychange', recoverSession);
             window.removeEventListener('storage', onStorage);
             try { bc?.close(); } catch {}
         };
@@ -6036,6 +6056,11 @@ const App = () => {
             }
         }
         setUser(prev => prev ? { ...prev, ...updatedData } : null);
+        setTraders(prev => prev.map(trader => trader.id === user.id ? {...trader,...updatedData} : trader));
+        setPosts(prev => prev.map(post => ({ ...post,
+          ...(post.authorId === user.id ? {authorAvatar:updatedData.avatar || post.authorAvatar,authorHandle:updatedData.handle || post.authorHandle} : {}),
+          comments: post.comments.map(comment => comment.authorId === user.id ? {...comment,authorAvatar:updatedData.avatar || comment.authorAvatar,authorHandle:updatedData.handle || comment.authorHandle} : comment),
+        })));
         setToast({ message: 'Profile updated', type: 'SUCCESS' });
         playSound('SUCCESS');
         return { ok: true };
@@ -6057,7 +6082,7 @@ const App = () => {
         const tempId = `p_${Date.now()}`;
         // Optimistic local update with temp id
         if (targetProfileId && targetProfileId !== user.id) { setToast({ message: 'Publish on your own profile and mention the trader instead.', type: 'INFO' }); return null; }
-        const tempPost: Post = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[], isTradeSignal: !!tradeSignal, tradeDetails: tradeSignal, targetProfileId };
+        const tempPost: Post = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[], isTradeSignal: !!tradeSignal, tradeDetails: tradeSignal, tradeSnapshot: tradeSignal?.snapshot, targetProfileId };
         // Tentative dedupe registration — cleared in the catch so a genuine
         // retry after failure isn't blocked, but a double-click never lands.
         lastPostRef.current = { c: c.trim(), ts: Date.now() };
@@ -6390,7 +6415,7 @@ const App = () => {
         isVeloWelcomeOpen || isVeloBridgeOpen || isVeloDepositOpen ||
         isVeloUsernameOpen || isVeloSendOpen || isVeloWithdrawOpen ||
         isCrossAccountOpen || isSettingsOpen || orderlyDWModal.open ||
-        usersListModal.isOpen || sidebarOpen || leverageModalOpen;
+        usersListModal.isOpen || sidebarOpen || leverageModalOpen || positionSharePickerOpen || !!shareCardData;
 
     // Watch the DOM as well as app state so dialogs owned by leaf components
     // (such as chart settings) suppress the floating navigation consistently.
@@ -6418,6 +6443,21 @@ const App = () => {
     return (
         <>
         <ReactionContext.Provider value={{ userId: user?.id, react: handleReaction, requireAuth: () => void handleRequireAuth() }}>
+        <SharedMarkContext.Provider value={marketPrices}>
+        <PositionSharePicker open={positionSharePickerOpen} onClose={() => setPositionSharePickerOpen(false)} positions={positions} history={user?.tradeHistory || []}
+          onPosition={p => {
+            const mark = marketPrices[p.pair] || p.entryPrice, pnl = positionPnl(p, mark);
+            const collateral = p.v4 ? p.v4.collateral + p.v4.openFee : p.size / p.leverage;
+            setShareCardData({ pair:p.pair,side:p.side,leverage:p.leverage,entryPrice:p.entryPrice,markPrice:mark,size:p.size,
+              collateral,pnl,pnlPct:collateral > 0 ? pnl/collateral*100 : 0,status:'OPEN',traderHandle:user?.handle,
+              chainId:84532,contract:p.onChainContract,tradeId:p.onChainTradeId,trader:veloPerpsTrading.traderAddress,openedAt:p.timestamp,v4:p.v4 });
+          }} onHistory={t => {
+            const collateral = t.size / (t.leverage || 1);
+            setShareCardData({pair:t.pair,side:t.side,leverage:t.leverage || 1,entryPrice:t.entryPrice,closePrice:t.exitPrice,size:t.size,
+              collateral,pnl:t.pnl,pnlPct:collateral > 0 ? t.pnl/collateral*100 : 0,status:t.action === 'LIQUIDATION' ? 'LIQUIDATED':'CLOSED',
+              traderHandle:user?.handle,chainId:84532,contract:VELO_PERPS_ADDRESS,tradeId:t.positionId?.replace('velo_',''),
+              trader:veloPerpsTrading.traderAddress,txHash:t.txHash});
+          }}/>
         <WalletSignInDialog open={signInBusy && !appKitOpen} phase={signInPhase}
           onCancel={() => { ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); socialLoginHandledRef.current = false; }}
           onSwitchWallet={() => { ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); void handleChooseAnotherAccount(); }}
@@ -6583,6 +6623,12 @@ const App = () => {
               }}
               onAuth={async (authUser, passedProfile, isNewAccount) => {
                     if (!authUser) return;
+                    try {
+                        localStorage.removeItem('velo_logged_out');
+                        localStorage.setItem('velo_session_started_at', String(Date.now()));
+                        localStorage.setItem(`velo_activity_${authUser.id}`, String(Date.now()));
+                    } catch {}
+                    window.__veloLogoutLock = false;
                     intentionalLogoutRef.current = false;
                     freshSignupRef.current = !!isNewAccount;
                     socialLoginHandledRef.current = true; // prevent socialLoginEffect re-firing for both new and returning users
@@ -6734,15 +6780,6 @@ const App = () => {
                 try { await veloPerpsTrading.refresh(); } catch {}
               }}
             />
-            {/* ── Velo Share Trade Modal (post-close share-to-feed prompt) ── */}
-            <VeloShareTradeModal
-              isOpen={!!shareTradeData}
-              trade={shareTradeData}
-              onClose={() => setShareTradeData(null)}
-              onShare={(content, tradeSignal) => {
-                handleCreatePost(content, tradeSignal).catch(() => {});
-              }}
-            />
             {/* ── Velo Username Modal (on-chain handle claim) ── */}
             <VeloUsernameModal
               isOpen={isVeloUsernameOpen}
@@ -6886,6 +6923,11 @@ const App = () => {
                 isOpen={!!shareCardData}
                 onClose={() => setShareCardData(null)}
                 data={shareCardData}
+                onPost={async (content, snapshot) => {
+                  const id = await handleCreatePost(content, { pair: snapshot.pair, side: snapshot.side, leverage: snapshot.leverage, entry: snapshot.entryPrice, snapshot });
+                  if (id) { setActiveTab(TabView.SOCIAL); setSocialFocusPostId(id); }
+                  return id;
+                }}
               />
             )}
             {/* ── Velo Manage Position Modal (V2: add/reduce margin, partial close, TP/SL) ── */}
@@ -7255,7 +7297,7 @@ const App = () => {
                   <TradeView tradingPending={veloPerpsTrading.isPending} activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} chartHistoryStatus={chartHistoryStatus} onRetryChartHistory={() => setChartHistoryRetry(retry => retry + 1)} onLoadOlderHistory={loadOlderChartHistory} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
                     const pnl = positionPnl(p, cp);
-                    const collateral = p.size / p.leverage;
+                    const collateral = p.v4 ? p.v4.collateral + p.v4.openFee : p.size / p.leverage;
                     setShareCardData({
                       pair: p.pair,
                       side: p.side as 'LONG' | 'SHORT',
@@ -7268,6 +7310,8 @@ const App = () => {
                       pnlPct: (pnl / collateral) * 100,
                       traderHandle: user?.handle,
                       status: 'OPEN',
+                      chainId: 84532, contract: p.onChainContract, tradeId: p.onChainTradeId,
+                      trader: veloPerpsTrading.traderAddress, openedAt: p.timestamp, v4: p.v4,
                     });
                   }} onShareHistory={(t: any) => {
                     // History rows show closed trades. Open the share card with
@@ -7286,6 +7330,8 @@ const App = () => {
                       pnlPct,
                       traderHandle: user?.handle,
                       status: t.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
+                      chainId: 84532, contract: VELO_PERPS_ADDRESS, tradeId: t.positionId?.replace('velo_', ''),
+                      trader: veloPerpsTrading.traderAddress, txHash: t.txHash,
                     });
                   }} appTheme={theme} onTimeframeChange={(tf: ChartTimeframe) => {
                     setChartPrefs(prev => ({ ...prev, chartTf: tf }));
@@ -7317,7 +7363,7 @@ const App = () => {
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
                     <SinglePostView setPosts={setPosts} postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { openCoin(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={null} onTickerChange={(t: string | null) => { if (t) openCoin(t); }} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
+                    <SocialFeed onSharePosition={() => setPositionSharePickerOpen(true)} traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={null} onTickerChange={(t: string | null) => { if (t) openCoin(t); }} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
                 ))}
                 {(activeTab === TabView.SOCIAL || activeTab === TabView.COIN || activeTab === TabView.LEADERBOARD || activeTab === TabView.PUBLIC_PROFILE) && (publicLoading || publicLoadErrors.posts || publicLoadErrors.profiles) && (
                   <div role="status" style={{ padding: '10px 16px', color: 'var(--fg-muted)', background: 'var(--chip-bg)', borderRadius: 10, marginBottom: 12 }}>
@@ -7360,6 +7406,7 @@ const App = () => {
             />
         </div>
         <PWAInstallBanner />
+        </SharedMarkContext.Provider>
         </ReactionContext.Provider>
         </>
     )
