@@ -1,6 +1,6 @@
 # Velo architecture
 
-Reviewed 21 October 2026. Read [VISION](../VISION.md) for the product thesis and [Operations](OPERATIONS.md) for release procedures. This describes the deployed testnet design, not a claim of mainnet readiness.
+Reviewed 27 October 2026. Read [VISION](../VISION.md) for the product thesis and [Operations](OPERATIONS.md) for release procedures. This describes the deployed testnet design, not a claim of mainnet readiness.
 
 ## Product and interface
 
@@ -71,6 +71,14 @@ Wallet connection and application sign-in are distinct. An expiring, single-use 
 A separate signature derives the dedicated browser trading wallet. Its full key is stored locally without encryption at rest, not as a constrained smart-account session permission. Only its public address belongs in profiles. This remains a major mainnet security gate; browser storage must not be treated as a secure vault.
 
 Supabase stores profiles, posts/comments/reactions, follows, notifications, preferences and receipt-backed activity/fills. Public social reads and private session/notification/contact data have different access rules. Follow counters are database-maintained; event-validation functions check social notification context. Remaining historical contact fields, overlapping old policies, legacy credentials and lifecycle/moderation coverage require further work. See [Operations](OPERATIONS.md) rather than assuming all security work is complete.
+
+## Sharing and interface boundaries
+
+[The sharing guide](SHARING.md) is the product/implementation reference. `PositionComposerTools` selects an open position and preserves the written draft; `VeloShareCard` presents compact attachments or PnL images. `tradeShare.ts` validates public metadata before rendering. `useSharedTrade` reconciles visible live shares with the fixed V4 engine, while `shareBehavior.mjs` distinguishes snapshot, live settlement and captured-PnL freeze behavior. Available marks update open PnL estimates between approximately ten-second chain reads; visibility and connectivity affect freshness.
+
+`PositionDetailsDialog` reads current position context and opening/settlement evidence, checking engine, owner and position ID. Receipt absence and refresh failure remain labelled states. This per-trade evidence does not authenticate a user's entire performance history. Amount hiding applies to the attachment and details presentation; it does not restrict public chain access. Snapshot image posts use immutable Storage assets; live image posts render from current share metadata. Externally exported PNGs never update remotely.
+
+Shared surface tokens, `materials.css` and `Dialog` own the app's light/dark glass palette and modal material. `GlassNav` repositions one selected-destination lens on navigation/resize without remounting controls. Composer fields have a scoped transparent focus treatment; attachments occupy their own row above the actions. Motion has reduced-motion support and opaque material fallbacks. These UI choices do not change signing, oracle requirements or settlement.
 
 ## Still planned
 

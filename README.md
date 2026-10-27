@@ -19,7 +19,7 @@
 
 ## What Velo is
 
-**Documentation reviewed: 21 October 2026.** Start with the [documentation index](docs/README.md) for the architecture, operations, release evidence and funding-readiness checklist. [VISION.md](VISION.md) owns the long-term direction; this README describes the current testnet product.
+**Documentation reviewed: 27 October 2026.** Start with the [documentation index](docs/README.md) for the architecture, operations, release evidence and funding-readiness checklist. [VISION.md](VISION.md) owns the long-term direction; this README describes the current testnet product.
 
 Most people who get into crypto end up juggling five tabs: an exchange to trade, a chart site, a news feed, a social app to see what traders are saying, and a spreadsheet to remember how they did. Velo puts those in one product.
 
@@ -55,7 +55,7 @@ Copy trading, bots and traditional instruments are **planned and not yet availab
 - Keeper-triggered **liquidation** when remaining equity after settlement costs reaches the market's maintenance requirement
 - Charts built on Lightweight Charts with Velo's own data feed, chart tools and indicators
 - Live fills tape, open orders, position history and receipt-backed trade records
-- Shareable trade cards
+- Compact live position attachments and exportable PnL images, with amount/percentage controls and receipt details (see [Sharing](docs/SHARING.md))
 
 ### Discover
 - **Markets directory** covering the top 50 crypto assets by market cap, with prices, asset info, 24h / 7d / 30d history and a discussion thread per ticker
@@ -120,7 +120,9 @@ sequenceDiagram
 
 Posts, replies, reactions and follows are written to Supabase under row-level security and update live over Realtime. Mentions and follows generate notifications. Shared links get server-rendered previews, so a Velo post looks right when pasted into X, Discord or Telegram.
 
-Attach an open position as a compact section in a social post, or share a PnL image from the terminal, history or composer. The preview-first sharing studio offers two Velo layouts and independent light/dark appearance, with secondary options under Customize. Attachments can show margin invested and PnL amounts, or percentage returns only. Clicking an attachment opens position details, local opening/closing times and transaction links checked against the V4 engine, owner and position ID. Choose a fixed snapshot or live updates on Velo; live images can show confirmed settlement or keep the captured PnL with a closed-snapshot label. Visible live shares refresh chain state every ten seconds and use current marks between reads. Downloaded/shared PNGs are always snapshots. Closing a position offers a small optional Share action. Profile pictures, banners and PnL image snapshots use immutable URLs and owner-only Storage writes.
+Use **Position** in the Social composer to attach an open trade, or choose **PnL image** for a branded image you can post or export. The sharing studio offers **Velo** and **Clean** layouts, independent light/dark cards and **$ Amounts / % Return only** controls. Click a compact attachment for status, local opening/closing times and V4-matched transaction details. Live Velo posts follow the position through settlement; image snapshots remain fixed, and live images can optionally freeze the captured result when the position closes. Downloaded PNGs always remain snapshots. Closing a position offers a small optional Share action.
+
+[The sharing guide](docs/SHARING.md) covers the exact defaults, settlement labels, display limits and evidence states. Amount hiding changes presentation, not the public on-chain record. Profile pictures, banners and PnL snapshots use immutable URLs and owner-scoped Storage writes.
 
 ## Architecture
 

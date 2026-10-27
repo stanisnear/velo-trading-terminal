@@ -14,6 +14,8 @@ All deployed addresses, including earlier versions, are in [`deployments/base_se
 
 **Reviewed 21 October 2026.** V4 source is verified on [BaseScan](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code) and exact-match verified on [Sourcify](https://repo.sourcify.dev/contracts/full_match/84532/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f/). Verification establishes a compiler/source match, not security. [Architecture](../docs/ARCHITECTURE.md) describes frontend and keeper routing; [operations](../docs/OPERATIONS.md) covers release checks.
 
+Position attachments, PnL images and receipt-detail dialogs are frontend/social features, not a new engine deployment or a full-performance attestation. Their V4 matching rules and live/snapshot behavior are documented in the [sharing guide](../docs/SHARING.md).
+
 ## Protocol parameters (V4)
 
 - Isolated margin and full closes only. No cross, partial-close, add-margin or reduce-margin methods.

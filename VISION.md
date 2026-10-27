@@ -2,7 +2,7 @@
 
 This document is for investors and contributors. It explains where Velo is going, how it can make money, and which ideas are open. The [README](README.md) describes what exists today.
 
-**Reviewed 21 October 2026.** The V4 testnet release is the current implementation, not the final mainnet risk design. Supporting evidence and the application checklist are in [docs/FUNDING-READINESS.md](docs/FUNDING-READINESS.md).
+**Reviewed 27 October 2026.** The V4 testnet release is the current implementation, not the final mainnet risk design. Supporting evidence and the application checklist are in [docs/FUNDING-READINESS.md](docs/FUNDING-READINESS.md).
 
 **Reading guide.** Everything under "Today" is built and running on testnet. Everything else is a plan or an idea. Plans are intentions, not commitments, and none of this is financial advice or an offer of any kind.
 
@@ -24,6 +24,7 @@ New entrants bring growth, traders bring volume, and followers bring the audienc
 
 - V4 perpetual futures terminal on Base Sepolia testnet: nine crypto markets, isolated market/limit/stop entries, atomic take-profit and stop-loss, market-specific leverage up to 25x, keeper-triggered liquidations and Pyth pricing
 - Social layer: posts, threaded replies, reactions, reposts, follows, profiles, notifications, short post/reply links, cashtags and link previews
+- [Position sharing and PnL images](docs/SHARING.md): compact live attachments, exportable image snapshots, independent image appearance, amount/percentage display and V4 transaction context. Individual linked receipts do not replace the planned full-history indexer or independently verified rankings
 - Top-50 market directory with a discussion thread per asset, a news tab and a leaderboard
 - Guided onboarding, faucet and gas sponsorship, testnet bridge routes
 - Production-style infrastructure: Cloudflare Pages and Workers, Supabase, a one-minute keeper scheduler with durable transaction handling

@@ -1,6 +1,6 @@
 # Velo operations
 
-Reviewed 21 October 2026. Testnet only. Never use an operator key to run an unreviewed script, publish a secret, delete user data to fix a display bug, or change a contract address as a frontend-only rollback.
+Reviewed 27 October 2026. Testnet only. Never use an operator key to run an unreviewed script, publish a secret, delete user data to fix a display bug, or change a contract address as a frontend-only rollback.
 
 ## Deployment inventory
 
@@ -15,6 +15,12 @@ Reviewed 21 October 2026. Testnet only. Never use an operator key to run an unre
 | Domain | Namecheap registrar, Cloudflare DNS/HTTPS | Do not restart the old Vercel deployment/schedulers |
 
 Both Pages projects use **`codex/cloudflare-migration`** as their configured production branch. A push to `main` is not a production deployment. Verify the branch setting before changing the release process.
+
+## Sharing and presentation releases
+
+Use [SHARING.md](SHARING.md) for product semantics and component ownership. A docs or caption-only release does not require new trades, SQL changes, signer access or contract deployment. For app sharing changes, verify preserved drafts; compact versus image format; amount masking in export and details; independent light/dark appearance; live settlement versus frozen capture; unavailable-receipt states; and focus restoration. Exercise publishing/Storage with disposable fixtures only when that path changes.
+
+Public facts must agree across the terminal README/vision, sharing guide, landing features, public docs and both launch-article paths. Keep dated transaction evidence intact instead of replacing it with current UI test counts. Check desktop/tablet caption bounds separately from laptop geometry; a caption fix should not alter the device's hinge, scale or scroll path.
 
 ## Configuration and secrets
 

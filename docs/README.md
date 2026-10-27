@@ -1,6 +1,6 @@
 # Velo documentation
 
-Reviewed 21 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
+Reviewed 27 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
 
 ## Start here
 
@@ -8,11 +8,12 @@ Reviewed 21 October 2026. Velo is a trader hub combining execution, market disco
 | --- | --- |
 | [Product README](../README.md) | Current product, features and local development |
 | [Vision](../VISION.md) | Audience, long-term direction, roadmap and business hypotheses |
+| [Sharing guide](SHARING.md) | Position attachments, PnL images, amount display, live/snapshot behavior and receipt details |
 | [Architecture](ARCHITECTURE.md) | Frontend, V4, API, oracle, database and keeper boundaries |
 | [Contract reference](../contracts/README.md) | Implemented accounting, risk limits and contract tests |
 | [Operations](OPERATIONS.md) | Configuration, deployment, verification, recovery and outstanding operational risks |
 | [Release evidence](RELEASE-2026-10-21.md) | Dated test and transaction evidence, with its limits |
-| [Profile and sharing release](RELEASE-2026-10-27.md) | Image permissions, mobile session recovery and linked position cards |
+| [Profile and sharing release](RELEASE-2026-10-27.md) | Image permissions, session recovery, sharing and the current interface release |
 | [Funding readiness](FUNDING-READINESS.md) | Application-ready product facts and information still needed from the team |
 | [Public product docs](https://velotrading.live/docs) | User-facing behavior and limitations |
 

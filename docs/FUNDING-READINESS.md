@@ -1,12 +1,12 @@
 # Velo funding and cohort preparation
 
-Prepared 21 October 2026 from the current [README](../README.md), [VISION](../VISION.md), deployed V4 configuration and [release evidence](RELEASE-2026-10-21.md). This is a facts/checklist document, not an application submission, valuation or promise of funding. Cohort eligibility, benefits and deadlines must be checked when selecting programs.
+Updated 27 October 2026 from the current [README](../README.md), [VISION](../VISION.md), deployed V4 configuration and [release evidence](RELEASE-2026-10-21.md). This is a facts/checklist document, not an application submission, valuation or promise of funding. Cohort eligibility, benefits and deadlines must be checked when selecting programs.
 
 ## Positioning
 
 **One line:** Velo is a trader hub bringing on-chain execution, market discovery and social conversation into one product, starting with crypto perpetuals on Base.
 
-**Short application description:** Traders currently move between an exchange, charts, news and social feeds. Velo brings those workflows together: a trader can discover an asset, discuss an idea, trade it and share the transaction context. A working Base Sepolia prototype combines a nine-market isolated perpetual engine, a top-50 reference market directory, news, profiles, threaded discussions and notifications. The next trust milestone is chain-reconstructed performance, followed by risk-bounded copy trading and strategy automation. Mainnet and broader financial instruments require independent security, liquidity, data and jurisdictional review.
+**Short application description:** Traders currently move between an exchange, charts, news and social feeds. Velo brings those workflows together: a trader can discover an asset, discuss an idea, trade it and share a live position attachment or a PnL image with transaction context. A working Base Sepolia prototype combines a nine-market isolated perpetual engine, a top-50 reference market directory, news, profiles, threaded discussions and notifications. The next trust milestone is chain-reconstructed performance, followed by risk-bounded copy trading and strategy automation. Mainnet and broader financial instruments require independent security, liquidity, data and jurisdictional review.
 
 This preserves the long-term ambition in VISION. Do not position Velo as only a contract, a generic chat feed, an existing brokerage, or a finished copy-trading platform.
 
@@ -20,6 +20,7 @@ This preserves the long-term ambition in VISION. Do not position Velo as only a 
 | Markets | BTC, ETH, SOL, DOGE, PYTH, BNB, XRP, HYPE, STETH perpetuals; separate top-50 information directory |
 | Risk model | Isolated collateral, bounded orders, fresh Pyth prices, segregated ledgers, fully reserved capped gross profit; protocol-owned mock liquidity, no public LP shares |
 | Social product | Public posts/profiles, reactions, replies, reposts, follows, mentions/cashtags, post/reply links and asset discussions |
+| Sharing | Compact live positions and PnL images; independent image theme/layout, amount/percentage display, fixed/live/freeze behavior and linked V4 receipt details. [Sharing guide](SHARING.md). External PNGs are snapshots, and display masking does not make public chain data private |
 | Execution evidence | Dated open/protection-edit/cancel/close receipts in the release record; automation has a one-minute schedule, not a guaranteed fill SLA |
 | Attribution | Registered Base Builder Code `bc_s0k82w2v` integrated into supported Base/Base Sepolia writes. Attribution does not imply a grant, partnership or endorsement |
 | Architecture | Cloudflare Pages/Workers and Supabase, local test suites and durable signer/transaction recovery |
