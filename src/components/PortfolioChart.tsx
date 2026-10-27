@@ -81,7 +81,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
     // lightweight-charts expects concrete color strings rather than CSS vars.
     const series = chart.addSeries(AreaSeries, {
       lineColor: colors.accent,
-      topColor: theme === 'dark' ? 'rgba(145, 185, 159, 0.28)' : 'rgba(85, 122, 98, 0.2)',
+      topColor: theme === 'dark' ? 'rgba(145, 185, 159, 0.12)' : 'rgba(85, 122, 98, 0.09)',
       bottomColor: theme === 'dark' ? 'rgba(145, 185, 159, 0)' : 'rgba(85, 122, 98, 0)',
       lineWidth: 2,
     });

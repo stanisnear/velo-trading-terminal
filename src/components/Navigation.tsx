@@ -16,6 +16,7 @@ import {
 import { TabView } from '@/utils/types';
 import { formatMoney } from '@/components/ui/shared';
 import { WalletConnectButton } from './WalletConnectButton';
+import { GlassNav } from './ui/GlassNav';
 
 export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, onNavigateDashboard, totalEquity, anchorRef }: any) => {
     const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
@@ -53,7 +54,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
         <>
             {/* backdrop */}
             <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={onClose} />
-            <div style={{
+            <div className="velo-popover" style={{
                 position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999,
                 width: 260, background: 'var(--bg-base-2)', border: '1px solid var(--hairline-strong)',
                 borderRadius: 16, boxShadow: '0 16px 40px rgba(0,0,0,0.4)', overflow: 'hidden',
@@ -201,34 +202,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
             </div>
 
             <div className="hidden lg:flex" style={{ justifyContent: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 14, background: 'var(--chip)', border: '1px solid var(--hr)', minWidth: 'fit-content' }}>
-                {navItems.map((item: any) => {
-                    const isActive = activeTab === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => item.id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(item.id)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 7,
-                                padding: '8px 14px',
-                                borderRadius: 10,
-                                border: 'none',
-                                cursor: 'pointer',
-                                background: isActive ? 'var(--bg)' : 'transparent',
-                                color: isActive ? 'var(--fg)' : 'var(--fg-2)',
-                                boxShadow: isActive ? '0 1px 0 var(--hr-2) inset, 0 -1px 0 rgba(0,0,0,0.18) inset' : 'none',
-                                transition: 'all 0.12s',
-                                ...S.label,
-                            }}
-                        >
-                            <item.icon size={12} strokeWidth={isActive ? 2.4 : 2} />
-                            {item.label}
-                        </button>
-                    )
-                })}
-                </div>
+                <GlassNav items={navItems} activeId={activeTab} onSelect={id => id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(id)} />
             </div>
 
             <div className="navbar-controls" style={{ display: 'flex', alignItems: 'center', gap: 8, justifySelf: 'end' }}>
@@ -244,7 +218,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                     {isNotifOpen && (
                         <>
                             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setNotifOpen(false)}/>
-                            <div style={{
+                            <div className="velo-popover" style={{
                                 position: 'fixed', right: 12, top: 76,
                                 width: 'min(360px, calc(100vw - 24px))',
                                 background: 'var(--bg)',
@@ -577,41 +551,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, user, onSocialClick }
     ].filter(item => !item.requiresAuth || user);
     return (
         <div className="velo-mobile-bottom-nav lg:hidden fixed left-2 right-2 z-[60]" style={{ bottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 4, padding: '6px 6px', borderRadius: 26, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(28px) saturate(1.3)', WebkitBackdropFilter: 'blur(28px) saturate(1.3)' }}>
-                {items.map((item) => {
-                    const isActive = activeTab === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => item.id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(item.id)}
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 5,
-                                minHeight: 62,
-                                padding: '8px 4px',
-                                borderRadius: 20,
-                                border: 'none',
-                                cursor: 'pointer',
-                                background: isActive ? 'var(--bg)' : 'transparent',
-                                color: isActive ? 'var(--velo-violet)' : 'var(--fg-3)',
-                                boxShadow: isActive ? '0 1px 0 var(--hr-2) inset, 0 -1px 0 rgba(0,0,0,0.18) inset' : 'none',
-                                touchAction: 'manipulation',
-                                WebkitTapHighlightColor: 'transparent',
-                                userSelect: 'none',
-                                WebkitUserSelect: 'none',
-                                outline: 'none',
-                                transition: 'background 0.15s, color 0.15s',
-                            }}
-                        >
-                            <item.icon size={22} strokeWidth={isActive ? 2.4 : 1.8} />
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{item.label}</span>
-                        </button>
-                    );
-                })}
-            </div>
+            <GlassNav mobile items={items} activeId={activeTab} onSelect={id => id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(id)} />
         </div>
     );
 }

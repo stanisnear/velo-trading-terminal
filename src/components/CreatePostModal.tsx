@@ -266,6 +266,8 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
                     <div style={{ position: 'relative' }}>
                         <textarea
                             ref={textareaRef}
+                            className="velo-compose-field"
+                            aria-label="Write a post"
                             value={content}
                             onChange={handleTextChange}
                             onKeyDown={e => {
@@ -278,7 +280,7 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
                                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit();
                             }}
                             onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionTrigger(null); }, 150)}
-                            placeholder="What's happening in the markets? Use @handle or $BTC to tag"
+                            placeholder="What's happening in the markets?"
                             rows={5}
                             style={{
                                 width: '100%', background: 'var(--chip-bg)',

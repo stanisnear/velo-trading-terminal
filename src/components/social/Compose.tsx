@@ -244,13 +244,15 @@ export const WallCompose = ({ user, targetId, targetName, onPostCreate, placehol
     };
 
     return (
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div className="velo-composer" style={{ display: 'flex', gap: 12 }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', border: '1px solid var(--hairline)', flexShrink: 0 }}>
                 <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""/>
             </div>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
                 <textarea
                     ref={textareaRef}
+                    className="velo-compose-field"
+                    aria-label="Write a post"
                     placeholder={placeholder || `Write something\u2026`}
                     value={text}
                     onChange={handleTextChange}

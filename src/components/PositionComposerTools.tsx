@@ -4,13 +4,13 @@ import { ShareValueControl } from './ShareValueControl';
 import { Dialog } from './ui/Dialog';
 import { CompactPosition, SharedPositionCard } from './SharedPositionCard';
 import type { TradeShare } from '../utils/tradeShare';
-export function PositionComposerTools({ choices, attachment, onChange, onPnl, authenticated = true, onRequireAuth }: {
-  authenticated?: boolean; onRequireAuth?: () => void; choices: TradeShare[]; attachment: TradeShare | null; onChange: (data: TradeShare | null) => void; onPnl: () => void;
+export function PositionComposerTools({ choices, attachment, onChange, onPnl, authenticated = true, onRequireAuth, action }: {
+  action?: React.ReactNode; authenticated?: boolean; onRequireAuth?: () => void; choices: TradeShare[]; attachment: TradeShare | null; onChange: (data: TradeShare | null) => void; onPnl: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return <>
     {attachment && <div className="composer-position"><SharedPositionCard snapshot={attachment}/><div className="composer-position-options"><ShareValueControl hidden={!!attachment.hideAmounts} onChange={hidden=>onChange({...attachment,hideAmounts:hidden})}/></div><button type="button" className="remove-attachment" aria-label="Remove position attachment" onClick={()=>onChange(null)}><X size={14}/></button></div>}
-    <div className="composer-share-tools"><button type="button" onClick={()=>authenticated ? setOpen(true) : onRequireAuth?.()}><Layers size={14}/>Position</button><button type="button" onClick={onPnl}><Image size={14}/>PnL image</button></div>
+    <div className="velo-composer-toolbar"><div className="composer-share-tools"><button type="button" onClick={()=>authenticated ? setOpen(true) : onRequireAuth?.()}><Layers size={14}/>Position</button><button type="button" onClick={onPnl}><Image size={14}/>PnL image</button></div>{action}</div>
     <Dialog open={open} onClose={()=>setOpen(false)} title="Attach a position"><div className="trade-share-body">
       <p className="trade-share-feedback">Add a compact live position to your post. Its status and PnL follow the position through settlement.</p>
       <div className="composer-position-list">{choices.map(data=><button type="button" key={`${data.contract}:${data.tradeId}`} onClick={()=>{onChange({...data,presentation:'position',updateMode:'live'});setOpen(false);}}><CompactPosition data={data}/><span>Attach position ↗</span></button>)}</div>

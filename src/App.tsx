@@ -518,7 +518,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
             <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
                 <defs>
                     <linearGradient id={`sg-${up ? 'u' : 'd'}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+                        <stop offset="0%" stopColor={color} stopOpacity="0.10" />
                         <stop offset="100%" stopColor={color} stopOpacity="0" />
                     </linearGradient>
                 </defs>
@@ -529,7 +529,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
     };
 
     return (
-        <div className="social-token-rail" style={{ marginBottom: 12 }}>
+        <div className="social-token-rail">
             <div style={{ background: 'var(--glass-bg)', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                 <div className="social-token-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
                     {TOP_SOCIAL_PAIRS.map((p, i) => {
@@ -1493,15 +1493,17 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                 {/* Top Tokens Bar */}
                 <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets} />
                 {/* Compose */}
-                <div className="vp" style={panel}>
+                <div className="vp velo-composer" style={panel}>
                     <div style={{ padding: 16, display: 'flex', gap: 12 }}>
                         <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--chip-bg)', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--hairline)' }}>
                             {user ? <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserCircle size={38} style={{ color: 'var(--fg-subtle)' }} />}
                         </div>
-                        <div style={{ flex: 1, position: 'relative' as const }}>
+                        <div style={{ flex: 1, minWidth: 0, position: 'relative' as const }}>
                             <textarea
                                 ref={feedTextareaRef}
-                                placeholder="What's happening in the markets? Use @handle or $BTC to tag someone"
+                                className="velo-compose-field"
+                                aria-label="Write a post"
+                                placeholder="What's happening in the markets?"
                                 value={newPostContent}
                                 onChange={handleFeedTextChange}
                                 onKeyDown={e => {
@@ -1516,10 +1518,10 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                 style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg)', resize: 'none', height: 72, lineHeight: 1.6 }}
                             />
                             <MentionDropdown results={feedMentionResults} anchorRef={feedTextareaRef} activeIndex={feedMentionIdx} onSelect={completeFeedMention} onHover={setFeedMentionIdx} />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
-                                <div style={{flex:1,minWidth:0}}><PositionComposerTools authenticated={!!user} onRequireAuth={onRequireAuth} choices={sharePositions} attachment={positionAttachment} onChange={setPositionAttachment} onPnl={()=>user ? onSharePosition?.() : onRequireAuth?.()}/></div>
+                            <div className="velo-composer-footer">
+                                <PositionComposerTools authenticated={!!user} onRequireAuth={onRequireAuth} choices={sharePositions} attachment={positionAttachment} onChange={setPositionAttachment} onPnl={()=>user ? onSharePosition?.() : onRequireAuth?.()} action={
                                 <button onClick={async () => { if (publishingPost) return; setPublishingPost(true); try { const attachment = positionAttachment ? {...positionAttachment,updatedAt:Date.now()} : undefined; const id = await onPostCreate(newPostContent, attachment ? {pair:attachment.pair,side:attachment.side,leverage:attachment.leverage,entry:attachment.entryPrice,snapshot:attachment} : undefined); if (id) { setNewPostContent('');setPositionAttachment(null); } } finally { setPublishingPost(false); } }} disabled={publishingPost || !newPostContent.trim()}
-                                    style={{alignSelf:'flex-end',padding:'8px 18px',borderRadius:20,background:'var(--fg)',border:0,font:'600 12px var(--font-sans)',color:'var(--bg)',cursor:'pointer',opacity:!newPostContent.trim() || publishingPost ? .4 : 1}}>{publishingPost ? 'Posting…' : 'Post'}</button>
+                                    style={{alignSelf:'flex-end',padding:'8px 18px',borderRadius:20,background:'var(--fg)',border:0,font:'600 12px var(--font-sans)',color:'var(--bg)',cursor:'pointer',opacity:!newPostContent.trim() || publishingPost ? .4 : 1}}>{publishingPost ? 'Posting…' : 'Post'}</button>} />
                             </div>
                         </div>
                     </div>

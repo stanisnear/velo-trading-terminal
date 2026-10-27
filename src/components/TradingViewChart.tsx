@@ -591,12 +591,12 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const pricePrecisionRef = useRef<number | null>(null);
   const indicatorKey = useMemo(() => [...externalIndicators].sort().join('|'), [externalIndicators]);
   const isDark = theme === 'dark';
-  // Canvas colors mirror the surrounding --bg-2 and --fg-muted surfaces.
-  const background = isDark ? '#171a19' : '#dfe8e0';
+  // Canvas APIs need literal colors: these mirror --surface-solid and --fg-muted.
+  const background = isDark ? '#191c1b' : '#f1f5f2';
   const foreground = isDark ? '#b0b8b3' : '#516257';
   const grid = isDark ? 'rgba(240,243,241,0.06)' : 'rgba(38,69,47,0.07)';
   const crosshair = isDark ? 'rgba(208,215,211,0.30)' : 'rgba(81,98,87,0.30)';
-  const crosshairLabel = isDark ? '#303634' : '#d5e1d7';
+  const crosshairLabel = isDark ? '#303634' : '#e3eae5';
   const candleUp = isDark ? COLORS.up : '#638a6d';
   const candleUpStrong = isDark ? COLORS.upStrong : '#52765f';
   const candleDown = isDark ? COLORS.down : '#b96863';
@@ -1264,13 +1264,13 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     <div style={{ height: '100%', minHeight: 0, position: 'relative', background, overflow: 'hidden' }}>
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
       {(initialData.length > 0 || hasLiveCandles) && (
-        <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: isDark ? 'rgba(10,14,12,0.82)' : 'rgba(237,242,238,0.92)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: 'var(--surface-raised)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: isLivePrice ? candleUp : foreground, opacity: isLivePrice ? 1 : 0.65 }} />
           {initialData[0]?.source === 'exchange' ? 'Exchange reference' : 'Pyth mark'}
         </div>
       )}
       {isLoadingOlder && (
-        <div role="status" aria-live="polite" style={{ position: 'absolute', top: 10, right: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', borderRadius: 999, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.16)'}`, background: isDark ? 'rgba(10,14,12,0.86)' : 'rgba(221,232,223,0.94)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', pointerEvents: 'none' }}>
+        <div role="status" aria-live="polite" style={{ position: 'absolute', top: 10, right: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', borderRadius: 999, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.16)'}`, background: 'var(--surface-raised)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', pointerEvents: 'none' }}>
           <span className="chart-history-spinner"><RefreshCw size={11} /></span> Loading older candles
         </div>
       )}

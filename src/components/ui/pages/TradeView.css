@@ -60,7 +60,7 @@
   flex: 0 0 auto;
   padding: 8px 12px 12px;
   border-top: 1px solid var(--hairline);
-  background: var(--bg-base-2);
+  background: transparent;
 }
 
 .velo-order-ticket__footer > button {

@@ -26,11 +26,11 @@ export function Dialog({ open, onClose, title, busy = false, children, className
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
     }}>
     <style>{`
-      .velo-native-dialog { padding:0; width:min(520px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); overflow:auto; margin:auto; color:var(--fg); border:1px solid var(--glass-border); border-radius:18px; background:var(--glass-bg-strong); box-shadow:var(--glass-shadow); backdrop-filter:blur(28px); animation:velo-dialog-in 180ms ease-out; }
-      .velo-native-dialog::backdrop { background:color-mix(in srgb,var(--bg) 78%,transparent); backdrop-filter:blur(14px); animation:velo-backdrop-in 150ms ease-out; }
+      .velo-native-dialog { padding:0; width:min(520px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); overflow:auto; margin:auto; color:var(--fg); border:1px solid var(--glass-border); border-radius:18px; background:var(--glass-sheen),var(--modal-surface); box-shadow:var(--modal-shadow); -webkit-backdrop-filter:blur(30px) saturate(1.02); backdrop-filter:blur(30px) saturate(1.02); animation:velo-dialog-in 240ms var(--material-ease); }
+      .velo-native-dialog::backdrop { background:var(--overlay); -webkit-backdrop-filter:blur(var(--overlay-blur)); backdrop-filter:blur(var(--overlay-blur)); animation:velo-backdrop-in 150ms ease-out; }
       .velo-dialog-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid var(--hairline); }
       .velo-dialog-heading h2 { margin:0; font:500 25px/1.2 var(--font-display); }
-      .velo-dialog-close { display:grid; place-items:center; width:36px; height:36px; flex:none; border:1px solid var(--hairline); border-radius:8px; color:var(--fg); background:var(--chip-bg); cursor:pointer; transition:background 140ms,transform 140ms; }
+      .velo-dialog-close { display:grid; place-items:center; width:36px; height:36px; flex:none; border:1px solid var(--hairline); border-radius:50%; color:var(--fg); background:var(--chip-bg); cursor:pointer; transition:background 140ms,transform 140ms; }
       .velo-dialog-close:hover { background:var(--glass-bg); }
       .velo-dialog-close:active { transform:scale(.96); }
       .velo-native-dialog :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
