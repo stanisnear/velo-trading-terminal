@@ -1,3 +1,4 @@
+import { SocialTextField } from './social/SocialTextField';
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, Share2, Send, Sun, Moon, SlidersHorizontal, ChevronDown, Check } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
@@ -56,7 +57,7 @@ export const VeloShareCard = ({isOpen,onClose,data:snapshot,onPost}:{
         <div className="share-designs" role="group" aria-label="Card layout">{(['signature','minimal'] as const).map(option=><button key={option} aria-pressed={design===option} disabled={busy} onClick={()=>setDesign(option)}><span className={`share-design-sample ${option}`} aria-hidden="true"><i>Velo</i><b>+12.8%</b></span><span>{option==='signature'?'Velo':'Clean'}{design===option&&<Check size={13}/>}</span></button>)}</div>
         {canUpdate&&<><label className="share-live-setting"><span><b>Keep this post live</b><small>Updates on Velo. Saved images stay fixed.</small></span><input type="checkbox" role="switch" aria-label="Keep this post live" checked={imageLive} disabled={busy} onChange={e=>setImageLive(e.target.checked)}/></label>{imageLive&&<label className="share-freeze-setting"><input type="checkbox" checked={freeze} disabled={busy} onChange={e=>setFreeze(e.target.checked)}/>Keep the captured PnL when the position closes</label>}</>}
       </div></details>}
-      {onPost&&<textarea className="share-studio-note" aria-label="Add a note" placeholder="Add a note…" rows={2} value={content} onChange={e=>setContent(e.target.value)} maxLength={2000} disabled={busy}/>}
+      {onPost&&<SocialTextField className="share-studio-note" aria-label="Add a note" placeholder="Add a note…" rows={2} value={content} onValueChange={setContent} onSubmit={()=>void publish()} maxLength={2000} disabled={busy}/>}
       {error&&<p className="trade-share-feedback" role="alert">{error}</p>}{feedback&&<p className="trade-share-feedback" role="status">{feedback}</p>}
       <div className="share-studio-actions">{presentation==='pnl'&&<><button type="button" aria-label="Save image" title="Save image" disabled={busy} onClick={()=>void exportImage(false)}><Download size={17}/></button><button type="button" aria-label="Share image" title="Share image" disabled={busy} onClick={()=>void exportImage(true)}><Share2 size={17}/></button></>}{onPost&&<button className="share-studio-publish" disabled={busy||!content.trim()} onClick={()=>void publish()}><Send size={15}/>{busy?'Preparing…':'Post to Velo'}</button>}</div>
     </div>

@@ -20,6 +20,14 @@ In the Social composer, write a note and choose **Position** to pick an open pos
 
 The amount toggle is a presentation preference, not a privacy or access-control boundary. On-chain trade data remains public, and previously exported images do not change when a later display preference changes.
 
+## Images in the feed
+
+PnL images keep their 3:2 proportions in a centered preview capped at 630 CSS pixels, rather than growing to the full width of a wide post. Click or keyboard-activate an image to open the media viewer. Desktop places the image beside the original post text, reactions, actions and comment thread; smaller screens stack the image above a scrollable discussion. The viewer shares the post's current state and handlers. Closing it restores focus to the image preview.
+
+New saved, shared and uploaded PNGs use a **2400 × 1600** backing canvas. The renderer explicitly loads the Velo display, interface and monospaced fonts and fits unusually long values by reducing type size rather than horizontally stretching letters. Live feed previews use a smaller backing canvas and the expanded view requests full resolution. Existing immutable snapshots retain their original files; changing rendering quality does not rewrite an author's previous snapshot. Live image work pauses offscreen and quote bursts are throttled.
+
+Every post/comment/reply composer and the sharing note use `SocialTextField`. Type **@** for people or **$** for assets, refine the query and choose with pointer/touch, arrows plus Enter, or Tab. Escape dismisses suggestions without closing the parent dialog. Selection preserves text around the caret; IME composition and ordinary email text are not treated as tag submissions. The picker is rendered within a native dialog when necessary so focus trapping and the browser top layer do not hide or block it. Tag suggestions use the loaded public profile and market directory.
+
 ## Live posts and snapshots
 
 | Choice | While the position is open | After settlement |
@@ -50,6 +58,7 @@ Receipt matching checks the Base Sepolia V4 engine, trader and position ID. Snap
 | --- | --- |
 | Studio, export and publish actions | [`VeloShareCard.tsx`](../src/components/VeloShareCard.tsx) |
 | Composer picker and amount preference | [`PositionComposerTools.tsx`](../src/components/PositionComposerTools.tsx), [`ShareValueControl.tsx`](../src/components/ShareValueControl.tsx) |
+| Social tagging and expanded media | [`SocialTextField.tsx`](../src/components/social/SocialTextField.tsx), [`socialTagging.mjs`](../src/utils/socialTagging.mjs), [`PostCard.tsx`](../src/components/social/PostCard.tsx) |
 | Compact attachment and details | [`SharedPositionCard.tsx`](../src/components/SharedPositionCard.tsx), [`PositionDetailsDialog.tsx`](../src/components/PositionDetailsDialog.tsx) |
 | Visibility-aware live refresh and receipt reads | [`useSharedTrade.ts`](../src/components/useSharedTrade.ts), [`sharedPosition.ts`](../src/services/sharedPosition.ts) |
 | Public attachment validation and update semantics | [`tradeShare.ts`](../src/utils/tradeShare.ts), [`shareBehavior.mjs`](../src/utils/shareBehavior.mjs) |

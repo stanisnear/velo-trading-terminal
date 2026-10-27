@@ -1,0 +1,10 @@
+.social-text-field { position:relative; width:100%; min-width:0; }
+.social-tag-list { z-index:11000; box-sizing:border-box; overflow-y:auto; overscroll-behavior:contain; padding:5px; border:1px solid var(--hairline-strong); border-radius:14px; color:var(--fg); background:var(--surface-raised); box-shadow:var(--modal-shadow); -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px); }
+.social-tag-list button { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:6px 8px; border:0; border-radius:9px; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.social-tag-list button[aria-selected=true] { background:var(--control-bg-hover); }
+.social-tag-list img,.social-tag-avatar { display:grid; place-items:center; width:30px; height:30px; flex:none; border-radius:50%; object-fit:cover; background:var(--chip-bg); }
+.social-tag-list strong { display:block; font:550 12px/1.4 var(--font-sans); }
+.social-tag-list small { display:block; color:var(--fg-subtle); font:10px/1.4 var(--font-mono); }
+
+.social-reply-field,
+.social-reply-field:is(:focus,:focus-visible) { background:transparent!important; border:0!important; outline:0!important; box-shadow:none!important; }

@@ -18,7 +18,7 @@ export function CompactPosition({ data, pending = false, onInspect }: { data: Tr
     <footer><span>{pending?'Refreshing values':data.updateMode==='snapshot'?'Snapshot':open?'Live position':'Position settled'}</span>{onInspect&&<span className="position-view-details">View details<ChevronRight size={12}/></span>}</footer>
   </article>;
 }
-export function SharedPositionCard({ snapshot, imageUrl }: { snapshot: TradeShare; imageUrl?: string }) {
+export function SharedPositionCard({ snapshot, imageUrl, onImageClick, expanded = false }: { snapshot: TradeShare; imageUrl?: string; onImageClick?: () => void; expanded?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [detailsOpen,setDetailsOpen]=useState(false);
@@ -29,5 +29,5 @@ export function SharedPositionCard({ snapshot, imageUrl }: { snapshot: TradeShar
     observer.observe(ref.current);return()=>observer.disconnect();
   },[]);
   const { data, pending } = useSharedTrade(snapshot, visible || detailsOpen);
-  return <div ref={ref}>{snapshot.presentation === 'pnl' ? <><PnlImage data={data} imageUrl={imageUrl}/>{pending && <p className="trade-share-feedback">Refreshing · showing last known values</p>}</> : <CompactPosition data={data} pending={pending} onInspect={()=>setDetailsOpen(true)}/>}{detailsOpen&&<PositionDetailsDialog snapshot={{...data,hideAmounts:snapshot.hideAmounts,updatedAt:snapshot.updatedAt}} onClose={()=>setDetailsOpen(false)}/>}</div>;
+  return <div ref={ref} className={snapshot.presentation === 'pnl' ? `shared-pnl-media${expanded ? ' is-expanded' : ''}` : undefined}>{snapshot.presentation === 'pnl' ? <>{onImageClick ? <button type="button" className="post-image-preview" aria-label={`Expand ${data.pair} PnL image`} onClick={onImageClick}><PnlImage data={data} imageUrl={imageUrl} active={visible} retryable={false}/><span className="post-image-expand-hint">View image ↗</span></button> : <PnlImage data={data} imageUrl={imageUrl} active={visible || expanded} quality={expanded ? 2 : 1.5}/>}{pending && <p className="trade-share-feedback">Refreshing · showing last known values</p>}</> : <CompactPosition data={data} pending={pending} onInspect={()=>setDetailsOpen(true)}/>}{detailsOpen&&<PositionDetailsDialog snapshot={{...data,hideAmounts:snapshot.hideAmounts,updatedAt:snapshot.updatedAt}} onClose={()=>setDetailsOpen(false)}/>}</div>;
 }

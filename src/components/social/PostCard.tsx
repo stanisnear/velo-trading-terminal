@@ -14,6 +14,8 @@ import { useMarketDiscovery } from '@/services/marketDiscovery';
 import { postPath } from '../../../shared/socialLinks.mjs';
 import { PostReactions } from './PostReactions';
 import { SharedPositionCard } from '../SharedPositionCard';
+import { Dialog } from '../ui/Dialog';
+import './PostMediaViewer.css';
 
 // ── Comment-like dispatch bus ────────────────────────────────────────────────
 // PostCard renders deep inside several views; App wires the actual handler at
@@ -131,73 +133,17 @@ export const renderContentWithMentions = (content: string, onViewProfile: (p: an
     });
 };
 
-export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost }: any) => {
+export const PostCard = (props: any) => {
+    const { post, user, onLike, onRepost, onComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost, hideMedia = false, mediaPanel = false } = props;
     const { socialAssets } = useMarketDiscovery();
     const hasLiked = post.likedBy.includes(user?.id);
     const hasReposted = post.repostedBy.includes(user?.id);
     // Author can delete their own post from any wall; wall owner can also delete posts on their wall
     const canDelete = user && onDelete && (user.id === post.authorId || user.id === post.targetProfileId);
     const [showComments, setShowComments] = useState(defaultOpenComments || false);
-    const [commentText, setCommentText] = useState('');
-    const [isSubmittingComment, setIsSubmittingComment] = useState(false);
     const [shareToast, setShareToast] = useState(false);
-    const [commentMentionQuery, setCommentMentionQuery] = useState<string | null>(null);
-    const [commentMentionTrigger, setCommentMentionTrigger] = useState<'@' | '$' | null>(null);
-    const [commentMentionStart, setCommentMentionStart] = useState(0);
-    const [commentMentionIdx, setCommentMentionIdx] = useState(0);
-    const commentInputRef = useRef<HTMLInputElement>(null);
-
-    const commentMentionResults: any[] = (() => {
-        if (commentMentionQuery === null) return [];
-        const q = commentMentionQuery.toLowerCase();
-        if (commentMentionTrigger === '$') {
-            if (!q) return []; // don't show anything until at least 1 char typed
-            return socialAssets.filter(p =>
-                p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
-            ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
-        }
-        if (commentMentionTrigger === '@' && q.length > 0) {
-            return traders.filter((t: any) => {
-                if (t.id === user?.id) return false;
-                return (t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q);
-            }).slice(0, 5);
-        }
-        return [];
-    })();
-
-    const handleCommentTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        const cursor = e.target.selectionStart ?? val.length;
-        setCommentText(val);
-        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9.-]*)$/);
-        if (atMatch) {
-            setCommentMentionTrigger('@'); setCommentMentionQuery(atMatch[1]);
-            setCommentMentionStart(cursor - atMatch[0].length); setCommentMentionIdx(0);
-        } else if (dollarMatch) {
-            setCommentMentionTrigger('$'); setCommentMentionQuery(dollarMatch[1]);
-            setCommentMentionStart(cursor - dollarMatch[0].length); setCommentMentionIdx(0);
-        } else {
-            setCommentMentionQuery(null); setCommentMentionTrigger(null);
-        }
-    };
-
-    const completeCommentMention = (item: any) => {
-        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
-        const cursor = commentInputRef.current?.selectionStart ?? commentMentionStart + (commentMentionQuery?.length ?? 0) + 1;
-        const before = commentText.slice(0, commentMentionStart);
-        const after = commentText.slice(cursor);
-        setCommentText(before + insertion + ' ' + after);
-        setCommentMentionQuery(null); setCommentMentionTrigger(null);
-        setTimeout(() => {
-            if (commentInputRef.current) {
-                const pos = before.length + insertion.length + 1;
-                commentInputRef.current.focus();
-                commentInputRef.current.setSelectionRange(pos, pos);
-            }
-        }, 0);
-    };
-
+    const [mediaOpen, setMediaOpen] = useState(false);
+    const discussion = useRef<HTMLDivElement>(null);
     // If defaultOpenComments flips (notification routing), open comments
     useEffect(() => { if (defaultOpenComments) setShowComments(true); }, [defaultOpenComments]);
     const S = {
@@ -232,16 +178,8 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
         } catch (_) {}
     };
 
-    const handleSubmitComment = async () => {
-        if (!commentText.trim() || isSubmittingComment) return;
-        setIsSubmittingComment(true);
-        await onComment(post.id, commentText.trim());
-        setCommentText('');
-        setIsSubmittingComment(false);
-    };
-
     return (
-        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', overflow: 'hidden', transition: 'border-color 0.15s', position: 'relative' as const }}
+        <div ref={discussion} className={mediaPanel ? 'post-media-discussion-card' : 'social-post-card'} style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', overflow: 'hidden', transition: 'border-color 0.15s', position: 'relative' as const }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline-strong)'}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
             {/* Share toast */}
@@ -290,7 +228,8 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                         {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, socialAssets.map(asset => asset.symbol))}
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
-                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image}/>}
+                    {!hideMedia && post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image} onImageClick={()=>setMediaOpen(true)}/>}
+                    {!hideMedia && !post.tradeSnapshot && post.image && <button type="button" className="post-image-preview" aria-label="Expand post image" onClick={()=>setMediaOpen(true)}><img src={post.image} alt="Post attachment" loading="lazy" decoding="async"/></button>}
                     {!post.tradeSnapshot && post.isTradeSignal && post.tradeDetails && (
                         <div style={{ background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                             <div>
@@ -305,7 +244,7 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                     {/* Actions */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                         {[
-                            { icon: <MessageCircle size={15}/>, count: post.comments.length, onClick: () => setShowComments(s => !s), active: showComments, hoverColor: 'var(--iris-violet)' },
+                            { icon: <MessageCircle size={15}/>, count: post.comments.length, onClick: () => mediaPanel ? discussion.current?.querySelector('textarea')?.focus() : setShowComments(s => !s), active: showComments, hoverColor: 'var(--iris-violet)' },
                             { icon: <Repeat size={15}/>, count: post.reposts, onClick: () => onRepost(post.id), active: hasReposted, hoverColor: 'var(--pnl-up)' },
                             { icon: <Heart size={15} fill={hasLiked ? 'currentColor' : 'none'}/>, count: post.likes, onClick: () => onLike(post.id), active: hasLiked, hoverColor: 'var(--iris-magenta)' },
                             { icon: <Share2 size={15}/>, count: null, onClick: handleShare, active: false, hoverColor: 'var(--iris-cyan)' },
@@ -335,6 +274,25 @@ export const PostCard = ({ post, user, onLike, onRepost, onComment, handleCopyTr
                     )}
                 </div>
             </div>
+            {mediaOpen && !hideMedia && <PostMediaViewer {...props} onClose={()=>setMediaOpen(false)}/>}
         </div>
     );
 };
+
+
+export function PostMediaViewer({ onClose, ...props }: any) {
+    const { post } = props;
+    const navigate = (callback: any) => callback ? (...args: any[]) => { onClose(); callback(...args); } : undefined;
+    return <Dialog open title="Post image" onClose={onClose} className="post-media-dialog">
+        <div className="post-media-layout">
+            <section className="post-media-stage" aria-label="Expanded post image">
+                {post.tradeSnapshot ? <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image} expanded/> : <img src={post.image} alt="Post attachment" decoding="async"/>}
+            </section>
+            <aside className="post-media-discussion" aria-label="Post and comments">
+                <PostCard {...props} hideMedia mediaPanel defaultOpenComments
+                    onViewProfile={navigate(props.onViewProfile)} onTickerClick={navigate(props.onTickerClick)} onSinglePost={navigate(props.onSinglePost)}
+                    onDelete={navigate(props.onDelete)} onDeleteComment={navigate(props.onDeleteComment)} showUsersModal={navigate(props.showUsersModal)}/>
+            </aside>
+        </div>
+    </Dialog>;
+}

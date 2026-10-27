@@ -1,20 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { TradeShare } from '../utils/tradeShare';
 import { renderTradePng } from '../utils/tradeImage';
 import { useStoredShareImage } from '../utils/shareBehavior.mjs';
-export function PnlImage({ data, imageUrl }: { data: TradeShare; imageUrl?: string }) {
-  const [url, setUrl] = useState('');
+export function PnlImage({ data, imageUrl, active = true, quality = 1.5, retryable = true }: { data: TradeShare; imageUrl?: string; active?: boolean; quality?: number; retryable?: boolean }) {
+  const [url, setUrl] = useState(''), [failed, setFailed] = useState(false), [broken, setBroken] = useState(''), [retry, setRetry] = useState(0);
+  const currentUrl = useRef(''), retired = useRef(new Set<string>()), lastRender = useRef(0);
+  const releaseRetired = () => { retired.current.forEach(value=>URL.revokeObjectURL(value)); retired.current.clear(); };
   useEffect(() => {
-    if (imageUrl && useStoredShareImage(data)) return;
-    let active = true, objectUrl = '';
-    // Coalesce quote bursts and avoid exporting off-screen cards on every tick.
+    if (!active || imageUrl && useStoredShareImage(data)) return;
+    let mounted = true;
+    // Throttle, rather than debounce, so a continuous quote stream cannot starve the preview.
     const timer = setTimeout(() => {
-      void renderTradePng(data, data.theme === 'light', !!data.hideAmounts).then(blob => {
-        if (active) { objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); }
-      }).catch(() => { if (active) setUrl(''); });
-    }, 160);
-    return () => { active = false; clearTimeout(timer); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [data.pnl, data.markPrice, data.closePrice, data.status, data.theme, data.design, data.hideAmounts, data.updateMode, data.closedSnapshot, data.tradeId, imageUrl]);
+      lastRender.current = Date.now();
+      void renderTradePng(data, data.theme === 'light', !!data.hideAmounts, quality).then(blob => {
+        if (!mounted) return;
+        const next = URL.createObjectURL(blob);
+        if (currentUrl.current) retired.current.add(currentUrl.current);
+        currentUrl.current = next; setUrl(next); setFailed(false);
+      }).catch(() => { if (mounted) setFailed(true); });
+    }, Math.max(0, 1000 - (Date.now() - lastRender.current)));
+    return () => { mounted = false; clearTimeout(timer); };
+  }, [active, data.pnl, data.pnlPct, data.markPrice, data.closePrice, data.status, data.theme, data.design, data.hideAmounts, data.updateMode, data.closedSnapshot, data.tradeId, data.pair, data.entryPrice, data.collateral, data.leverage, data.traderHandle, imageUrl, quality, retry]);
+  useEffect(() => () => { if (currentUrl.current) URL.revokeObjectURL(currentUrl.current); releaseRetired(); }, []);
   const src = imageUrl && useStoredShareImage(data) ? imageUrl : url;
-  return src ? <img className="pnl-image" src={src} width="1200" height="800" alt={`${data.pair} ${data.side.toLowerCase()} · ${data.status === 'OPEN' ? 'Open position' : 'Position closed'} · ${data.closedSnapshot ? 'PnL snapshot' : data.status === 'OPEN' ? 'Estimated PnL' : 'Realized PnL'} ${data.hideAmounts ? `${data.pnlPct.toFixed(2)}%` : `$${data.pnl.toFixed(2)}`}`} /> : <div className="pnl-image-placeholder" role="status">Preparing PnL image…</div>;
+  return src && broken !== src ? <img className="pnl-image" src={src} width="1200" height="800" decoding="async" loading="lazy" onLoad={releaseRetired} onError={()=>{setBroken(src);releaseRetired();}} key={retry}
+    alt={`${data.pair} ${data.side.toLowerCase()} · ${data.status === 'OPEN' ? 'Open position' : 'Position closed'} · ${data.closedSnapshot ? 'PnL snapshot' : data.status === 'OPEN' ? 'Estimated PnL' : 'Realized PnL'} ${data.hideAmounts ? `${data.pnlPct.toFixed(2)}%` : `$${data.pnl.toFixed(2)}`}`} />
+    : <div className="pnl-image-placeholder" role="status">{failed || broken ? <>Image could not load. {retryable && <button type="button" onClick={()=>{setBroken('');setRetry(value=>value+1);}}>Retry image</button>}</> : 'Preparing PnL image…'}</div>;
 }

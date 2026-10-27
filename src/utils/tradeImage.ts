@@ -12,21 +12,32 @@ function loadIcon(symbol: string) {
   }));
   return icons.get(symbol)!;
 }
-export async function renderTradePng(data: TradeShare, light: boolean, hideAmounts: boolean): Promise<Blob> {
+export async function renderTradePng(data: TradeShare, light: boolean, hideAmounts: boolean, pixelRatio = 2): Promise<Blob> {
   const symbol = /^[A-Z0-9]{2,12}\/USD$/.test(data.pair) ? data.pair.split('/')[0] : '';
-  const [icon] = await Promise.all([symbol ? loadIcon(symbol) : null, Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 1800))])]);
-  const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 800;
-  const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Image export is unavailable.');
-  const minimal = data.design === 'minimal', open = data.status === 'OPEN';
-  const fg = light ? '#18221d' : '#eff2f0', muted = light ? '#657369' : '#98a59d';
-  const hairline = light ? '#cbd6ce' : '#303934', accent = light ? '#557a64' : '#91b99f';
-  const resultColor = data.pnl >= 0 ? (light ? '#39754e' : '#91c4a2') : (light ? '#b34f4c' : '#e39390');
   const css = getComputedStyle(document.documentElement);
   const display = css.getPropertyValue('--font-display').trim() || 'Georgia';
   const mono = css.getPropertyValue('--font-mono').trim() || 'monospace';
   const sans = css.getPropertyValue('--font-sans').trim() || 'sans-serif';
+  const fonts = document.fonts ? Promise.all([
+    document.fonts.load(`500 46px ${display}`), document.fonts.load(`italic 56px ${display}`),
+    document.fonts.load(`25px ${mono}`), document.fonts.load(`19px ${sans}`),
+  ]).catch(()=>{}) : Promise.resolve();
+  const [icon] = await Promise.all([symbol ? loadIcon(symbol) : null, Promise.race([fonts, new Promise(resolve => setTimeout(resolve, 1800))])]);
+  const ratio = Math.min(2, Math.max(1, pixelRatio));
+  const canvas = document.createElement('canvas'); canvas.width = 1200 * ratio; canvas.height = 800 * ratio;
+  const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Image export is unavailable.');
+  ctx.scale(ratio, ratio); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  const minimal = data.design === 'minimal', open = data.status === 'OPEN';
+  const fg = light ? '#18221d' : '#eff2f0', muted = light ? '#657369' : '#98a59d';
+  const hairline = light ? '#cbd6ce' : '#303934', accent = light ? '#557a64' : '#91b99f';
+  const resultColor = data.pnl >= 0 ? (light ? '#39754e' : '#91c4a2') : (light ? '#b34f4c' : '#e39390');
   const text = (value: string, x: number, y: number, font: string, color = fg, maxWidth = 1080) => {
-    ctx.fillStyle = color; ctx.font = font; ctx.fillText(value, x, y, maxWidth);
+    ctx.fillStyle = color; ctx.font = font;
+    const measured = ctx.measureText(value).width;
+    if (measured > maxWidth) {
+      ctx.font = font.replace(/([0-9.]+)px/, (_, size) => `${Math.max(12, Number(size) * maxWidth / measured)}px`);
+    }
+    ctx.fillText(value, x, y);
   };
   const line = (y: number) => { ctx.strokeStyle = hairline;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(64,y);ctx.lineTo(1136,y);ctx.stroke(); };
   const money = (value: number) => `$${value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:value < 1 && value > 0 ? 6 : 2})}`;

@@ -1,3 +1,4 @@
+import { SocialTagProvider, SocialTextField } from './components/social/SocialTextField';
 import { positionShareMetadata } from './utils/positionShareMetadata.mjs';
 import { PositionComposerTools } from './components/PositionComposerTools';
 import { TradeCloseReceipt } from './components/TradeCloseReceipt';
@@ -62,9 +63,9 @@ import { useMarketDiscovery, fetchMarketData, tradingPairForAsset, marketWatchKe
 import { mentionsTicker } from '../shared/marketDiscovery.mjs';
 import { setReactionActor } from './services/reactionState.mjs';
 import { useQuery } from '@tanstack/react-query';
-import { MentionDropdown, WallCompose } from './components/social/Compose';
+import { WallCompose } from './components/social/Compose';
 import { ProfileHeader } from './components/social/ProfileHeader';
-import { PostCard, LinkPreviewCard, renderContentWithMentions, extractFirstUrl, COMMENT_LIKE_HANDLER, setCommentLikeHandler } from './components/social/PostCard';
+import { PostCard, PostMediaViewer, LinkPreviewCard, renderContentWithMentions, extractFirstUrl, COMMENT_LIKE_HANDLER, setCommentLikeHandler } from './components/social/PostCard';
 import { LeaderboardView } from './components/ui/pages/LeaderboardView';
 import { Navbar, MobileSidebar, MobileBottomNav } from './components/Navigation';
 import { useSharedPost } from './services/useSharedPost';
@@ -1078,6 +1079,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
 
 // ─── Single Post View (like Twitter /status/:id) ────────────────────────────
 const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
+    const [imageOpen, setImageOpen] = useState(false);
     const shared = useSharedPost(postId, commentId, post => setPosts((prev: Post[]) => [...prev.filter(p => p.id !== post.id), post]));
     const post = shared.status === 'ready' ? (posts.find((p: Post) => p.id === postId) || shared.post) : null;
 
@@ -1165,7 +1167,8 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                         {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
-                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image}/>}
+                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image} onImageClick={()=>setImageOpen(true)}/>}
+                    {!post.tradeSnapshot && post.image && <button type="button" className="post-image-preview" aria-label="Expand post image" onClick={()=>setImageOpen(true)}><img src={post.image} alt="Post attachment" decoding="async"/></button>}
                 </div>
 
                 {/* Trade signal card */}
@@ -1231,6 +1234,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                 compact={false}
                 focusCommentId={commentId}
             />
+            {imageOpen && <PostMediaViewer post={post} user={user} traders={traders} onClose={()=>setImageOpen(false)} onLike={onLike} onRepost={onRepost} onComment={onComment} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onViewProfile={onViewProfile} onTickerClick={onTickerClick} showUsersModal={showUsersModal} handleCopyTrade={handleCopyTrade}/>}
         </div>
     );
 };
@@ -1241,17 +1245,12 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
     const [positionAttachment, setPositionAttachment] = useState<ShareCardData | null>(null);
     const [publishingPost, setPublishingPost] = useState(false);
     const [filter, setFilter] = useState<'LATEST' | 'TRENDING' | 'FOLLOWING' | 'SIGNALS'>('LATEST');
-    const [feedMentionQuery, setFeedMentionQuery] = useState<string | null>(null);
-    const [feedMentionTrigger, setFeedMentionTrigger] = useState<'@' | '$' | null>(null);
     const [activeTicker, setActiveTicker] = useState<string | null>(initialTicker || null);
     const setActiveTickerWithURL = (t: string | null) => { setActiveTicker(t); if (onTickerChange) onTickerChange(t); };
     // Sync when parent navigates (back button, URL change)
     useEffect(() => {
         setActiveTicker(initialTicker || null);
     }, [initialTicker]);
-    const [feedMentionStart, setFeedMentionStart] = useState(0);
-    const [feedMentionIdx, setFeedMentionIdx] = useState(0);
-    const feedTextareaRef = useRef<HTMLTextAreaElement>(null);
     // Track which post should auto-open comments
     const [forceOpenCommentsId, setForceOpenCommentsId] = useState<string | null>(openCommentsPostId || null);
 
@@ -1276,57 +1275,6 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
         return () => clearTimeout(timer);
     }, [focusPostId, openCommentsPostId]);
 
-    const feedMentionResults: any[] = React.useMemo(() => {
-        if (feedMentionQuery === null) return [];
-        const q = feedMentionQuery.toLowerCase();
-        if (feedMentionTrigger === '$') {
-            if (!q) return [];
-            const tickers = socialAssets.filter(p =>
-                p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
-            ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
-            return tickers;
-        }
-        if (feedMentionTrigger === '@' && q.length > 0) {
-            return traders.filter((t: any) => {
-                if (t.id === user?.id) return false;
-                return (t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q);
-            }).slice(0, 6);
-        }
-        return [];
-    }, [feedMentionQuery, feedMentionTrigger, traders, user, socialAssets]);
-
-    const handleFeedTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const val = e.target.value;
-        const cursor = e.target.selectionStart ?? val.length;
-        setNewPostContent(val);
-        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
-        if (atMatch) {
-            setFeedMentionTrigger('@');
-            setFeedMentionQuery(atMatch[1]);
-            setFeedMentionStart(cursor - atMatch[0].length);
-            setFeedMentionIdx(0);
-        } else if (dollarMatch) {
-            setFeedMentionTrigger('$');
-            setFeedMentionQuery(dollarMatch[1]);
-            setFeedMentionStart(cursor - dollarMatch[0].length);
-            setFeedMentionIdx(0);
-        } else {
-            setFeedMentionQuery(null);
-            setFeedMentionTrigger(null);
-        }
-    };
-    const completeFeedMention = (item: any) => {
-        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
-        const cursor = feedTextareaRef.current?.selectionStart ?? feedMentionStart + (feedMentionQuery?.length ?? 0) + 1;
-        const before = newPostContent.slice(0, feedMentionStart);
-        const after = newPostContent.slice(cursor);
-        const next = before + insertion + ' ' + after;
-        setNewPostContent(next);
-        setFeedMentionQuery(null);
-        setFeedMentionTrigger(null);
-        setTimeout(() => { if (feedTextareaRef.current) { const p = before.length + insertion.length + 1; feedTextareaRef.current.focus(); feedTextareaRef.current.setSelectionRange(p, p); } }, 0);
-    };
     const filteredPosts = React.useMemo(() => {
         const base = [...posts];
         // Apply filter FIRST, then sort
@@ -1499,25 +1447,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                             {user ? <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserCircle size={38} style={{ color: 'var(--fg-subtle)' }} />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0, position: 'relative' as const }}>
-                            <textarea
-                                ref={feedTextareaRef}
-                                className="velo-compose-field"
-                                aria-label="Write a post"
-                                placeholder="What's happening in the markets?"
-                                value={newPostContent}
-                                onChange={handleFeedTextChange}
-                                onKeyDown={e => {
-                                    if (feedMentionQuery !== null && feedMentionResults.length > 0) {
-                                        if (e.key === 'ArrowDown') { e.preventDefault(); setFeedMentionIdx(i => Math.min(i+1, feedMentionResults.length-1)); return; }
-                                        if (e.key === 'ArrowUp')   { e.preventDefault(); setFeedMentionIdx(i => Math.max(i-1, 0)); return; }
-                                        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); completeFeedMention(feedMentionResults[feedMentionIdx]); return; }
-                                        if (e.key === 'Escape') { setFeedMentionQuery(null); setFeedMentionTrigger(null); return; }
-                                    }
-                                }}
-                                onBlur={() => setTimeout(() => { setFeedMentionQuery(null); setFeedMentionTrigger(null); }, 150)}
-                                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg)', resize: 'none', height: 72, lineHeight: 1.6 }}
-                            />
-                            <MentionDropdown results={feedMentionResults} anchorRef={feedTextareaRef} activeIndex={feedMentionIdx} onSelect={completeFeedMention} onHover={setFeedMentionIdx} />
+                            <SocialTextField className="velo-compose-field" aria-label="Write a post" placeholder="What's happening in the markets?" value={newPostContent} onValueChange={setNewPostContent} people={traders} style={{width:'100%',minHeight:76,resize:'none'}} />
                             <div className="velo-composer-footer">
                                 <PositionComposerTools authenticated={!!user} onRequireAuth={onRequireAuth} choices={sharePositions} attachment={positionAttachment} onChange={setPositionAttachment} onPnl={()=>user ? onSharePosition?.() : onRequireAuth?.()} action={
                                 <button onClick={async () => { if (publishingPost) return; setPublishingPost(true); try { const attachment = positionAttachment ? {...positionAttachment,updatedAt:Date.now()} : undefined; const id = await onPostCreate(newPostContent, attachment ? {pair:attachment.pair,side:attachment.side,leverage:attachment.leverage,entry:attachment.entryPrice,snapshot:attachment} : undefined); if (id) { setNewPostContent('');setPositionAttachment(null); } } finally { setPublishingPost(false); } }} disabled={publishingPost || !newPostContent.trim()}
@@ -6468,6 +6398,7 @@ const App = () => {
         <>
         <ReactionContext.Provider value={{ userId: user?.id, react: handleReaction, requireAuth: () => void handleRequireAuth() }}>
         <SharedMarkContext.Provider value={marketPrices}>
+        <SocialTagProvider people={traders}>
         {closeReceipt && <TradeCloseReceipt data={closeReceipt} onClose={()=>setCloseReceipt(null)} onShare={()=>{setShareCardData(closeReceipt);setCloseReceipt(null);}}/>}
         <PositionSharePicker open={positionSharePickerOpen} onClose={() => setPositionSharePickerOpen(false)} positions={positions} history={user?.tradeHistory || []}
           onPosition={p => {
@@ -7452,6 +7383,7 @@ const App = () => {
             />
         </div>
         <PWAInstallBanner />
+        </SocialTagProvider>
         </SharedMarkContext.Provider>
         </ReactionContext.Provider>
         </>
