@@ -2637,8 +2637,8 @@ const App = () => {
       });
       if (IS_V4 && activeEngine) setShareCardData({
         pair: pos.pair, side: pos.side, leverage: pos.leverage, entryPrice: pos.entryPrice,
-        closePrice: result.exitPrice, size: pos.size, collateral: pos.size / pos.leverage,
-        pnl: result.pnlUSDC, pnlPct: result.pnlUSDC / (pos.size / pos.leverage) * 100,
+        closePrice: result.exitPrice, size: pos.size, collateral: result.payoutUSDC - result.pnlUSDC,
+        pnl: result.pnlUSDC, pnlPct: result.pnlUSDC / Math.max(0.000001, result.payoutUSDC - result.pnlUSDC) * 100,
         traderHandle: user.handle, status: result.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
         contract: VELO_PERPS_ADDRESS, chainId: 84532, tradeId: result.tradeId.toString(),
         trader: veloPerpsTrading.traderAddress, txHash: result.txHash,

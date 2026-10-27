@@ -78,7 +78,10 @@ async function readPosition(data: TradeShare, mark?: number, rpc: any = client):
   const closed = decodeConfirmedClose(receipt, address, tradeId, trader, data.collateral);
   if (!closed) throw new Error('Refreshing settlement from the chain.');
   scanCursor.delete(key);
+  // V4 emits net PnL including the opening fee: payout - net PnL is the
+  // original gross margin, so a post cannot supply its own return denominator.
+  const collateral = closed.payoutUSDC - closed.pnlUSDC;
   return { ...data, status: closed.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED', closePrice: closed.exitPrice,
-    pnl: closed.pnlUSDC, pnlPct: data.collateral > 0 ? closed.pnlUSDC / data.collateral * 100 : 0,
+    collateral, pnl: closed.pnlUSDC, pnlPct: collateral > 0 ? closed.pnlUSDC / collateral * 100 : 0,
     txHash: closed.txHash, updatedAt: Date.now() };
 }
