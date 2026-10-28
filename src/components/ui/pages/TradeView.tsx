@@ -1,3 +1,5 @@
+import { ActionContent, AnimatedPanel, MarginSlider } from '../ProductMotion';
+import { SegmentedControl } from '../SegmentedControl';
 import { AnimatedText } from '../AnimatedValue';
 import { LEGACY_V31_RESTRICTED } from '@/services/testnetReleaseGate';
 import { positionPnl } from '@/services/positionValuation.mjs';
@@ -709,7 +711,7 @@ const ColTip = ({ label, tip }: { label: string; tip: string }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const TradeAuthGate = ({ onRequireAuth, title, description, compact = false }: any) => (
     <div className={`trade-auth-gate${compact ? ' trade-auth-gate--compact' : ''}`}>
-        {!compact && <div className="trade-auth-gate__mark"><Lock size={18} /></div>}
+        {!compact && <div className="trade-auth-gate__mark"><img src="/icons/glass-wallet.svg" alt="" width="42" height="42"/></div>}
         <div className="trade-auth-gate__copy">
             <strong>{title}</strong>
             <span>{description}</span>
@@ -1642,7 +1644,7 @@ export const TradeView = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100dvh - 84px)', background: 'transparent', overflow: isMobile ? 'visible' : 'hidden', gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
+        <div className="velo-trade-workspace" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100dvh - 84px)', background: 'transparent', overflow: isMobile ? 'visible' : 'hidden', gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
             <PairSelector isOpen={pairOpen} onClose={() => setPairOpen(false)} onSelect={setActivePair} marketPrices={marketPrices} marketChanges={marketChanges} isLiveMode={isLiveMode} />
 
             {/* Order Details Modal — clicked from History row */}
@@ -1688,7 +1690,7 @@ export const TradeView = ({
             </div>
 
             {/* ── Left: chart + positions ── */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: isMobile ? 'auto' : '100%', overflow: isMobile ? 'visible' : 'hidden', borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
+            <div className="velo-trade-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: isMobile ? 'auto' : '100%', overflow: isMobile ? 'visible' : 'hidden', borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
                 <ChartToolbar
                     activePair={activePair} tf={tf} setTf={handleTfChange}
                     indicators={indicators} toggleIndicator={toggleIndicator}
@@ -1730,50 +1732,35 @@ export const TradeView = ({
 
                 {/* Positions panel — desktop only here; on mobile it's below the order form */}
                 {!isMobile && (
-                    <div style={{ height: 168, flexShrink: 0, display: 'flex', overflow: 'hidden' }}>
+                    <div style={{ height: user ? 168 : 108, flexShrink: 0, display: 'flex', overflow: 'hidden' }}>
                         <PositionsPanel {...panelProps} />
                     </div>
                 )}
             </div>
 
             {/* Order entry takes priority over the public market feed. */}
-            <TradeRail isMobile={isMobile} orderType={orderType} feed={marketFeed}>
+            <TradeRail isMobile={isMobile} orderType={orderType} feed={marketFeed} authenticated={!!user}>
 
                 {/* Order form */}
                 <section className="velo-order-ticket" aria-label="Order ticket" style={{ borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)' }}>
                         {!user ? (
                             <TradeAuthGate
                                 onRequireAuth={onRequireAuth}
-                                title="Your next trade starts here"
-                                description="Sign in to size an order, set risk and manage positions."
+                                title="Sign in to trade"
+                                description="Connect your wallet to place an order and manage your positions."
                             />
                         ) : (
                         <>
                         <div className="velo-order-ticket__body custom-scrollbar" tabIndex={0} role="group" aria-label="Order parameters">
 
                             {/* Order type */}
-                            <div style={{ display: 'flex', gap: 14, borderBottom: '1px solid var(--hairline)', paddingBottom: isMobile ? 7 : 4 }}>
-                                {(['MARKET', 'LIMIT', 'STOP'] as const).map(t => (
-                                    <button key={t} onClick={() => setOrderType(t)} style={{ ...S.label, border: 'none', background: 'none', cursor: 'pointer', position: 'relative', paddingBottom: 3, fontSize: 10, color: orderType === t ? 'var(--fg)' : 'var(--fg-subtle)', transition: 'color 0.12s' }}>
-                                        {t}
-                                        {orderType === t && <div style={{ position: 'absolute', bottom: -8, left: 0, right: 0, height: 2, background: 'var(--fg)', borderRadius: 2 }} />}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Long / Short */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                                {(['LONG', 'SHORT'] as const).map(s => (
-                                    <button key={s} onClick={() => setSide(s)} style={{ padding: isMobile ? '8px 0' : '6px 0', borderRadius: 12, border: 'none', cursor: 'pointer', ...S.sans, fontSize: 12, transition: 'all 0.12s', background: side === s ? (s === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)') : 'var(--chip-bg)', color: side === s ? (s === 'LONG' ? '#0a1a10' : '#fff') : 'var(--fg-subtle)', boxShadow: side === s ? (s === 'LONG' ? '0 3px 16px rgba(62,207,142,0.22)' : '0 3px 16px rgba(255,60,60,0.22)') : 'none' }}>
-                                        {s === 'LONG' ? 'Buy / Long' : 'Sell / Short'}
-                                    </button>
-                                ))}
-                            </div>
+                            <div className="velo-order-tabs"><SegmentedControl label="Order type" options={['MARKET','LIMIT','STOP'].map(value=>({value,label:value}))} value={orderType} onChange={value=>setOrderType(value as OrderType)}/></div>
+                            <div className="velo-order-side" data-side={side}><SegmentedControl label="Position direction" options={[{value:'LONG',label:'Buy / Long'},{value:'SHORT',label:'Sell / Short'}]} value={side} onChange={value=>setSide(value as 'LONG'|'SHORT')}/></div>
 
                             {/* Limit price */}
-                            {orderType !== 'MARKET' && (
+                            <AnimatedPanel activeKey={orderType === 'MARKET' ? 'market' : 'conditional'}>
                                 <Input label="Price" placeholder={String(currentPrice)} value={limitPrice} onChange={(e: any) => setLimitPrice(e.target.value)} type="number" className="text-xs py-1" />
-                            )}
+                            </AnimatedPanel>
 
                             {/* Size slider */}
                             <div>
@@ -1785,34 +1772,7 @@ export const TradeView = ({
                                     }}>{sizeSlider}%</span>
                                 </div>
                                 {/* Wrapper slider: native input layered over a styled track for reliable cross-browser animated fill */}
-                                <div style={{ position: 'relative', height: 20, display: 'flex', alignItems: 'center' }}>
-                                    {/* Track background */}
-                                    <div style={{ position: 'absolute', left: 0, right: 0, height: 6, borderRadius: 999, background: 'var(--hairline-strong, rgba(255,255,255,0.12))', overflow: 'hidden' }}>
-                                        {/* Animated fill */}
-                                        <div style={{
-                                            position: 'absolute', left: 0, top: 0, bottom: 0,
-                                            width: `${sizeSlider}%`,
-                                            borderRadius: 999,
-                                            background: sizeSlider > 66
-                                                ? 'linear-gradient(90deg, oklch(0.78 0.18 150), var(--accent), #f97316)'
-                                                : sizeSlider > 33
-                                                    ? 'linear-gradient(90deg, oklch(0.78 0.18 150), var(--accent))'
-                                                    : side === 'LONG'
-                                                        ? 'oklch(0.78 0.18 150)'
-                                                        : 'oklch(0.66 0.22 25)',
-                                            transition: 'width 0.05s linear, background 0.3s ease',
-                                        }} />
-                                    </div>
-                                    {/* Native range input — transparent, sits on top for interaction */}
-                                    <input
-                                        type="range" min="0" max="100" step="1"
-                                        aria-label="Margin percentage"
-                                        value={sizeSlider}
-                                        onChange={e => setSizeSlider(parseInt(e.target.value))}
-                                        className="velo-range-thumb w-full"
-                                        style={{ position: 'relative', zIndex: 1 }}
-                                    />
-                                </div>
+                                <MarginSlider value={sizeSlider} onChange={setSizeSlider} label="Margin percentage"/>
                             </div>
 
                             {/* Cost + Leverage */}
@@ -1950,12 +1910,12 @@ export const TradeView = ({
                                 touchAction: 'manipulation',
                                 WebkitTapHighlightColor: 'transparent',
                             }}>
-                                {tradingPending ? <span role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 18 }}><Loader2 size={16} className="velo-pending-spinner" />Transaction in progress...</span> : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                                <ActionContent pending={tradingPending} pendingLabel="Confirming transaction"><span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                                     <span style={{ ...S.label, fontSize: 11, color: 'inherit', letterSpacing: 0 }}>{leverage}x {side}</span>
                                     <span style={{ opacity: 0.45 }}>·</span>
                                     <span style={{ ...S.display, fontSize: 14 }}>{activePair.id.split('/')[0]}</span>
                                     <span>{side === 'LONG' ? '↗' : '↘'}</span>
-                                </span>}
+                                </span></ActionContent>
                             </button>
                             {/* Subtle demo notice only — live mode no longer needs a label,
                                 the user already knows they connected a wallet. */}

@@ -1,7 +1,8 @@
-@font-face { font-family:Satoshi; src:url('/fonts/Satoshi-400.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
-@font-face { font-family:Satoshi; src:url('/fonts/Satoshi-500.woff2') format('woff2'); font-weight:500 600; font-style:normal; font-display:swap; }
-@font-face { font-family:Satoshi; src:url('/fonts/Satoshi-700.woff2') format('woff2'); font-weight:650 900; font-style:normal; font-display:swap; }
-:root { --font-sans:'Satoshi',-apple-system,BlinkMacSystemFont,sans-serif; }
+@font-face { font-family:Switzer; src:url('/fonts/Switzer-400.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:Switzer; src:url('/fonts/Switzer-500.woff2') format('woff2'); font-weight:500; font-style:normal; font-display:swap; }
+@font-face { font-family:Switzer; src:url('/fonts/Switzer-700.woff2') format('woff2'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:Switzer; src:url('/fonts/Switzer-600.woff2') format('woff2'); font-weight:600; font-style:normal; font-display:swap; }
+:root { --font-sans:'Switzer',-apple-system,BlinkMacSystemFont,sans-serif; }
 /* A warm celadon canvas, ivory surfaces and one sage accent. */
 html.light,body.light,.light {
   --bg:#edf2e7; --bg-2:#f8faf2; --bg-3:#e4ecdf;
@@ -95,7 +96,7 @@ body { font-family:var(--font-sans); }
 }
 @media(prefers-reduced-motion:reduce) { .velo-rolling-text,.velo-rolling-value { scroll-behavior:auto; } }
 /* Refined materials: one edge, quiet depth and clear content. */
-.velo-rolling-text { font-family:var(--font-sans); }
+
 .velo-native-dialog { border-radius:24px; }
 .social-feed-main .velo-composer { transition:border-color 220ms var(--material-ease),box-shadow 220ms var(--material-ease); }
 .social-feed-main .velo-composer:focus-within { border-color:color-mix(in srgb,var(--accent) 30%,var(--hairline)); box-shadow:0 7px 30px -26px color-mix(in srgb,var(--accent) 65%,transparent); }
@@ -107,3 +108,56 @@ body { font-family:var(--font-sans); }
 @media(prefers-reduced-motion:reduce) { .product-sparkline { animation:none; } .velo-composer,.velo-composer-footer button { transition:none!important; } }
 
 @media(max-width:768px) { .navbar-container { width:100%!important; border-radius:0 0 18px 18px!important; } }
+
+/* Solid trading surfaces give canvas and panels the same material in both themes. */
+:root { --trade-surface:#191c1b; --chart-surface:var(--trade-surface); --chart-text:#abb5ad; --chart-grid:rgba(224,234,226,.055); --chart-up:#91b99f; --chart-down:#c78580; }
+html.light { --trade-surface:#f8faf2; --chart-surface:var(--trade-surface); --chart-text:#586d5c; --chart-grid:rgba(56,87,52,.065); --chart-up:#60866b; --chart-down:#b96863; }
+.velo-trade-workspace .velo-trade-main,.velo-trade-workspace .velo-order-ticket,.velo-trade-workspace .velo-trade-feed { background:var(--trade-surface)!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; box-shadow:none!important; }
+.velo-trade-workspace .tv-lightweight-charts { background:var(--chart-surface)!important; }
+.velo-trade-workspace .trade-auth-gate { min-height:0; padding:25px 22px; gap:14px; flex:0 0 auto; }
+.velo-trade-workspace .trade-auth-gate__copy strong { font:600 19px/1.25 var(--font-sans); letter-spacing:-.035em; }
+.velo-trade-workspace .trade-auth-gate__copy span { font-size:12px; line-height:1.6; }
+.velo-trade-workspace .trade-auth-gate__mark { width:44px;height:44px;background:transparent;border:0; }
+.velo-trade-workspace .trade-auth-gate__mark img { width:42px;height:42px; }
+.velo-trade-workspace .trade-auth-gate--compact { padding:14px 18px; flex:1; }
+.velo-trade-workspace .trade-auth-gate--compact .trade-auth-gate__copy strong { font-size:15px; }
+.velo-trade-rail[data-authenticated=false] { align-self:flex-start; height:auto; gap:12px; }
+.velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:240px;flex:0 0 240px; }
+.velo-trade-rail[data-authenticated=false] .velo-order-ticket { flex:none; }
+.velo-order-tabs .velo-segments { border:0; border-radius:0; padding:0 0 8px; background:transparent; border-bottom:1px solid var(--hairline); }
+.velo-order-tabs .velo-segment-lens { top:auto;bottom:-1px;left:0;width:calc(100%/var(--segment-count));height:2px;border:0;border-radius:2px;background:var(--fg);box-shadow:none; }
+.velo-order-tabs .velo-segments>button { text-transform:uppercase;letter-spacing:.08em;font-size:10px;min-height:30px;padding:5px 0; }
+.velo-order-side .velo-segments { border:0;background:var(--chip-bg);padding:3px;border-radius:12px;gap:0; }
+.velo-order-side .velo-segment-lens { top:3px;left:3px;bottom:3px;width:calc((100% - 6px)/2);border:0;border-radius:9px;background:var(--pnl-up);box-shadow:0 2px 8px -5px rgba(0,0,0,.35); }
+.velo-order-side[data-side=SHORT] .velo-segment-lens { background:var(--pnl-down); }
+.velo-order-side .velo-segments>button { min-height:34px;font-size:12px; }
+.velo-order-side .velo-segments>button[aria-pressed=true] { color:var(--trade-action-fg);font-weight:650; }
+.velo-margin-slider { position:relative;height:36px;display:flex;align-items:center; }
+.velo-margin-slider__track { position:absolute;left:9px;right:9px;height:5px;border-radius:6px;background:var(--hairline-strong);overflow:hidden; }
+.velo-margin-slider__fill { height:100%;background:var(--accent);border-radius:inherit;transform-origin:left; }
+.velo-margin-slider__ticks { position:absolute;inset:0 9px;display:flex;justify-content:space-between;align-items:center;pointer-events:none; }
+.velo-margin-slider__ticks i { width:3px;height:3px;border-radius:50%;background:var(--fg-subtle);opacity:.55; }
+.velo-margin-slider input { position:absolute;inset:0;width:100%;margin:0;appearance:none;background:transparent;height:36px;cursor:ew-resize;touch-action:pan-y;outline:0; }
+.velo-margin-slider input::-webkit-slider-thumb { appearance:none;width:18px;height:18px;border-radius:50%;background:var(--surface-solid);border:2px solid var(--accent);box-shadow:0 2px 5px -2px rgba(0,0,0,.3);transition:box-shadow 150ms; }
+.velo-margin-slider input::-moz-range-thumb { width:15px;height:15px;border-radius:50%;background:var(--surface-solid);border:2px solid var(--accent); }
+.velo-margin-slider input:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent); }
+.velo-margin-slider input:active::-webkit-slider-thumb { box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 12%,transparent); }
+.velo-action-slot { position:relative;display:inline-grid;align-items:center;justify-items:center;min-height:20px; }
+.velo-action-slot__measure { grid-area:1/1;visibility:hidden;pointer-events:none; }
+.velo-action-slot__content { grid-area:1/1;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap; }
+.velo-morph-loader { width:13px;height:13px;display:inline-block;flex:none;background:currentColor;border-radius:3px;animation:velo-morph-loader 1100ms ease-in-out infinite; }
+@keyframes velo-morph-loader { 0%,100% { border-radius:3px;transform:rotate(0deg) scale(.75);opacity:.6; } 50% { border-radius:50%;transform:rotate(180deg) scale(1);opacity:1; } }
+.velo-button:active,.trade-auth-gate__button:active { transform:scale(.98); }
+@media(prefers-reduced-motion:reduce) { .velo-morph-loader { animation:none;border-radius:50%;opacity:.65; } }
+/* Motion owns selection transforms; CSS only handles colour. */
+.velo-segment-lens { transition:background 160ms,border-color 160ms; }
+@media(min-width:1024px) { .velo-trade-rail { width:clamp(320px,25vw,374px); } }
+.velo-market-sparkline { position:relative;height:34px;min-width:0; }
+.velo-market-sparkline>svg { width:100%;height:30px;display:block;overflow:visible; }
+.velo-market-sparkline__readout { position:absolute;right:0;top:-20px;font:500 11px/1 var(--font-sans);color:var(--fg);padding:4px 5px;border:1px solid var(--hairline);border-radius:5px;background:var(--surface-solid);z-index:2;pointer-events:none; }
+.velo-market-sparkline--empty { background:linear-gradient(var(--hairline),var(--hairline)) center/100% 1px no-repeat;opacity:.5; }
+.social-token-card .velo-market-sparkline>svg { max-height:30px; }
+@media(min-width:1024px) {
+  .velo-trade-rail[data-authenticated=false] { height:100%;align-self:stretch; }
+  .velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:auto;min-height:180px;flex:1 1 0; }
+}

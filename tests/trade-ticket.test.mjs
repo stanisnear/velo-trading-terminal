@@ -36,7 +36,7 @@ test('market, limit and stop share a persistent submit area outside the scrollin
       await act(async () => tab.click());
       assert.equal(Number(divider.getAttribute('aria-valuenow')), type === 'MARKET' ? marketHeight : marketHeight - 60);
       assert.equal(ticket.querySelector('.velo-order-ticket__footer > button'), submit);
-      assert.equal([...body.querySelectorAll('label')].some(label => label.textContent === 'Price'), type !== 'MARKET');
+      assert.equal([...body.querySelectorAll('label')].some(label => label.textContent === 'Price' && !label.closest('[hidden], [inert]')), type !== 'MARKET');
     }
     const initialHeight = Number(divider.getAttribute('aria-valuenow'));
     await act(async () => divider.dispatchEvent(new window.KeyboardEvent('keydown', {key:'ArrowDown',bubbles:true,cancelable:true})));

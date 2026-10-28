@@ -1,9 +1,10 @@
+import { readChartPalette, chartPaletteFallback } from './chartPalette';
 import { AnimatedText } from './ui/AnimatedValue';
 import { formatPrice } from './ui/shared';
 import { pythPriceStream } from '../services/pythPriceService';
 import { subscribeKlines } from '../services/priceService';
 import { mergeLiveCandle, oracleCandle, localChartTime } from '../services/chartLive.mjs';
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
   BarSeries,
@@ -593,15 +594,25 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const pricePrecisionRef = useRef<number | null>(null);
   const indicatorKey = useMemo(() => [...externalIndicators].sort().join('|'), [externalIndicators]);
   const isDark = theme === 'dark';
-  // Canvas APIs need literal colors: these mirror --surface-solid and --fg-muted.
-  const background = isDark ? '#191c1b' : '#f1f5f2';
-  const foreground = isDark ? '#b0b8b3' : '#516257';
-  const grid = isDark ? 'rgba(240,243,241,0.06)' : 'rgba(38,69,47,0.07)';
+  const [palette, setPalette] = useState(chartPaletteFallback);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const refresh = () => {
+      const next = readChartPalette(root);
+      setPalette(previous => Object.keys(next).every(key => previous[key as keyof typeof previous] === next[key as keyof typeof next]) ? previous : next);
+    };
+    refresh();
+    // The theme class is committed in the app's effect; observe that commit too.
+    const observer = new MutationObserver(refresh);
+    observer.observe(root, { attributes:true, attributeFilter:['class','style'] });
+    return () => observer.disconnect();
+  }, [theme]);
+  const {background,foreground,grid} = palette;
   const crosshair = isDark ? 'rgba(208,215,211,0.30)' : 'rgba(81,98,87,0.30)';
   const crosshairLabel = isDark ? '#303634' : '#e3eae5';
-  const candleUp = isDark ? COLORS.up : '#638a6d';
-  const candleUpStrong = isDark ? COLORS.upStrong : '#52765f';
-  const candleDown = isDark ? COLORS.down : '#b96863';
+  const candleUp = palette.up;
+  const candleUpStrong = palette.up;
+  const candleDown = palette.down;
   const averageColor = isDark ? COLORS.average : '#8a6c3d';
   const bandColor = isDark ? COLORS.band : '#607f8c';
   const timeframeSeconds = TF_SECONDS[externalTimeframe] ?? 900;
@@ -612,13 +623,13 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    const chartFont = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'ui-monospace, SFMono-Regular, monospace';
+    const chartFont = getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim() || 'Switzer, sans-serif';
 
     const chart = createChart(element, {
       width: element.clientWidth || 600,
       height: element.clientHeight || 360,
       layout: {
-        background: { type: ColorType.Solid, color: background },
+        background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' },
         textColor: foreground,
         fontFamily: chartFont,
         fontSize: 11,
@@ -790,7 +801,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     const series = seriesRef.current;
     if (!chart || !series) return;
     chart.applyOptions({
-      layout: { background: { type: ColorType.Solid, color: background }, textColor: foreground },
+      layout: { background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' }, textColor: foreground },
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
       rightPriceScale: { borderColor: grid },
       timeScale: { borderColor: grid },
@@ -823,7 +834,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
         fontFamily: 'Fraunces, Georgia, serif',
       }],
     });
-  }, [background, crosshair, crosshairLabel, externalChartStyle, foreground, grid, isDark]);
+  }, [background, candleDown, candleUp, candleUpStrong, crosshair, crosshairLabel, externalChartStyle, foreground, grid, isDark]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -1263,7 +1274,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   }, [activePosition, candleUpStrong, externalChartStyle, isDark, liqPrice, pairName, showEntryLine, showLiqLine, showSLLine, showTPLine, theme]);
 
   return (
-    <div style={{ height: '100%', minHeight: 0, position: 'relative', background, overflow: 'hidden' }}>
+    <div style={{ height: '100%', minHeight: 0, position: 'relative', background: 'var(--chart-surface)', overflow: 'hidden' }}>
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
       {(initialData.length > 0 || hasLiveCandles) && (
         <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: 'var(--surface-raised)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>

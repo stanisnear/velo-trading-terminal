@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GripHorizontal } from 'lucide-react';
 
 const preferenceKey = 'velo.trade.feedHeight';
-export function TradeRail({ isMobile, orderType, feed, children }: {
-  isMobile: boolean; orderType: string; feed: React.ReactNode; children: React.ReactNode;
+export function TradeRail({ isMobile, orderType, feed, children, authenticated = true }: {
+  authenticated?: boolean; isMobile: boolean; orderType: string; feed: React.ReactNode; children: React.ReactNode;
 }) {
   const rail = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(680);
@@ -26,8 +26,8 @@ export function TradeRail({ isMobile, orderType, feed, children }: {
     try { localStorage.setItem(preferenceKey, String(next + extra)); } catch { /* Layout remains usable without storage. */ }
   };
   const reset = () => { setPreferred(null); try { localStorage.removeItem(preferenceKey); } catch {} };
-  return <div ref={rail} className={`velo-trade-rail${dragging ? ' is-resizing' : ''}`} style={{ '--trade-feed-height': `${feedHeight}px` } as React.CSSProperties}>
-    {!isMobile && <>{feed}<div className="velo-trade-resizer" role="separator" tabIndex={0} aria-label="Resize market feed and order ticket" aria-orientation="horizontal"
+  return <div ref={rail} data-authenticated={authenticated} className={`velo-trade-rail${dragging ? ' is-resizing' : ''}`} style={{ '--trade-feed-height': `${feedHeight}px` } as React.CSSProperties}>
+    {!isMobile && <>{feed}{authenticated && <div className="velo-trade-resizer" role="separator" tabIndex={0} aria-label="Resize market feed and order ticket" aria-orientation="horizontal"
       aria-valuemin={min} aria-valuemax={Math.round(max)} aria-valuenow={Math.round(feedHeight)} title="Drag to resize. Double-click to reset."
       onDoubleClick={reset}
       onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); }}
@@ -38,7 +38,7 @@ export function TradeRail({ isMobile, orderType, feed, children }: {
         if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
           event.preventDefault(); change(event.key === 'Home' ? min : event.key === 'End' ? max : feedHeight + (event.key === 'ArrowUp' ? -16 : 16));
         }
-      }}><GripHorizontal size={18} /></div></>}
+      }}><GripHorizontal size={18} /></div>}</>}
     {children}
     {isMobile && feed}
   </div>;

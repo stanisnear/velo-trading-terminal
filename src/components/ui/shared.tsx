@@ -1,3 +1,4 @@
+import { ActionContent } from './ProductMotion';
 import React, { useEffect, useId, useState } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 
@@ -222,7 +223,7 @@ type VeloButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false, type = 'button', ...props }: VeloButtonProps) => {
   return (
     <button {...props} type={type} onClick={(e) => { playSound('CLICK'); onClick?.(e); }} disabled={disabled || isLoading} aria-busy={isLoading || undefined} className={`velo-button velo-button--${variant} ${className}`}>
-      <span className="velo-button__label">{children}</span>{isLoading && <RefreshCw className="velo-button__spinner animate-spin" aria-hidden="true" size={16}/>}
+      <ActionContent pending={isLoading}>{children}</ActionContent>
     </button>
   );
 };

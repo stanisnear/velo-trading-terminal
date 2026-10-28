@@ -1,3 +1,5 @@
+import { motion, useReducedMotion } from 'motion/react';
+import { supportsProductMotion } from './ProductMotion';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 
 type Item = { id: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }> };
@@ -6,6 +8,7 @@ type Item = { id: string; label: string; icon: React.ComponentType<{ size?: numb
 export function GlassNav({ items, activeId, onSelect, mobile = false }: {
   items: Item[]; activeId: string; onSelect: (id: string) => void; mobile?: boolean;
 }) {
+  const reduced = useReducedMotion();
   const rail = useRef<HTMLElement>(null);
   const [lens, setLens] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const destinations = items.map(item => item.id).join('|');
@@ -26,9 +29,13 @@ export function GlassNav({ items, activeId, onSelect, mobile = false }: {
   }, [activeId, destinations, mobile]);
 
   return <nav ref={rail} aria-label={mobile ? 'Mobile navigation' : 'Main navigation'} className={`velo-glass-nav${mobile ? ' velo-glass-nav-mobile' : ''}`}>
-    <span aria-hidden="true" className="velo-nav-lens" data-ready={!!lens} style={lens ? {
-      width: lens.width, height: lens.height, transform: `translate3d(${lens.x}px, ${lens.y}px, 0)`,
-    } : undefined} />
+    {supportsProductMotion() && !reduced ? <motion.span aria-hidden="true" className="velo-nav-lens" data-ready={!!lens}
+      initial={false} animate={lens ? {x:lens.x,y:lens.y,width:lens.width,height:lens.height,opacity:1}:{opacity:0}}
+      transition={{type:'spring',stiffness:360,damping:32,mass:.6}} style={{transition:'none'}}/>
+      : <span aria-hidden="true" className="velo-nav-lens" data-ready={!!lens} style={lens ? {
+        width:lens.width,height:lens.height,transform:`translate3d(${lens.x}px, ${lens.y}px, 0)`,
+      }:undefined}/>}
+
     {items.map(item => <button type="button" key={item.id} aria-current={item.id === activeId ? 'page' : undefined}
       onClick={() => onSelect(item.id)}>
       <item.icon size={mobile ? 21 : 14} strokeWidth={item.id === activeId ? 2.2 : 1.8} />

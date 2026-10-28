@@ -60,7 +60,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       layout: {
         background: { type: ColorType.Solid, color: 'rgba(0, 0, 0, 0)' },
         textColor: colors.text,
-        fontFamily: palette.getPropertyValue('--font-sans').trim() || 'Satoshi, sans-serif',
+        fontFamily: palette.getPropertyValue('--font-sans').trim() || 'Switzer, sans-serif',
       },
       width: chartContainerRef.current.clientWidth || 300,
       height: chartContainerRef.current.clientHeight || 200,

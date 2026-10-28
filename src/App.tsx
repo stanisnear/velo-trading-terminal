@@ -1,3 +1,4 @@
+import { MarketSparkline } from './components/ui/MarketSparkline';
 import { AnimatedText } from './components/ui/AnimatedValue';
 import { SegmentedControl } from './components/ui/SegmentedControl';
 import { SocialTagProvider, SocialTextField } from './components/social/SocialTextField';
@@ -505,31 +506,6 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
     };
 
-    const drawSparkline = (data: number[], up: boolean) => {
-        if (!data || data.length < 2) return null;
-        const w = 100, h = 24;
-        const min = Math.min(...data), max = Math.max(...data);
-        const range = max - min || 1;
-        const pts = data.map((v, i) => {
-            const x = (i / (data.length - 1)) * w;
-            const y = h - ((v - min) / range) * h;
-            return `${x},${y}`;
-        }).join(' ');
-        const color = up ? 'var(--pnl-up)' : 'var(--pnl-down)';
-        const fillPts = `0,${h} ${pts} ${w},${h}`;
-        return (
-            <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
-                <defs>
-                    <linearGradient id={`social-spark-${up ? 'u' : 'd'}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity="0.10" />
-                        <stop offset="100%" stopColor={color} stopOpacity="0" />
-                    </linearGradient>
-                </defs>
-                <polygon points={fillPts} fill={`url(#social-spark-${up ? 'u' : 'd'})`} />
-                <polyline className="product-sparkline" pathLength="1" points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-        );
-    };
 
     return (
         <div className="social-token-rail">
@@ -560,7 +536,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                                 <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 8, letterSpacing: '-0.01em' }}>
                                     {<AnimatedText text={price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}/>}
                                 </span>
-                                {drawSparkline(spark, up)}
+                                <MarketSparkline values={spark} positive={up}/>
                             </div>
                         );
                     })}

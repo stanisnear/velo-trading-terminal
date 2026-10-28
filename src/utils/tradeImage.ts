@@ -20,7 +20,7 @@ export async function renderTradePng(data: TradeShare, light: boolean, hideAmoun
   const sans = css.getPropertyValue('--font-sans').trim() || 'sans-serif';
   const fonts = document.fonts ? Promise.all([
     document.fonts.load(`500 46px ${display}`), document.fonts.load(`italic 56px ${display}`),
-    document.fonts.load(`25px ${mono}`), document.fonts.load(`19px ${sans}`),
+    document.fonts.load(`25px ${mono}`), ...[400,500,600,700].map(weight=>document.fonts.load(`${weight} 19px ${sans}`)),
   ]).catch(()=>{}) : Promise.resolve();
   const [icon] = await Promise.all([symbol ? loadIcon(symbol) : null, Promise.race([fonts, new Promise(resolve => setTimeout(resolve, 1800))])]);
   const ratio = Math.min(2, Math.max(1, pixelRatio));
