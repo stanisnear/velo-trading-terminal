@@ -283,7 +283,7 @@ export const PostCard = (props: any) => {
 export function PostMediaViewer({ onClose, ...props }: any) {
     const { post } = props;
     const navigate = (callback: any) => callback ? (...args: any[]) => { onClose(); callback(...args); } : undefined;
-    return <Dialog open title="Post image" onClose={onClose} className="post-media-dialog">
+    return <Dialog open title="Post image" minimal onClose={onClose} className="post-media-dialog">
         <div className="post-media-layout">
             <section className="post-media-stage" aria-label="Expanded post image">
                 {post.tradeSnapshot ? <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image} expanded/> : <img src={post.image} alt="Post attachment" decoding="async"/>}

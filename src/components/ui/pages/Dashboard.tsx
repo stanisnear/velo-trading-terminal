@@ -1,3 +1,5 @@
+import { SegmentedControl } from '../SegmentedControl';
+import { AnimatedValue } from '../AnimatedValue';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, ArrowDownCircle, ArrowUpCircle, Copy, Edit, History, TrendingUp, TrendingDown, User, Star, Loader2, ExternalLink, Clock, AlertCircle, CheckCircle2, X, Link2 } from 'lucide-react';
 import { PortfolioChart } from '@/components/PortfolioChart';
@@ -24,21 +26,12 @@ const panel: React.CSSProperties = {
   position: 'relative',
 };
 
-const Ico3D = ({ tone, size = 30, children }: { tone: { grad: string; glow: string }; size?: number; children: React.ReactNode }) => (
-  <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: tone.grad, boxShadow: `0 8px 20px -5px ${tone.glow}, 0 1px 0 rgba(255,255,255,0.4) inset, 0 -3px 8px -4px rgba(0,0,0,0.5) inset`, animation: 'veloFloat 4.5s ease-in-out infinite' }}>
-    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(58% 48% at 33% 18%, rgba(255,255,255,0.5), transparent 62%)', pointerEvents: 'none' }} />
-    <div style={{ position: 'relative', zIndex: 1, color: '#fff', display: 'flex', filter: 'drop-shadow(0 1px 1.5px rgba(0,0,0,0.4))' }}>{children}</div>
+const GlassIcon = ({ size = 30, children }: { size?: number; children: React.ReactNode }) => (
+  <div style={{ position:'relative',width:size,height:size,borderRadius:'50%',display:'grid',placeItems:'center',flexShrink:0,background:'var(--chip-bg)',border:'1px solid var(--hairline-strong)',boxShadow:'0 1px 0 var(--glass-ring) inset',backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)' }}>
+    <div style={{ position:'absolute',inset:0,borderRadius:'inherit',background:'linear-gradient(140deg,rgba(255,255,255,.14),transparent 55%)',pointerEvents:'none' }}/>
+    <div style={{position:'relative',color:'var(--accent-text)',display:'flex'}}>{children}</div>
   </div>
 );
-
-// Quiet, related materials keep the dashboard calm; green remains the live-state accent.
-const iconBg = {
-  violet: { grad: 'linear-gradient(150deg, #718a77, #3a4c3f)', glow: 'rgba(91, 129, 101, 0.42)' },
-  green:  { grad: 'linear-gradient(150deg, #8fc39b, #477253)', glow: 'rgba(86, 145, 99, 0.34)' },
-  indigo: { grad: 'linear-gradient(150deg, #74847a, #424b45)', glow: 'rgba(88, 105, 93, 0.34)' },
-  blue:   { grad: 'linear-gradient(150deg, #87998b, #4a5c4e)', glow: 'rgba(89, 116, 96, 0.34)' },
-  sky:    { grad: 'linear-gradient(150deg, #a2b9a8, #5d7864)', glow: 'rgba(104, 136, 111, 0.30)' },
-};
 
 // Solid primary action button — no animation
 const BtnPrimary = ({ onClick, children, style }: any) => (
@@ -205,23 +198,20 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
               <p style={{ ...S.label, marginBottom: 5 }}>Total Equity</p>
-              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}>${formatMoney(equity)}</p>
+              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}><AnimatedValue value={equity}/></p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
                   {totalPnl >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
                   ${formatMoney(Math.abs(totalPnl))} ({equity > 0 ? (totalPnl / (equity - totalPnl) * 100).toFixed(2) : '0.00'}%)
                 </span>
                 <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
-                  Buying Power <span style={{ color: 'var(--fg-muted)' }}>${formatMoney(buyingPowerProp !== undefined ? buyingPowerProp : user.balance)}</span>
+                  Buying Power <span style={{ color: 'var(--fg-muted)' }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></span>
                 </span>
               </div>
             </div>
             {availablePeriods.length > 1 && (
-              <div style={{ display: 'flex', gap: 3, background: 'var(--chip-bg)', borderRadius: 9, padding: 3, flexShrink: 0, alignSelf: 'flex-start' }}>
-                {availablePeriods.map(p => (
-                  <button key={p} onClick={() => setChartPeriod(p)} style={{ padding: '4px 9px', borderRadius: 6, border: 'none', cursor: 'pointer', ...S.mono, fontSize: 11, fontWeight: 700, transition: 'all 0.15s', background: chartPeriod === p ? 'var(--bg-base)' : 'transparent', color: chartPeriod === p ? 'var(--fg)' : 'var(--fg-subtle)', boxShadow: chartPeriod === p ? '0 1px 4px rgba(0,0,0,0.15)' : 'none' }}>{p}</button>
-                ))}
-              </div>
+              <SegmentedControl label="Portfolio period" compact options={availablePeriods.map(p => ({value:p,label:p}))} value={chartPeriod} onChange={value => setChartPeriod(value as typeof chartPeriod)}/>
+
             )}
           </div>
           <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: isMobile ? 100 : 160, maxHeight: isMobile ? 150 : undefined }}>
@@ -274,7 +264,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div style={panel}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <Ico3D tone={iconBg.violet}><Star size={13}/></Ico3D>
+                <GlassIcon><Star size={13}/></GlassIcon>
                 <span style={S.label}>Performance</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -293,7 +283,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div style={{ ...panel, flex: 1 }}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Ico3D tone={iconBg.green}><Link2 size={13}/></Ico3D>
+                <GlassIcon><Link2 size={13}/></GlassIcon>
                 <span style={S.label}>On-chain account</span>
                 <span style={{ marginLeft: 'auto', ...S.label, fontSize: 8.5, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', padding: '2px 7px', borderRadius: 999, border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)' }}>Base Sepolia</span>
               </div>
@@ -330,25 +320,25 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           <div style={panel}>
             <div style={{ padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Ico3D tone={iconBg.indigo}><Activity size={13}/></Ico3D>
+                <GlassIcon><Activity size={13}/></GlassIcon>
                 <span style={S.label}>Margin & exposure</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <p style={S.label}>Margin in use</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}>${formatMoney(totalMarginUsed)}</p>
+                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}><AnimatedValue value={totalMarginUsed}/></p>
                 </div>
                 <div>
                   <p style={S.label}>Open positions</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}>{positions.length}</p>
+                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}><AnimatedValue value={positions.length} currency={false} digits={0}/></p>
                 </div>
                 <div>
                   <p style={S.label}>Unrealized PnL</p>
-                  <p style={{ ...S.display, fontSize: 22, color: allPositionsPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3 }}>${formatMoney(allPositionsPnl)}</p>
+                  <p style={{ ...S.display, fontSize: 22, color: allPositionsPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3 }}><AnimatedValue value={allPositionsPnl}/></p>
                 </div>
                 <div>
                   <p style={S.label}>Buying power</p>
-                  <p style={{ ...S.display, fontSize: 22, color: 'var(--fg)', marginTop: 3 }}>${formatMoney(buyingPowerProp !== undefined ? buyingPowerProp : user.balance)}</p>
+                  <p style={{ ...S.display, fontSize: 22, color: 'var(--fg)', marginTop: 3 }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></p>
                 </div>
               </div>
             </div>
@@ -360,7 +350,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       <div style={{ ...panel, overflowX: 'auto' }}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <Ico3D tone={iconBg.blue}><Activity size={13}/></Ico3D>
+            <GlassIcon><Activity size={13}/></GlassIcon>
             <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>All active positions</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -455,7 +445,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       {/* Recent Activity */}
       <div style={{ ...panel, overflowX: 'auto' }}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: 9 }}>
-          <Ico3D tone={iconBg.sky}><History size={13}/></Ico3D>
+          <GlassIcon><History size={13}/></GlassIcon>
           <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Recent Activity</span>
         </div>
         <div style={{ overflowX: 'auto' }}>

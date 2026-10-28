@@ -22,7 +22,7 @@ The amount toggle is a presentation preference, not a privacy or access-control 
 
 ## Images in the feed
 
-PnL images keep their 3:2 proportions in a centered preview capped at 630 CSS pixels, rather than growing to the full width of a wide post. Click or keyboard-activate an image to open the media viewer. Desktop places the image beside the original post text, reactions, actions and comment thread; smaller screens stack the image above a scrollable discussion. The viewer shares the post's current state and handlers. Closing it restores focus to the image preview.
+PnL images keep their 3:2 proportions in a text-aligned preview capped at 420 CSS pixels, rather than growing to the full width of a wide post. Click or keyboard-activate an image to open the media viewer. Desktop places the image beside the original post text, reactions, actions and comment thread; smaller screens stack the image above a scrollable discussion. The viewer shares the post's current state and handlers. Closing it restores focus to the image preview.
 
 New saved, shared and uploaded PNGs use a **2400 × 1600** backing canvas. The renderer explicitly loads the Velo display, interface and monospaced fonts and fits unusually long values by reducing type size rather than horizontally stretching letters. Live feed previews use a smaller backing canvas and the expanded view requests full resolution. Existing immutable snapshots retain their original files; changing rendering quality does not rewrite an author's previous snapshot. Live image work pauses offscreen and quote bursts are throttled.
 
@@ -67,3 +67,7 @@ Receipt matching checks the Base Sepolia V4 engine, trader and position ID. Snap
 Posts carry validated share metadata. Snapshot PNGs use owner-scoped Storage writes and immutable URLs; live image posts render from updated share data. Social metadata never authorizes a trade or overrides V4 balances, protection or settlement.
 
 Before releasing a sharing change, check both formats, preserved drafts, removal, independent image appearance, amount hiding in preview/export/details, live settlement/freeze labels, missing-receipt states and keyboard/modal focus. Use disposable fixtures for publishing or Storage writes; viewing a public position requires no new trade. See [Operations](OPERATIONS.md) and the [27 October release record](RELEASE-2026-10-27.md).
+
+## Media presentation
+
+Feed images use a compact, text-aligned 420 px maximum preview within the social reading column. Clicking opens a smaller translucent viewer: image on the left and the same post, actions and comments on the right; mobile stacks these areas. The visible title bar is removed while its accessible dialog name remains. Exported and uploaded PNGs remain 2400 × 1600 regardless of preview size. See [experience decisions](EXPERIENCE-DESIGN-2026-10-28.md).

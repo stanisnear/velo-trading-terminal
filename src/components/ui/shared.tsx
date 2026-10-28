@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
-import { RefreshCw, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // VELO SHARED UI — Brand-aligned components
@@ -186,17 +186,10 @@ export const ToastNotification = ({ message, type, onClose }: { message: string,
 
     return (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-auto pointer-events-none">
-            <div className="velo-modal-enter-card pointer-events-auto" style={{
-                background: 'var(--glass-bg-strong)',
-                border: `1px solid ${accentColor}40`,
-                borderRadius: 999,
-                boxShadow: `var(--glass-shadow), 0 0 20px ${accentColor}20`,
-                backdropFilter: 'blur(16px) saturate(1.3)',
-                padding: '10px 20px',
-                display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-                <div style={{ flexShrink: 0 }}>{icons[type]}</div>
-                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--fg)', whiteSpace: 'nowrap' }}>{message}</span>
+            <div className="velo-toast pointer-events-auto" role={type === 'ERROR' ? 'alert' : 'status'}>
+                <div style={{ flexShrink: 0, color: accentColor }} aria-hidden="true">{icons[type]}</div>
+                <span className="velo-toast__message">{message}</span>
+                <button type="button" className="velo-toast__close" onClick={onClose} aria-label="Dismiss notification"><X size={14}/></button>
             </div>
         </div>
     )
@@ -229,7 +222,7 @@ type VeloButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 export const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, isLoading = false, type = 'button', ...props }: VeloButtonProps) => {
   return (
     <button {...props} type={type} onClick={(e) => { playSound('CLICK'); onClick?.(e); }} disabled={disabled || isLoading} aria-busy={isLoading || undefined} className={`velo-button velo-button--${variant} ${className}`}>
-      {isLoading ? <RefreshCw className="animate-spin" size={16}/> : children}
+      <span className="velo-button__label">{children}</span>{isLoading && <RefreshCw className="velo-button__spinner animate-spin" aria-hidden="true" size={16}/>}
     </button>
   );
 };

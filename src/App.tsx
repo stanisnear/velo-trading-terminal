@@ -1,3 +1,4 @@
+import { SegmentedControl } from './components/ui/SegmentedControl';
 import { SocialTagProvider, SocialTextField } from './components/social/SocialTextField';
 import { positionShareMetadata } from './utils/positionShareMetadata.mjs';
 import { PositionComposerTools } from './components/PositionComposerTools';
@@ -1331,7 +1332,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             }));
     }, [posts]);
     return (
-        <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto' }} className="animate-fade-in">
+        <div style={{ width: '100%', maxWidth: 1080, margin: '0 auto' }} className="animate-fade-in social-page">
             {activeTicker ? (
                 <TokenPage
                     ticker={activeTicker}
@@ -1458,16 +1459,10 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                 </div>
 
                 {/* Filter tabs */}
-                <div className="vp" style={{ ...panel, padding: 0, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', gap: 0 }}>
-                        {['LATEST','TRENDING','FOLLOWING','SIGNALS'].map(f => (
-                            <button key={f} onClick={() => setFilter(f as any)}
-                                style={{ flex: 1, padding: '11px 8px', border: 'none', background: filter === f ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--iris-violet)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s' }}>
-                                {f}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                <SegmentedControl label="Feed filter" options={[
+                    {value:'LATEST',label:'Latest'}, {value:'TRENDING',label:'Trending'},
+                    {value:'FOLLOWING',label:'Following'}, {value:'SIGNALS',label:'Signals'},
+                ]} value={filter} onChange={value => setFilter(value as any)}/>
 
                 {/* Posts */}
                 {filteredPosts.length === 0 ? (

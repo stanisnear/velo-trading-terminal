@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export function Dialog({ open, onClose, title, busy = false, children, className = '' }: {
-  open: boolean; onClose: () => void; title: string; busy?: boolean; children: React.ReactNode; className?: string;
+export function Dialog({ open, onClose, title, busy = false, children, className = '', minimal = false }: {
+  open: boolean; onClose: () => void; title: string; busy?: boolean; children: React.ReactNode; className?: string; minimal?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -38,7 +38,7 @@ export function Dialog({ open, onClose, title, busy = false, children, className
       @keyframes velo-backdrop-in { from { opacity:0; } to { opacity:1; } }
       @media(prefers-reduced-motion:reduce) { .velo-native-dialog,.velo-native-dialog::backdrop { animation:none; } .velo-dialog-close { transition:none; } }
     `}</style>
-    <header className="velo-dialog-heading"><h2 id={titleId}>{title}</h2><button type="button" className="velo-dialog-close" aria-label={`Close ${title}`} disabled={busy} onClick={onClose}><X size={18} /></button></header>
+    <header className={`velo-dialog-heading${minimal ? ' velo-dialog-heading--minimal' : ''}`}><h2 id={titleId}>{title}</h2><button type="button" className="velo-dialog-close" aria-label={`Close ${title}`} disabled={busy} onClick={onClose}><X size={18} /></button></header>
     {children}
   </dialog>, document.body);
 }

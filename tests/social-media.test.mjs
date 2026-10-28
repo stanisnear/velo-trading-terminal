@@ -17,14 +17,14 @@ dom.window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('op
 const people=[{id:'stan',username:'Stan',handle:'@stan',avatar:'/avatar.png'}];
 const assets=[{symbol:'BTC',name:'Bitcoin',assetId:'btc',logo:'/btc.png'},{symbol:'SOL',name:'Solana',assetId:'sol',logo:'/sol.png'}];
 await mkdir('audit',{recursive:true});const folder=await mkdtemp(path.resolve('audit/social-media-')),file=path.join(folder,'ui.mjs');
-await build({stdin:{contents:"export{SocialTextField,SocialTagContext}from'./src/components/social/SocialTextField';export{VeloShareCard}from'./src/components/VeloShareCard';export{PostCard}from'./src/components/social/PostCard';export{renderTradePng}from'./src/utils/tradeImage';",resolveDir:process.cwd(),loader:'ts'},outfile:file,bundle:true,format:'esm',platform:'node',external:['react','react-dom','lucide-react'],loader:{'.css':'empty'},plugins:[{name:'fixtures',setup(b){
+await build({stdin:{contents:"export{SegmentedControl}from'./src/components/ui/SegmentedControl';export{SocialTextField,SocialTagContext}from'./src/components/social/SocialTextField';export{VeloShareCard}from'./src/components/VeloShareCard';export{PostCard}from'./src/components/social/PostCard';export{renderTradePng}from'./src/utils/tradeImage';",resolveDir:process.cwd(),loader:'ts'},outfile:file,bundle:true,format:'esm',platform:'node',external:['react','react-dom','lucide-react'],loader:{'.css':'empty'},plugins:[{name:'fixtures',setup(b){
   b.onResolve({filter:/services\/marketDiscovery$/},()=>({path:'markets',namespace:'fixture'}));
   b.onResolve({filter:/services\/sharedPosition$/},()=>({path:'chain',namespace:'fixture'}));
   b.onResolve({filter:/\/tradeImage$/},args=>args.importer.endsWith('VeloShareCard.tsx')?{path:'image',namespace:'fixture'}:undefined);
   b.onResolve({filter:/\/PnlImage$/},()=>({path:'pnl',namespace:'fixture'}));
   b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='markets'?`export const useMarketDiscovery=()=>({socialAssets:${JSON.stringify(assets)}});`:args.path==='chain'?"export const SHARED_ENGINE='0x'+'ab'.repeat(20);export const hasPositionReference=d=>!!d.tradeId;export const readSharedPosition=async d=>d;export const readPositionEvidence=async()=>({});":args.path==='image'?"export const renderTradePng=async()=>new Blob(['PNG'],{type:'image/png'});":"import React from 'react';export const PnlImage=({data})=>React.createElement('img',{className:'pnl-image',src:'/fixture.png',alt:data.pair+' PnL image'});"}));
 }}]});
-const {SocialTextField,SocialTagContext,VeloShareCard,PostCard,renderTradePng}=await import(pathToFileURL(file));
+const {SegmentedControl,SocialTextField,SocialTagContext,VeloShareCard,PostCard,renderTradePng}=await import(pathToFileURL(file));
 const click=async button=>{assert.ok(button);await act(async()=>button.click());};
 const key=async(field,value)=>{await act(async()=>field.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:value,bubbles:true,cancelable:true})));await act(async()=>new Promise(resolve=>setTimeout(resolve,5)));};
 async function type(field,value,cursor=value.length){await act(async()=>{field.focus();Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value').set.call(field,value);field.setSelectionRange(cursor,cursor);field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});}
@@ -103,3 +103,12 @@ test('image export uses a 2400×1600 backing canvas and loads the branded font w
 });
 
 test.after(async()=>{dom.window.close();await rm(folder,{recursive:true,force:true});});
+
+ test('segmented filter supports arrow keys and Home/End with visible selection and focus',async()=>{
+  let value='latest';
+  function View(){const[current,setCurrent]=React.useState(value);value=current;return React.createElement(SegmentedControl,{label:'Feed filter',options:[{value:'latest',label:'Latest'},{value:'following',label:'Following'},{value:'signals',label:'Signals'}],value:current,onChange:setCurrent});}
+  const view=mount(React.createElement(View));try{await view.render();const buttons=view.target.querySelectorAll('button');
+    await key(buttons[0],'ArrowLeft');assert.equal(value,'signals');assert.ok(document.activeElement===buttons[2]);assert.equal(buttons[2].getAttribute('aria-pressed'),'true');
+    await key(buttons[2],'Home');assert.equal(value,'latest');await key(buttons[0],'End');assert.equal(value,'signals');
+  }finally{await view.close();}
+});

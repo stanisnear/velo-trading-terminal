@@ -242,3 +242,7 @@ The long-term plan, the revenue model under consideration and the ideas we want 
 ## Security
 
 Please report vulnerabilities privately to the maintainers rather than through public issues.
+
+### Experience system
+
+The current UI uses compact 420 px feed media, a focused glass image viewer, unified social tagging, rolling account values and keyboard-accessible sliding filters. See [experience decisions and reference review](docs/EXPERIENCE-DESIGN-2026-10-28.md) for implementation scope, typography, accessibility and performance choices.

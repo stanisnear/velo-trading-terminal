@@ -7,7 +7,9 @@ import { profileDisplayName } from '../utils/profileIdentity.mjs';
  * shared formatMoney helper.
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
+import { transitionAppearance } from '../utils/appearanceTransition';
+import { AnimatedValue } from './ui/AnimatedValue';
 import {
   Bell, Check, Copy, LayoutDashboard, LogOut, Menu, Moon, PlusCircle, Sun,
   UserCircle, Wallet, X, Settings, Shield, Trophy, TrendingUp, BarChart2,
@@ -340,7 +342,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                     )}
                 </div>
 
-                <button className="navbar-theme-toggle" aria-label={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} title={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} onClick={toggleTheme} style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
+                <button className="navbar-theme-toggle" aria-label={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} title={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} onClick={event => transitionAppearance(() => flushSync(toggleTheme), event.currentTarget)} style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
                     {theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>}
                 </button>
@@ -356,7 +358,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                             onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
                             <div style={{ display: 'flex', minWidth: 0, overflow: 'hidden', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                                 <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{profileDisplayName(user)}</span>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}>${formatMoney(totalEquity > 0 ? totalEquity : user.balance)}</span>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}><AnimatedValue value={totalEquity > 0 ? totalEquity : user.balance}/></span>
                             </div>
                             <img src={user.avatar} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--hr-2)' }} />
                         </button>
@@ -506,7 +508,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                                 <div style={{ padding: '12px', background: 'var(--chip)', borderRadius: 14, border: '1px solid var(--hr)' }}>
                                     <div style={{ ...S.label, marginBottom: 4 }}>Total Equity</div>
                                     <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>
-                                        ${formatMoney(totalEquity > 0 ? totalEquity : user.balance)}
+                                        <AnimatedValue value={totalEquity > 0 ? totalEquity : user.balance}/>
                                     </div>
                                 </div>
                                 <div style={{ padding: '12px', background: 'var(--chip)', borderRadius: 14, border: '1px solid var(--hr)' }}>
@@ -518,7 +520,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                             </div>
 
                             <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={toggleTheme} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
+                                <button onClick={event => transitionAppearance(() => flushSync(toggleTheme), event.currentTarget)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-h)'}
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip)'}>
                                     {theme === 'dark' ? <Sun size={13}/> : <Moon size={13}/>}

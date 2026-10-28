@@ -11,6 +11,7 @@ import { initAnalytics } from './services/analytics';
 import { initSessionManager } from './services/supabaseStore';
 import App from './App';
 import './styles/materials.css';
+import './styles/interaction.css';
 
 // ── Build stamp ──────────────────────────────────────────────────────────
 // Lets anyone verify WHICH build is actually live: open the browser console
