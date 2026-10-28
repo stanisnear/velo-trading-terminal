@@ -1619,7 +1619,7 @@ export const TradeView = ({
     const isActivePairDemo = !isLiveMode && !ORDERLY_SYMBOL_MAP[activePair.id];
     const isActivePairLiveCapable = !isLiveMode && !!ORDERLY_SYMBOL_MAP[activePair.id];
     const marketFeed = (
-        <div className="velo-trade-feed" style={{ display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' }}>
+        <div className="velo-trade-feed" style={{ display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)', overflow: 'hidden' }}>
             {!isMobile && <div style={{ flexShrink: 0, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--hairline)' }}>
                 <button onClick={() => setPairOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
                     <div style={{ textAlign: 'left' }}>
@@ -1742,7 +1742,7 @@ export const TradeView = ({
             <TradeRail isMobile={isMobile} orderType={orderType} feed={marketFeed} authenticated={!!user}>
 
                 {/* Order form */}
-                <section className="velo-order-ticket" aria-label="Order ticket" style={{ borderRadius: isMobile ? 16 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)' }}>
+                <section className="velo-order-ticket" aria-label="Order ticket" style={{ borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
                         {!user ? (
                             <TradeAuthGate
                                 onRequireAuth={onRequireAuth}

@@ -58,7 +58,7 @@ Copy trading, bots and traditional instruments are **planned and not yet availab
 - Compact live position attachments and exportable PnL images, with amount/percentage controls and receipt details (see [Sharing](docs/SHARING.md))
 
 ### Discover
-- **Markets directory** covering the top 50 crypto assets by market cap, with prices, asset info, 24h / 7d / 30d history and a discussion thread per ticker
+- **Markets directory** covering the top 50 crypto assets by market cap, with prices, asset info, 24h / 7d / 30d history and a discussion thread per ticker. Publish directly from the coin page with automatic $coin tagging; the same post appears in the main feed
 - **News tab** with the latest crypto headlines next to the conversation about them
 - **Leaderboard** of top traders by profile performance
 

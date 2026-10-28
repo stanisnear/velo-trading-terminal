@@ -88,3 +88,8 @@ Permission-scoped trading keys, a durable chain indexer, independently verified 
 ### Social notification lifecycle
 
 `notifications.actor_id` is set by the validated social-event RPC, not accepted from client copy. Private delete triggers on likes, comment_likes, reposts and follows mark the matching recipient alert with `retracted_at`. Event creation and undo share a transaction advisory lock; active deduplication is scoped to the actor/event/reference. Recipient Realtime UPDATEs remove the item. Read queries exclude retractions, and in-memory tombstones prevent stale fetches from resurrecting them. Post/comment foreign-key deletion behavior remains, with an immediate debounced notification resync. See `tests/notification-events.sql` and `tests/notification-undo.sql` for rollback-only DB checks.
+
+
+### Coin workspace
+
+`src/components/TokenPage.tsx` owns the asset workspace outside the app shell: market history, four reference statistics, official resource links, news and the cashtag-filtered conversation. `CoinComposer` uses the shared `SocialTextField` and the application’s `handleCreatePost`; it does not introduce another API, post table or notification path. Successful creation updates the common `posts` state. Existing `PostCard` handles replies and reactions. The chart supports pointer/touch and keyboard timestamp inspection, locale labels and shared-layout metric/timeframe controls. Directory membership still does not authorize perpetual trading.

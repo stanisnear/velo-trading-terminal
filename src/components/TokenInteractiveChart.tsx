@@ -6,6 +6,8 @@ import { AnimatedText } from './ui/AnimatedValue';
  * decomposition): fully self-contained — props in, JSX out, own data fetches.
  */
 import React from 'react';
+import { motion, useReducedMotion } from 'motion/react';
+import { SegmentedControl } from './ui/SegmentedControl';
 import { useQuery } from '@tanstack/react-query';
 import { fetchMarketData } from '../services/marketDiscovery';
 
@@ -15,6 +17,7 @@ export const TokenInteractiveChart = ({
     priceData?: number[], up: boolean, ticker: string,
     currentPrice: number, assetId?: string
 }) => {
+    const reduced = useReducedMotion();
     const [mode, setMode] = React.useState<'PRICE' | 'MCAP'>('PRICE');
     const [hoveredIdx, setHoveredIdx] = React.useState<number | null>(null);
     const [timeframe, setTimeframe] = React.useState<'24H' | '7D' | '30D'>('24H');
@@ -51,7 +54,7 @@ export const TokenInteractiveChart = ({
     }, [hasData]);
 
     const w = plotSize.width, h = plotSize.height;
-    const pad = { top: 20, right: 16, bottom: 36, left: 78 };
+    const pad = { top: 20, right: 16, bottom: 36, left: w < 450 ? 64 : 78 };
 
     const min = hasData ? Math.min(...activeData) : 0;
     const max = hasData ? Math.max(...activeData) : 1;
@@ -111,9 +114,9 @@ export const TokenInteractiveChart = ({
             {/* Header: value + controls */}
             <div className="token-chart-header" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', padding: '16px 18px 0', gap: 12 }}>
                 {/* Left: value + change */}
-                <div style={{ minWidth: 0, flex: '1 1 160px' }}>
+                <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 23, fontWeight: 650, fontVariantNumeric: 'tabular-nums', letterSpacing: 'normal', color: 'var(--fg)', lineHeight: 1 }}>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 29, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: 'normal', color: 'var(--fg)', lineHeight: 1 }}>
                             <AnimatedText text={displayedValue}/>
                         </span>
                         {pctChange != null && hoveredIdx === null && (
@@ -123,44 +126,38 @@ export const TokenInteractiveChart = ({
                         )}
                     </div>
                 </div>
-                {/* Right: mode + timeframe — inline on mobile */}
-                <div className="token-chart-controls" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
-                    <div style={{ display: 'flex', background: 'var(--chip-bg)', borderRadius: 8, padding: 3, border: '1px solid var(--hairline)', gap: 2 }}>
-                        {(['PRICE', 'MCAP'] as const).map(m => (
-                            <button key={m} aria-pressed={mode === m} onClick={() => { setMode(m); setHoveredIdx(null); }} style={{
-                                padding: '4px 10px', borderRadius: 6,
-                                border: mode === m ? '1px solid var(--accent)' : '1px solid transparent',
-                                cursor: 'pointer', ...S.mono, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                                background: mode === m ? 'var(--glass-bg-strong)' : 'transparent',
-                                color: mode === m ? 'var(--fg)' : 'var(--fg-subtle)',
-                                boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
-                                transition: 'all 0.15s', whiteSpace: 'nowrap',
-                            }}>
-                                {m === 'PRICE' ? 'Price' : 'Mkt Cap'}
-                            </button>
-                        ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                        {(['24H', '7D', '30D'] as const).map(tf => (
-                            <button key={tf} aria-pressed={timeframe === tf} onClick={() => { setTimeframe(tf); setHoveredIdx(null); }} style={{
-                                padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                                ...S.label, fontSize: 9,
-                                background: timeframe === tf ? 'var(--glass-bg-strong)' : 'transparent',
-                                color: timeframe === tf ? 'var(--fg)' : 'var(--fg-subtle)',
-                                boxShadow: timeframe === tf ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
-                                transition: 'all 0.15s',
-                            }}>
-                                {tf}
-                            </button>
-                        ))}
-                    </div>
+                <div className="token-chart-controls" style={{ display:'flex',alignItems:'center',gap:8 }}>
+                    <SegmentedControl compact label="Chart metric" value={mode} onChange={value=>{setMode(value as typeof mode);setHoveredIdx(null);}}
+                        options={[{value:'PRICE',label:'Price'},{value:'MCAP',label:'Market cap'}]}/>
+                    <SegmentedControl compact label="Chart timeframe" value={timeframe} onChange={value=>{setTimeframe(value as typeof timeframe);setHoveredIdx(null);}}
+                        options={['24H','7D','30D'].map(value=>({value,label:value}))}/>
                 </div>
             </div>
 
+            <p className="asset-chart-timestamp" style={{minHeight:17,margin:'10px 22px 0',fontSize:11,color:'var(--fg-subtle)'}}>
+                {hoveredIdx !== null && points[hoveredIdx] ? new Date(points[hoveredIdx][0]).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : `${timeframe === '24H' ? 'Past 24 hours' : timeframe === '7D' ? 'Past 7 days' : 'Past 30 days'} · ${ticker}`}
+            </p>
             {/* SVG Chart — responsive, no fixed height */}
             <div className="token-chart-plot" style={{ position: 'relative', userSelect: 'none', marginTop: 8, touchAction: 'pan-y' }}>
                 {hasData ? <svg
                     ref={chartSvgRef}
+                    role="slider" tabIndex={0} aria-label={`${ticker} ${mode === 'PRICE' ? 'price' : 'market cap'} history`}
+                    aria-valuemin={0} aria-valuemax={points.length-1} aria-valuenow={hoveredIdx ?? points.length-1}
+                    aria-valuetext={`${formatTick(activeData[hoveredIdx ?? points.length-1])}, ${new Date(points[hoveredIdx ?? points.length-1][0]).toLocaleString()}`}
+                    onFocus={()=>setHoveredIdx(points.length-1)} onBlur={()=>setHoveredIdx(null)}
+                    onKeyDown={event=>{
+                        const current=hoveredIdx ?? points.length-1;
+                        const next=event.key === 'ArrowLeft' ? current-1 : event.key === 'ArrowRight' ? current+1 : event.key === 'Home' ? 0 : event.key === 'End' ? points.length-1 : -1;
+                        if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();setHoveredIdx(Math.max(0,Math.min(points.length-1,next)));}
+                        if(event.key==='Escape')setHoveredIdx(null);
+                    }}
+                    onPointerDown={event=>{
+                        const rect=event.currentTarget.getBoundingClientRect();
+                        const fraction=Math.max(0,Math.min(1,((event.clientX-rect.left)/rect.width*w-pad.left)/(w-pad.left-pad.right)));
+                        const timestamp=startTime+fraction*timeRange;
+                        setHoveredIdx(points.reduce((closest,point,index)=>Math.abs(point[0]-timestamp)<Math.abs(points[closest][0]-timestamp)?index:closest,0));
+                    }}
+                    onPointerCancel={()=>setHoveredIdx(null)}
                     viewBox={`0 0 ${w} ${h}`}
                     className="token-chart-svg"
                     style={{ width: '100%', height: 'clamp(210px, 28vw, 270px)', display: 'block', overflow: 'hidden' }}
@@ -208,7 +205,8 @@ export const TokenInteractiveChart = ({
 
                     {/* Line */}
                     {!loading && (
-                        <polyline
+                        <motion.polyline key={`${assetId}:${mode}:${timeframe}`}
+                            initial={{pathLength:reduced ? 1 : 0}} animate={{pathLength:1}} transition={{duration:reduced ? 0 : .55,ease:'easeOut'}}
                             points={activeData.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ')}
                             fill="none" stroke={color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round"
                             clipPath={`url(#clip-${chartId})`}

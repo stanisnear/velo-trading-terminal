@@ -15,23 +15,23 @@ await mkdir('audit', { recursive: true });
 const folder = await mkdtemp(path.resolve('audit/market-ui-'));
 const output = path.join(folder, 'components.mjs');
 // Exercise the actual coin-page button without loading the wallet-enabled app shell.
-const appSource = ts.createSourceFile('App.tsx', await readFile('src/App.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const appSource = ts.createSourceFile('TokenPage.tsx', await readFile('src/components/TokenPage.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let coinBackButton;
 const visit = node => {
   if (ts.isJsxElement(node) && node.openingElement.tagName.getText(appSource) === 'button'
-    && node.children.some(child => ts.isJsxText(child) && child.text.includes('ALL MARKETS'))) coinBackButton = node.getText(appSource);
+    && node.children.some(child => ts.isJsxText(child) && child.text.includes('All markets'))) coinBackButton = node.getText(appSource);
   ts.forEachChild(node, visit);
 };
 visit(appSource);
 assert.ok(coinBackButton, 'Coin-page back button exists');
-await build({ stdin: { contents: "import React from 'react'; export { MarketsView } from './src/components/ui/pages/MarketsView'; export { TokenInteractiveChart } from './src/components/TokenInteractiveChart'; export const CoinBackButton = ({onClose}) => (" + coinBackButton + ");", resolveDir: process.cwd(), loader: 'tsx' },
+await build({ stdin: { contents: "import React from 'react'; import {ArrowLeft} from 'lucide-react'; export { MarketsView } from './src/components/ui/pages/MarketsView'; export { TokenInteractiveChart } from './src/components/TokenInteractiveChart'; export const CoinBackButton = ({onClose}) => (" + coinBackButton + ");", resolveDir: process.cwd(), loader: 'tsx' },
   bundle: true, platform: 'node', format: 'esm', outfile: output, external: ['react', 'react-dom', 'react/jsx-runtime', 'lucide-react', '@tanstack/react-query'] });
 const { MarketsView, TokenInteractiveChart, CoinBackButton } = await import(pathToFileURL(output));
 const tick = () => new Promise(resolve => setTimeout(resolve, 20));
 
 function setup(width = 800) {
   const dom = new JSDOM('<!doctype html><body><div id="root"></div></body>', { url: 'https://fixture.invalid', pretendToBeVisual: true });
-  globalThis.window = dom.window; globalThis.document = dom.window.document;
+  globalThis.window = dom.window; globalThis.document = dom.window.document;globalThis.SVGElement=dom.window.SVGElement;globalThis.Element=dom.window.Element;globalThis.getComputedStyle=dom.window.getComputedStyle;
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   dom.window.SVGElement.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width, height: 270, left: 0, top: 0, right: width, bottom: 270 });
   globalThis.ResizeObserver = class { constructor(callback) { this.callback = callback; } observe() { this.callback(); } disconnect() {} };
@@ -81,7 +81,7 @@ test('coin chart preserves time gaps, uses non-stretched dimensions and fits mob
     const labels = [...svg.querySelectorAll('text')].slice(-3);
     assert.equal(labels[0].getAttribute('text-anchor'), 'start');
     assert.equal(labels[2].getAttribute('text-anchor'), 'end');
-    const cap = [...document.querySelectorAll('button')].find(button => button.textContent === 'Mkt Cap');
+    const cap = [...document.querySelectorAll('button')].find(button => button.textContent === 'Market cap');
     await act(async () => cap.click()); assert.equal(cap.getAttribute('aria-pressed'), 'true');
     assert.match(document.body.textContent, /\$150\.00/);
   } finally { await f.close(); }

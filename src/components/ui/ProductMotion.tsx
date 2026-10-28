@@ -8,6 +8,15 @@ export const supportsProductMotion = () => typeof Element !== 'undefined' && typ
 const swap = { type:'spring', stiffness:460, damping:30, mass:.55 } as const;
 const glide = { type:'spring', stiffness:700, damping:50, mass:.5 } as const;
 
+/** Native disclosure state with a short height reveal; hidden links cannot receive focus. */
+export function ContentDisclosure({ open, id, children }: {open:boolean;id:string;children:React.ReactNode}) {
+  const reduced=useReducedMotion();
+  if(reduced || !supportsProductMotion())return <div id={id} hidden={!open}>{children}</div>;
+  return <motion.div id={id} initial={false} inert={!open} aria-hidden={!open}
+    animate={{height:open?'auto':0,opacity:open?1:0}}
+    transition={{type:'spring',stiffness:340,damping:32,mass:.6}} style={{overflow:'hidden'}}>{children}</motion.div>;
+}
+
 /** Only the presentation changes; the parent native button never remounts. */
 export function ActionContent({ pending, pendingLabel = 'Working', children }: {
   pending:boolean; pendingLabel?:string; children:React.ReactNode;

@@ -26,6 +26,8 @@ PnL images keep their 3:2 proportions in a text-aligned preview capped at 420 CS
 
 New saved, shared and uploaded PNGs use a **2400 × 1600** backing canvas. The renderer explicitly loads the Velo display, interface and monospaced fonts and fits unusually long values by reducing type size rather than horizontally stretching letters. Live feed previews use a smaller backing canvas and the expanded view requests full resolution. Existing immutable snapshots retain their original files; changing rendering quality does not rewrite an author's previous snapshot. Live image work pauses offscreen and quote bursts are throttled.
 
+The coin page also has an inline composer. It adds that asset’s cashtag once (unless already present), publishes through the same feed handler and shows the confirmed post in the asset conversation and main feed. @people and $asset suggestions work there, including keyboard selection. Failed or unconfirmed publication keeps the draft for retry; concurrent submissions are blocked. Replies use the same threaded post component as Social.
+
 Every post/comment/reply composer and the sharing note use `SocialTextField`. Type **@** for people or **$** for assets, refine the query and choose with pointer/touch, arrows plus Enter, or Tab. Escape dismisses suggestions without closing the parent dialog. Selection preserves text around the caret; IME composition and ordinary email text are not treated as tag submissions. The picker is rendered within a native dialog when necessary so focus trapping and the browser top layer do not hide or block it. Tag suggestions use the loaded public profile and market directory.
 
 ## Live posts and snapshots
