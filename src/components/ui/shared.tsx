@@ -1,28 +1,13 @@
 import { ActionContent } from './ProductMotion';
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { RefreshCw, CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // VELO SHARED UI — Brand-aligned components
 // ═══════════════════════════════════════════════════════════════
 
-// --- Sound Service ---
-export const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
-    try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-        const now = ctx.currentTime;
-        if (type === 'SUCCESS') { osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now); osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4); osc.start(now); osc.stop(now + 0.4); }
-        else if (type === 'ERROR') { osc.type = 'triangle'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(100, now + 0.15); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2); osc.start(now); osc.stop(now + 0.2); }
-        else if (type === 'OPEN') { osc.type = 'sine'; osc.frequency.setValueAtTime(880, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15); osc.start(now); osc.stop(now + 0.15); }
-        else if (type === 'CLOSE') { osc.type = 'sine'; osc.frequency.setValueAtTime(440, now); gain.gain.setValueAtTime(0.03, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1); osc.start(now); osc.stop(now + 0.1); }
-        else { osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); gain.gain.setValueAtTime(0.01, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03); osc.start(now); osc.stop(now + 0.03); }
-    } catch (e) { /* Ignore audio context errors */ }
-};
+import { playInterfaceSound as playSound } from '../../services/interfaceSound';
+export { playInterfaceSound as playSound } from '../../services/interfaceSound';
 
 // --- Formatting ---
 // ── Velo wordmark — THE brand mark (Fraunces italic, navbar treatment). ────
@@ -172,11 +157,13 @@ export const formatTime = (timestamp: number) => {
 };
 
 export const ToastNotification = ({ message, type, onClose }: { message: string, type: 'SUCCESS' | 'ERROR' | 'INFO', onClose: () => void }) => {
+    const closeRef = useRef(onClose);
+    closeRef.current = onClose;
     useEffect(() => {
         playSound(type === 'SUCCESS' ? 'SUCCESS' : type === 'ERROR' ? 'ERROR' : 'CLICK');
-        const timer = setTimeout(onClose, 4000);
+        const timer = setTimeout(() => closeRef.current(), 4000);
         return () => clearTimeout(timer);
-    }, []);
+    }, [message, type]);
 
     const accentColor = type === 'SUCCESS' ? 'var(--pnl-up)' : type === 'ERROR' ? 'var(--pnl-down)' : 'var(--iris-violet)';
     const icons = {

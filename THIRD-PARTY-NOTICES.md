@@ -6,3 +6,5 @@
 - **Motion**, **Lucide**, and **@kitlangton/rolling-number** retain their package licenses. The morphing-loader concept was reviewed from [Bencho](https://bencho.dev/blocks/morph-loader); Velo's loader CSS is original.
 
 Other references inform specific implementation decisions documented in `docs/EXPERIENCE-DESIGN-2026-10-28.md`; they are not claims of endorsement or copied paid source.
+
+The copy/check treatment, staggered entrance and hover sheen are original implementations informed by Bencho Copy Field, Motion Primitives Animated Group, React Bits Glare Hover and Magic UI interaction examples. Interface sound cues are original synthesized tones; no Bencho or other third-party recording is bundled.

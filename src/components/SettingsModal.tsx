@@ -1,3 +1,4 @@
+import { InterfaceSounds } from './ui/InterfaceSounds';
 import { AnimatedText } from './ui/AnimatedValue';
 import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -230,6 +231,8 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                 {onOpenBridge && <ActBtn onClick={onOpenBridge} icon={<ExternalLink size={13}/>} label="Bridge" />}
                 {onOpenUsername && <ActBtn onClick={onOpenUsername} icon={<AtSign size={13}/>} label="Handle" />}
               </div>
+
+              <Sect><InterfaceSounds/></Sect>
 
               {supabaseReady && profile !== undefined && (
                 <Sect>

@@ -357,7 +357,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                             style={{ maxWidth: 190, minWidth: 0, flexShrink: 1, alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--velo-violet)')}
                             onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
-                            <div style={{ display: 'flex', minWidth: 0, overflow: 'hidden', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                            <div className="navbar-account-copy" style={{ display: 'flex', minWidth: 0, flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
                                 <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{profileDisplayName(user)}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}><AnimatedValue value={totalEquity > 0 ? totalEquity : user.balance}/></span>
                             </div>

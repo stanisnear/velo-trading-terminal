@@ -5,8 +5,8 @@
 :root { --font-sans:'Switzer',-apple-system,BlinkMacSystemFont,sans-serif; }
 /* A warm celadon canvas, ivory surfaces and one sage accent. */
 html.light,body.light,.light {
-  --bg:#edf2e7; --bg-2:#f8faf2; --bg-3:#e4ecdf;
-  --surface:rgba(249,251,244,.87); --surface-solid:#f8faf2; --surface-raised:rgba(250,252,246,.94);
+  --bg:#eff3eb; --bg-2:#f5f7f0; --bg-3:#e8eee3;
+  --surface:rgba(245,247,240,.92); --surface-solid:#f5f7f0; --surface-raised:rgba(247,249,243,.96);
   --fg:#203528; --fg-2:#586d5c; --fg-3:#768572;
   --hr:rgba(56,87,52,.10); --hr-2:rgba(56,87,52,.16);
   --accent:#53805c; --accent-text:#3c714b; --pnl-up:#39875a; --pnl-down:#b65d53;
@@ -16,7 +16,10 @@ html.light,body.light,.light {
   --overlay:rgba(27,49,30,.24); --media-overlay:rgba(27,49,30,.20);
 }
 body { font-family:var(--font-sans); }
-.navbar-container { width:min(1540px,calc(100% - 36px))!important; height:66px!important; padding:0 16px!important; border-radius:22px!important; background:var(--surface)!important; border-color:var(--hairline-strong)!important; box-shadow:0 1px 0 var(--glass-ring) inset,0 8px 24px -22px rgba(18,39,24,.32)!important; }
+.navbar-container { top:10px!important; width:calc(100% - 24px)!important; height:64px!important; padding:0 18px!important; border-radius:18px!important; background:var(--surface)!important; border-color:var(--hairline)!important; box-shadow:0 1px 0 var(--glass-ring) inset,0 8px 24px -22px rgba(18,39,24,.18)!important; }
+main.velo-main { padding-top:90px!important; }
+main.velo-main.trade-view { padding-top:86px!important; }
+.velo-trade-workspace { height:calc(100dvh - 86px)!important; padding:0 12px 12px!important; gap:12px!important; box-sizing:border-box; }
 .navbar-wordmark { font-size:31px!important; }
 .velo-glass-nav:not(.velo-glass-nav-mobile) { padding:4px; gap:2px; border:1px solid var(--hairline); background:var(--chip-bg); border-radius:16px; }
 .velo-glass-nav:not(.velo-glass-nav-mobile) > button { min-height:36px; padding:8px 13px; font-size:12px; font-weight:700; letter-spacing:.01em; }
@@ -57,10 +60,23 @@ body { font-family:var(--font-sans); }
 .social-post-card p { font-size:14px!important; line-height:1.6!important; }
 .social-post-card .post-image-preview { width:min(100%,420px); max-width:420px; border-radius:13px; }
 .social-post-card [aria-label="Post reactions"] { margin-top:0; }
-.social-page .social-feed-sidebar .vp { box-shadow:none!important; background:transparent!important; border:0!important; }
-.social-page .social-feed-sidebar .vp > div { padding:9px 3px!important; }
+.social-page .social-feed-sidebar .vp { box-shadow:none!important; background:var(--surface)!important; border:1px solid var(--hairline)!important; border-radius:18px!important; }
+.social-page .social-feed-sidebar .vp > div { padding:14px!important; }
 .social-page .social-feed-sidebar .vp span[style*="font-display"] { font:700 14px var(--font-sans)!important; }
 .social-page .social-feed-sidebar .vp p[style*="font-display"] { font:600 12px var(--font-sans)!important; }
+.social-page .social-feed-sidebar { align-self:start; }
+.markets-page .markets-overview { padding:18px 2px; border:1px solid var(--hairline); border-radius:16px; background:var(--surface); }
+.markets-page .markets-overview>div:first-child { padding-left:18px; }
+.markets-page .markets-table { background:var(--surface)!important;box-shadow:none; }
+.lb-view .lb-podium-card { background:var(--surface)!important;border-color:var(--hairline)!important;box-shadow:0 5px 18px -16px rgba(12,30,19,.18)!important; }
+.lb-view .lb-podium-card[data-rank="1"] { border-color:color-mix(in srgb,var(--accent) 32%,var(--hairline))!important; }
+.lb-view .lb-podium-card>div[style*="border-radius: 50%"] { box-shadow:none!important; }
+.lb-view .vp { background:var(--surface)!important;box-shadow:none!important; }
+.navbar-account-copy { overflow:visible!important;gap:3px!important; }
+.navbar-account-copy>span { line-height:1.22!important; }
+.navbar-account-copy .velo-rolling-value { padding:2px 0; }
+@media(min-width:1400px) { .navbar-container { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important; } }
+@media(min-width:1024px) and (max-width:1279px) { .velo-glass-nav:not(.velo-glass-nav-mobile)>button { padding:7px 9px;font-size:11px; } .navbar-testnet { display:none!important; } }
 .markets-page .markets-title { font:700 clamp(32px,5vw,46px)/1.08 var(--font-sans); letter-spacing:-.05em; }
 .markets-page .markets-title em { font-style:normal; font-weight:500; color:var(--accent-text); }
 .markets-page .markets-overview strong { font-family:var(--font-sans); font-size:24px; letter-spacing:-.04em; }
@@ -81,7 +97,7 @@ body { font-family:var(--font-sans); }
   .social-market-sidebar .social-token-card > span { font-size:17px!important; }
   .social-market-sidebar .social-market-caption,.social-market-sidebar .social-rail-heading,.social-market-sidebar .social-markets-link { display:none; }
 }
-@media(max-width:1000px) { .navbar-container { width:calc(100% - 20px)!important; height:60px!important; } .velo-glass-nav:not(.velo-glass-nav-mobile) > button { padding:7px 9px; font-size:11px; } .navbar-testnet { display:none!important; } }
+@media(max-width:1023px) { .navbar-container { top:0!important;left:0!important;right:0!important;transform:none!important;width:100%!important;height:calc(60px + env(safe-area-inset-top,0px))!important;padding:env(safe-area-inset-top,0px) 14px 0!important;border-radius:0!important;border-width:0 0 1px!important; } main.velo-main,main.velo-main.trade-view { padding-top:calc(68px + env(safe-area-inset-top,0px))!important; } .velo-trade-workspace { height:auto!important;padding:0!important;gap:0!important; } .velo-glass-nav:not(.velo-glass-nav-mobile) > button { padding:7px 9px;font-size:11px; } .navbar-testnet { display:none!important; } }
 @media(max-width:760px) {
   .social-page { padding:4px 8px 90px; }
   .social-page .social-feed-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
@@ -91,7 +107,6 @@ body { font-family:var(--font-sans); }
   .social-market-sidebar .social-token-grid { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
   .social-market-sidebar .social-token-card:nth-child(n+3) { display:none; }
   .social-feed-main textarea.velo-compose-field { font-size:16px; }
-  .navbar-container { border-radius:18px!important; padding:0 10px!important; }
   .navbar-wordmark { font-size:28px!important; }
 }
 @media(prefers-reduced-motion:reduce) { .velo-rolling-text,.velo-rolling-value { scroll-behavior:auto; } }
@@ -107,11 +122,10 @@ body { font-family:var(--font-sans); }
 @keyframes velo-sparkline-in { from { stroke-dashoffset:1; } to { stroke-dashoffset:0; } }
 @media(prefers-reduced-motion:reduce) { .product-sparkline { animation:none; } .velo-composer,.velo-composer-footer button { transition:none!important; } }
 
-@media(max-width:768px) { .navbar-container { width:100%!important; border-radius:0 0 18px 18px!important; } }
 
 /* Solid trading surfaces give canvas and panels the same material in both themes. */
 :root { --trade-surface:#191c1b; --chart-surface:var(--trade-surface); --chart-text:#abb5ad; --chart-grid:rgba(224,234,226,.055); --chart-up:#91b99f; --chart-down:#c78580; }
-html.light { --trade-surface:#f8faf2; --chart-surface:var(--trade-surface); --chart-text:#586d5c; --chart-grid:rgba(56,87,52,.065); --chart-up:#60866b; --chart-down:#b96863; }
+html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-surface); --chart-text:#586d5c; --chart-grid:rgba(56,87,52,.065); --chart-up:#60866b; --chart-down:#b96863; }
 .velo-trade-workspace .velo-trade-main,.velo-trade-workspace .velo-order-ticket,.velo-trade-workspace .velo-trade-feed { background:var(--trade-surface)!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; box-shadow:none!important; }
 .velo-trade-workspace .tv-lightweight-charts { background:var(--chart-surface)!important; }
 .velo-trade-workspace .trade-auth-gate { min-height:0; padding:25px 22px; gap:14px; flex:0 0 auto; }
@@ -157,6 +171,30 @@ html.light { --trade-surface:#f8faf2; --chart-surface:var(--trade-surface); --ch
 .velo-market-sparkline__readout { position:absolute;right:0;top:-20px;font:500 11px/1 var(--font-sans);color:var(--fg);padding:4px 5px;border:1px solid var(--hairline);border-radius:5px;background:var(--surface-solid);z-index:2;pointer-events:none; }
 .velo-market-sparkline--empty { background:linear-gradient(var(--hairline),var(--hairline)) center/100% 1px no-repeat;opacity:.5; }
 .social-token-card .velo-market-sparkline>svg { max-height:30px; }
+.velo-copy-button { position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:32px;min-height:32px;border:1px solid var(--hairline);border-radius:9px;background:var(--chip-bg);color:var(--fg-muted);cursor:pointer;transition:background 160ms,transform 180ms; }
+.velo-copy-button:active { transform:scale(.94); }
+.velo-copy-button:focus-visible { outline:2px solid var(--accent);outline-offset:2px; }
+.velo-copy-button[data-state=copied] { color:var(--accent-text); }
+.velo-copy-button__hint { position:absolute;bottom:calc(100% + 7px);right:0;white-space:nowrap;padding:6px 9px;background:var(--surface-solid);border:1px solid var(--hairline);border-radius:8px;box-shadow:var(--glass-shadow);font:500 11px/1.3 var(--font-sans);pointer-events:none;z-index:4; }
+.velo-sound-preference { display:flex;align-items:center;justify-content:space-between;gap:18px; }
+.velo-sound-preference strong { display:block;font:600 13px/1.4 var(--font-sans);color:var(--fg); }
+.velo-sound-preference small { display:block;margin-top:4px;font:400 11px/1.5 var(--font-sans);color:var(--fg-muted); }
+.velo-switch { appearance:none;flex:none;width:38px;height:24px;border:1px solid var(--hairline-strong);background:var(--chip-bg);border-radius:999px;position:relative;cursor:pointer;transition:background 180ms; }
+.velo-switch:before { content:'';position:absolute;width:16px;height:16px;top:3px;left:3px;border-radius:50%;background:var(--fg-subtle);transition:transform 240ms var(--material-ease),background 180ms; }
+.velo-switch:checked { background:var(--accent);border-color:var(--accent); }
+.velo-switch:checked:before { transform:translateX(14px);background:var(--surface-solid); }
+.velo-switch:focus-visible { outline:2px solid var(--accent);outline-offset:3px; }
+@media(prefers-reduced-motion:no-preference) {
+  .lb-podium-card,.social-feed-sidebar .vp,.markets-overview { animation:velo-card-arrive 350ms var(--material-ease) both; }
+  .lb-podium-card:nth-child(2),.social-feed-sidebar .vp:nth-child(2) { animation-delay:45ms; }
+  .lb-podium-card:nth-child(3),.social-feed-sidebar .vp:nth-child(3) { animation-delay:90ms; }
+  @keyframes velo-card-arrive { from{transform:translateY(7px);opacity:.65}to{transform:translateY(0);opacity:1} }
+}
+@media(hover:hover) and (prefers-reduced-motion:no-preference) {
+  .velo-button,.markets-trade,.lb-podium-card>button { position:relative;isolation:isolate;overflow:hidden; }
+  .velo-button:after,.markets-trade:after,.lb-podium-card>button:after { content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.12) 48%,transparent 65%);transform:translateX(-130%);transition:transform 650ms var(--material-ease);z-index:-1; }
+  .velo-button:hover:after,.markets-trade:hover:after,.lb-podium-card>button:hover:after { transform:translateX(130%); }
+}
 @media(min-width:1024px) {
   .velo-trade-rail[data-authenticated=false] { height:100%;align-self:stretch; }
   .velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:auto;min-height:180px;flex:1 1 0; }

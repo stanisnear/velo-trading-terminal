@@ -1,6 +1,7 @@
+import { CopyButton } from './ui/CopyButton';
 import { AnimatedText } from './ui/AnimatedValue';
 import React,{useEffect,useState} from 'react';
-import { ArrowUpRight, Copy, Check, ShieldCheck, Clock3 } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Clock3 } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { useSharedTrade } from './useSharedTrade';
 import { readPositionEvidence,hasPositionReference,SHARED_ENGINE,type PositionEvidence } from '../services/sharedPosition';
@@ -9,13 +10,12 @@ import { formatPrice } from './ui/shared';
 import type { TradeShare } from '../utils/tradeShare';
 export function PositionDetailsDialog({snapshot,onClose}:{snapshot:TradeShare;onClose:()=>void}) {
   const {data:canonical,pending,verified,failed,retry,liveMark}=useSharedTrade({...snapshot,updateMode:'live',onClose:'settle'});
-  const [evidence,setEvidence]=useState<PositionEvidence>({}),[checking,setChecking]=useState(true),[copied,setCopied]=useState('');
+  const [evidence,setEvidence]=useState<PositionEvidence>({}),[checking,setChecking]=useState(true);
   const data={...canonical,...evidence.opening};
   useEffect(()=>{let active=true;setEvidence({});setChecking(true);void readPositionEvidence(canonical).then(value=>{if(active)setEvidence(value);}).catch(()=>{}).finally(()=>{if(active)setChecking(false);});return()=>{active=false;};},[canonical.contract,canonical.tradeId,canonical.trader,canonical.openTxHash,canonical.txHash,canonical.status,canonical.openedAt]);
   const open=data.status==='OPEN',amounts=!snapshot.hideAmounts;
   const money=(value:number)=>`$${value.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-  const copy=async(hash:string)=>{try{await navigator.clipboard.writeText(hash);setCopied(hash);}catch{setCopied('Copy unavailable');}};
-  const receipt=(label:string,hash:string|undefined)=><div className="position-receipt"><span>{label}</span>{hash?<div><a href={`https://sepolia.basescan.org/tx/${hash}`} target="_blank" rel="noopener noreferrer">{hash}<ArrowUpRight size={14}/></a><button type="button" aria-label={`Copy ${label.toLowerCase()}`} onClick={()=>void copy(hash)}>{copied===hash?<Check size={14}/>:<Copy size={14}/>}</button></div>:<small>{checking?'Finding receipt…':'Receipt not available'}</small>}</div>;
+  const receipt=(label:string,hash:string|undefined)=><div className="position-receipt"><span>{label}</span>{hash?<div><a href={`https://sepolia.basescan.org/tx/${hash}`} target="_blank" rel="noopener noreferrer">{hash}<ArrowUpRight size={14}/></a><CopyButton value={hash} label={`Copy ${label.toLowerCase()}`}/></div>:<small>{checking?'Finding receipt…':'Receipt not available'}</small>}</div>;
   return <Dialog open onClose={onClose} title="Position details" className="position-details-dialog"><div className="position-details-body">
     <div className="position-details-market"><div><h3>{data.pair}</h3><span>{data.side} · {data.leverage}× · Isolated</span></div><span className={`position-details-state ${open?'is-open':''}`}>{open?'Open':data.status==='LIQUIDATED'?'Liquidated':'Closed'}</span></div>
     <div className="position-details-result" data-positive={data.pnl>=0}><span>{verified ? (open?liveMark?'Estimated net PnL':'PnL at shared mark':'Realized PnL'):'Shared PnL'}</span><strong>{<AnimatedText text={amounts?`${data.pnl>=0?'+':'−'}${money(Math.abs(data.pnl))}`:shareReturn(data.pnlPct)}/>}</strong>{amounts&&<small>{<AnimatedText text={shareReturn(data.pnlPct)}/>} return on margin</small>}</div>
@@ -29,6 +29,6 @@ export function PositionDetailsDialog({snapshot,onClose}:{snapshot:TradeShare;on
     {failed&&<button type="button" className="position-details-retry" onClick={retry}>Refresh position details</button>}
     {!amounts&&<p className="position-details-note">The author chose to show percentage returns in this post.</p>}
     {snapshot.updateMode==='snapshot'&&<p className="position-details-note">The post is a fixed snapshot. These details check the current position on-chain.</p>}
-    <span className="sr-only" role="status">{copied ? copied==='Copy unavailable'?copied:'Transaction ID copied':''}</span>
+
   </div></Dialog>;
 }

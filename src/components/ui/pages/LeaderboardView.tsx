@@ -95,7 +95,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                         const accentColor = podiumAccents[idx];
                         const winRateDisplay = Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—';
                         return (
-                            <div key={trader.id} onClick={() => handleViewProfile(trader)} style={{
+                            <div key={trader.id} className="lb-podium-card" data-rank={rank} onClick={() => handleViewProfile(trader)} style={{
                                 background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 18%, var(--bg-base-2))' : podiumGolds[idx],
                                 border: isSelf ? '1px solid color-mix(in oklab, var(--accent) 50%, transparent)' : podiumBorders[idx],
                                 borderRadius: 16,
@@ -135,7 +135,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                     const accentColor = podiumAccents[idx];
                     const winRateDisplay = Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—';
                     return (
-                        <div key={trader.id} style={{
+                        <div key={trader.id} className="lb-podium-card" data-rank={rank} style={{
                             background: isSelf ? 'color-mix(in oklab, var(--iris-violet) 18%, var(--bg-base-2))' : podiumGolds[idx],
                             border: isSelf ? '1px solid color-mix(in oklab, var(--accent) 50%, transparent)' : podiumBorders[idx],
                             borderRadius: 16,
