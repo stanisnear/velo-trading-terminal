@@ -9,12 +9,15 @@ export function useSharedTrade(snapshot: TradeShare, enabled = true) {
   const prices = useContext(SharedMarkContext);
   const pricesRef = useRef(prices); pricesRef.current = prices;
   const live = shareUpdates(snapshot);
+  const settlement=useRef<{identity:string;data:TradeShare}|null>(null);
+  const settlementIdentity=`${snapshot.contract}:${snapshot.trader}:${snapshot.tradeId}:${snapshot.onClose}`;
   const [revision,setRevision]=useState(0);
   const retry=()=>setRevision(value=>value+1);
   const [state, setState] = useState({ data: snapshot, pending: live && hasPositionReference(snapshot), verified: false, failed: false });
   const key = `${snapshot.contract}:${snapshot.trader}:${snapshot.tradeId}:${snapshot.txHash || ''}:${snapshot.updateMode}:${snapshot.onClose}:${revision}`;
   useEffect(() => {
     if (!enabled || !live) return;
+    if(settlement.current?.identity===settlementIdentity){setState({data:settlement.current.data,pending:false,verified:true,failed:false});return;}
     let active = true, busy = false, settled = false, data = snapshot;
     setState({ data, pending: hasPositionReference(data), verified: false, failed: false });
     if (!hasPositionReference(data)) return;
@@ -24,6 +27,7 @@ export function useSharedTrade(snapshot: TradeShare, enabled = true) {
       try {
         data = resolveSharedTrade(snapshot, await readSharedPosition(data, pricesRef.current[data.pair]));
         settled = data.status !== 'OPEN';
+        if(settled&&active)settlement.current={identity:settlementIdentity,data};
         if (active) setState({ data, pending: false, verified: true, failed: false });
       } catch { if (active) setState(previous => ({ ...previous, pending: true, failed: true })); }
       finally { busy = false; }

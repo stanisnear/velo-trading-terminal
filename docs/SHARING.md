@@ -1,6 +1,6 @@
 # Position sharing and PnL images
 
-Reviewed 27 October 2026. These features run in the current Base Sepolia testnet app. They connect the conversation to a trade without making the social feed an execution or copy-trading service.
+Reviewed 28 October 2026. These features run in the current Base Sepolia testnet app. They connect the conversation to a trade without making the social feed an execution or copy-trading service.
 
 ## Choose a format
 
@@ -24,7 +24,7 @@ The amount toggle is a presentation preference, not a privacy or access-control 
 
 PnL images keep their 3:2 proportions in a text-aligned preview capped at 420 CSS pixels, rather than growing to the full width of a wide post. Click or keyboard-activate an image to open the media viewer. Desktop places the image beside the original post text, reactions, actions and comment thread; smaller screens stack the image above a scrollable discussion. The viewer shares the post's current state and handlers. Closing it restores focus to the image preview.
 
-New saved, shared and uploaded PNGs use a **2400 × 1600** backing canvas. The renderer explicitly loads the Velo display, interface and monospaced fonts and fits unusually long values by reducing type size rather than horizontally stretching letters. Live feed previews use a smaller backing canvas and the expanded view requests full resolution. Existing immutable snapshots retain their original files; changing rendering quality does not rewrite an author's previous snapshot. Live image work pauses offscreen and quote bursts are throttled.
+New saved, shared and uploaded PNGs use a **2400 × 1600** backing canvas. The renderer explicitly loads the Velo display, interface and monospaced fonts and fits unusually long values by reducing type size rather than horizontally stretching letters. Live cards use persistent HTML and animated numeric glyphs, keeping the same layout and elements mounted between quotes. They do not generate or swap PNGs on each price update. After confirmed settlement, the frozen layout stays visible until its static PNG has decoded; returning to the feed or changing marks does not restart that settled card. Static feed previews use a smaller backing canvas and the expanded view requests full resolution. Existing immutable snapshots retain their original files; changing rendering quality does not rewrite an author's previous snapshot. Live animation pauses offscreen; settlement image work is visibility-aware. A captured-result card labels its original price as **Captured mark**, not as an executed exit price.
 
 The coin page also has an inline composer. It adds that asset’s cashtag once (unless already present), publishes through the same feed handler and shows the confirmed post in the asset conversation and main feed. @people and $asset suggestions work there, including keyboard selection. Failed or unconfirmed publication keeps the draft for retry; concurrent submissions are blocked. Replies use the same threaded post component as Social.
 
@@ -36,7 +36,7 @@ Every post/comment/reply composer and the sharing note use `SocialTextField`. Ty
 | --- | --- | --- |
 | **Position attachment** | Follows the linked position on Velo | Shows its confirmed closed/liquidated status and result |
 | **PnL image, default snapshot** | Keeps the captured image and timestamp | Remains the captured image |
-| **PnL image, Keep this post live** | Refreshes the image within Velo | Shows the confirmed settled result |
+| **PnL image, Keep this post live** | Animates current PnL and marks within Velo | Shows the confirmed settled result |
 | **Live image, Keep the captured PnL when the position closes** | Follows the open position | Freezes the originally captured result with an explicit closed-snapshot label |
 
 Downloaded and externally shared PNG files are always fixed snapshots. A live Velo post does not turn a downloaded image into a remotely updating file.
@@ -64,7 +64,7 @@ Receipt matching checks the Base Sepolia V4 engine, trader and position ID. Snap
 | Compact attachment and details | [`SharedPositionCard.tsx`](../src/components/SharedPositionCard.tsx), [`PositionDetailsDialog.tsx`](../src/components/PositionDetailsDialog.tsx) |
 | Visibility-aware live refresh and receipt reads | [`useSharedTrade.ts`](../src/components/useSharedTrade.ts), [`sharedPosition.ts`](../src/services/sharedPosition.ts) |
 | Public attachment validation and update semantics | [`tradeShare.ts`](../src/utils/tradeShare.ts), [`shareBehavior.mjs`](../src/utils/shareBehavior.mjs) |
-| Image generation and feed rendering | [`tradeImage.ts`](../src/utils/tradeImage.ts), [`PnlImage.tsx`](../src/components/PnlImage.tsx) |
+| Image generation and feed rendering | [`tradeImage.ts`](../src/utils/tradeImage.ts), [`PnlImage.tsx`](../src/components/PnlImage.tsx), [`LivePnlCard.tsx`](../src/components/LivePnlCard.tsx) |
 
 Posts carry validated share metadata. Snapshot PNGs use owner-scoped Storage writes and immutable URLs; live image posts render from updated share data. Social metadata never authorizes a trade or overrides V4 balances, protection or settlement.
 

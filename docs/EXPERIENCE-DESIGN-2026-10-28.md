@@ -92,3 +92,22 @@ New visible interactions in this release:
 - **One PnL design:** Clean replaces the removed Velo design selector. Light/dark, amount privacy and optional live-post behavior remain available. PNGs are still rendered at 2400 × 1600; existing uploaded snapshots are not rewritten.
 
 The dock/stage transitions use the existing pinned Motion runtime and native accessibility semantics, reflecting Motion Primitives' transition-panel and React Bits' micro-interaction patterns. New effects and landing code are original Velo implementations, not redistributed third-party snippets. The existing beUI adaptation and license remain documented above. All added motion has a reduced-motion fallback. Interface sound remains opt-in and off by default.
+
+## Live sharing and useful interaction pass
+
+Live PnL uses `LivePnlCard`: persistent DOM and Rolling Text preserve element identity across quotes. No canvas/PNG work runs in the live path. Confirmed settlement first freezes that layout, then replaces it with the decoded static Clean PNG. The verified result stays settled when offscreen visibility resumes; subsequent marks cannot redraw its result. Export remains a 2400 × 1600 snapshot at action time. The optional captured-result outcome labels its original price **Captured mark**, never as an executed exit.
+
+The six reference collections were reviewed by catalogue/category and selected component examples. They are references, not a claim that every component was installed or individually tested. This pass adds original Velo implementations with the existing Motion/Rolling runtime:
+
+| Reference reviewed | Implemented product interaction |
+| --- | --- |
+| [Motion Primitives morphing popover](https://motion-primitives.com/docs/morphing-popover) and transition patterns | Public trader peek with anchored glass surface, short entrance, pointer/focus continuity and Escape restoration; animated result selection in quick search. |
+| [React Bits micro interactions](https://reactbits.dev/c/micro) | Fluid native switch for live post updates and opt-in sounds: thumb compression, check-path reveal and reduced-motion fallback. |
+| [Amicro](https://amicro.dev/) buttons, morphing, loaders and [Mono Charts](https://amicro.dev/mono-charts) examples | Persistent animated PnL/price glyphs; retained price trace in an interactive landing sharing example, with short format/state transitions. |
+| [Bencho command bar](https://bencho.dev/blocks/command), [profile card](https://bencho.dev/blocks/profile-card), [sounds](https://bencho.dev/sounds) | Header/mobile-menu quick search (⌘/Ctrl K), market/trader/page results, keyboard navigation and public author previews. Existing opt-in click sounds reused; no external recordings copied. |
+| [beUI blocks](https://beui.dev/components/blocks), including command/search and wallet card patterns | Search categories and contextual public-profile information using existing loaded data. Supported perpetuals remain separate from informational coins. |
+| [Magic UI components](https://magicui.design/docs/components) | Documentation/article reading-progress ring with a reduced-motion-aware return-to-top control. |
+
+The landing sharing example now lets visitors switch between a compact position and the Clean PnL card, choose amounts/return, inspect illustrative details, compare open/settled states and switch the card appearance. Values are explicitly illustrative; there is no wallet, trade, public post or market API request. The approved hero and laptop animation are retained.
+
+New interaction regression checks cover keyboard search routing, informational-asset exclusion from trading, competing-modal focus, profile-preview Escape behavior, native switch changes, zero live rasterization, one-time settlement rasterization, settlement persistence, illustrative sharing privacy/details and coalesced reading-progress work.

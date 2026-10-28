@@ -44,8 +44,8 @@ export async function renderTradePng(data: TradeShare, light: boolean, hideAmoun
   text(result,heroX,464,`500 112px ${display}`,resultColor,1030);
   if(!hideAmounts)text(`${shareReturn(data.pnlPct)} return on margin`,heroX,510,`23px ${sans}`,resultColor);
   ctx.textAlign='left';line(564);
-  const price = (open?data.markPrice:data.closePrice)||data.entryPrice;
-  const facts: [string,number][] = [...(!hideAmounts ? [['Margin invested',data.collateral] as [string,number]]:[]),['Entry price',data.entryPrice],[open?'Mark price':'Exit price',price]];
+  const price = (data.closedSnapshot||open?data.markPrice:data.closePrice)||data.entryPrice;
+  const facts: [string,number][] = [...(!hideAmounts ? [['Margin invested',data.collateral] as [string,number]]:[]),['Entry price',data.entryPrice],[data.closedSnapshot?'Captured mark':open?'Mark price':'Exit price',price]];
   const factWidth=1072/facts.length;
   facts.forEach(([name,value],i)=>{const x=64+i*factWidth;text(name,x,609,`18px ${sans}`,muted);text(money(value),x,653,`25px ${mono}`,fg,factWidth-30);});
   line(693);

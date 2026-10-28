@@ -1,3 +1,4 @@
+import { QuickSearch } from './components/QuickSearch';
 import { MarketSparkline } from './components/ui/MarketSparkline';
 import { AnimatedText } from './components/ui/AnimatedValue';
 import { SegmentedControl } from './components/ui/SegmentedControl';
@@ -1341,7 +1342,8 @@ const App = () => {
     const [publicLoading, setPublicLoading] = useState(false);
     const publicLoadRef = useRef<Promise<void> | null>(null);
 
-    const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
+    const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE);
+    const [quickSearchOpen,setQuickSearchOpen]=useState(false);
 
     // ── Analytics: virtual page_view on tab change (SPA navigation) ──────────
     useEffect(() => {
@@ -5780,6 +5782,7 @@ const App = () => {
 
     // True whenever any overlay/modal is open — used to push navbar behind the backdrop
     const anyModalOpen =
+        quickSearchOpen ||
         accountChoiceOpen || isLoginOpen || isResetPasswordOpen || isOrderlyOnboardingOpen ||
         isVeloWelcomeOpen || isVeloBridgeOpen || isVeloDepositOpen ||
         isVeloUsernameOpen || isVeloSendOpen || isVeloWithdrawOpen ||
@@ -6490,8 +6493,9 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
-            <Navbar activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
+            <MobileSidebar onSearch={()=>{setSidebarOpen(false);window.setTimeout(()=>setQuickSearchOpen(true),0);}} isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
+            <QuickSearch open={quickSearchOpen} setOpen={setQuickSearchOpen} people={traders} signedIn={!!user} onNavigate={tab=>{setSinglePostId(null);setActiveSocialTicker(null);setActiveTab(tab);}} onAsset={asset=>{setSinglePostId(null);setActiveSocialTicker(asset.assetId);setActiveTab(TabView.COIN);}} onTrade={pair=>{setActivePair(pair);setActiveTab(TabView.TRADE);}} onProfile={handleViewProfile}/>
+            <Navbar onSearch={()=>setQuickSearchOpen(true)} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
                     if (!n.read) void markNotificationIdsRead([n.id]);
 
                     // Route based on notification type so the click actually lands somewhere useful

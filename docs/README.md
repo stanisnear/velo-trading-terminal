@@ -1,6 +1,6 @@
 # Velo documentation
 
-Reviewed 27 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
+Reviewed 28 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
 
 ## Start here
 
@@ -9,6 +9,7 @@ Reviewed 27 October 2026. Velo is a trader hub combining execution, market disco
 | [Product README](../README.md) | Current product, features and local development |
 | [Vision](../VISION.md) | Audience, long-term direction, roadmap and business hypotheses |
 | [Sharing guide](SHARING.md) | Position attachments, PnL images, amount display, live/snapshot behavior and receipt details |
+| [Experience decisions](EXPERIENCE-DESIGN-2026-10-28.md) | Current interface components, motion references and interaction checks |
 | [Architecture](ARCHITECTURE.md) | Frontend, V4, API, oracle, database and keeper boundaries |
 | [Contract reference](../contracts/README.md) | Implemented accounting, risk limits and contract tests |
 | [Operations](OPERATIONS.md) | Configuration, deployment, verification, recovery and outstanding operational risks |

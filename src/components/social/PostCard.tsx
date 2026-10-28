@@ -1,3 +1,4 @@
+import { TraderPreview } from './TraderPreview';
 import { ReactionFeedback } from '../ui/ProductMotion';
 import { AnimatedText } from '../ui/AnimatedValue';
 /**
@@ -138,6 +139,7 @@ export const renderContentWithMentions = (content: string, onViewProfile: (p: an
 export const PostCard = (props: any) => {
     const { post, user, onLike, onRepost, onComment, handleCopyTrade, onViewProfile, showUsersModal, onDelete, onDeleteComment, traders = [], onTickerClick, defaultOpenComments, onSinglePost, hideMedia = false, mediaPanel = false } = props;
     const { socialAssets } = useMarketDiscovery();
+    const author=traders.find((person:any)=>person.id===post.authorId)||(user?.id===post.authorId?user:{id:post.authorId,handle:post.authorHandle,username:post.authorHandle?.replace(/^@/,''),avatar:post.authorAvatar});
     const hasLiked = post.likedBy.includes(user?.id);
     const hasReposted = post.repostedBy.includes(user?.id);
     // Author can delete their own post from any wall; wall owner can also delete posts on their wall
@@ -207,13 +209,11 @@ export const PostCard = (props: any) => {
                 </div>
             ) : null}
             <div style={{ padding: 16, display: 'flex', gap: 12 }}>
-                <div style={{ flexShrink: 0, cursor: 'pointer' }} onClick={() => onViewProfile({ id: post.authorId })}>
-                    <img src={post.authorAvatar} style={{ width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
-                </div>
+                <TraderPreview profile={author} onView={()=>onViewProfile({id:post.authorId})}><button type="button" className="post-author-trigger" aria-label={`View ${post.authorHandle} profile`} onClick={()=>onViewProfile({id:post.authorId})}><img src={post.authorAvatar} alt="" style={{width:38,height:38,borderRadius:'50%',border:'1px solid var(--hairline)',display:'block'}}/></button></TraderPreview>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)', cursor: 'pointer' }} onClick={() => onViewProfile({ id: post.authorId })}>{post.authorHandle}</span>
+                            <TraderPreview profile={author} onView={()=>onViewProfile({id:post.authorId})}><button type="button" className="post-author-trigger" style={{...S.display,fontSize:14,color:'var(--fg)'}} onClick={()=>onViewProfile({id:post.authorId})}>{post.authorHandle}</button></TraderPreview>
                             <VerifiedBadge userId={post.authorId} traders={traders} size={13}/>
                             <span style={{ ...S.label, fontSize: 10, cursor: onSinglePost ? 'pointer' : 'default', textDecoration: onSinglePost ? 'underline' : 'none' }} onClick={() => onSinglePost && onSinglePost(post.id)} title={onSinglePost ? 'View post' : undefined}>{(() => { const d = new Date(post.timestamp); const now = new Date(); const isToday = d.toDateString() === now.toDateString(); return isToday ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : d.toLocaleDateString([],{month:'short',day:'numeric'}) + ' · ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); })()}</span>
                         </div>

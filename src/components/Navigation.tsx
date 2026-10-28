@@ -129,7 +129,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
     );
 };
 
-export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen, onSocialClick, onMarkAllRead }: any) => {
+export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen, onSocialClick, onMarkAllRead, onSearch }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -211,6 +211,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
             </div>
 
             <div className="navbar-controls" style={{ display: 'flex', alignItems: 'center', gap: 8, justifySelf: 'end' }}>
+                {onSearch&&<button type="button" className="navbar-search" aria-label="Search Velo" title="Search Velo (⌘/Ctrl K)" onClick={onSearch}><Search size={17}/></button>}
                 <div className="navbar-testnet chip" style={{ minWidth: 76, justifyContent: 'center', gap: 6 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--fg-2)' }}>TESTNET</span>
                 </div>
@@ -394,7 +395,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
       </>
     );
 }
-export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick }: any) => {
+export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick, onSearch }: any) => {
     const drawerRef = useRef<HTMLDivElement>(null);
     const closeRef = useRef(setSidebarOpen);
     closeRef.current = setSidebarOpen;
@@ -469,6 +470,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                 </div>
 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px 0' }}>
+                    {onSearch&&<button type="button" className="sidebar-quick-search" onClick={onSearch}><Search size={18}/>Search markets & traders</button>}
                     {navItems.map(item => {
                         const isActive = activeTab === item.id;
                         return (

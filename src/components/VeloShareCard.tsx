@@ -1,3 +1,4 @@
+import { GlassSwitch } from './ui/GlassSwitch';
 import { SocialTextField } from './social/SocialTextField';
 import React, { useEffect, useRef, useState } from 'react';
 import { Download, Share2, Send, Sun, Moon, SlidersHorizontal, ChevronDown } from 'lucide-react';
@@ -54,7 +55,7 @@ export const VeloShareCard = ({isOpen,onClose,data:snapshot,onPost}:{
       <div className="share-studio-preview">{presentation==='pnl'?<PnlImage data={data}/>:<CompactPosition data={data} pending={pending}/>}</div>
       <div className="share-studio-toolbar"><ShareValueControl hidden={hideAmounts} onChange={setHideAmounts} disabled={busy}/>{presentation==='pnl'&&<div className="share-theme-control" role="group" aria-label="Image appearance"><button aria-label="Light card" aria-pressed={theme==='light'} disabled={busy} onClick={()=>setTheme('light')}><Sun size={15}/></button><button aria-label="Dark card" aria-pressed={theme==='dark'} disabled={busy} onClick={()=>setTheme('dark')}><Moon size={15}/></button></div>}</div>
       {presentation==='pnl'&&canUpdate&&<details className="share-customization"><summary><SlidersHorizontal size={14}/><span>Post updates</span><small>{updateMode==='live'?'Live':'Snapshot'}</small><ChevronDown size={14}/></summary><div className="share-customization-content">
-        <label className="share-live-setting"><span><b>Keep this post live</b><small>Updates on Velo. Saved images stay fixed.</small></span><input type="checkbox" role="switch" aria-label="Keep this post live" checked={imageLive} disabled={busy} onChange={e=>setImageLive(e.target.checked)}/></label>{imageLive&&<label className="share-freeze-setting"><input type="checkbox" checked={freeze} disabled={busy} onChange={e=>setFreeze(e.target.checked)}/>Keep the captured PnL when the position closes</label>}
+        <label className="share-live-setting"><span><b>Keep this post live</b><small>Updates on Velo. Saved images stay fixed.</small></span><GlassSwitch label="Keep this post live" checked={imageLive} disabled={busy} onChange={setImageLive}/></label>{imageLive&&<label className="share-freeze-setting"><input type="checkbox" checked={freeze} disabled={busy} onChange={e=>setFreeze(e.target.checked)}/>Keep the captured PnL when the position closes</label>}
       </div></details>}
       {onPost&&<SocialTextField className="share-studio-note" aria-label="Add a note" placeholder="Add a note…" rows={2} value={content} onValueChange={setContent} onSubmit={()=>void publish()} maxLength={2000} disabled={busy}/>}
       {error&&<p className="trade-share-feedback" role="alert">{error}</p>}{feedback&&<p className="trade-share-feedback" role="status">{feedback}</p>}
