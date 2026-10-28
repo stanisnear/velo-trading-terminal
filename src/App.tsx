@@ -5794,7 +5794,7 @@ const App = () => {
     React.useEffect(() => {
         const syncModalLayer = () => {
             const hasDialog = !!document.querySelector(
-                '.velo-modal-enter-backdrop, .velo-modal-overlay, .velo-modal-card, [role="dialog"][aria-modal="true"], [aria-modal="true"], [data-modal-layer="true"], w3m-modal.open, appkit-modal.open'
+                'dialog[open], .velo-modal-enter-backdrop, .velo-modal-overlay, .velo-modal-card, [role="dialog"][aria-modal="true"], [aria-modal="true"], [data-modal-layer="true"], w3m-modal.open, appkit-modal.open'
             );
             document.body.classList.toggle('modal-open', anyModalOpen || hasDialog);
         };
@@ -5803,7 +5803,7 @@ const App = () => {
             subtree: true,
             childList: true,
             attributes: true,
-            attributeFilter: ['class', 'aria-modal', 'data-modal-layer'],
+            attributeFilter: ['class', 'open', 'aria-modal', 'data-modal-layer'],
         });
         syncModalLayer();
         return () => {
@@ -6644,6 +6644,7 @@ const App = () => {
                 }} onMarkAllRead={() => void markNotificationIdsRead(notifications.filter(n => !n.read).map(n => n.id))} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
             <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+              <div className="velo-page-frame">
                 {user && veloPerpsTrading.pendingTxHash && <TransactionRecoveryNotice key={veloPerpsTrading.pendingTxHash} hash={veloPerpsTrading.pendingTxHash} onReset={veloPerpsTrading.resetLegacyTracking}/>}
                 {user && veloPerpsTrading.readError && <div role="alert" style={{ padding: '10px 16px', color: 'var(--pnl-down)' }}>
                   {veloPerpsTrading.readError} <button onClick={() => void veloPerpsTrading.refresh()}>Retry account data</button>
@@ -6772,6 +6773,7 @@ const App = () => {
                 {activeTab === TabView.PUBLIC_PROFILE && viewingProfile && <PublicProfileView trader={viewingProfile} user={user} posts={posts} traders={traders} onBack={() => setActiveTab(TabView.LEADERBOARD)} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onRequireAuth={handleRequireAuth} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} positions={positions} onUpdateProfile={handleUpdateProfile} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} onDeleteAccount={handleDeleteAccount} onPostCreate={handleCreatePost} marketPrices={marketPrices} onTickerClick={(ticker: string) => { openCoin(ticker); }} onSinglePost={(id) => { setActiveSocialTicker(null); setSinglePostId(id); setActiveTab(TabView.SOCIAL); }}/>}
                 {activeTab === TabView.PUBLIC_PROFILE && !viewingProfile && <div role="status" style={{ padding: 24, color: 'var(--fg-muted)' }}>Loading profile...</div>}
                 {activeTab === TabView.ADMIN && <VeloAdminPanel />}
+              </div>
             </main>
             <MobileBottomNav activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} user={user} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }} />
             {/* App-level order details modal — opened from notifications without tab switch */}

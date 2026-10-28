@@ -177,7 +177,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                 WebkitBackdropFilter: 'blur(8px) saturate(1.1)',
                 boxShadow: 'var(--glass-shadow)',
             }}
-            className="navbar-container navbar-mobile-flush"
+            className="navbar-container navbar-mobile-flush" data-page-layout={activeTab===TabView.TRADE?'trade':'standard'}
         >
             <div className="navbar-brand" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <button

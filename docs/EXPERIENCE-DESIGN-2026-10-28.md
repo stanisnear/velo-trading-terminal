@@ -111,3 +111,22 @@ The six reference collections were reviewed by catalogue/category and selected c
 The landing sharing example now lets visitors switch between a compact position and the Clean PnL card, choose amounts/return, inspect illustrative details, compare open/settled states and switch the card appearance. Values are explicitly illustrative; there is no wallet, trade, public post or market API request. The approved hero and laptop animation are retained.
 
 New interaction regression checks cover keyboard search routing, informational-asset exclusion from trading, competing-modal focus, profile-preview Escape behavior, native switch changes, zero live rasterization, one-time settlement rasterization, settlement persistence, illustrative sharing privacy/details and coalesced reading-progress work.
+
+## Aligned workspace and trading dialogs
+
+The app now has one centered 1600 px frame with 12 px outside gutters for both the header and page content. Dashboard, market, leaderboard, coin and social roots inherit this frame. The trading workspace uses the same outside edge on desktop; phone trading keeps its existing continuous, full-width surface. The translucent header retains its content-masking veil. Native dialogs now participate in the existing modal/navigation-layer observer.
+
+`TradingDialog` owns the shared title scale, identity row, scroll region and fixed actions for position inspection, history/orders, close/TP-SL management, shared-position evidence and the new account breakdown. Titles and numeric summaries use Switzer with the same weight, size and spacing. Technical IDs retain the monospace face. PnL export artwork retains the separate Clean card typography.
+
+Close/TP-SL management adds a spring selection lens, measured-height panel transitions without scaling form fields, keyboard tab navigation and pending-action label transitions. Drafts survive incoming prices and the existing transaction locks still block duplicate submission. The shared frame keeps the primary action visible while content scrolls.
+
+Dashboard additions are read-only or route to existing account actions:
+
+- Equity breakdown compares available balance and allocated position margin with an animated ring and selectable legend, while unrealized PnL stays separate. It uses existing account values; it changes no accounting or execution rules.
+- The account action dock adds consistent icons, a spring hover/focus lens, keyboard navigation and a disabled pending-faucet state.
+- Trading wallet and engine addresses have the existing copy/check/error feedback control.
+- The landing leverage tile adds a native 1–25× slider showing gross long return for a ±1% price move. It explicitly excludes fees and does not imply that every market permits 25×.
+
+References selected for these additions: [Motion Primitives animated background](https://motion-primitives.com/docs/animated-background), [disclosure](https://motion-primitives.com/docs/disclosure), [React Bits micro interactions](https://reactbits.dev/c/micro), [Amicro morphing/buttons/charts](https://amicro.dev/), [Bencho private balance](https://bencho.dev/blocks/private-balance), [copy field](https://bencho.dev/blocks/copy-field), [beUI wallet/chart and action patterns](https://beui.dev/changelog), and [Magic UI circular progress](https://magicui.design/docs/components/animated-circular-progress-bar). The catalogues and suitable examples were reviewed; this is not a claim that every item was installed. New implementations are original Velo code using existing Motion/Rolling dependencies; no paid assets or external sound samples were copied. Interface sounds remain opt-in and decorative motion has reduced-motion fallbacks.
+
+Validation: 249 app regression tests, 21 landing tests and TypeScript pass. Checks cover allocation math and live values, keyboard/action routing, pending-action exclusion, TP/SL keyboard switching, draft retention, full-close semantics and duplicate-save prevention. Final browser verification was unavailable because Browser was disabled in Work settings; automated checks do not establish pixel-perfect rendering on physical devices.

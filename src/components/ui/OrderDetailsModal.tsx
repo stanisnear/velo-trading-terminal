@@ -1,6 +1,6 @@
 import { AnimatedText } from './AnimatedValue';
 import React, { useState, useEffect } from 'react';
-import { Dialog } from './Dialog';
+import { TradingDialog } from './TradingDialog';
 import { AnimatedPanel } from './ProductMotion';
 import { Info, ExternalLink, Share2, ChevronDown, ShieldCheck } from 'lucide-react';
 import { Button, formatMoney, formatPrice } from '@/components/ui/shared';
@@ -433,10 +433,9 @@ export const OrderDetailsModal = ({
   const isSummary = (node:React.ReactNode) => React.isValidElement<{label?:string}>(node) && node.type === Row && summaryLabels.has(node.props.label || '');
   const primary = facts.filter(isSummary), details = facts.filter(node=>!isSummary(node));
   const status = payload.kind === 'POSITION' ? 'Open' : payload.kind === 'ORDER' ? 'Pending' : payload.kind === 'HISTORY' ? payload.item.action === 'OPEN' ? 'Opened' : payload.item.action === 'LIQUIDATION' ? 'Liquidated' : 'Closed' : payload.item.status || 'Completed';
-  return <Dialog open={!!payload} onClose={onClose} title={headerPair} className="trade-details-dialog">
-    <div className="trade-details-identity"><span className="trade-details-side" data-up={sideUp}>{headerSide}</span><span className="trade-details-status"><i/>{status}</span>{copyId && <span>Copy trade</span>}<span className="trade-details-network"><ShieldCheck size={12}/> Base Sepolia</span></div>
-    <div className="trade-details-scroll custom-scrollbar">
-      {React.isValidElement(hero) ? React.cloneElement(hero as React.ReactElement<{className:string;style:React.CSSProperties}>,{className:'trade-details-hero',style:{}}) : hero}
+  return <TradingDialog open={!!payload} onClose={onClose} title={headerPair} className="trade-details-dialog" footer={footer} identity={<>
+    <span className="trade-details-side" data-up={sideUp}>{headerSide}</span><span className="trade-details-status"><i/>{status}</span>{copyId && <span>Copy trade</span>}<span className="trade-details-network"><ShieldCheck size={12}/> Base Sepolia</span></>}>
+      {React.isValidElement(hero) ? React.cloneElement(hero as React.ReactElement<{className:string;style:React.CSSProperties}>,{className:'trade-details-hero trade-dialog-hero',style:{}}) : hero}
       <div className="trade-details-facts">{primary}</div>
       {details.length > 0 && <section className="trade-details-more">
         <button type="button" aria-expanded={expanded} aria-controls="trade-execution-facts" onClick={()=>setExpanded(!expanded)}>
@@ -444,9 +443,7 @@ export const OrderDetailsModal = ({
         </button>
         <AnimatedPanel activeKey={expanded ? 'details' : 'market'}><div id="trade-execution-facts" className="trade-details-facts trade-details-facts--execution">{details}</div></AnimatedPanel>
       </section>}
-    </div>
-    <footer className="trade-details-actions">{footer}</footer>
-  </Dialog>;
+  </TradingDialog>;
 };
 
 import { positionPnl } from '@/services/positionValuation.mjs';

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 // Adapted from beUI StatefulButton / RangeSlider motion patterns (MIT,
@@ -79,4 +79,18 @@ export function ReactionFeedback({ active, children }: {active:boolean;children:
     <motion.span key={active ? 'selected':'idle'} initial={{scale:.72,opacity:.4,rotate:active?-12:0}} animate={{scale:1,opacity:1,rotate:0}} exit={{scale:.8,opacity:0}}
       transition={{type:'spring',stiffness:560,damping:18,mass:.45}}>{children}</motion.span>
   </AnimatePresence></span>;
+}
+
+
+/** Animate the containing height; fields keep their own scale and native focus. */
+export function MeasuredPanel({children}:{children:React.ReactNode}) {
+  const content=useRef<HTMLDivElement>(null),[height,setHeight]=useState<number|null>(null),reduced=useReducedMotion();
+  useLayoutEffect(()=>{
+    const element=content.current;if(!element)return;
+    const measure=()=>{const next=element.getBoundingClientRect().height;setHeight(previous=>previous===next?previous:next);};
+    measure();if(typeof ResizeObserver==='undefined')return;
+    const observer=new ResizeObserver(measure);observer.observe(element);return()=>observer.disconnect();
+  },[]);
+  const inner=<div ref={content}>{children}</div>;
+  return reduced||!supportsProductMotion()?inner:<motion.div initial={false} animate={{height:height??'auto'}} transition={{type:'spring',stiffness:340,damping:34,mass:.6}} style={{overflow:'clip'}}>{inner}</motion.div>;
 }

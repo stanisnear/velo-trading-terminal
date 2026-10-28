@@ -24,6 +24,8 @@ async function setup(){
 }
 test('TP/SL sliders update real prices and estimates; draft survives quotes; pending save cannot duplicate',async()=>{
  const f=await setup();try{
+   assert(document.querySelector('dialog').classList.contains('trade-dialog'));assert(document.querySelector('.trade-dialog-actions .velo-manage-footer'));
+   const tabs=[...document.querySelectorAll('[role=tab]')];await act(async()=>tabs[1].dispatchEvent(new window.KeyboardEvent('keydown',{key:'Home',bubbles:true})));assert.equal(tabs[0].getAttribute('aria-selected'),'true');assert.equal(document.activeElement,tabs[0]);await act(async()=>tabs[0].dispatchEvent(new window.KeyboardEvent('keydown',{key:'End',bubbles:true})));assert.equal(tabs[1].getAttribute('aria-selected'),'true');assert.equal(document.activeElement,tabs[1]);
    const slider=document.querySelector('[aria-label="Take profit return slider"]');
    await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(slider,'50');slider.dispatchEvent(new window.Event('input',{bubbles:true}));slider.dispatchEvent(new window.Event('change',{bubbles:true}));});
    const tp=document.querySelector('#manage-TP');const draft=tp.value;assert(Number(draft)>80);assert.match(document.querySelector('#manage-TP-preview').textContent,/50.0%/);

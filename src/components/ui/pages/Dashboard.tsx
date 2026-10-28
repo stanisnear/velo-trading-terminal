@@ -1,3 +1,6 @@
+import { AccountOverview } from '../AccountOverview';
+import { DashboardActions } from '../DashboardActions';
+import { CopyButton } from '../CopyButton';
 import { AnimatedText } from '../AnimatedValue';
 import { SegmentedControl } from '../SegmentedControl';
 import { AnimatedValue } from '../AnimatedValue';
@@ -10,7 +13,7 @@ import { OrderDetailsModal } from '@/components/ui/OrderDetailsModal';
 import { baseScanAddressUrl, VELO_PERPS_ADDRESS } from '@/services/veloPerpsService';
 
 const S = {
-  display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
+  display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans, system-ui, sans-serif)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
@@ -179,7 +182,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   };
 
   return (
-    <div style={{ maxWidth: 1600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 'max(88px, calc(env(safe-area-inset-bottom, 0px) + 88px))' }} className="animate-fade-in">
+    <div style={{ maxWidth: 1600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 'max(88px, calc(env(safe-area-inset-bottom, 0px) + 88px))' }} className="dashboard-page animate-fade-in">
       {/* Pending Deposit Detail Modal */}
       {pendingDepositDetail && <PendingDepositDetailModal deposit={pendingDepositDetail} onClose={() => setPendingDepositDetail(null)} />}
       {/* On-chain deposit/withdraw handled by OrderlyOnboardingModal in App.tsx */}
@@ -198,7 +201,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
         <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
-              <p style={{ ...S.label, marginBottom: 5 }}>Total Equity</p>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}><p style={{...S.label,margin:0}}>Total equity</p><AccountOverview equity={equity} available={buyingPowerProp!==undefined?buyingPowerProp:user.balance} margin={totalMarginUsed} pnl={allPositionsPnl}/></div>
               <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}><AnimatedValue value={equity}/></p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
@@ -239,24 +242,8 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               </div>
             );
           })()}
-          <div className="dash-action-btns" style={{ padding: '0 22px 18px', display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
-            <button onClick={() => (onOpenDeposit ?? onOpenOrderlyOnboarding)?.() } style={{ flex: '1 1 110px', padding: '10px', borderRadius: 11, background: 'var(--pnl-up)', border: 'none', ...S.mono, fontSize: 12, fontWeight: 700, color: '#061108', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'opacity 0.15s' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Deposit</button>
-            <BtnSecondary onClick={() => onOpenWithdraw?.()} style={{ flex: '1 1 110px', padding: '10px' }}>Withdraw</BtnSecondary>
-            {onClaimTestnetUsdc && <BtnSecondary onClick={onClaimTestnetUsdc} style={{ flex: '1 1 110px', padding: '10px' }}>Faucet</BtnSecondary>}
-            {/* SEND — peer-to-peer mUSDC by @handle or 0x address. Visible at all
-                times because it's a core SocialFi action: pay or tip another user
-                without ever leaving the app. */}
-            {onOpenSend && (
-              <BtnSecondary onClick={() => onOpenSend?.()} style={{ flex: '1 1 110px', padding: '10px' }}>Send</BtnSecondary>
-            )}
-            {/* BRIDGE — cross-chain mUSDC via LayerZero. Less frequent action,
-                lighter visual weight. */}
-            {onOpenBridge && (
-              <BtnSecondary onClick={() => onOpenBridge?.()} style={{ flex: '1 1 110px', padding: '10px', opacity: 0.85 }}>Bridge</BtnSecondary>
-            )}
-          </div>
+          <DashboardActions deposit={onOpenDeposit??onOpenOrderlyOnboarding} withdraw={onOpenWithdraw} faucet={onClaimTestnetUsdc} send={onOpenSend} bridge={onOpenBridge} claiming={claimingFaucet}/>
+
         </div>
 
         {/* Right column */}
@@ -289,25 +276,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                 <span style={{ marginLeft: 'auto', ...S.label, fontSize: 8.5, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', padding: '2px 7px', borderRadius: 999, border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)' }}>Base Sepolia</span>
               </div>
               {tradingWalletAddress ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div>
-                    <p style={S.label}>Trading wallet</p>
-                    <a href={baseScanAddressUrl(tradingWalletAddress)} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4, ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)', textDecoration: 'none' }}>
-                      {tradingWalletAddress.slice(0, 6)}…{tradingWalletAddress.slice(-4)}
-                      <ExternalLink size={11} style={{ color: 'var(--fg-subtle)' }}/>
-                    </a>
-                  </div>
-                  <div style={{ height: 1, background: 'var(--hairline)' }}/>
-                  <div>
-                    <p style={S.label}>Perps contract</p>
-                    <a href={baseScanAddressUrl(VELO_PERPS_ADDRESS)} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4, ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', textDecoration: 'none' }}>
-                      {VELO_PERPS_ADDRESS.slice(0, 6)}…{VELO_PERPS_ADDRESS.slice(-4)}
-                      <ExternalLink size={10} style={{ color: 'var(--fg-subtle)' }}/>
-                    </a>
-                  </div>
-                </div>
+                <div className="dashboard-account-links">{[{label:'Trading wallet',value:tradingWalletAddress},{label:'Perps contract',value:VELO_PERPS_ADDRESS}].map(({label,value})=><div key={label}><p style={S.label}>{label}</p><div><a href={baseScanAddressUrl(value)} target="_blank" rel="noopener noreferrer">{value.slice(0,6)}…{value.slice(-4)}<ExternalLink size={11}/></a><CopyButton value={value} label={`Copy ${label.toLowerCase()}`}/></div></div>)}</div>
               ) : (
                 <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', lineHeight: 1.6 }}>
                   Set up your trading wallet to start placing verifiable on-chain trades.
