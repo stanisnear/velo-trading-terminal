@@ -15,7 +15,7 @@ In the Social composer, write a note and choose **Position** to pick an open pos
 
 1. Choose **Position** or **PnL image** and inspect the preview.
 2. Choose **$ Amounts** or **% Return only**. The latter hides margin, position-size and monetary PnL values in the attachment and its details; market prices and the percentage return remain visible.
-3. For an image, choose **Light card** or **Dark card** independently of the app theme. **Customize** contains the **Velo** and **Clean** layouts and live-post options.
+3. For an image, choose **Light card** or **Dark card** independently of the app theme. **Clean** is the only image layout. For an open position, **Post updates** contains the live-post and captured-result options.
 4. Add a note and choose **Post to Velo**, or save/share the PNG. Native file sharing depends on device support; the app offers an image download when it is unavailable.
 
 The amount toggle is a presentation preference, not a privacy or access-control boundary. On-chain trade data remains public, and previously exported images do not change when a later display preference changes.

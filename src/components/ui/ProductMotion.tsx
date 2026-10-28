@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 // Adapted from beUI StatefulButton / RangeSlider motion patterns (MIT,
@@ -64,8 +64,18 @@ export function MarginSlider({ value, onChange, label }: {value:number;onChange:
 /** The control remains mounted while its selected icon gives a short spring response. */
 export function ReactionFeedback({ active, children }: {active:boolean;children:React.ReactNode}) {
   const reduced=useReducedMotion();
+  const previous=useRef(active);
+  const [burst,setBurst]=useState(false);
+  useEffect(()=>{
+    const celebrate=active&&!previous.current;
+    previous.current=active;
+    if(!celebrate||reduced||!supportsProductMotion()){setBurst(false);return;}
+    setBurst(true);
+    const timer=setTimeout(()=>setBurst(false),480);
+    return()=>clearTimeout(timer);
+  },[active,reduced]);
   if(reduced || !supportsProductMotion())return <span className="velo-reaction-icon">{children}</span>;
-  return <span className="velo-reaction-icon"><AnimatePresence initial={false} mode="popLayout">
+  return <span className="velo-reaction-icon">{burst&&<span className="velo-reaction-burst" aria-hidden="true"><i/><i/><i/><i/><i/><i/></span>}<AnimatePresence initial={false} mode="popLayout">
     <motion.span key={active ? 'selected':'idle'} initial={{scale:.72,opacity:.4,rotate:active?-12:0}} animate={{scale:1,opacity:1,rotate:0}} exit={{scale:.8,opacity:0}}
       transition={{type:'spring',stiffness:560,damping:18,mass:.45}}>{children}</motion.span>
   </AnimatePresence></span>;

@@ -28,7 +28,7 @@ test('share studio starts simple, keeps an independent theme and preserves the d
   try{await act(async()=>root.render(React.createElement(VeloShareCard,{isOpen:true,data:{...share,presentation:'pnl'},onClose:()=>{closed=true;},onPost:async(content,data,image)=>{published={content,data,image};throw Error('Offline; draft kept');}})));
     assert.equal(document.querySelector('.share-customization').open,false);assert.equal(document.querySelectorAll('select').length,0);
     await click(button('Light card'));await click(button('% Return only'));assert.equal(document.documentElement.classList.contains('light'),false);
-    await click(button('Post to Velo'));assert.equal(published.data.hideAmounts,true);assert.equal(published.data.theme,'light');assert.equal(published.data.design,'signature');assert.equal(published.image.type,'image/png');assert.match(document.querySelector('[role=alert]').textContent,/draft kept/);assert.equal(closed,false);assert.match(document.querySelector('textarea').value,/Following my long/);
+    await click(button('Post to Velo'));assert.equal(published.data.hideAmounts,true);assert.equal(published.data.theme,'light');assert.equal(published.data.design,'minimal');assert.equal(published.image.type,'image/png');assert.match(document.querySelector('[role=alert]').textContent,/draft kept/);assert.equal(closed,false);assert.match(document.querySelector('textarea').value,/Following my long/);
   }finally{await act(async()=>root.unmount());dom.window.close();}
 });
 test.after(()=>rm(folder,{recursive:true,force:true}));

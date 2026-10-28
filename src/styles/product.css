@@ -256,3 +256,10 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
   .social-market-sidebar .social-token-grid { display:grid!important;overflow:visible!important; }
   .social-market-sidebar .social-token-card { flex:none;width:auto;min-width:0; }
 }
+
+/* A short, local response to an intentional reaction. No animation on hydration. */
+.velo-reaction-burst{position:absolute;inset:-9px;pointer-events:none;color:var(--accent-text)}
+.velo-reaction-burst i{position:absolute;left:50%;top:50%;width:3px;height:5px;margin:-2px;border-radius:3px;background:currentColor;--angle:0deg;animation:velo-reaction-spark 440ms cubic-bezier(.2,.7,.2,1) both}
+.velo-reaction-burst i:nth-child(2){--angle:60deg}.velo-reaction-burst i:nth-child(3){--angle:120deg}.velo-reaction-burst i:nth-child(4){--angle:180deg}.velo-reaction-burst i:nth-child(5){--angle:240deg}.velo-reaction-burst i:nth-child(6){--angle:300deg}
+@keyframes velo-reaction-spark{0%{opacity:0;transform:rotate(var(--angle)) translateY(-5px) scale(.4)}25%{opacity:.8}100%{opacity:0;transform:rotate(var(--angle)) translateY(-19px) scale(.35)}}
+@media(prefers-reduced-motion:reduce){.velo-reaction-burst{display:none}}

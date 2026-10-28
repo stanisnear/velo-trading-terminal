@@ -81,3 +81,17 @@
 .velo-signin-progress { display: flex; align-items: center; gap: 8px; color: var(--fg-subtle); font: 11px var(--font-mono); padding: 5px 0; }
 .velo-signin-alternative, .velo-signin-cancel { min-height: 36px; background: transparent; border: 0; color: var(--fg); font: 12px var(--font-sans); cursor: pointer; }
 .velo-signin-cancel { color: var(--fg-muted); }
+
+/* Sign-in uses the real authentication stages, never a simulated progress timer. */
+.velo-signin-symbol{position:relative;overflow:hidden}
+.velo-signin-symbol>span{position:absolute;inset:-50%;background:linear-gradient(100deg,transparent 35%,color-mix(in srgb,var(--accent) 22%,transparent) 50%,transparent 65%);transform:translateX(-65%)}
+.velo-signin-symbol.is-awaiting>span{animation:signin-scan 2.4s ease-in-out infinite}
+.signin-steps{width:min(100%,280px);display:flex;list-style:none;margin:4px 0 0;padding:0;isolation:isolate}
+.signin-steps li{position:relative;display:grid;justify-items:center;gap:6px;flex:1;color:var(--fg-subtle)}
+.signin-steps li:not(:last-child):after{content:'';position:absolute;left:calc(50% + 20px);right:calc(-50% + 20px);height:1px;top:15px;background:var(--hairline-strong);z-index:-1;transition:background 200ms}
+.signin-steps li>span{display:grid;place-items:center;width:31px;height:31px;border:1px solid var(--hairline-strong);border-radius:50%;background:var(--surface);transition:background 200ms,color 200ms,box-shadow 200ms}
+.signin-steps li[aria-current]{color:var(--fg)}.signin-steps li[aria-current]>span{color:var(--accent-text);box-shadow:0 0 0 4px var(--chip-bg);border-color:var(--accent)}
+.signin-steps li[data-complete]{color:var(--accent-text)}.signin-steps li[data-complete]>span{background:var(--chip-bg);border-color:var(--accent)}.signin-steps li[data-complete]:after{background:var(--accent)}
+.signin-steps small{font:500 10px var(--font-sans)}.signin-phase{min-height:96px;display:grid;place-items:center}.signin-phase p{margin-top:12px}.velo-signin-content h3{font:600 24px/1.2 var(--font-sans);letter-spacing:-.7px}
+@keyframes signin-scan{0%,15%{transform:translateX(-65%)}85%,100%{transform:translateX(65%)}}
+@media(prefers-reduced-motion:reduce){.velo-signin-symbol.is-awaiting>span{animation:none}.signin-steps li:after,.signin-steps li>span{transition:none}}

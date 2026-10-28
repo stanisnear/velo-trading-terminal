@@ -1,6 +1,6 @@
 import { SocialTextField } from './social/SocialTextField';
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Share2, Send, Sun, Moon, SlidersHorizontal, ChevronDown, Check } from 'lucide-react';
+import { Download, Share2, Send, Sun, Moon, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { PnlImage } from './PnlImage';
 import { renderTradePng } from '../utils/tradeImage';
@@ -18,7 +18,7 @@ export const VeloShareCard = ({isOpen,onClose,data:snapshot,onPost}:{
 }) => {
   const [presentation,setPresentation]=useState<'position'|'pnl'>(snapshot.presentation || (snapshot.status === 'OPEN' ? 'position' : 'pnl'));
   const [theme,setTheme]=useState<'light'|'dark'>(()=>document.documentElement.classList.contains('light')?'light':'dark');
-  const [design,setDesign]=useState<'signature'|'minimal'>('signature');
+  const design='minimal' as const;
   const [imageLive,setImageLive]=useState(false),[freeze,setFreeze]=useState(false);
   const [hideAmounts,setHideAmounts]=useState(!!snapshot.hideAmounts);
   const canUpdate=snapshot.status === 'OPEN' && hasPositionReference(snapshot);
@@ -53,9 +53,8 @@ export const VeloShareCard = ({isOpen,onClose,data:snapshot,onPost}:{
       <div className="share-studio-tabs" role="group" aria-label="Share format"><button disabled={busy} aria-pressed={presentation==='position'} onClick={()=>setPresentation('position')}>Position</button><button disabled={busy} aria-pressed={presentation==='pnl'} onClick={()=>setPresentation('pnl')}>PnL image</button></div>
       <div className="share-studio-preview">{presentation==='pnl'?<PnlImage data={data}/>:<CompactPosition data={data} pending={pending}/>}</div>
       <div className="share-studio-toolbar"><ShareValueControl hidden={hideAmounts} onChange={setHideAmounts} disabled={busy}/>{presentation==='pnl'&&<div className="share-theme-control" role="group" aria-label="Image appearance"><button aria-label="Light card" aria-pressed={theme==='light'} disabled={busy} onClick={()=>setTheme('light')}><Sun size={15}/></button><button aria-label="Dark card" aria-pressed={theme==='dark'} disabled={busy} onClick={()=>setTheme('dark')}><Moon size={15}/></button></div>}</div>
-      {presentation==='pnl'&&<details className="share-customization"><summary><SlidersHorizontal size={14}/><span>Customize</span><small>{design==='signature'?'Velo':'Clean'} · {updateMode==='live'?'Live':'Snapshot'}</small><ChevronDown size={14}/></summary><div className="share-customization-content">
-        <div className="share-designs" role="group" aria-label="Card layout">{(['signature','minimal'] as const).map(option=><button key={option} aria-pressed={design===option} disabled={busy} onClick={()=>setDesign(option)}><span className={`share-design-sample ${option}`} aria-hidden="true"><i>Velo</i><b>+12.8%</b></span><span>{option==='signature'?'Velo':'Clean'}{design===option&&<Check size={13}/>}</span></button>)}</div>
-        {canUpdate&&<><label className="share-live-setting"><span><b>Keep this post live</b><small>Updates on Velo. Saved images stay fixed.</small></span><input type="checkbox" role="switch" aria-label="Keep this post live" checked={imageLive} disabled={busy} onChange={e=>setImageLive(e.target.checked)}/></label>{imageLive&&<label className="share-freeze-setting"><input type="checkbox" checked={freeze} disabled={busy} onChange={e=>setFreeze(e.target.checked)}/>Keep the captured PnL when the position closes</label>}</>}
+      {presentation==='pnl'&&canUpdate&&<details className="share-customization"><summary><SlidersHorizontal size={14}/><span>Post updates</span><small>{updateMode==='live'?'Live':'Snapshot'}</small><ChevronDown size={14}/></summary><div className="share-customization-content">
+        <label className="share-live-setting"><span><b>Keep this post live</b><small>Updates on Velo. Saved images stay fixed.</small></span><input type="checkbox" role="switch" aria-label="Keep this post live" checked={imageLive} disabled={busy} onChange={e=>setImageLive(e.target.checked)}/></label>{imageLive&&<label className="share-freeze-setting"><input type="checkbox" checked={freeze} disabled={busy} onChange={e=>setFreeze(e.target.checked)}/>Keep the captured PnL when the position closes</label>}
       </div></details>}
       {onPost&&<SocialTextField className="share-studio-note" aria-label="Add a note" placeholder="Add a note…" rows={2} value={content} onValueChange={setContent} onSubmit={()=>void publish()} maxLength={2000} disabled={busy}/>}
       {error&&<p className="trade-share-feedback" role="alert">{error}</p>}{feedback&&<p className="trade-share-feedback" role="status">{feedback}</p>}

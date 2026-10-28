@@ -75,3 +75,20 @@ Phone/tablet trading sections share one flush surface with hairline separators; 
 Verification for this pass: 242 app checks plus TypeScript/production packaging. Coin workspace browser frames at 390 px and 820 px have no horizontal overflow. Local publishing confirms mention selection, automatic cashtag insertion and a normal post in the coin conversation; the actual app’s composer delegates to its shared feed handler. The mobile trade chart/ticket/feed resolve to the same surface with zero outer corner radius. Laptop closed-pose browser inspection confirms that the contact-shadow band no longer intersects the lid. No public post or trade was submitted.
 
 The workspace sizing reset explicitly preserves rolling-number glyph slots as `content-box`. Their measured character width excludes overhang padding; overriding that contract clips narrow digits, most visibly in the small chart captions. Live capture and computed glyph/slot widths were checked after the correction.
+
+
+## Coin content and interaction refinement
+
+The asset header now carries the reference quote and returns alongside the identity, with less top spacing. The chart, statistics and conversation flow independently of a compact About / More markets sidebar. Related-market logo wrappers have fixed square dimensions; only their explicit text column grows.
+
+`shared/assetProfiles.mjs` contains short, primary-source-linked summaries for the current 50 directory identities plus Pyth, stETH and WBTC. Canonical CoinMarketCap IDs prevent ticker collisions or a rename from substituting another project's summary. Quotes and returns remain separate from project descriptions. Unknown assets fall back to available metadata. These summaries are editorial content and need review when directory identities or project fundamentals change.
+
+New visible interactions in this release:
+
+- **Reaction dock:** a compact translucent picker with staggered entrances, selection feedback, arrow-key navigation, Escape dismissal and a synchronous duplicate-request lock. Like, repost and watchlist icons emit a brief local particle response only after a change to their selected state, never on page hydration. The existing optimistic rollback and notification rules remain authoritative.
+- **Sign-in stage rail:** Connect → Approve → Finish follows actual authentication phases. The wallet-awaiting fingerprint scans subtly; headings transition between stages. Cancel and switch-wallet actions retain their existing behavior. No simulated progress percentage or timer is used.
+- **Press bloom:** original decorative ink-bloom feedback on enabled native buttons and links, inspired by the observed Bencho Ink Bloom / Magic UI Ripple patterns. It adds no clicks, submissions, audio or delay. Native dialog controls render feedback inside the top layer. Disabled controls, editors and reduced-motion mode are excluded; effects are bounded and cleaned up.
+- **Landing order lab:** the existing Order types bento tile now offers Market, Limit, Stop, Take-profit and Stop-loss buttons, a moving trigger level and concise explanations. The sample path is explicitly illustrative. This is an educational interaction, not order entry; no wallet or price API call is made. The approved hero and laptop geometry remain intact.
+- **One PnL design:** Clean replaces the removed Velo design selector. Light/dark, amount privacy and optional live-post behavior remain available. PNGs are still rendered at 2400 × 1600; existing uploaded snapshots are not rewritten.
+
+The dock/stage transitions use the existing pinned Motion runtime and native accessibility semantics, reflecting Motion Primitives' transition-panel and React Bits' micro-interaction patterns. New effects and landing code are original Velo implementations, not redistributed third-party snippets. The existing beUI adaptation and license remain documented above. All added motion has a reduced-motion fallback. Interface sound remains opt-in and off by default.

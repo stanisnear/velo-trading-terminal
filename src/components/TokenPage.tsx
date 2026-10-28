@@ -12,6 +12,7 @@ import { fetchMarketData, marketWatchKey, tradingPairForAsset, useMarketDiscover
 import { mentionsTicker } from '../../shared/marketDiscovery.mjs';
 import { coinOverview } from '../../shared/coinOverview.mjs';
 import { TOKEN_META } from '../utils/tokenMetadata';
+import { assetProfile } from '../../shared/assetProfiles.mjs';
 import { TOP_SOCIAL_PAIRS } from '../utils/types';
 import './TokenPage.css';
 
@@ -50,11 +51,12 @@ export function TokenPage({ticker:identifier,posts=[],traders=[],user,changes={}
       {discovery.isError && <button className="asset-secondary" onClick={()=>void discovery.refetch()}>Try again</button>}</div></main>;
   const quote={...details.data?.asset,...Object.fromEntries(Object.entries(asset).filter(([,value])=>value!=null))};
   const fallback=TOKEN_META[ticker]?.geckoId===asset.geckoId?TOKEN_META[ticker]:undefined;
-  const description=fallback?.description||coinOverview(details.data?.description)||'';
-  const links=[{label:'Website',icon:Globe,url:details.data?.links?.website?.[0]||fallback?.website},
+  const profile=assetProfile(asset.cmcId);
+  const description=profile?.description||fallback?.description||coinOverview(details.data?.description)||'';
+  const links=[{label:'Website',icon:Globe,url:details.data?.links?.website?.[0]||fallback?.website||profile?.source},
     {label:'X / Twitter',icon:ArrowUpRight,url:details.data?.links?.twitter?.[0]||fallback?.twitter},
     {label:'Whitepaper',icon:BookOpen,url:details.data?.links?.whitepaper?.[0]||fallback?.whitepaper},
-    {label:'CoinMarketCap',icon:ArrowUpRight,url:asset.cmcSlug?`https://coinmarketcap.com/currencies/${asset.cmcSlug}/`:`https://coinmarketcap.com/currencies/${asset.cmcId}/`}]
+    {label:'CoinMarketCap',icon:ArrowUpRight,url:asset.cmcSlug?`https://coinmarketcap.com/currencies/${asset.cmcSlug}/`:'https://coinmarketcap.com/'}]
     .map(link=>({...link,url:safeLink(link.url)})).filter(link=>link.url);
   const tradable=tradingPairForAsset(asset), watched=watchlist.includes(marketWatchKey(asset));
   const stats=[['Market cap',amount(quote.marketCap,true,true)],['24h volume',amount(quote.volume,true,true)],
@@ -64,9 +66,10 @@ export function TokenPage({ticker:identifier,posts=[],traders=[],user,changes={}
     <div className="asset-breadcrumb"><button className="asset-back" onClick={()=>onClose()}><ArrowLeft size={16}/> All markets</button><span aria-hidden="true">/</span><span>{asset.name}</span></div>
     <header className="asset-hero">
       <div className="asset-identity"><VeloAssetIcon src={asset.logo} symbol={ticker} size={52}/><div>
-        <div className="asset-eyebrow">{quote.rank ? `Rank #${quote.rank}`:'Crypto asset'}{fallback?.category && <span> · {fallback.category}</span>}</div>
+        <div className="asset-eyebrow">{quote.rank ? `Rank #${quote.rank}`:'Crypto asset'}{(profile?.category||fallback?.category) && <span> · {profile?.category||fallback?.category}</span>}</div>
         <h1>{asset.name} <span>{ticker}</span></h1>
       </div></div>
+      <div className="asset-hero__quote"><strong><AnimatedText text={amount(quote.price)}/></strong><div><Change value={quote.change} label="24h"/><Change value={quote.change7d} label="7d"/></div></div>
       <div className="asset-hero__actions"><button className={`asset-icon-button ${watched?'is-active':''}`} aria-pressed={watched}
         aria-label={`${watched?'Remove':'Add'} ${ticker} ${watched?'from':'to'} watchlist`} onClick={()=>onToggleWatchlist(marketWatchKey(asset))}>
         <ReactionFeedback active={watched}><Star size={18} fill={watched?'currentColor':'none'}/></ReactionFeedback></button>
@@ -74,22 +77,12 @@ export function TokenPage({ticker:identifier,posts=[],traders=[],user,changes={}
       </div>
     </header>
     <div className="asset-workspace">
+      <div className="asset-main">
       <section className="asset-card asset-chart" aria-label={`${ticker} price chart`}>
         <div className="asset-chart__heading"><span className="asset-eyebrow">Market overview</span><span className="asset-reference">USD reference price</span></div>
         <TokenInteractiveChart assetId={asset.assetId} ticker={ticker} currentPrice={quote.price || 0} up={(quote.change || 0)>=0}/>
         <div className="asset-periods"><Change value={quote.change} label="24h"/><Change value={quote.change7d} label="7 days"/><Change value={quote.change30d} label="30 days"/></div>
       </section>
-      <aside className="asset-card asset-about" aria-labelledby="asset-about-title">
-        <span className="asset-eyebrow">Behind the asset</span><h2 id="asset-about-title">About {asset.name}</h2>
-        {details.isPending && !fallback?.description ? <p role="status">Loading asset information…</p> : description ? <>
-          <p>{description.length<=260?description:`${description.slice(0,260).trimEnd()}${expanded?'':'…'}`}</p>
-          {description.length>260 && <><ContentDisclosure id="asset-description" open={expanded}><p className="asset-about__more">{description.slice(260)}</p></ContentDisclosure>
-            <button className="asset-text-action" aria-expanded={expanded} aria-controls="asset-description" onClick={()=>setExpanded(!expanded)}>{expanded?'Show less':'Read more'}<ChevronDown size={14} style={{transform:expanded?'rotate(180deg)':undefined}}/></button></>}
-        </> : <p>Project information is currently unavailable. Explore the official links below.</p>}
-        {details.isError && <button className="asset-text-action" onClick={()=>void details.refetch()}>Refresh asset information</button>}
-        <nav className="asset-resources" aria-label={`${ticker} resources`}>{links.map(({label,icon:Icon,url})=><a key={label} href={url} target="_blank" rel="noopener noreferrer"><Icon size={16}/><span>{label}</span><ArrowUpRight size={14}/></a>)}</nav>
-        <div className="asset-availability"><span className={`asset-status-dot ${tradable?'':'is-muted'}`}/>{tradable?'Perpetual available on Velo':'Market information only'}</div>
-      </aside>
       <section className="asset-card asset-stats" aria-label="Market data"><dl>{stats.map(([label,value])=><div key={label}><dt>{label}</dt><dd><AnimatedText text={value}/></dd></div>)}</dl></section>
       <section className="asset-conversation" aria-labelledby="asset-conversation-title">
         <div className="asset-section-heading"><div><span className="asset-eyebrow">The conversation</span><h2 id="asset-conversation-title">Inside ${ticker}</h2></div>
@@ -106,11 +99,25 @@ export function TokenPage({ticker:identifier,posts=[],traders=[],user,changes={}
               <div><span className="asset-eyebrow">{article.source_info?.name||article.source} · {new Date(article.published_on*1000).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span><h3>{article.title}</h3></div><ArrowUpRight size={18}/></a>)}
         </div>}
       </section>
-      <aside className="asset-card asset-related" aria-labelledby="asset-related-title"><span className="asset-eyebrow">Keep exploring</span><h2 id="asset-related-title">More markets</h2>
+      </div>
+      <aside className="asset-sidebar">
+      <section className="asset-card asset-about" aria-labelledby="asset-about-title">
+        <span className="asset-eyebrow">Behind the asset</span><h2 id="asset-about-title">About {asset.name}</h2>
+        {details.isPending && !description ? <p role="status">Loading asset information…</p> : description ? <>
+          <p>{description.length<=390?description:`${description.slice(0,390).trimEnd()}${expanded?'':'…'}`}</p>
+          {description.length>390 && <><ContentDisclosure id="asset-description" open={expanded}><p className="asset-about__more">{description.slice(390)}</p></ContentDisclosure>
+            <button className="asset-text-action" aria-expanded={expanded} aria-controls="asset-description" onClick={()=>setExpanded(!expanded)}>{expanded?'Show less':'Read more'}<ChevronDown size={14} style={{transform:expanded?'rotate(180deg)':undefined}}/></button></>}
+        </> : <p>Project information is currently unavailable. Explore the official links below.</p>}
+        {details.isError && <button className="asset-text-action" onClick={()=>void details.refetch()}>Refresh asset information</button>}
+        <nav className="asset-resources" aria-label={`${ticker} resources`}>{links.map(({label,icon:Icon,url})=><a key={label} href={url} target="_blank" rel="noopener noreferrer"><Icon size={16}/><span>{label}</span><ArrowUpRight size={14}/></a>)}</nav>
+        <div className="asset-availability"><span className={`asset-status-dot ${tradable?'':'is-muted'}`}/>{tradable?'Perpetual available on Velo':'Market information only'}</div>
+      </section>
+      <section className="asset-card asset-related" aria-labelledby="asset-related-title"><span className="asset-eyebrow">Keep exploring</span><h2 id="asset-related-title">More markets</h2>
         {TOP_SOCIAL_PAIRS.filter(pair=>pair.symbol!==ticker).map(pair=><button className="asset-related__item" key={pair.symbol} onClick={()=>onNavigateToTicker(pair.symbol)}>
-          <VeloAssetIcon src={pair.logo} symbol={pair.symbol} size={30}/><span>{pair.symbol}<small>{pair.name}</small></span>
+          <VeloAssetIcon src={pair.logo} symbol={pair.symbol} size={30}/><span className="asset-related__copy">{pair.symbol}<small>{pair.name}</small></span>
           <Change value={changes[pair.pairId] ?? discovery.resolve(pair.symbol)?.change} label="24h"/><ArrowUpRight size={14}/></button>)}
         <button className="asset-text-action" onClick={()=>onClose()}>Explore all markets<ArrowUpRight size={14}/></button>
+      </section>
       </aside>
     </div>
   </main>;
