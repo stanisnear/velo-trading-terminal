@@ -14,3 +14,6 @@
 @media(max-width:380px){.asset-section-heading{flex-wrap:wrap}.asset-hero__actions .asset-primary{padding:9px 12px}.asset-periods{gap:10px}.asset-change{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.asset-page *{animation:none!important;transition:none!important}}
 .asset-about__more{font-size:13px;line-height:1.8;color:var(--fg-muted);margin:0 0 10px}.asset-chart .token-chart-controls .velo-segments{min-width:0}.asset-chart .token-chart-controls .velo-segments button{white-space:nowrap}.asset-chart .token-chart-svg:focus-visible{outline:2px solid var(--accent);outline-offset:-3px;border-radius:10px}
+/* Rolling glyph widths exclude their italic-overhang padding. Keep the library's
+   content-box contract when it sits inside the workspace's sizing reset. */
+.asset-page .rn-slot{box-sizing:content-box}
