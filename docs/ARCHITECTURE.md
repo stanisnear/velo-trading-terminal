@@ -97,4 +97,11 @@ Permission-scoped trading keys, a durable chain indexer, independently verified 
 
 ## Dashboard presentation
 
-`Dashboard` consumes existing account totals and positions; the compact portfolio chart does not stretch to the height of the sidebar. `PositionExposure` displays the actual position notionals, their relative shares and the authoritative margin/PnL totals supplied by App. It opens the existing position-inspection dialog without a new RPC or execution path. `DashboardAccount` keeps wallet/engine explorer and copy controls behind an accessible animated disclosure. The shared app shell aligns navigation while Social, Markets, asset and profile pages keep their existing content limits.
+`Dashboard` consumes existing account totals and positions; the compact portfolio chart does not stretch to the height of the sidebar. `PositionExposure` keeps only margin/PnL and a composition strip inline. Its full actual-notional breakdown opens in `TradingDialog`, so additional positions never increase the dashboard rail height. Selecting a row closes the breakdown before handing off to the existing position-inspection dialog. It introduces no RPC or execution path. `DashboardAccount` keeps wallet/engine explorer and copy controls behind an accessible animated disclosure. The shared app shell aligns navigation while Social, Markets, asset and profile pages keep their existing content limits.
+
+
+## Wallet dialog presentation
+
+`VeloDepositModal` owns the selected deposit/withdraw direction and network; App mounts one instance and uses the callback direction to record activity/notifications. `VeloSendModal` retains the existing transfer outbox, receipt verification and recovery path. `VeloFaucetModal` retains its existing setup/claim lock. These views and `SettingsModal` share `TradingDialog`, `WalletPresentation`, measured content transitions, native segmented controls and persistent action footers. Pending work disables navigation/dismissal. Base wallet balance/receipt reads are pinned to chain 84532, independently of the wallet's selected network. No database schema or contract configuration changes accompany this presentation release.
+
+Settings keeps contact drafts across section changes and uses the existing authenticated contact-email RPC. Security content is only rendered in its own section; navigating away hides any revealed key. Existing recovery/signing services and explicit export confirmation remain in place.

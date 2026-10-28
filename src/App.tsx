@@ -50,7 +50,6 @@ import { VeloSendModal } from './components/VeloSendModal';
 import { VeloFaucetModal } from './components/VeloFaucetModal';
 import { TransactionRecoveryNotice } from './components/TransactionRecoveryNotice';
 import { reconcileIncomingTransfers } from './services/incomingTransfers.mjs';
-import { VeloWithdrawModal } from './components/VeloWithdrawModal';
 import { VeloShareCard, type ShareCardData } from './components/VeloShareCard';
 import { VeloManagePositionModal } from './components/VeloManagePositionModal';
 import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
@@ -6140,16 +6139,19 @@ const App = () => {
               isOpen={isVeloBridgeOpen}
               onClose={() => setVeloBridgeOpen(false)}
             />
-            {/* ── Velo Deposit Modal (main wallet → trading wallet, same chain) ── */}
+            {/* Unified funds dialog: activity follows the selected direction. */}
             <VeloDepositModal
-              isOpen={isVeloDepositOpen}
-              onClose={() => setVeloDepositOpen(false)}
-              onSuccess={async (txHash, amount) => {
-                setToast({ message: `Deposited $${amount.toFixed(2)} to trading wallet`, type: 'SUCCESS' });
+              isOpen={isVeloDepositOpen || isVeloWithdrawOpen}
+              defaultTab={isVeloWithdrawOpen ? 'withdraw' : 'deposit'}
+              onClose={() => { setVeloDepositOpen(false); setVeloWithdrawOpen(false); }}
+              onSuccess={async (txHash, amount, direction) => {
+                const activityType = direction === 'withdraw' ? 'WITHDRAW' : 'DEPOSIT';
+                const message = direction === 'withdraw' ? `Withdrew $${amount.toFixed(2)} mUSDC to wallet` : `Deposited $${amount.toFixed(2)} mUSDC to trading wallet`;
+                setToast({ message, type: 'SUCCESS' });
                 if (user?.id && isSupabaseConfigured()) {
                   try {
-                    await recordTransaction(user.id, 'DEPOSIT', amount, { txHash, onChain: true });
-                    await createNotification(user.id, 'DEPOSIT', `Deposited $${amount.toFixed(2)} mUSDC to trading wallet`, txHash);
+                    await recordTransaction(user.id, activityType, amount, { txHash, onChain: true });
+                    await createNotification(user.id, activityType, message, txHash);
                     const txns = await fetchTransactions(user.id);
                     setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
                   } catch (e) { console.warn('[velo] deposit tx record failed', e); }
@@ -6273,27 +6275,6 @@ const App = () => {
                 }
                 // Refresh the burner balance so the dashboard's TOTAL EQUITY
                 // drops by `amount` immediately rather than after the next poll.
-                try { await veloPerpsTrading.refresh(); } catch {}
-              }}
-            />
-            {/* ── Velo Withdraw Modal (trading wallet → main or custom 0x) ── */}
-            <VeloWithdrawModal
-              isOpen={isVeloWithdrawOpen}
-              onClose={() => setVeloWithdrawOpen(false)}
-              onSuccess={async (hash, amount) => {
-                setToast({ message: `Withdrew $${amount.toFixed(2)} mUSDC`, type: 'SUCCESS' });
-                // Record the withdrawal in Recent Activity. on-chain meta keeps
-                // it from double-applying to the legacy Supabase balance.
-                if (user?.id && isSupabaseConfigured()) {
-                  try {
-                    await recordTransaction(user.id, 'WITHDRAW', amount, { txHash: hash, onChain: true });
-                    await createNotification(user.id, 'WITHDRAW', `Withdrew $${amount.toFixed(2)} mUSDC to wallet`, hash);
-                    const txns = await fetchTransactions(user.id);
-                    setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
-                  } catch (e) { console.warn('[velo] withdraw tx record failed', e); }
-                }
-                // Refresh the burner balance so TOTAL EQUITY visibly drops by
-                // the withdrawn amount immediately.
                 try { await veloPerpsTrading.refresh(); } catch {}
               }}
             />

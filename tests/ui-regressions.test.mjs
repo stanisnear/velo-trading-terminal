@@ -38,10 +38,10 @@ test('private-key confirmation/reveal survives fresh profile props and price ref
  const f=setup();const burner=buildBurnerFromSignature(owner,'0x'+'11'.repeat(65));storeBurner(burner);
  const render=()=>f.root.render(React.createElement(SettingsModal,{isOpen:true,onClose:()=>{},profile:{id:'fixture',username:'tester',email:'',veloWalletAddress:burner.veloAddress}}));
  try {
-  await act(async()=>render());await click('Reveal Private Key');
-  await act(async()=>render());assert.match(document.body.textContent,/I understand — show me/);
-  await click('I understand — show me');await act(async()=>render());
-  assert.match(document.body.textContent,/Hide Key/);assert.ok(document.body.textContent.includes(burner.privateKey));
+  await act(async()=>render());await click('Security');await click('Reveal private key');
+  await act(async()=>render());assert.match(document.body.textContent,/Only reveal your key when you are ready/);
+  await click('Reveal key');await act(async()=>render());
+  assert.match(document.body.textContent,/Hide key/);assert.ok(document.body.textContent.includes(burner.privateKey));
  } finally {await f.close();}
 });
 test('trade detail explanation stays expanded while market prices update',async()=>{

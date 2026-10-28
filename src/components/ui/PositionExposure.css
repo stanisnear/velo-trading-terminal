@@ -1,5 +1,5 @@
-.position-exposure{padding:18px;font-family:var(--font-sans);color:var(--fg)}
-.position-exposure header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.position-exposure{padding:16px 18px;font-family:var(--font-sans);color:var(--fg)}
+.position-exposure header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .position-exposure header>span{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
 .position-exposure header svg{color:var(--accent-text)}
 .position-exposure header>small{font-size:11px;color:var(--fg-muted)}
@@ -9,7 +9,7 @@
 .position-exposure-summary strong{display:block;margin-top:5px;font-size:20px;font-weight:600;letter-spacing:-.035em;line-height:1.5}
 .position-exposure-summary strong[data-positive=true]{color:var(--pnl-up)}
 .position-exposure-summary strong[data-positive=false]{color:var(--pnl-down)}
-.position-exposure-bar{display:flex;gap:3px;height:6px;border-radius:999px;overflow:hidden;margin-top:18px;background:var(--chip-bg)}
+.position-exposure-bar{display:flex;gap:3px;height:6px;border-radius:999px;overflow:hidden;margin-top:12px;background:var(--chip-bg)}
 .position-exposure-bar>span{flex-basis:0;min-width:0;background:var(--pnl-down);transition:flex-grow 300ms ease,opacity 180ms ease}
 .position-exposure-bar>span[data-long=true]{background:var(--pnl-up)}
 .position-exposure-bar>span[data-muted=true]{opacity:.3}
@@ -30,3 +30,5 @@
 .position-exposure-more[aria-expanded=true] svg{transform:rotate(180deg)}
 .position-exposure-empty{margin:16px 0 0;color:var(--fg-muted);font-size:12px;line-height:1.5}
 @media(prefers-reduced-motion:reduce){.position-exposure-bar>span,.position-exposure-row,.position-exposure-row>svg,.position-exposure-more svg{transition:none}}
+
+.position-exposure-more:disabled{color:var(--fg-subtle);cursor:default}.position-exposure-detail{padding-bottom:16px}.position-exposure-note{margin:0;color:var(--fg-muted);font:400 12px/1.6 var(--font-sans)}.position-exposure-detail .position-exposure-bar{margin:15px 0}.position-exposure-detail .position-exposure-row{padding-block:14px}
