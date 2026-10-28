@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import React, { useEffect, useRef, useState } from 'react';
 import { positionSettlement, liquidationEstimate, triggerPriceForRoe } from '@/services/positionValuation.mjs';
 import { Share2, CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
@@ -82,7 +83,7 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
         aria-invalid={!!triggerError(value, kind)} aria-describedby={`manage-${kind}-preview`} onChange={e => setValue(e.target.value)} placeholder="Not set" /></div>
       <div id={`manage-${kind}-preview`} className="velo-trigger-preview">
         <span>{p.v4 ? 'Est. net PnL' : 'Est. PnL before fees'}</span>
-        <strong style={{ color: projected === null ? 'var(--fg-muted)' : projected >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{projected === null ? 'Not set' : `${signedMoney(projected)} (${percent > 0 ? '+' : ''}${percent.toFixed(1)}%)`}</strong>
+        <strong style={{ color: projected === null ? 'var(--fg-muted)' : projected >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{<AnimatedText text={projected === null ? 'Not set' : `${signedMoney(projected)} (${percent > 0 ? '+' : ''}${percent.toFixed(1)}%)`}/>}</strong>
       </div>
       <input aria-label={`${label} return slider`} type="range" min="0" max={max} step="1" disabled={disabled}
         value={Math.min(max, Math.max(0, profit ? percent : -percent))} onChange={e => {
@@ -100,8 +101,8 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
     <div className="velo-manage">
       <div className="velo-manage-overview">
         <div className="velo-manage-direction"><span style={{ color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span><span>{p.leverage}x</span><span>Isolated</span></div>
-        <div className="velo-manage-pnl"><span>{success && tab === 'CLOSE' ? 'Realized PnL' : p.v4 ? 'Estimated net PnL' : 'PnL before fees'}</span><strong style={{ color: estimate.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{signedMoney(estimate.pnl)}</strong><small>{roe >= 0 ? '+' : ''}{roe.toFixed(2)}% return on margin</small></div>
-        <dl className="velo-manage-quotes"><div><dt>Entry</dt><dd>${formatPrice(p.entryPrice)}</dd></div><div><dt>Mark</dt><dd>${formatPrice(currentPrice)}</dd></div><div><dt>Margin</dt><dd>${formatMoney(margin)}</dd></div></dl>
+        <div className="velo-manage-pnl"><span>{success && tab === 'CLOSE' ? 'Realized PnL' : p.v4 ? 'Estimated net PnL' : 'PnL before fees'}</span><strong style={{ color: estimate.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{signedMoney(estimate.pnl)}</strong><small>{roe >= 0 ? '+' : ''}{<AnimatedText text={roe.toFixed(2)}/>}% return on margin</small></div>
+        <dl className="velo-manage-quotes"><div><dt>Entry</dt><dd>${<AnimatedText text={formatPrice(p.entryPrice)}/>}</dd></div><div><dt>Mark</dt><dd>${<AnimatedText text={formatPrice(currentPrice)}/>}</dd></div><div><dt>Margin</dt><dd>${<AnimatedText text={formatMoney(margin)}/>}</dd></div></dl>
       </div>
       {success ? <div role="status" className="velo-manage-success"><CheckCircle2 size={40} /><h3>{tab === 'CLOSE' ? 'Position closed' : 'Protection updated'}</h3><p>{tab === 'CLOSE' ? 'Settlement confirmed on Base Sepolia.' : 'Your TP and SL settings are confirmed on-chain.'}</p>{tab === 'CLOSE' && onShareClosed && <button className="close-receipt-share" type="button" onClick={onShareClosed}><Share2 size={14}/>Share</button>}</div> : <>
         <div role="tablist" aria-label="Position action" className="velo-manage-tabs">
@@ -113,10 +114,10 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
             <div className="velo-manage-close-label"><span>Closing in full</span><strong>100%</strong></div>
             <div className="velo-manage-close-track"><span /></div>
             <dl className="velo-manage-breakdown">
-              <div><dt>Position size</dt><dd>${formatMoney(p.size)}</dd></div>
-              <div><dt>Liquidation estimate</dt><dd>${formatPrice(liquidation)}</dd></div>
-              {p.v4 && <><div><dt>Closing fee</dt><dd>${formatMoney(estimate.closeFee)}</dd></div><div><dt>Accrued borrow fee</dt><dd>${formatMoney(estimate.borrowFee)}</dd></div></>}
-              <div className="is-total"><dt>Est. returned to wallet</dt><dd>${formatMoney(estimate.payout)}</dd></div>
+              <div><dt>Position size</dt><dd>${<AnimatedText text={formatMoney(p.size)}/>}</dd></div>
+              <div><dt>Liquidation estimate</dt><dd>${<AnimatedText text={formatPrice(liquidation)}/>}</dd></div>
+              {p.v4 && <><div><dt>Closing fee</dt><dd>${<AnimatedText text={formatMoney(estimate.closeFee)}/>}</dd></div><div><dt>Accrued borrow fee</dt><dd>${<AnimatedText text={formatMoney(estimate.borrowFee)}/>}</dd></div></>}
+              <div className="is-total"><dt>Est. returned to wallet</dt><dd>${<AnimatedText text={formatMoney(estimate.payout)}/>}</dd></div>
             </dl>
             <p className="velo-manage-note">The entire position settles at the execution price. Its take-profit and stop-loss settings are removed when it closes.</p>
           </> : <><div className="velo-trigger-fields">{renderTrigger('TP', tp, setTp)}{renderTrigger('SL', sl, setSl)}</div>

@@ -1,3 +1,4 @@
+import { AnimatedText } from '../AnimatedValue';
 import { LEGACY_V31_RESTRICTED } from '@/services/testnetReleaseGate';
 import { positionPnl } from '@/services/positionValuation.mjs';
 import { IS_V4, PAIR_INDEX, VELO_PERPS_V4_ADDRESS, type VeloPairLabel } from '@/services/veloPerpsService';
@@ -107,10 +108,10 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {}, marketChan
                                     </div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
-                                    <div style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{Number.isFinite(marketPrices[p.id]) ? `$${formatPrice(marketPrices[p.id])}` : 'Unavailable'}</div>
+                                    <div style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{<AnimatedText text={Number.isFinite(marketPrices[p.id]) ? `$${formatPrice(marketPrices[p.id])}` : 'Unavailable'}/>}</div>
                                     {hasChg && (
                                         <div style={{ ...S.mono, fontSize: 10, fontWeight: 700, color: chgColor }}>
-                                            {chg >= 0 ? '+' : ''}{chg.toFixed(2)}%
+                                            {chg >= 0 ? '+' : ''}{<AnimatedText text={chg.toFixed(2)}/>}%
                                         </div>
                                     )}
                                 </div>
@@ -854,16 +855,16 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                 </div>
                                             </td>
                                             <td style={{ padding: '4px 7px', fontWeight: 700, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</td>
-                                            <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${formatMoney(p.size)}</td>
-                                            <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${formatPrice(p.entryPrice)}</td>
-                                            <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${formatPrice(cp)}</td>
+                                            <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${<AnimatedText text={formatMoney(p.size)}/>}</td>
+                                            <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${<AnimatedText text={formatPrice(p.entryPrice)}/>}</td>
+                                            <td style={{ padding: '4px 7px', color: 'var(--fg)' }}>${<AnimatedText text={formatPrice(cp)}/>}</td>
                                             <td style={{ padding: '4px 7px', fontWeight: 700, color: bufClr }}>
-                                                {liqPrice > 0 ? `$${formatPrice(liqPrice)}` : '—'}
+                                                {<AnimatedText text={liqPrice > 0 ? `$${formatPrice(liqPrice)}` : '—'}/>}
                                             </td>
                                             <td style={{ padding: '4px 7px' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 72 }}>
                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
-                                                    <span style={{ color: bufClr, fontWeight: 700, fontSize: 11 }}>{buf.toFixed(1)}%</span>
+                                                    <span style={{ color: bufClr, fontWeight: 700, fontSize: 11 }}>{<AnimatedText text={buf.toFixed(1)}/>}%</span>
                                                     <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.06em', color: bufClr, textTransform: 'uppercase' as const }}>{bufLabel}</span>
                                                   </div>
                                                   <div style={{ height: 3, borderRadius: 2, background: 'var(--hairline-strong)', overflow: 'hidden' }}>
@@ -872,17 +873,17 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                                 </div>
                                             </td>
                                             <td style={{ padding: '4px 7px', fontWeight: 700, color: pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                                ${formatMoney(pnl)}<span style={{ opacity: 0.55, fontSize: 9 }}> ({roe.toFixed(1)}%)</span>
+                                                ${<AnimatedText text={formatMoney(pnl)}/>}<span style={{ opacity: 0.55, fontSize: 9 }}> ({<AnimatedText text={roe.toFixed(1)}/>}%)</span>
                                             </td>
                                             <td style={{ padding: '4px 7px' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     <span style={{ color: 'var(--fg-subtle)', fontSize: 10 }}>
                                                       {p.takeProfit && p.takeProfit > 0
-                                                        ? <span style={{ color: 'var(--pnl-up)' }}>TP ${formatPrice(p.takeProfit)}</span>
+                                                        ? <span style={{ color: 'var(--pnl-up)' }}>TP ${<AnimatedText text={formatPrice(p.takeProfit)}/>}</span>
                                                         : <span>–</span>}
                                                       {' / '}
                                                       {p.stopLoss && p.stopLoss > 0.00001
-                                                        ? <span style={{ color: 'var(--pnl-down)' }}>SL ${formatPrice(p.stopLoss)}</span>
+                                                        ? <span style={{ color: 'var(--pnl-down)' }}>SL ${<AnimatedText text={formatPrice(p.stopLoss)}/>}</span>
                                                         : <span>–</span>}
                                                     </span>
                                                     <button onClick={(e) => { e.stopPropagation(); onEditPosition(p, 'TRIGGERS'); }} style={{ background: 'var(--chip-bg)', border: 'none', cursor: 'pointer', borderRadius: 5, padding: 2, display: 'flex', color: 'var(--fg-muted)' }} title="Set Take Profit / Stop Loss"><Edit size={10} /></button>
@@ -1049,13 +1050,13 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                             – CLOSE: show PnL (the user's primary signal for a closed trade) */}
                                         {t.action === 'OPEN' ? (
                                           <span style={{ ...S.label, fontSize: 9 }}>
-                                            Entry: <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>${formatPrice(t.entryPrice)}</span>
+                                            Entry: <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>${<AnimatedText text={formatPrice(t.entryPrice)}/>}</span>
                                             <span style={{ opacity: 0.5, margin: '0 4px' }}>·</span>
-                                            Size: <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>${formatMoney(t.size)}</span>
+                                            Size: <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>${<AnimatedText text={formatMoney(t.size)}/>}</span>
                                             {t.leverage ? <> · <span style={{ color: 'var(--fg-muted)', fontWeight: 700 }}>{t.leverage}×</span></> : null}
                                           </span>
                                         ) : (
-                                          <span style={{ ...S.label, fontSize: 9 }}>PnL: <span style={{ color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 700 }}>${formatMoney(t.pnl)}</span></span>
+                                          <span style={{ ...S.label, fontSize: 9 }}>PnL: <span style={{ color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 700 }}>${<AnimatedText text={formatMoney(t.pnl)}/>}</span></span>
                                         )}
                                     </div>
                                     <div style={{ textAlign: 'right', ...S.mono, fontSize: 10, color: 'var(--fg-subtle)' }}>
@@ -1197,7 +1198,7 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
                                 <>Increasing from <span style={{ color: 'var(--pnl-up)', fontWeight: 700 }}>{leverageModal.currentLeverage}x</span> to <span style={{ color: '#f97316', fontWeight: 700 }}>{leverageModal.targetLeverage}x</span> moves your liquidation price significantly closer to the current mark price. Your margin risk increases.</>
                             )}
                             {!isBlocked && !isUp && (
-                                <>Reducing from <span style={{ color: '#f97316', fontWeight: 700 }}>{leverageModal.currentLeverage}x</span> to <span style={{ color: 'var(--iris-violet)', fontWeight: 700 }}>{leverageModal.targetLeverage}x</span> will lock <span style={{ fontWeight: 700 }}>${leverageModal.needed.toFixed(2)}</span> of additional margin from your free balance.</>
+                                <>Reducing from <span style={{ color: '#f97316', fontWeight: 700 }}>{leverageModal.currentLeverage}x</span> to <span style={{ color: 'var(--iris-violet)', fontWeight: 700 }}>{leverageModal.targetLeverage}x</span> will lock <span style={{ fontWeight: 700 }}>${<AnimatedText text={leverageModal.needed.toFixed(2)}/>}</span> of additional margin from your free balance.</>
                             )}
                         </div>
                     </div>
@@ -1216,14 +1217,14 @@ const LeverageModal = ({ leverageModal, positions, activePair, currentPrice, use
                     {!isBlocked && (
                         <div style={{ ...S.mono, fontSize: 11, color: textMuted, lineHeight: 1.55, padding: '2px 0' }}>
                             {isUp
-                                ? <>At <span style={{ color: '#f97316', fontWeight: 700 }}>{leverageModal.targetLeverage}x</span>, your position liquidates if price moves <span style={{ color: textPrimary, fontWeight: 700 }}>{newLiqDist.toFixed(1)}%</span> against you.</>
-                                : <>Free balance decreases by <span style={{ color: textPrimary, fontWeight: 700 }}>${leverageModal.needed.toFixed(2)}</span>. Liquidation distance increases — lower risk.</>
+                                ? <>At <span style={{ color: '#f97316', fontWeight: 700 }}>{leverageModal.targetLeverage}x</span>, your position liquidates if price moves <span style={{ color: textPrimary, fontWeight: 700 }}>{<AnimatedText text={newLiqDist.toFixed(1)}/>}%</span> against you.</>
+                                : <>Free balance decreases by <span style={{ color: textPrimary, fontWeight: 700 }}>${<AnimatedText text={leverageModal.needed.toFixed(2)}/>}</span>. Liquidation distance increases — lower risk.</>
                             }
                         </div>
                     )}
                     {isBlocked && (
                         <div style={{ ...S.mono, fontSize: 11, color: textMuted, lineHeight: 1.55, padding: '2px 0' }}>
-                            Deposit <span style={{ color: textPrimary, fontWeight: 700 }}>${leverageModal.shortfall.toFixed(2)}</span> or more to reduce leverage to {leverageModal.targetLeverage}x.
+                            Deposit <span style={{ color: textPrimary, fontWeight: 700 }}>${<AnimatedText text={leverageModal.shortfall.toFixed(2)}/>}</span> or more to reduce leverage to {leverageModal.targetLeverage}x.
                         </div>
                     )}
                 </div>
@@ -1629,7 +1630,7 @@ export const TradeView = ({
                     </div>
                 </button>
                 <div style={{ textAlign: 'right' }}>
-                    <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
+                    <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${<AnimatedText text={formatPrice(currentPrice)}/>}</div>
                     <div style={{ ...S.label, marginTop: 2, color: changeColor }}>{changeLabel}</div>
                 </div>
             </div>}
@@ -1681,7 +1682,7 @@ export const TradeView = ({
                     <ChevronDown size={12} style={{ color: 'var(--fg-subtle)' }} />
                 </button>
                 <div style={{ textAlign: 'right' }}>
-                    <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${formatPrice(currentPrice)}</div>
+                    <div style={{ ...S.display, fontSize: 18, color: 'var(--fg)' }}>${<AnimatedText text={formatPrice(currentPrice)}/>}</div>
                     <div style={{ ...S.label, fontSize: 9, color: changeColor }}>{changeLabel}</div>
                 </div>
             </div>
@@ -1818,7 +1819,7 @@ export const TradeView = ({
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--chip-bg)', borderRadius: 12, padding: isMobile ? '8px 12px' : '5px 10px', border: '1px solid var(--hairline)' }}>
                                 <div>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Margin (cost)</div>
-                                    <div style={{ ...S.display, fontSize: isMobile ? 16 : 14, color: 'var(--fg)' }}>${formatMoney(cost)}</div>
+                                    <div style={{ ...S.display, fontSize: isMobile ? 16 : 14, color: 'var(--fg)' }}>${<AnimatedText text={formatMoney(cost)}/>}</div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <div style={{ ...S.label, marginBottom: 1 }}>Leverage</div>

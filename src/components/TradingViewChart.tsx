@@ -1,3 +1,5 @@
+import { AnimatedText } from './ui/AnimatedValue';
+import { formatPrice } from './ui/shared';
 import { pythPriceStream } from '../services/pythPriceService';
 import { subscribeKlines } from '../services/priceService';
 import { mergeLiveCandle, oracleCandle, localChartTime } from '../services/chartLive.mjs';
@@ -1267,6 +1269,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
         <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: 'var(--surface-raised)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: isLivePrice ? candleUp : foreground, opacity: isLivePrice ? 1 : 0.65 }} />
           {initialData[0]?.source === 'exchange' ? 'Exchange reference' : 'Pyth mark'}
+          {currentPrice > 0 && <span className="chart-rolling-mark"><AnimatedText text={'$' + formatPrice(currentPrice)}/></span>}
         </div>
       )}
       {isLoadingOlder && (

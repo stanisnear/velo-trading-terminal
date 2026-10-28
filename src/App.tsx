@@ -1,3 +1,4 @@
+import { AnimatedText } from './components/ui/AnimatedValue';
 import { SegmentedControl } from './components/ui/SegmentedControl';
 import { SocialTagProvider, SocialTextField } from './components/social/SocialTextField';
 import { positionShareMetadata } from './utils/positionShareMetadata.mjs';
@@ -470,7 +471,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {} }: any) => 
                                 <VeloAssetIcon src={p.logo} symbol={p.id.split('/')[0]} size={32} className="group-hover:scale-105 transition-transform" />
                                 <div className="text-left"><p className="font-bold text-[var(--fg)]">{p.id}</p><p className="text-xs text-[var(--fg-subtle)]">{p.name}</p></div>
                             </div>
-                            <div className="text-right"><span className="block text-sm font-medium text-[var(--fg)]">{marketPrices[p.id] > 0 ? `$${formatPrice(marketPrices[p.id])}` : '—'}</span><span className="text-[10px] text-[var(--fg-subtle)]">{p.name}</span></div>
+                            <div className="text-right"><span className="block text-sm font-medium text-[var(--fg)]">{<AnimatedText text={marketPrices[p.id] > 0 ? `$${formatPrice(marketPrices[p.id])}` : '—'}/>}</span><span className="text-[10px] text-[var(--fg-subtle)]">{p.name}</span></div>
                         </button>
                     ))}
                 </div>
@@ -519,13 +520,13 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
         return (
             <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
                 <defs>
-                    <linearGradient id={`sg-${up ? 'u' : 'd'}`} x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id={`social-spark-${up ? 'u' : 'd'}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity="0.10" />
                         <stop offset="100%" stopColor={color} stopOpacity="0" />
                     </linearGradient>
                 </defs>
-                <polygon points={fillPts} fill={`url(#sg-${up ? 'u' : 'd'})`} />
-                <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <polygon points={fillPts} fill={`url(#social-spark-${up ? 'u' : 'd'})`} />
+                <polyline className="product-sparkline" pathLength="1" points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
         );
     };
@@ -540,7 +541,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                         const up = chg >= 0;
                         const spark = sparklines[p.symbol] || [];
                         return (
-                            <div key={p.symbol} className="social-token-card"
+                            <div key={p.symbol} className="social-token-card" role="button" tabIndex={0} aria-label={`View ${p.name}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onTickerClick(p.symbol); } }}
                                 onClick={() => onTickerClick(p.symbol)}
                                 style={{ background: 'transparent', borderLeft: i > 0 ? '1px solid var(--hairline)' : 'none', padding: '13px 15px', cursor: 'pointer', transition: 'background 0.15s', position: 'relative', overflow: 'hidden' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--fg) 5%, transparent)'; }}
@@ -553,11 +554,11 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, color: 'var(--fg-subtle)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
                                     </div>
                                     <span style={{ marginLeft: 'auto', ...S.mono, fontSize: 11, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                                        {up ? '+' : ''}{chg.toFixed(2)}%
+                                        {up ? '+' : ''}{<AnimatedText text={chg.toFixed(2)}/>}%
                                     </span>
                                 </div>
                                 <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 8, letterSpacing: '-0.01em' }}>
-                                    {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}
+                                    {<AnimatedText text={price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}/>}
                                 </span>
                                 {drawSparkline(spark, up)}
                             </div>
@@ -566,7 +567,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                 </div>
             </div>
             {onNavigateToMarkets && (
-                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                <div className="social-markets-link" style={{ textAlign: 'center', marginTop: 8 }}>
                     <button onClick={onNavigateToMarkets} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, opacity: 0.8, transition: 'opacity 0.15s', padding: '4px 8px' }}
                         onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                         onMouseLeave={e => (e.currentTarget.style.opacity = '0.8')}
@@ -780,19 +781,19 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                             </div>
                             <div className="token-quote-line">
                                 <span style={{ ...S.numeric, fontSize: 22, fontWeight: 650, color: 'var(--fg)', lineHeight: 1 }}>
-                                    {formatQuote(price)}
+                                    {<AnimatedText text={formatQuote(price)}/>}
                                 </span>
                                 <span className={`token-day-change ${up ? 'positive' : 'negative'}`}>
-                                    {change == null ? '24h unavailable' : `${up ? '▲' : '▼'} ${Math.abs(chg).toFixed(2)}% 24h`}
+                                    {<AnimatedText text={change == null ? '24h unavailable' : `${up ? '▲' : '▼'} ${Math.abs(chg).toFixed(2)}% 24h`}/>}
                                 </span>
                                 {priceChange7d != null && (
                                     <span className="token-period-change" style={{ color: priceChange7d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                        7D {priceChange7d >= 0 ? '+' : ''}{priceChange7d.toFixed(2)}%
+                                        7D {priceChange7d >= 0 ? '+' : ''}{<AnimatedText text={priceChange7d.toFixed(2)}/>}%
                                     </span>
                                 )}
                                 {priceChange30d != null && (
                                     <span className="token-period-change hide-mobile" style={{ color: priceChange30d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                        30D {priceChange30d >= 0 ? '+' : ''}{priceChange30d.toFixed(2)}%
+                                        30D {priceChange30d >= 0 ? '+' : ''}{<AnimatedText text={priceChange30d.toFixed(2)}/>}%
                                     </span>
                                 )}
                             </div>
@@ -903,40 +904,40 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                                 {mcap && (
                                     <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Market Cap</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{formatLarge(mcap)}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{<AnimatedText text={formatLarge(mcap)}/>}</div>
                                     </div>
                                 )}
                                 {volume24h && (
                                     <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Volume</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{formatLarge(volume24h)}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{<AnimatedText text={formatLarge(volume24h)}/>}</div>
                                     </div>
                                 )}
                                 {(high24h || low24h) && (
                                     <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Range</div>
-                                        <div style={{ ...S.numeric, fontSize: 12, fontWeight: 650, color: 'var(--fg)' }}>{low24h ? formatQuote(low24h) : '—'} <span style={{ color: 'var(--fg-subtle)' }}>–</span> {high24h ? formatQuote(high24h) : '—'}</div>
+                                        <div style={{ ...S.numeric, fontSize: 12, fontWeight: 650, color: 'var(--fg)' }}>{<AnimatedText text={low24h ? formatQuote(low24h) : '—'}/>} <span style={{ color: 'var(--fg-subtle)' }}>–</span> {<AnimatedText text={high24h ? formatQuote(high24h) : '—'}/>}</div>
                                     </div>
                                 )}
                                 {circulatingSupply && (
                                     <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Circulating</div>
                                         <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>
-                                            {circulatingSupply >= 1e12 ? `${(circulatingSupply / 1e12).toFixed(2)}T` : circulatingSupply >= 1e9 ? `${(circulatingSupply / 1e9).toFixed(2)}B` : circulatingSupply >= 1e6 ? `${(circulatingSupply / 1e6).toFixed(2)}M` : circulatingSupply.toFixed(0)}
+                                            {<AnimatedText text={circulatingSupply >= 1e12 ? `${(circulatingSupply / 1e12).toFixed(2)}T` : circulatingSupply >= 1e9 ? `${(circulatingSupply / 1e9).toFixed(2)}B` : circulatingSupply >= 1e6 ? `${(circulatingSupply / 1e6).toFixed(2)}M` : circulatingSupply.toFixed(0)}/>}
                                         </div>
                                     </div>
                                 )}
                                 {ath && (
                                     <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>All-Time High</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{ath >= 1000 ? `$${ath.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : `$${ath.toFixed(4)}`}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{<AnimatedText text={ath >= 1000 ? `$${ath.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : `$${ath.toFixed(4)}`}/>}</div>
                                         {athDate && <div style={{ ...S.label, fontSize: 8, marginTop: 2 }}>{new Date(athDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</div>}
                                     </div>
                                 )}
                                 {(fdv || rank) && (
                                     <div className="token-stat">
                                         <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>{fdv ? 'Fully diluted value' : 'Market rank'}</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{fdv ? formatLarge(fdv) : `#${rank}`}</div>
+                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{<AnimatedText text={fdv ? formatLarge(fdv) : `#${rank}`}/>}</div>
                                     </div>
                                 )}
                             </div>
@@ -1019,7 +1020,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                                             <VeloAssetIcon src={p.logo} symbol={p.symbol} size={28} />
                                             <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{p.symbol}</span>
                                         </div>
-                                        <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: pu ? 'var(--pnl-up)' : 'var(--pnl-down)', flexShrink: 0 }}>{pu ? '+' : ''}{pc.toFixed(2)}%</span>
+                                        <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: pu ? 'var(--pnl-up)' : 'var(--pnl-down)', flexShrink: 0 }}>{pu ? '+' : ''}{<AnimatedText text={pc.toFixed(2)}/>}%</span>
                                     </div>
                                 );
                             })}
@@ -1049,7 +1050,7 @@ const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, 
                                                 <span style={{ ...S.label, fontSize: 9 }}>{trader.handle}</span>
                                             </div>
                                         </div>
-                                        <span style={{ ...S.label, fontSize: 9, color: 'var(--iris-violet)' }}>{count} post{count !== 1 ? 's' : ''}</span>
+                                        <span style={{ ...S.label, fontSize: 9, color: 'var(--iris-violet)' }}><AnimatedText text={count}/> post{count !== 1 ? 's' : ''}</span>
                                     </div>
                                 ));
                             })()}
@@ -1193,7 +1194,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                         { label: 'Likes', value: post.likes },
                     ].map(s => (
                         <div key={s.label}>
-                            <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>{s.value}</span>
+                            <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}><AnimatedText text={s.value}/></span>
                             <span style={{ ...S.label, fontSize: 10, marginLeft: 5 }}>{s.label}</span>
                         </div>
                     ))}
@@ -1332,7 +1333,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             }));
     }, [posts]);
     return (
-        <div style={{ width: '100%', maxWidth: 1080, margin: '0 auto' }} className="animate-fade-in social-page">
+        <div style={{ width: '100%', maxWidth: 1380, margin: '0 auto' }} className="animate-fade-in social-page">
             {activeTicker ? (
                 <TokenPage
                     ticker={activeTicker}
@@ -1426,7 +1427,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                         <img src={t.avatar} style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)' }}>{t.username}</span>
                                     </div>
-                                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.pnl >= 0 ? '+' : ''}${Math.abs(t.pnl).toFixed(0)}</span>
+                                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.pnl >= 0 ? '+' : ''}${<AnimatedText text={Math.abs(t.pnl).toFixed(0)}/>}</span>
                                 </div>
                             ))}
                         {traders.filter((t: any) => t.id !== user?.id).length === 0 && (
@@ -1438,9 +1439,12 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             </div>
 
             {/* Right — tokens strip + compose + feed */}
+            <aside className="social-market-sidebar" aria-label="Market watch">
+                <div className="social-rail-heading"><span className="live-dot"/>Market watch</div>
+                <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets}/>
+                <p className="social-market-caption">Explore an asset to see market details and join its conversation.</p>
+            </aside>
             <div className="social-feed-main" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Top Tokens Bar */}
-                <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets} />
                 {/* Compose */}
                 <div className="vp velo-composer" style={panel}>
                     <div style={{ padding: 16, display: 'flex', gap: 12 }}>
@@ -1448,7 +1452,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                             {user ? <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserCircle size={38} style={{ color: 'var(--fg-subtle)' }} />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0, position: 'relative' as const }}>
-                            <SocialTextField className="velo-compose-field" aria-label="Write a post" placeholder="What's happening in the markets?" value={newPostContent} onValueChange={setNewPostContent} people={traders} style={{width:'100%',minHeight:76,resize:'none'}} />
+                            <SocialTextField className="velo-compose-field" aria-label="Write a post" placeholder="What's happening in the markets?" value={newPostContent} onValueChange={setNewPostContent} people={traders} style={{width:'100%',minHeight:46,resize:'none'}} />
                             <div className="velo-composer-footer">
                                 <PositionComposerTools authenticated={!!user} onRequireAuth={onRequireAuth} choices={sharePositions} attachment={positionAttachment} onChange={setPositionAttachment} onPnl={()=>user ? onSharePosition?.() : onRequireAuth?.()} action={
                                 <button onClick={async () => { if (publishingPost) return; setPublishingPost(true); try { const attachment = positionAttachment ? {...positionAttachment,updatedAt:Date.now()} : undefined; const id = await onPostCreate(newPostContent, attachment ? {pair:attachment.pair,side:attachment.side,leverage:attachment.leverage,entry:attachment.entryPrice,snapshot:attachment} : undefined); if (id) { setNewPostContent('');setPositionAttachment(null); } } finally { setPublishingPost(false); } }} disabled={publishingPost || !newPostContent.trim()}
@@ -1550,7 +1554,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                                 <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{p.pair}</span>
                                 <span style={{ padding: '2px 8px', borderRadius: 6, background: p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.15)' : 'oklch(0.66 0.22 25/0.15)', border: `1px solid ${p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.3)' : 'oklch(0.66 0.22 25/0.3)'}`, ...S.label, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span>
                             </div>
-                            <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Size ${formatMoney(p.size)}</span>
+                            <span style={{ ...S.label }}>Entry ${<AnimatedText text={formatPrice(p.entryPrice)}/>} · Size ${<AnimatedText text={formatMoney(p.size)}/>}</span>
                         </div>
                         <span style={{ padding: '4px 10px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                     </div>
@@ -1643,7 +1647,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                                 <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                                     <span style={{ ...S.label }}>Unrealized PnL</span>
                                     <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: unrealizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                        {unrealizedPnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(unrealizedPnl))}
+                                        {unrealizedPnl >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(unrealizedPnl))}/>}
                                     </span>
                                 </div>
                             )}
@@ -1657,12 +1661,12 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                                                 <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{p.pair}</span>
                                                 <span style={{ padding: '2px 8px', borderRadius: 6, background: p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.15)' : 'oklch(0.66 0.22 25/0.15)', border: `1px solid ${p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.3)' : 'oklch(0.66 0.22 25/0.3)'}`, ...S.label, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span>
                                             </div>
-                                            <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Mark ${formatPrice(curPrice)} · Size ${formatMoney(p.size)}</span>
+                                            <span style={{ ...S.label }}>Entry ${<AnimatedText text={formatPrice(p.entryPrice)}/>} · Mark ${<AnimatedText text={formatPrice(curPrice)}/>} · Size ${<AnimatedText text={formatMoney(p.size)}/>}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                                             <span style={{ padding: '3px 8px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                                             <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: posUnreal >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                                {posUnreal >= 0 ? '+' : '-'}${formatMoney(Math.abs(posUnreal))}
+                                                {posUnreal >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(posUnreal))}/>}
                                             </span>
                                         </div>
                                     </div>
@@ -1774,7 +1778,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                     {isReducing
                         ? `Reducing leverage locks more margin but moves your liquidation price further away, increasing your safety buffer.`
                         : `Increasing leverage frees up margin but brings your liquidation price closer — your buffer shrinks.`}
-                    {addedSize > 0 && ` Your new order ($${formatMoney(addedSize)}) will be merged into the existing position.`}
+                    {addedSize > 0 && <> Your new order ($<AnimatedText text={formatMoney(addedSize)}/>) will be merged into the existing position.</>}
                 </p>
 
                 {/* ── Buffer comparison ── */}
@@ -1787,7 +1791,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                                 <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>Before</span>
                                 <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: bufColor(oldBuf) }}>
-                                    {oldBuf.toFixed(1)}%
+                                    {<AnimatedText text={oldBuf.toFixed(1)}/>}%
                                 </span>
                             </div>
                             <RiskBar value={oldBuf} />
@@ -1806,7 +1810,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                                 <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>After</span>
                                 <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: bufColor(newBuf) }}>
-                                    {newBuf >= 100 ? '∞' : newBuf.toFixed(1) + '%'}
+                                    {<AnimatedText text={newBuf >= 100 ? '∞' : newBuf.toFixed(1) + '%'}/>}
                                 </span>
                             </div>
                             <RiskBar value={newBuf} />
@@ -1820,7 +1824,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--hairline)',
                                   display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ ...S.mono, fontSize: 11, color: bufImproves ? 'var(--pnl-up)' : '#f97316', fontWeight: 700 }}>
-                            {bufImproves ? '↑' : '↓'} {Math.abs(newBuf - oldBuf).toFixed(1)}pp
+                            {bufImproves ? '↑' : '↓'} {<AnimatedText text={Math.abs(newBuf - oldBuf).toFixed(1)}/>}pp
                         </span>
                         <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>
                             {bufImproves
@@ -1854,9 +1858,9 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                                   border: `1px solid ${marginDelta > 0 ? 'oklch(0.55 0.18 50/0.25)' : 'oklch(0.78 0.18 150/0.20)'}` }}>
                         <p style={{ ...S.mono, fontSize: 11, fontWeight: 700,
                                     color: marginDelta > 0 ? '#f97316' : 'var(--pnl-up)', margin: 0 }}>
-                            {marginDelta > 0
+                            {<AnimatedText text={marginDelta > 0
                                 ? `$${formatMoney(marginDelta)} will be locked as additional margin`
-                                : `✓ $${formatMoney(Math.abs(marginDelta))} freed back to your balance`}
+                                : `✓ $${formatMoney(Math.abs(marginDelta))} freed back to your balance`}/>}
                         </p>
                     </div>
                 )}

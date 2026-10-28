@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 /**
  * Modals — EditProfileModal, DeletePostConfirmModal, UsersListModal.
  * Extracted from App.tsx (stage 3 of the monolith decomposition). Pure leaf
@@ -389,7 +390,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
                         Edit Position: {position.pair}
                     </h3>
                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>
-                        Entry: ${formatPrice(position.entryPrice)} · Size: ${formatMoney(position.size)}
+                        Entry: ${<AnimatedText text={formatPrice(position.entryPrice)}/>} · Size: ${<AnimatedText text={formatMoney(position.size)}/>}
                     </p>
                 </div>
 
@@ -402,7 +403,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
                             onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
                         {projections?.tpPnl ? (
                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--pnl-up)', textAlign: 'right' as const, marginTop: 4 }}>
-                                Est. Profit: +${formatMoney(projections.tpPnl)}
+                                Est. Profit: +${<AnimatedText text={formatMoney(projections.tpPnl)}/>}
                             </p>
                         ) : null}
                     </div>
@@ -415,7 +416,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
                             onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
                         {projections?.slPnl ? (
                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--pnl-down)', textAlign: 'right' as const, marginTop: 4 }}>
-                                Est. Loss: -${formatMoney(Math.abs(projections.slPnl))}
+                                Est. Loss: -${<AnimatedText text={formatMoney(Math.abs(projections.slPnl))}/>}
                             </p>
                         ) : null}
                     </div>

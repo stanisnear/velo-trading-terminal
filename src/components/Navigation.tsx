@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { profileDisplayName } from '../utils/profileIdentity.mjs';
 /**
  * Navigation — desktop Navbar (with notifications dropdown + profile popup),
@@ -76,7 +77,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
                 {/* Equity display */}
                 <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={S.label}>Total Equity</span>
-                    <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--iris-violet)' }}>${(totalEquity || user.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--iris-violet)' }}>${<AnimatedText text={(totalEquity || user.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/>}</span>
                 </div>
 
                 {/* Wallet address */}
@@ -514,7 +515,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                                 <div style={{ padding: '12px', background: 'var(--chip)', borderRadius: 14, border: '1px solid var(--hr)' }}>
                                     <div style={{ ...S.label, marginBottom: 4 }}>Buying Power</div>
                                     <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--iris-violet)' }}>
-                                        ${formatMoney(buyingPower ?? user.balance)}
+                                        ${<AnimatedText text={formatMoney(buyingPower ?? user.balance)}/>}
                                     </div>
                                 </div>
                             </div>

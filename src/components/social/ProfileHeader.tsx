@@ -1,3 +1,4 @@
+import { AnimatedText } from '../ui/AnimatedValue';
 /**
  * ProfileHeader — banner, avatar, bio, follower stats and action buttons for
  * own/public trader profiles. Extracted from App.tsx (stage 7): leaf component,
@@ -79,12 +80,12 @@ export const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, o
                     </button>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                         <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: realizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                            {realizedPnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(realizedPnl))}
+                            {realizedPnl >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(realizedPnl))}/>}
                         </span>
                         <span style={{ ...S.label }}>PnL</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                        <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>{winRate.toFixed(1)}%</span>
+                        <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>{<AnimatedText text={winRate.toFixed(1)}/>}%</span>
                         <span style={{ ...S.label }}>Win Rate</span>
                     </div>
                 </div>

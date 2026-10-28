@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, AreaSeries, Time, CrosshairMode } from 'lightweight-charts';
@@ -59,7 +60,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
       layout: {
         background: { type: ColorType.Solid, color: 'rgba(0, 0, 0, 0)' },
         textColor: colors.text,
-        fontFamily: "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: palette.getPropertyValue('--font-sans').trim() || 'Satoshi, sans-serif',
       },
       width: chartContainerRef.current.clientWidth || 300,
       height: chartContainerRef.current.clientHeight || 200,
@@ -179,7 +180,7 @@ export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) =
             top: tooltip.top,
           }}
         >
-          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, color: 'var(--fg)' }}>{tooltip.value}</div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, color: 'var(--fg)' }}><AnimatedText text={tooltip.value}/></div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>{tooltip.date}</div>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 /**
  * TokenInteractiveChart — pure-SVG price / market-cap chart for token pages,
  * with 24H/7D/30D timeframes from the server-side market-data gateway
@@ -113,11 +114,11 @@ export const TokenInteractiveChart = ({
                 <div style={{ minWidth: 0, flex: '1 1 160px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 23, fontWeight: 650, fontVariantNumeric: 'tabular-nums', letterSpacing: 'normal', color: 'var(--fg)', lineHeight: 1 }}>
-                            {displayedValue}
+                            <AnimatedText text={displayedValue}/>
                         </span>
                         {pctChange != null && hoveredIdx === null && (
                             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 650, fontVariantNumeric: 'tabular-nums', color: pctChange >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', background: pctChange >= 0 ? 'color-mix(in oklab, var(--pnl-up) 12%, transparent)' : 'color-mix(in oklab, var(--pnl-down) 10%, transparent)', borderRadius: 6, padding: '3px 7px', flexShrink: 0 }}>
-                                {pctChange >= 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(2)}%
+                                {pctChange >= 0 ? '▲' : '▼'} {<AnimatedText text={Math.abs(pctChange).toFixed(2)}/>}%
                             </span>
                         )}
                     </div>
@@ -257,7 +258,7 @@ export const TokenInteractiveChart = ({
             {/* Footer */}
             <div className="token-chart-footer" style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 4, padding: '0 18px 14px' }}>
                 <a href="https://coinmarketcap.com/" target="_blank" rel="noopener noreferrer" style={{ marginRight: 'auto', fontSize: 10, color: 'var(--fg-muted)' }}>Data: CoinMarketCap</a>
-                {hasData && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-subtle)' }}>Low {formatTick(min)} <span aria-hidden="true">·</span> High {formatTick(max)}</span>}
+                {hasData && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-subtle)' }}>Low <AnimatedText text={formatTick(min)}/> <span aria-hidden="true">·</span> High <AnimatedText text={formatTick(max)}/></span>}
             </div>
         </div>
     );

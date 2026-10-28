@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { supabase, publicSupabase } from '@/services/supabaseStore';
 import { pythPriceStream } from '@/services/pythPriceService';
@@ -198,16 +199,16 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
     rowsArr.map((r, i) => (
       <div key={`${kind}${i}`} style={{ display: 'flex', alignItems: 'center', position: 'relative', padding: '0 12px', height: 24, fontSize: 11 }}>
         <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(r.total / maxTotal) * 100}%`, background: kind === 'ask' ? 'rgba(255,80,80,0.10)' : 'rgba(62,207,142,0.10)' }} />
-        <span style={{ flex: 1, color: kind === 'ask' ? 'var(--pnl-down)' : 'var(--pnl-up)', fontWeight: 600, zIndex: 1 }}>{fmtPrice(r.price)}</span>
-        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)', zIndex: 1 }}>{fmtSize(r.size)}</span>
-        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-subtle)', fontSize: 10, zIndex: 1 }}>{fmtSize(r.total)}</span>
+        <span style={{ flex: 1, color: kind === 'ask' ? 'var(--pnl-down)' : 'var(--pnl-up)', fontWeight: 600, zIndex: 1 }}>{<AnimatedText text={fmtPrice(r.price)}/>}</span>
+        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)', zIndex: 1 }}>{<AnimatedText text={fmtSize(r.size)}/>}</span>
+        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-subtle)', fontSize: 10, zIndex: 1 }}>{<AnimatedText text={fmtSize(r.total)}/>}</span>
       </div>
     ))
   );
 
   const MidBand = (
     <div style={{ padding: '6px 12px', borderTop: '1px solid var(--hairline)', borderBottom: '1px solid var(--hairline)', background: 'var(--chip-bg)', textAlign: 'center', flexShrink: 0 }}>
-      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>${fmtPrice(price)}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>${<AnimatedText text={fmtPrice(price)}/>}</span>
     </div>
   );
 
@@ -252,9 +253,9 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
             return (
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', padding: '0 12px', height: 24, fontSize: 11, animation: f.flash ? `${buy ? 'veloFillFlashBuy' : 'veloFillFlashSell'} 0.7s ease-out` : undefined }}>
                 <span style={{ flex: 1, color: buy ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  {f.action === 'LIQUIDATION' && <span title="Liquidation" style={{ fontSize: 8, opacity: 0.85 }}>⚡</span>}{fmtPrice(f.price)}
+                  {f.action === 'LIQUIDATION' && <span title="Liquidation" style={{ fontSize: 8, opacity: 0.85 }}>⚡</span>}{<AnimatedText text={fmtPrice(f.price)}/>}
                 </span>
-                <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)' }}>{fmtSize(f.size)}</span>
+                <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)' }}>{<AnimatedText text={fmtSize(f.size)}/>}</span>
                 <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-subtle)', fontSize: 10 }}>{ago(f.ts, now)}</span>
               </div>
             );

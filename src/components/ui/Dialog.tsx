@@ -26,7 +26,7 @@ export function Dialog({ open, onClose, title, busy = false, children, className
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
     }}>
     <style>{`
-      .velo-native-dialog { padding:0; width:min(520px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); overflow:auto; margin:auto; color:var(--fg); border:1px solid var(--glass-border); border-radius:18px; background:var(--glass-sheen),var(--modal-surface); box-shadow:var(--modal-shadow); -webkit-backdrop-filter:blur(30px) saturate(1.02); backdrop-filter:blur(30px) saturate(1.02); animation:velo-dialog-in 240ms var(--material-ease); }
+      .velo-native-dialog { padding:0; width:min(520px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); overflow:auto; margin:auto; color:var(--fg); border:1px solid var(--glass-border); border-radius:24px; background:var(--glass-sheen),var(--modal-surface); box-shadow:var(--modal-shadow); -webkit-backdrop-filter:blur(30px) saturate(1.02); backdrop-filter:blur(30px) saturate(1.02); animation:velo-dialog-in 240ms var(--material-ease); }
       .velo-native-dialog::backdrop { background:var(--overlay); -webkit-backdrop-filter:blur(var(--overlay-blur)); backdrop-filter:blur(var(--overlay-blur)); animation:velo-backdrop-in 150ms ease-out; }
       .velo-dialog-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid var(--hairline); }
       .velo-dialog-heading h2 { margin:0; font:500 25px/1.2 var(--font-display); }

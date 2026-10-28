@@ -1,3 +1,4 @@
+import { AnimatedText } from '../ui/AnimatedValue';
 /**
  * PostCard — the feed post unit (content with @/$ linkification, link preview,
  * like/repost/share/comment actions, threaded comments) plus the shared
@@ -201,7 +202,7 @@ export const PostCard = (props: any) => {
                 </button>
             ) : post.repostedBy.length > 0 ? (
                 <div style={{ padding: '7px 16px', ...S.label, fontSize: 10, background: 'var(--chip-bg)', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid var(--hairline)' }}>
-                    <Repeat size={10}/> {post.repostedBy.length} reposts
+                    <Repeat size={10}/> <AnimatedText text={post.repostedBy.length}/> reposts
                 </div>
             ) : null}
             <div style={{ padding: 16, display: 'flex', gap: 12 }}>
@@ -253,7 +254,7 @@ export const PostCard = (props: any) => {
                                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', ...S.mono, fontSize: 11, color: action.active ? action.hoverColor : 'var(--fg-subtle)', transition: 'all 0.1s' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = action.hoverColor; (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = action.active ? action.hoverColor : 'var(--fg-subtle)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                                {action.icon} {action.count !== null && action.count}
+                                {action.icon} {action.count !== null && <AnimatedText text={action.count}/>}
                             </button>
                         ))}
                     </div>

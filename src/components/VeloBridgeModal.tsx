@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 /**
  * VeloBridgeModal — cross-chain mUSDC transfer via LayerZero V2 OFT.
  *
@@ -218,7 +219,7 @@ export const VeloBridgeModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </select>
           {!onWrongChain && (
             <div style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
-              Balance: ${sourceBalance.toFixed(2)} mUSDC
+              Balance: ${<AnimatedText text={sourceBalance.toFixed(2)}/>} mUSDC
             </div>
           )}
           {onWrongChain && (
@@ -311,7 +312,7 @@ export const VeloBridgeModal: React.FC<Props> = ({ isOpen, onClose }) => {
         }}>
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg)' }}>
-            {Number(formatUnits(feeQuote, 18)).toFixed(6)} ETH
+            {<AnimatedText text={Number(formatUnits(feeQuote, 18)).toFixed(6)}/>} ETH
           </span>
         </div>
       )}

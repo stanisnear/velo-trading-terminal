@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 // ═══════════════════════════════════════════════════════════════════════════════
 // VELO SETTINGS MODAL — Wallet & Settings
@@ -196,12 +197,12 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                     <div>
                       <div style={{ ...F.mono, fontSize:11, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, color:'var(--fg)' }}>Move to trading wallet</div>
-                      <div style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', marginTop:3 }}>${ownerUsdc.toFixed(2)} mUSDC from main wallet</div>
+                      <div style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', marginTop:3 }}>${<AnimatedText text={ownerUsdc.toFixed(2)}/>} mUSDC from main wallet</div>
                     </div>
-                      <div style={{ ...F.display, fontSize:22, color:'var(--pnl-up)', fontWeight:700 }}>${ownerUsdc.toFixed(0)}</div>
+                      <div style={{ ...F.display, fontSize:22, color:'var(--pnl-up)', fontWeight:700 }}>${<AnimatedText text={ownerUsdc.toFixed(0)}/>}</div>
                   </div>
                   <VeloBtn onClick={moveToTradingWallet} disabled={movingFunds || ownerEth < 0.0005} variant="green">
-                    {movingFunds ? 'Moving…' : `Move $${ownerUsdc.toFixed(2)} →`}
+                    {<AnimatedText text={movingFunds ? 'Moving…' : `Move $${ownerUsdc.toFixed(2)} →`}/>}
                   </VeloBtn>
                   {ownerEth < 0.0005 && <Note>Main wallet needs a small ETH balance for gas.</Note>}
                   {moveError && <ErrNote>{moveError}</ErrNote>}

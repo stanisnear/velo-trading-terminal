@@ -1,3 +1,4 @@
+import { AnimatedText } from './AnimatedValue';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Copy, X, Info, ExternalLink, Share2 } from 'lucide-react';
@@ -269,18 +270,18 @@ export const OrderDetailsModal = ({
           <>
             <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Position Opened</div>
             <div style={{ ...S.mono, fontSize: isSmall ? 22 : 26, fontWeight: 700, color: 'var(--pnl-up)' }}>
-              {t.side} @ ${formatPrice(t.entryPrice)}
+              {t.side} @ ${<AnimatedText text={formatPrice(t.entryPrice)}/>}
             </div>
           </>
         ) : (
           <>
             <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Realized PnL</div>
             <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-              {pnlUp ? '+' : ''}${formatMoney(t.pnl)}
+              {pnlUp ? '+' : ''}${<AnimatedText text={formatMoney(t.pnl)}/>}
             </div>
             {marginUsed > 0 && (
               <div style={{ ...S.mono, fontSize: 11, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3, opacity: 0.85 }}>
-                {pnlUp ? '+' : ''}{pnlPct.toFixed(2)}% on margin
+                {pnlUp ? '+' : ''}{<AnimatedText text={pnlPct.toFixed(2)}/>}% on margin
               </div>
             )}
           </>
@@ -347,16 +348,16 @@ export const OrderDetailsModal = ({
       <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: pnlUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)' }}>
         <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>Unrealized PnL</div>
         <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-          {pnlUp ? '+' : ''}${formatMoney(pnl)}
+          {pnlUp ? '+' : ''}${<AnimatedText text={formatMoney(pnl)}/>}
         </div>
         <div style={{ ...S.mono, fontSize: 11, color: pnlUp ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3, opacity: 0.85 }}>
-          {pnlUp ? '+' : ''}{roe.toFixed(2)}% ROE
+          {pnlUp ? '+' : ''}{<AnimatedText text={roe.toFixed(2)}/>}% ROE
         </div>
         {/* Buffer bar in hero */}
         <div style={{ marginTop: 10, padding: '0 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'var(--fg-subtle)' }}>Liq. Buffer</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: bufferColor }}>{buffer.toFixed(1)}% · {bufferLabel}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: bufferColor }}>{<AnimatedText text={buffer.toFixed(1)}/>}% · {bufferLabel}</span>
           </div>
           <div style={{ height: 4, borderRadius: 3, background: 'var(--hairline-strong)', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${Math.min(100, buffer * 5)}%`, background: bufferColor, borderRadius: 3, transition: 'width 0.3s' }} />
@@ -433,10 +434,10 @@ export const OrderDetailsModal = ({
       <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'color-mix(in oklab, var(--accent) 7%, transparent)' }}>
         <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>{o.type.replace('_', ' ')} Trigger</div>
         <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: 'var(--fg)' }}>
-          ${formatPrice(o.price)}
+          ${<AnimatedText text={formatPrice(o.price)}/>}
         </div>
         <div style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)', marginTop: 3 }}>
-          {distance >= 0 ? '+' : ''}{distance.toFixed(3)}% from mark
+          {distance >= 0 ? '+' : ''}{<AnimatedText text={distance.toFixed(3)}/>}% from mark
         </div>
       </div>
     );
@@ -495,7 +496,7 @@ export const OrderDetailsModal = ({
       <div style={{ padding: heroPadding, borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: isInflow ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)' }}>
         <div style={{ ...S.label, fontSize: 10, marginBottom: 4, color: 'var(--fg-muted)' }}>{heroLabel}</div>
         <div style={{ ...S.mono, fontSize: isSmall ? 26 : 30, fontWeight: 700, color: isInflow ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-          {isInflow ? '+' : '-'}${formatMoney(tx.amount)}
+          {isInflow ? '+' : '-'}${<AnimatedText text={formatMoney(tx.amount)}/>}
         </div>
         {tx.counterparty && (
           <div style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)', marginTop: 6 }}>

@@ -1,3 +1,4 @@
+import { AnimatedText } from '../AnimatedValue';
 import { SegmentedControl } from '../SegmentedControl';
 import { AnimatedValue } from '../AnimatedValue';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -130,7 +131,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           {/* Amount hero */}
           <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'rgba(34,197,94,0.05)' }}>
             <div style={{ ...S.label, fontSize: 10, marginBottom: 4 }}>Amount</div>
-            <div style={{ ...S.mono, fontSize: 32, fontWeight: 700, color: 'var(--pnl-up)' }}>+${formatMoney(deposit.amount ?? 0)}</div>
+            <div style={{ ...S.mono, fontSize: 32, fontWeight: 700, color: 'var(--pnl-up)' }}>+${<AnimatedText text={formatMoney(deposit.amount ?? 0)}/>}</div>
             <div style={{ ...S.sans, fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>USDC → Velo Trading Wallet</div>
           </div>
           {/* Details */}
@@ -202,7 +203,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
                   {totalPnl >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
-                  ${formatMoney(Math.abs(totalPnl))} ({equity > 0 ? (totalPnl / (equity - totalPnl) * 100).toFixed(2) : '0.00'}%)
+                  ${<AnimatedText text={formatMoney(Math.abs(totalPnl))}/>} ({<AnimatedText text={equity > 0 ? (totalPnl / (equity - totalPnl) * 100).toFixed(2) : '0.00'}/>}%)
                 </span>
                 <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
                   Buying Power <span style={{ color: 'var(--fg-muted)' }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></span>
@@ -269,11 +270,11 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                 <span style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>Win Rate</span>
-                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{stats.winRate.toFixed(1)}%</span>
+                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{<AnimatedText text={stats.winRate.toFixed(1)}/>}%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>Realized PnL</span>
-                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: stats.realizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>${formatMoney(stats.realizedPnl)}</span>
+                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: stats.realizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>${<AnimatedText text={formatMoney(stats.realizedPnl)}/>}</span>
               </div>
             </div>
           </div>
@@ -414,23 +415,23 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                       </div>
                     </td>
                     <td style={{ padding: '9px 14px', ...S.mono, fontSize: 11, fontWeight: 700, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${formatMoney(p.size)}</td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>${formatPrice(p.entryPrice)}</td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${formatPrice(cp)}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${<AnimatedText text={formatMoney(p.size)}/>}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>${<AnimatedText text={formatPrice(p.entryPrice)}/>}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${<AnimatedText text={formatPrice(cp)}/>}</td>
                     <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>
                       {p.takeProfit && p.takeProfit > 0
-                        ? <span style={{ color: 'var(--pnl-up)' }}>TP {formatPrice(p.takeProfit)}</span>
+                        ? <span style={{ color: 'var(--pnl-up)' }}>TP {<AnimatedText text={formatPrice(p.takeProfit)}/>}</span>
                         : <span>--</span>}
                       {' / '}
                       {p.stopLoss && p.stopLoss > 0
-                        ? <span style={{ color: 'var(--pnl-down)' }}>SL {formatPrice(p.stopLoss)}</span>
+                        ? <span style={{ color: 'var(--pnl-down)' }}>SL {<AnimatedText text={formatPrice(p.stopLoss)}/>}</span>
                         : <span>--</span>}
                       <button onClick={() => onEditPosition(p, 'TRIGGERS')} style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: 2, opacity: 0.5 }}
                         title="Set Take Profit / Stop Loss"
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}><Edit size={10}/></button>
                     </td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, fontWeight: 700, color: pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{pnl >= 0 ? '+' : ''}${formatMoney(pnl)}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, fontWeight: 700, color: pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{pnl >= 0 ? '+' : ''}${<AnimatedText text={formatMoney(pnl)}/>}</td>
                     <td style={{ padding: '9px 14px', textAlign: 'right' as const }}>
                       <button onClick={() => handleClosePosition(p.id)} style={{ padding: '3px 9px', borderRadius: 6, background: 'oklch(0.66 0.22 25/0.1)', border: '1px solid oklch(0.66 0.22 25/0.2)', ...S.mono, fontSize: 10, color: 'var(--pnl-down)', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>Close</button>
                     </td>
@@ -537,7 +538,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                           )}
                         </td>
                         <td style={{ padding: '11px 14px', ...S.mono, fontSize: 12, fontWeight: 700, color: credited ? 'var(--pnl-up)' : 'var(--fg-muted)' }}>
-                          +${formatMoney(t.amount ?? 0)}
+                          +${<AnimatedText text={formatMoney(t.amount ?? 0)}/>}
                         </td>
                         <td style={{ padding: '11px 14px', textAlign: 'right' as const, ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
                           {(() => {
@@ -741,7 +742,7 @@ const PendingDepositPill: React.FC<{ deposit: any; onClick?: () => void }> = ({ 
       <Loader2 size={13} style={{ animation: 'velo-pill-spin 1.2s linear infinite', color: 'var(--accent)', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, color: 'var(--fg)', fontSize: 12 }}>
-          ${deposit.amount.toFixed(2)} USDC settling
+          ${<AnimatedText text={deposit.amount.toFixed(2)}/>} USDC settling
         </div>
         <div style={{ fontSize: 10.5, color: 'var(--fg-muted)', letterSpacing: '0.02em', marginTop: 2 }}>
           {isConfirmed ? 'Confirmed on-chain · awaiting credit' : 'Waiting for confirmation'} · {elapsedStr}
@@ -780,7 +781,7 @@ const FailedDepositPill: React.FC<{ deposit: any; onClaimTestnetUsdc?: () => voi
       <AlertCircle size={13} style={{ color: 'oklch(0.78 0.20 25)', flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, color: 'var(--fg)', fontSize: 12 }}>
-          ${deposit.amount.toFixed(2)} USDC — credit didn't arrive
+          ${<AnimatedText text={deposit.amount.toFixed(2)}/>} USDC — credit didn't arrive
         </div>
         <div style={{ fontSize: 10.5, color: 'var(--fg-muted)', letterSpacing: '0.02em', marginTop: 2, lineHeight: 1.5 }}>
           Cross-chain settlement timed out. Funds may still arrive — or use the testnet faucet to fund your trading account directly.

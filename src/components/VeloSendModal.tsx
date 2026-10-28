@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 /**
  * VeloSendModal — peer-to-peer mUSDC transfer.
@@ -352,7 +353,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
             letterSpacing: '0.1em', textTransform: 'uppercase' as const,
           }}
         >
-          Max ${available.toFixed(2)}
+          Max ${<AnimatedText text={available.toFixed(2)}/>}
         </button>
       </div>
       <input
@@ -398,7 +399,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
       <Loader2 size={32} className="animate-spin" style={{ color: 'var(--iris-violet)', margin: '0 auto 20px' }} />
       <h3 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 6px' }}>Sending…</h3>
       <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>
-        Transferring ${amountNum.toFixed(2)} mUSDC.
+        Transferring ${<AnimatedText text={amountNum.toFixed(2)}/>} mUSDC.
       </p>
     </div>
   );
@@ -415,7 +416,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
       </div>
       <h3 style={{ ...S.display, fontSize: 24, color: 'var(--fg)', margin: '0 0 6px' }}>Sent</h3>
       <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 20px' }}>
-        ${amountNum.toFixed(2)} mUSDC delivered.
+        ${<AnimatedText text={amountNum.toFixed(2)}/>} mUSDC delivered.
       </p>
       {errorMsg && <p role="status" style={{ ...S.sans, color: 'var(--fg-muted)', fontSize: 13 }}>{errorMsg}</p>}
       {txHash && (

@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { validateUsername as validateRegistryUsername } from '../services/usernameService';
 import { signInWithWallet } from '../services/walletAuth';
 // VeloOnboardingModal — new-user registration only.
@@ -637,7 +638,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
               <div style={{ width: '100%', borderRadius: 16, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', overflow: 'hidden', marginBottom: 16, animation: 'vOnbSlideUp 0.35s ease 1.15s both' }}>
                 <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Balance credited</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 26, fontWeight: 700, color: 'oklch(0.78 0.18 150)' }}>${(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 26, fontWeight: 700, color: 'oklch(0.78 0.18 150)' }}>${<AnimatedText text={(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}/>}</span>
                 </div>
                 {burnerAddr && (
                   <div style={{ padding: '11px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

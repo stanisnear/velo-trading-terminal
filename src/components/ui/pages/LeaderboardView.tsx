@@ -1,3 +1,4 @@
+import { AnimatedText } from '../AnimatedValue';
 /**
  * LeaderboardView — traders ranked by verified on-chain performance, with a
  * podium for the top three. Extracted from App.tsx (stage 1 of the monolith
@@ -116,7 +117,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'var(--fg-subtle)' }}>{trader.handle}</span>
                                 </div>
                                 <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
-                                    <p style={{ fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontSize: 14, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginBottom: 2 }}>{trader.pnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(trader.pnl))}</p>
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontSize: 14, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginBottom: 2 }}>{trader.pnl >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(trader.pnl))}/>}</p>
                                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>{winRateDisplay} WR</p>
                                 </div>
                             </div>
@@ -164,7 +165,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                             <div style={{ display: 'flex', gap: 0, marginBottom: 20, width: '100%', background: 'var(--podium-stats-bg)', borderRadius: 10, border: '1px solid var(--podium-stats-border)', overflow: 'hidden' }}>
                                 <div style={{ flex: 1, textAlign: 'center', padding: '10px 12px', borderRight: '1px solid var(--podium-stats-border)' }}>
                                     <p style={{ ...S_LB.label, fontSize: 9, marginBottom: 4 }}>PNL</p>
-                                    <p style={{ ...S_LB.mono, fontSize: isFirst ? 18 : 15, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', lineHeight: 1 }}>{trader.pnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(trader.pnl))}</p>
+                                    <p style={{ ...S_LB.mono, fontSize: isFirst ? 18 : 15, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', lineHeight: 1 }}>{trader.pnl >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(trader.pnl))}/>}</p>
                                 </div>
                                 <div style={{ flex: 1, textAlign: 'center', padding: '10px 12px' }}>
                                     <p style={{ ...S_LB.label, fontSize: 9, marginBottom: 4 }}>WIN RATE</p>
@@ -217,8 +218,8 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                                             </div>
                                         </div>
                                     </td>
-                                    <td style={{ padding: '12px 20px', ...S_LB.mono, fontSize: 13, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{trader.pnl >= 0 ? '' : '-'}${formatMoney(Math.abs(trader.pnl))}</td>
-                                    <td style={{ padding: '12px 20px', ...S_LB.mono, fontSize: 13, color: 'var(--fg)' }}>{Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—'}</td>
+                                    <td style={{ padding: '12px 20px', ...S_LB.mono, fontSize: 13, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{trader.pnl >= 0 ? '' : '-'}${<AnimatedText text={formatMoney(Math.abs(trader.pnl))}/>}</td>
+                                    <td style={{ padding: '12px 20px', ...S_LB.mono, fontSize: 13, color: 'var(--fg)' }}>{<AnimatedText text={Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—'}/>}</td>
                                     <td style={{ padding: '12px 20px', ...S_LB.mono, fontSize: 13, color: 'var(--fg-muted)' }}>{trader.followers.length}</td>
                                     <td style={{ padding: '12px 20px', textAlign: 'right' as const }}>
                                         <button onClick={() => handleViewProfile(trader)}
@@ -279,10 +280,10 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                                 {/* Stats */}
                                 <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
                                     <p style={{ ...S_LB.mono, fontSize: 13, fontWeight: 700, color: trader.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginBottom: 2 }}>
-                                        {trader.pnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(trader.pnl))}
+                                        {trader.pnl >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(trader.pnl))}/>}
                                     </p>
                                     <p style={{ ...S_LB.mono, fontSize: 10, color: 'var(--fg-muted)' }}>
-                                        {Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—'} WR
+                                        {<AnimatedText text={Number.isFinite(trader.winRate) ? `${parseFloat(trader.winRate.toFixed(1))}%` : '—'}/>} WR
                                     </p>
                                 </div>
                             </div>

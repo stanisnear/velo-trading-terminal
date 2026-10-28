@@ -4,7 +4,7 @@ Reviewed 27 October 2026. Read [VISION](../VISION.md) for the product thesis and
 
 ## Product and interface
 
-Velo combines trading, market discovery, news and a social network. The React 19/TypeScript/Vite frontend uses wagmi/viem, Reown AppKit, TanStack Query and Zustand. Shared design tokens live in `src/styles/`; Fraunces, Geist and Geist Mono cover display, interface and data typography. Light/dark glass surfaces, native dialogs, reduced-motion support and responsive order panels share that system.
+Velo combines trading, market discovery, news and a social network. The React 19/TypeScript/Vite frontend uses wagmi/viem, Reown AppKit, TanStack Query and Zustand. Shared design tokens live in `src/styles/`; Satoshi covers the interface and animated figures, Fraunces retains the wordmark/editorial voice, and Geist Mono covers technical labels. Light/dark glass surfaces, native dialogs, reduced-motion support and responsive order panels share that system.
 
 | Route | Responsibility |
 | --- | --- |

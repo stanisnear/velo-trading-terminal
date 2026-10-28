@@ -1,0 +1,109 @@
+@font-face { font-family:Satoshi; src:url('/fonts/Satoshi-400.woff2') format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:Satoshi; src:url('/fonts/Satoshi-500.woff2') format('woff2'); font-weight:500 600; font-style:normal; font-display:swap; }
+@font-face { font-family:Satoshi; src:url('/fonts/Satoshi-700.woff2') format('woff2'); font-weight:650 900; font-style:normal; font-display:swap; }
+:root { --font-sans:'Satoshi',-apple-system,BlinkMacSystemFont,sans-serif; }
+/* A warm celadon canvas, ivory surfaces and one sage accent. */
+html.light,body.light,.light {
+  --bg:#edf2e7; --bg-2:#f8faf2; --bg-3:#e4ecdf;
+  --surface:rgba(249,251,244,.87); --surface-solid:#f8faf2; --surface-raised:rgba(250,252,246,.94);
+  --fg:#203528; --fg-2:#586d5c; --fg-3:#768572;
+  --hr:rgba(56,87,52,.10); --hr-2:rgba(56,87,52,.16);
+  --accent:#53805c; --accent-text:#3c714b; --pnl-up:#39875a; --pnl-down:#b65d53;
+  --chip:rgba(82,120,70,.055); --chip-h:rgba(82,120,70,.09);
+  --lens-tint:rgba(255,255,248,.88); --lens-edge:rgba(84,119,75,.16);
+  --media-glass:rgba(249,251,242,.80); --glass-ring:rgba(255,255,255,.70);
+  --overlay:rgba(27,49,30,.24); --media-overlay:rgba(27,49,30,.20);
+}
+body { font-family:var(--font-sans); }
+.navbar-container { width:min(1540px,calc(100% - 36px))!important; height:66px!important; padding:0 16px!important; border-radius:22px!important; background:var(--surface)!important; border-color:var(--hairline-strong)!important; box-shadow:0 1px 0 var(--glass-ring) inset,0 8px 24px -22px rgba(18,39,24,.32)!important; }
+.navbar-wordmark { font-size:31px!important; }
+.velo-glass-nav:not(.velo-glass-nav-mobile) { padding:4px; gap:2px; border:1px solid var(--hairline); background:var(--chip-bg); border-radius:16px; }
+.velo-glass-nav:not(.velo-glass-nav-mobile) > button { min-height:36px; padding:8px 13px; font-size:12px; font-weight:700; letter-spacing:.01em; }
+.velo-glass-nav:not(.velo-glass-nav-mobile) .velo-nav-lens { background:var(--lens-tint); border-radius:12px; box-shadow:0 1px 0 var(--glass-ring) inset,0 4px 10px -8px rgba(0,0,0,.25); }
+.velo-glass-nav svg { opacity:.8; stroke-width:1.7; }
+.velo-glass-nav [aria-current=page] svg { opacity:1; stroke-width:2; }
+.navbar-controls { gap:6px!important; }
+.navbar-controls :is(.navbar-icon-btn,.navbar-theme-toggle) { width:36px!important; height:36px!important; border-radius:12px!important; background:transparent!important; border-color:transparent!important; }
+.navbar-controls :is(.navbar-icon-btn,.navbar-theme-toggle):hover { background:var(--chip-bg)!important; border-color:var(--hairline)!important; }
+.navbar-testnet { min-width:0!important; padding:5px 9px; opacity:.75; }
+.navbar-testnet > span { font-size:8px!important; letter-spacing:.12em!important; }
+.velo-native-dialog .velo-dialog-heading h2 { font-family:var(--font-sans); font-size:23px; font-weight:700; letter-spacing:-.035em; }
+.velo-rolling-text { display:inline-block; max-width:100%; font-variant-numeric:tabular-nums; vertical-align:baseline; white-space:pre; }
+.chart-rolling-mark { margin-left:7px; padding-left:8px; border-left:1px solid var(--hairline-strong); font-size:12px; font-weight:600; letter-spacing:0; }
+.social-page { padding:10px 16px 80px; }
+.social-page .social-feed-grid { grid-template-columns:210px minmax(0,660px) 240px; gap:20px; justify-content:center; }
+.social-page .social-feed-sidebar { grid-column:1; grid-row:1; gap:12px!important; }
+.social-page .social-feed-main { grid-column:2; grid-row:1; gap:12px!important; }
+.social-market-sidebar { grid-column:3; grid-row:1; position:sticky; top:94px; min-width:0; padding:15px; background:var(--surface); border:1px solid var(--hairline); border-radius:18px; }
+.social-rail-heading { display:flex; align-items:center; gap:7px; font:700 13px/1.4 var(--font-sans); margin-bottom:14px; letter-spacing:-.02em; }
+.live-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 9%,transparent); }
+.social-market-sidebar .social-token-grid { grid-template-columns:1fr!important; }
+.social-market-sidebar .social-token-rail > div:first-child { border:0!important; border-radius:0!important; background:transparent!important; box-shadow:none!important; backdrop-filter:none!important; }
+.social-market-sidebar .social-token-card { border-left:0!important; border-bottom:1px solid var(--hairline); padding:12px 0!important; }
+.social-market-sidebar .social-token-card:first-child { padding-top:0!important; }
+.social-market-sidebar .social-token-card:last-child { border-bottom:0; }
+.social-token-card:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:8px; }
+.social-token-card > span { font:700 21px/1.25 var(--font-sans)!important; letter-spacing:-.04em!important; }
+.social-token-card svg { max-height:25px; }
+.social-market-caption { margin:12px 0 0; padding-top:13px; border-top:1px solid var(--hairline); font:400 11px/1.55 var(--font-sans); color:var(--fg-subtle); }
+.social-markets-link { text-align:left!important; }
+.social-markets-link button { padding:9px 0 0!important; font:700 11px/1.4 var(--font-sans)!important; letter-spacing:0!important; text-transform:none!important; color:var(--accent-text)!important; }
+.social-feed-main .velo-composer > div { padding:14px 16px!important; }
+.social-feed-main textarea.velo-compose-field { min-height:46px; padding-bottom:9px!important; font-size:15px; line-height:1.55; }
+.social-feed-main .velo-composer-footer { padding-top:8px; }
+.social-feed-main .social-post-card { border-radius:18px!important; }
+.social-feed-main .social-post-card > div { padding:15px!important; }
+.social-post-card p { font-size:14px!important; line-height:1.6!important; }
+.social-post-card .post-image-preview { width:min(100%,420px); max-width:420px; border-radius:13px; }
+.social-post-card [aria-label="Post reactions"] { margin-top:0; }
+.social-page .social-feed-sidebar .vp { box-shadow:none!important; background:transparent!important; border:0!important; }
+.social-page .social-feed-sidebar .vp > div { padding:9px 3px!important; }
+.social-page .social-feed-sidebar .vp span[style*="font-display"] { font:700 14px var(--font-sans)!important; }
+.social-page .social-feed-sidebar .vp p[style*="font-display"] { font:600 12px var(--font-sans)!important; }
+.markets-page .markets-title { font:700 clamp(32px,5vw,46px)/1.08 var(--font-sans); letter-spacing:-.05em; }
+.markets-page .markets-title em { font-style:normal; font-weight:500; color:var(--accent-text); }
+.markets-page .markets-overview strong { font-family:var(--font-sans); font-size:24px; letter-spacing:-.04em; }
+.markets-page .markets-category,.markets-page .markets-watch { font-family:var(--font-sans); font-size:12px; text-transform:none; letter-spacing:0; }
+.markets-page .markets-price { font-family:var(--font-sans); font-size:14px; letter-spacing:-.025em; }
+.token-page .token-header-left h1 { font-family:var(--font-sans)!important; font-weight:700!important; letter-spacing:-.04em!important; }
+.dash-equity-hero { font-family:var(--font-sans)!important; font-weight:500; letter-spacing:-.06em!important; }
+.shared-position { background:var(--chip-bg)!important; border-radius:14px!important; }
+.shared-position-heading strong { font-family:var(--font-sans)!important; font-weight:700; letter-spacing:-.02em; }
+@media(max-width:1250px) {
+  .social-page .social-feed-grid { grid-template-columns:190px minmax(0,660px); }
+  .social-market-sidebar { grid-column:2; grid-row:1; position:static; padding:0; border:0; background:transparent; }
+  .social-page .social-feed-main { grid-row:2; }
+  .social-page .social-feed-sidebar { grid-row:1/span 2; }
+  .social-market-sidebar .social-token-grid { grid-template-columns:repeat(4,minmax(0,1fr))!important; }
+  .social-market-sidebar .social-token-card { border-bottom:0!important; padding:8px 10px!important; border-left:1px solid var(--hairline)!important; }
+  .social-market-sidebar .social-token-card:first-child { border-left:0!important; }
+  .social-market-sidebar .social-token-card > span { font-size:17px!important; }
+  .social-market-sidebar .social-market-caption,.social-market-sidebar .social-rail-heading,.social-market-sidebar .social-markets-link { display:none; }
+}
+@media(max-width:1000px) { .navbar-container { width:calc(100% - 20px)!important; height:60px!important; } .velo-glass-nav:not(.velo-glass-nav-mobile) > button { padding:7px 9px; font-size:11px; } .navbar-testnet { display:none!important; } }
+@media(max-width:760px) {
+  .social-page { padding:4px 8px 90px; }
+  .social-page .social-feed-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
+  .social-market-sidebar { grid-column:1; grid-row:1; }
+  .social-page .social-feed-main { grid-column:1; grid-row:2; }
+  .social-page .social-feed-sidebar { grid-column:1; grid-row:3; position:static; }
+  .social-market-sidebar .social-token-grid { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
+  .social-market-sidebar .social-token-card:nth-child(n+3) { display:none; }
+  .social-feed-main textarea.velo-compose-field { font-size:16px; }
+  .navbar-container { border-radius:18px!important; padding:0 10px!important; }
+  .navbar-wordmark { font-size:28px!important; }
+}
+@media(prefers-reduced-motion:reduce) { .velo-rolling-text,.velo-rolling-value { scroll-behavior:auto; } }
+/* Refined materials: one edge, quiet depth and clear content. */
+.velo-rolling-text { font-family:var(--font-sans); }
+.velo-native-dialog { border-radius:24px; }
+.social-feed-main .velo-composer { transition:border-color 220ms var(--material-ease),box-shadow 220ms var(--material-ease); }
+.social-feed-main .velo-composer:focus-within { border-color:color-mix(in srgb,var(--accent) 30%,var(--hairline)); box-shadow:0 7px 30px -26px color-mix(in srgb,var(--accent) 65%,transparent); }
+.social-feed-main .velo-composer-footer button { transition:transform 180ms var(--material-ease),opacity 180ms,background 180ms; }
+.social-feed-main .velo-composer-footer button:active { transform:scale(.97); }
+.social-feed-main .post-reactions { padding-top:3px; }
+.product-sparkline { stroke-dasharray:1; animation:velo-sparkline-in 850ms var(--material-ease) both; }
+@keyframes velo-sparkline-in { from { stroke-dashoffset:1; } to { stroke-dashoffset:0; } }
+@media(prefers-reduced-motion:reduce) { .product-sparkline { animation:none; } .velo-composer,.velo-composer-footer button { transition:none!important; } }
+
+@media(max-width:768px) { .navbar-container { width:100%!important; border-radius:0 0 18px 18px!important; } }

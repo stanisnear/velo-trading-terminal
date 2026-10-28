@@ -152,7 +152,7 @@ React 19, TypeScript, Vite, wagmi v2 and viem, Reown AppKit for wallets, TanStac
 - **No optimistic state for money.** Balances and positions come from contract reads and confirmed receipts, not from what the UI expects to have happened.
 - V4 contract reads own active positions and orders. Old database snapshots and Realtime position/order rows do not repopulate the V4 view; legacy exits remain separate. Supabase still supplies social content, notifications and receipt-backed history.
 - Sign-in has cancellable stages, bounded wallet waiting and an explicit switch-wallet path. App sessions warn before the 30-minute inactivity limit and require renewed sign-in after eight hours. Logout does not close positions.
-- Design system in `src/styles/`: OKLCH colour tokens, glass surfaces, light and dark modes, Fraunces for display type and Geist for the interface.
+- Design system in `src/styles/`: OKLCH colour tokens, glass surfaces, light and dark modes, Fraunces for the wordmark/editorial type and self-hosted Satoshi from Fontshare for the interface.
 
 ### Backend
 
@@ -245,4 +245,4 @@ Please report vulnerabilities privately to the maintainers rather than through p
 
 ### Experience system
 
-The current UI uses compact 420 px feed media, a focused glass image viewer, unified social tagging, rolling account values and keyboard-accessible sliding filters. See [experience decisions and reference review](docs/EXPERIENCE-DESIGN-2026-10-28.md) for implementation scope, typography, accessibility and performance choices.
+The current UI uses compact 420 px feed media, a focused glass image viewer, unified social tagging, rolling financial values throughout the app, a three-column desktop social workspace, warm celadon light surfaces and keyboard-accessible sliding filters. See [experience decisions and reference review](docs/EXPERIENCE-DESIGN-2026-10-28.md) for implementation scope, typography, accessibility and performance choices.

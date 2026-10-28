@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { erc20Abi, formatUnits, isAddress, parseUnits, type Address, type Hash } from 'viem';
@@ -100,7 +101,7 @@ export default function VeloV4Admin() {
         <div className="v4-admin-actions"><button disabled={disabled} onClick={()=>poolAction('fundPool')}><ArrowUpFromLine size={16}/> Fund pool</button><button disabled={disabled} onClick={()=>poolAction('withdrawLiquidity')}><ArrowDownToLine size={16}/> Withdraw available</button><button disabled={disabled} onClick={()=>poolAction('withdrawFees')}><ArrowDownToLine size={16}/> Withdraw fees</button>
         {snapshot.balance>snapshot.accounted&&<button disabled={disabled} onClick={()=>void act('surplus','accountSurplus')}>Allocate ${money(snapshot.balance-snapshot.accounted)} surplus</button>}</div>
       </div>
-      <div className="v4-admin-table"><table><thead><tr><th>Market</th><th>Max leverage</th><th>Open interest / cap</th><th>Borrow / hour</th><th>Status</th><th>Actions</th></tr></thead><tbody>{snapshot.markets.map(m=><tr key={m.index}><th>{m.symbol}/USD</th><td>{m.risk.maxLeverage}x</td><td>${money(m.oi)} / ${money(m.risk.maxOpenInterestUSDC_6)}</td><td>{(m.risk.borrowBpsPerHour/100).toFixed(2)}%</td><td>{m.registered?(m.enabled?'Enabled':'Paused'):'Not registered'}</td><td><div className="v4-admin-actions">
+      <div className="v4-admin-table"><table><thead><tr><th>Market</th><th>Max leverage</th><th>Open interest / cap</th><th>Borrow / hour</th><th>Status</th><th>Actions</th></tr></thead><tbody>{snapshot.markets.map(m=><tr key={m.index}><th>{m.symbol}/USD</th><td>{m.risk.maxLeverage}x</td><td>${money(m.oi)} / ${money(m.risk.maxOpenInterestUSDC_6)}</td><td>{<AnimatedText text={(m.risk.borrowBpsPerHour/100).toFixed(2)}/>}%</td><td>{m.registered?(m.enabled?'Enabled':'Paused'):'Not registered'}</td><td><div className="v4-admin-actions">
         <button disabled={disabled} onClick={()=>void act(m.symbol,m.registered?'setPairTradable':'registerPair',m.registered?[m.index,!m.enabled]:[m.index,m.feed,`${m.symbol}/USD`,m.risk])}>{m.registered?(m.enabled?<Pause size={15}/>:<Play size={15}/>):<Check size={15}/>} {m.registered?(m.enabled?'Pause':'Resume'):'Register'}</button>
         <button disabled={disabled||!m.registered||m.oi>0n||m.pending>0n} title="Edit risk limits when no positions or orders are open" aria-label={`Edit ${m.symbol} risk limits`} onClick={()=>{setEditing(m);setRisk({...m.risk});}}><Settings2 size={15}/></button>
       </div></td></tr>)}</tbody></table></div>

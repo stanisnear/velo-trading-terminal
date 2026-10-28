@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 // VeloDepositModal.tsx
 //
 // Funds modal — handles BOTH same-chain transfers and cross-chain bridges
@@ -487,7 +488,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
               ].map(({ label, val }) => (
                 <div key={label} style={{ flex: 1, padding: '10px 12px', borderRadius:14, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)' }}>
                   <div style={S.label}>{label}</div>
-                  <div style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)', marginTop: 4 }}>${val.toFixed(2)}</div>
+                  <div style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)', marginTop: 4 }}>${<AnimatedText text={val.toFixed(2)}/>}</div>
                   <div style={{ ...S.mono, fontSize: 9, color: 'var(--fg-subtle)', marginTop: 2 }}>mUSDC</div>
                 </div>
               ))}
@@ -506,7 +507,7 @@ export const VeloDepositModal: React.FC<Props> = ({ isOpen, onClose, defaultTab 
                   : (isCrossChain ? 'Bridge initiated' : 'Withdrawal complete')}
               </div>
               <div style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)', marginBottom: 16, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
-                ${parseFloat(amount).toFixed(2)} mUSDC{' '}
+                ${<AnimatedText text={parseFloat(amount).toFixed(2)}/>} mUSDC{' '}
                 {isCrossChain
                   ? `bridging — funds arrive on ${CHAIN_LABEL[isDeposit ? 'base_sepolia' : withdrawChain]} in 1-3 min`
                   : isDeposit ? 'moved to your trading wallet' : 'sent to destination'}
