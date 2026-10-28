@@ -5,8 +5,8 @@
 :root { --font-sans:'Switzer',-apple-system,BlinkMacSystemFont,sans-serif; }
 /* A warm celadon canvas, ivory surfaces and one sage accent. */
 html.light,body.light,.light {
-  --bg:#eff3eb; --bg-2:#f5f7f0; --bg-3:#e8eee3;
-  --surface:rgba(245,247,240,.92); --surface-solid:#f5f7f0; --surface-raised:rgba(247,249,243,.96);
+  --bg:#eaf1e8; --bg-2:#f1f6ee; --bg-3:#e5eee1;
+  --surface:rgba(241,246,238,.88); --surface-solid:#f1f6ee; --surface-raised:rgba(244,248,241,.94);
   --fg:#203528; --fg-2:#586d5c; --fg-3:#768572;
   --hr:rgba(56,87,52,.10); --hr-2:rgba(56,87,52,.16);
   --accent:#53805c; --accent-text:#3c714b; --pnl-up:#39875a; --pnl-down:#b65d53;
@@ -35,7 +35,7 @@ main.velo-main.trade-view { padding-top:86px!important; }
 .velo-rolling-text { display:inline-block; max-width:100%; font-variant-numeric:tabular-nums; vertical-align:baseline; white-space:pre; }
 .chart-rolling-mark { margin-left:7px; padding-left:8px; border-left:1px solid var(--hairline-strong); font-size:12px; font-weight:600; letter-spacing:0; }
 .social-page { padding:10px 16px 80px; }
-.social-page .social-feed-grid { grid-template-columns:210px minmax(0,660px) 240px; gap:20px; justify-content:center; }
+.social-page .social-feed-grid { grid-template-columns:230px minmax(0,760px) 260px; gap:20px; justify-content:center; }
 .social-page .social-feed-sidebar { grid-column:1; grid-row:1; gap:12px!important; }
 .social-page .social-feed-main { grid-column:2; grid-row:1; gap:12px!important; }
 .social-market-sidebar { grid-column:3; grid-row:1; position:sticky; top:94px; min-width:0; padding:15px; background:var(--surface); border:1px solid var(--hairline); border-radius:18px; }
@@ -105,7 +105,7 @@ main.velo-main.trade-view { padding-top:86px!important; }
   .social-page .social-feed-main { grid-column:1; grid-row:2; }
   .social-page .social-feed-sidebar { grid-column:1; grid-row:3; position:static; }
   .social-market-sidebar .social-token-grid { grid-template-columns:repeat(2,minmax(0,1fr))!important; }
-  .social-market-sidebar .social-token-card:nth-child(n+3) { display:none; }
+  .social-market-sidebar .social-token-card:nth-child(n+3) { display:block; }
   .social-feed-main textarea.velo-compose-field { font-size:16px; }
   .navbar-wordmark { font-size:28px!important; }
 }
@@ -198,4 +198,61 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
 @media(min-width:1024px) {
   .velo-trade-rail[data-authenticated=false] { height:100%;align-self:stretch; }
   .velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:auto;min-height:180px;flex:1 1 0; }
+}
+
+/* The top strip masks passing content; the bar itself keeps real translucency. */
+.velo-header-veil { position:fixed; z-index:29; pointer-events:none; top:0; left:0; right:0; height:86px; background:linear-gradient(var(--bg) 0 10px, color-mix(in srgb,var(--bg) 32%,transparent) 10px 74px,transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); mask-image:linear-gradient(#000 0 74px,transparent); }
+.navbar-container { background:color-mix(in srgb,var(--surface-solid) 65%,transparent)!important; backdrop-filter:blur(28px) saturate(1.12)!important; -webkit-backdrop-filter:blur(28px) saturate(1.12)!important; }
+@media(min-width:1251px) { .social-page .social-feed-grid { width:min(100%,1290px); grid-template-columns:230px minmax(0,760px) 260px; margin-inline:auto; gap:20px; } }
+@media(min-width:761px) and (max-width:1250px) { .social-page .social-feed-grid { grid-template-columns:210px minmax(0,760px); } }
+@media(max-width:1023px) { .velo-header-veil { height:calc(60px + env(safe-area-inset-top,0px)); mask-image:none; background:color-mix(in srgb,var(--bg) 64%,transparent); } }
+@media(max-width:760px) {
+  .social-market-sidebar { padding:10px 12px!important; background:var(--surface); border:1px solid var(--hairline); border-radius:16px; }
+  .social-market-sidebar .social-token-grid { gap:0!important; }
+  .social-market-sidebar .social-token-card { padding:10px!important; border-left:0!important; border-bottom:1px solid var(--hairline)!important; }
+  .social-market-sidebar .social-token-card:nth-child(2n) { border-left:1px solid var(--hairline)!important; }
+  .social-market-sidebar .social-token-card:nth-child(n+3) { display:block!important; border-bottom:0!important; }
+  .social-market-sidebar .social-token-card>span { font-size:20px!important; }
+  .social-market-sidebar .velo-market-sparkline { margin-top:4px; }
+}
+.trade-details-dialog.velo-native-dialog { width:min(560px,calc(100vw - 28px)); overflow:hidden; display:flex; flex-direction:column; }
+.trade-details-dialog .velo-dialog-heading { padding:22px 24px 10px; border:0; }
+.trade-details-dialog .velo-dialog-heading h2 { font-size:27px; }
+.trade-details-identity { display:flex;align-items:center;gap:9px;padding:0 24px 17px;font:500 11px/1.4 var(--font-sans);color:var(--fg-muted); }
+.trade-details-side { border-radius:6px;padding:4px 7px;background:color-mix(in srgb,var(--pnl-down) 9%,transparent);color:var(--pnl-down);text-transform:capitalize; }
+.trade-details-side[data-up=true] { background:color-mix(in srgb,var(--pnl-up) 9%,transparent);color:var(--pnl-up); }
+.trade-details-status { display:flex;align-items:center;gap:5px; }
+.trade-details-status i { width:5px;height:5px;border-radius:50%;background:var(--accent); }
+.trade-details-network { display:inline-flex;align-items:center;gap:5px;margin-left:auto;font-size:10px; }
+.trade-details-scroll { min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 24px; }
+.trade-details-hero { padding:20px 16px 18px;text-align:center;border:1px solid var(--hairline);border-radius:18px;background:var(--glass-sheen),var(--chip-bg);margin-bottom:14px; }
+.trade-details-hero>div:first-child { font:500 12px/1.4 var(--font-sans)!important;letter-spacing:0!important;text-transform:none!important; }
+.trade-details-hero>div:nth-child(2) { font:600 clamp(30px,6vw,40px)/1.3 var(--font-sans)!important;letter-spacing:-.04em; }
+.trade-details-hero>div:nth-child(3) { font-family:var(--font-sans)!important;font-size:12px!important; }
+.trade-details-facts { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 22px; }
+.trade-detail-fact { padding:12px 0;border-bottom:1px solid var(--hairline);min-width:0; }
+.trade-detail-fact__label { display:flex;align-items:center;gap:5px;font:400 11px/1.4 var(--font-sans);color:var(--fg-muted);margin-bottom:5px; }
+.trade-detail-fact__label>button { border:0;background:none;color:var(--fg-subtle);display:grid;place-items:center;width:20px;height:20px;padding:0;cursor:pointer; }
+.trade-detail-fact__value { font:600 14px/1.5 var(--font-sans);overflow-wrap:anywhere; }
+.trade-detail-fact__help { margin:8px 0 0;font:400 11px/1.55 var(--font-sans);color:var(--fg-muted); }
+.trade-details-more { margin:10px 0 14px; }
+.trade-details-more>button { display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:transparent;color:var(--fg-muted);font:500 12px var(--font-sans);padding:14px 0;cursor:pointer; }
+.trade-details-more>button svg { transition:transform 240ms var(--material-ease); }
+.trade-details-facts--execution { grid-template-columns:minmax(0,1fr); }
+.trade-details-facts--execution>.trade-detail-fact { display:grid;grid-template-columns:130px minmax(0,1fr);align-items:center;gap:0 12px; }
+.trade-details-facts--execution .trade-detail-fact__label { margin:0; }
+.trade-details-facts--execution .trade-detail-fact__value { text-align:right;font-size:12px; }
+.trade-details-facts--execution .trade-detail-fact>div:last-child:not(.trade-detail-fact__value) { grid-column:1/-1; }
+.trade-details-actions { display:flex;flex-wrap:wrap;gap:8px;padding:16px 24px max(16px,env(safe-area-inset-bottom));border-top:1px solid var(--hairline);background:var(--glass-sheen),var(--chip-bg); }
+.trade-details-actions .velo-button { min-height:42px;font-family:var(--font-sans)!important;font-size:12px!important;border-radius:12px; }
+@media(max-width:480px) { .trade-details-dialog .velo-dialog-heading { padding:18px 18px 10px; } .trade-details-identity { padding-inline:18px; } .trade-details-scroll { padding-inline:18px; } .trade-details-actions { padding-inline:18px; } .trade-details-facts { gap:0 14px; } .trade-detail-fact__value { font-size:13px; } }
+
+.trade-details-actions .velo-button { flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px; }
+.velo-reaction-icon { display:inline-grid;place-items:center;position:relative;width:18px;height:18px; }
+.velo-reaction-icon>span { display:inline-flex; }
+.velo-social-action { min-width:36px;min-height:32px;touch-action:manipulation; }
+@media(pointer:coarse) { .velo-social-action { min-height:44px;min-width:44px; } }
+@media(max-width:1250px) {
+  .social-market-sidebar .social-token-grid { display:grid!important;overflow:visible!important; }
+  .social-market-sidebar .social-token-card { flex:none;width:auto;min-width:0; }
 }

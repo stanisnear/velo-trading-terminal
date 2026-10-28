@@ -1,3 +1,4 @@
+import { ReactionFeedback } from '../ui/ProductMotion';
 import { AnimatedText } from '../ui/AnimatedValue';
 /**
  * PostCard — the feed post unit (content with @/$ linkification, link preview,
@@ -250,11 +251,11 @@ export const PostCard = (props: any) => {
                             { icon: <Heart size={15} fill={hasLiked ? 'currentColor' : 'none'}/>, count: post.likes, onClick: () => onLike(post.id), active: hasLiked, hoverColor: 'var(--iris-magenta)' },
                             { icon: <Share2 size={15}/>, count: null, onClick: handleShare, active: false, hoverColor: 'var(--iris-cyan)' },
                         ].map((action, i) => (
-                            <button key={i} onClick={action.onClick} aria-label={['Comments', 'Repost', 'Like', 'Share'][i]} title={['Comments', 'Repost', 'Like', 'Share'][i]}
+                            <button key={i} className="velo-social-action" aria-pressed={i === 1 || i === 2 ? action.active : undefined} aria-expanded={i === 0 ? showComments : undefined} onClick={action.onClick} aria-label={['Comments', 'Repost', 'Like', 'Share'][i]} title={['Comments', 'Repost', 'Like', 'Share'][i]}
                                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', ...S.mono, fontSize: 11, color: action.active ? action.hoverColor : 'var(--fg-subtle)', transition: 'all 0.1s' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = action.hoverColor; (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = action.active ? action.hoverColor : 'var(--fg-subtle)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                                {action.icon} {action.count !== null && <AnimatedText text={action.count}/>}
+                                <ReactionFeedback active={action.active}>{action.icon}</ReactionFeedback> {action.count !== null && <AnimatedText text={action.count}/>}
                             </button>
                         ))}
                     </div>

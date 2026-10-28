@@ -154,6 +154,8 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
         label: { fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.14em' },
     };
     return (
+      <>
+        <div className="velo-header-veil" aria-hidden="true" />
         <nav
             style={{
                 position: 'fixed',
@@ -389,6 +391,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                 )}
             </div>
         </nav>
+      </>
     );
 }
 export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick }: any) => {

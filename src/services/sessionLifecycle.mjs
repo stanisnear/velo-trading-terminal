@@ -36,3 +36,9 @@ export async function boundedFetch(input, init = {}, timeoutMs = 12_000) {
   try { return await fetch(input, { ...init, signal: controller.signal }); }
   finally { clearTimeout(timer); original?.removeEventListener('abort', abort); }
 }
+
+// A page/connector reload has no click timestamp. Wallet selection may take a
+// little time, but a cancelled old connect must not arm a future reconnect.
+export function hasWalletSignInIntent(startedAt, now = Date.now()) {
+  return Number.isFinite(startedAt) && startedAt > 0 && now >= startedAt && now - startedAt < 5 * 60_000;
+}

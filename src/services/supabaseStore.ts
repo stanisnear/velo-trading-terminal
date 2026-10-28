@@ -920,7 +920,7 @@ export async function recordTransaction(
 
 export async function fetchNotifications(userId: string): Promise<Notification[]> {
   const { data, error } = await supabase
-    .from('notifications').select('*').eq('suppressed', false)
+    .from('notifications').select('*').eq('suppressed', false).is('retracted_at', null)
     .eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
   if (error) {
     console.warn('[velo] fetchNotifications ERROR:', error.code, error.message, '— user_id queried:', userId);

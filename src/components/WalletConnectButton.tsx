@@ -28,7 +28,7 @@ export function WalletConnectButton({ compact = false, onOpenAuthModal, onOpenSe
     return (
       <button
         className="velo-connect-btn"
-        onClick={() => openAppKit()}
+        onClick={() => onOpenAuthModal ? onOpenAuthModal() : openAppKit()}
         style={{
           background: 'linear-gradient(180deg, color-mix(in oklab, var(--velo-sage) 26%, #343b36), #202622)',
           border: '1px solid color-mix(in oklab, var(--velo-sage-bright) 26%, var(--hr-2))',

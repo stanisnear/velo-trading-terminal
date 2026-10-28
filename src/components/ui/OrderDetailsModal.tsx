@@ -1,7 +1,8 @@
 import { AnimatedText } from './AnimatedValue';
-import React, { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom';
-import { Copy, X, Info, ExternalLink, Share2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Dialog } from './Dialog';
+import { AnimatedPanel } from './ProductMotion';
+import { Info, ExternalLink, Share2, ChevronDown, ShieldCheck } from 'lucide-react';
 import { Button, formatMoney, formatPrice } from '@/components/ui/shared';
 import { Position, OpenOrder, TradeHistoryItem, Transaction } from '@/utils/types';
 
@@ -37,118 +38,17 @@ export type DetailsPayload =
   | { kind: 'ORDER';       item: OpenOrder }
   | { kind: 'TRANSACTION'; item: Transaction };
 
-// Row tooltip — anchored to the label via getBoundingClientRect so it never
-// moves while visible. Enter/leave timers bridge the gap between the trigger
-// and the tooltip so the cursor can travel between them without dismissal.
-const Row = ({
-  label, value, valueColor, tip, isSmall,
-}: {
-  label: string; value: React.ReactNode; valueColor?: string; tip?: string; isSmall: boolean;
+// Inline explanations remain inside the native dialog's focus/top layer.
+const Row = ({ label, value, valueColor, tip }: {
+  label:string; value:React.ReactNode; valueColor?:string; tip?:string; isSmall:boolean;
 }) => {
-  const TOOLTIP_W = 260;
-  const [rect, setRect] = React.useState<DOMRect | null>(null);
-  const [hovered, setHovered] = React.useState(false);
-  const triggerRef = React.useRef<HTMLDivElement>(null);
-  const showTimer  = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hideTimer  = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const show = () => {
-    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
-    showTimer.current = setTimeout(() => {
-      if (triggerRef.current) setRect(triggerRef.current.getBoundingClientRect());
-      setHovered(true);
-    }, 60);
-  };
-  const hide = () => {
-    if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
-    hideTimer.current = setTimeout(() => { setRect(null); setHovered(false); }, 250);
-  };
-
-  React.useEffect(() => () => {
-    if (showTimer.current) clearTimeout(showTimer.current);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-  }, []);
-
-  const left = rect ? Math.min(Math.max(rect.left + rect.width / 2, TOOLTIP_W / 2 + 8), window.innerWidth - TOOLTIP_W / 2 - 8) : 0;
-  const top  = rect ? rect.top - 10 : 0;
-
-  return (
-    <div
-      onMouseEnter={tip ? show : undefined}
-      onMouseLeave={tip ? hide : undefined}
-      tabIndex={tip ? 0 : undefined}
-      onFocus={tip ? show : undefined}
-      onBlur={tip ? hide : undefined}
-      onKeyDown={e => { if (e.key === 'Escape') { setRect(null); setHovered(false); } }}
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: isSmall ? '9px 14px' : '10px 18px',
-        borderBottom: '1px solid var(--hairline-strong)',
-        gap: 12,
-        transition: 'background 0.1s',
-        background: hovered && tip ? 'var(--chip-bg)' : 'transparent',
-        cursor: 'default',
-        position: 'relative',
-      }}
-    >
-      <div ref={triggerRef} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-          textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--fg-muted)',
-        }}>{label}</span>
-        {tip && <Info size={9} style={{ color: 'var(--fg-subtle)', opacity: hovered ? 1 : 0.45, transition: 'opacity 0.1s', flexShrink: 0 }} />}
-      </div>
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1',
-        fontVariantNumeric: 'tabular-nums', fontSize: 12, fontWeight: 600,
-        color: valueColor || 'var(--fg)', textAlign: 'right', wordBreak: 'break-word' as const,
-      }}>{value}</span>
-
-      {tip && rect && ReactDOM.createPortal(
-        <div
-          onMouseEnter={show}
-          onMouseLeave={hide}
-          style={{
-            position: 'fixed',
-            left,
-            top,
-            transform: 'translate(-50%, -100%)',
-            background: 'var(--glass-bg-strong)',
-            border: '1px solid var(--hairline-strong)',
-            borderRadius: 8,
-            padding: '7px 11px',
-            fontFamily: 'var(--font-sans, sans-serif)',
-            fontSize: 11,
-            fontWeight: 400,
-            color: 'var(--fg)',
-            boxShadow: 'var(--glass-shadow)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            zIndex: 99999,
-            pointerEvents: 'auto',
-            maxWidth: 260,
-            whiteSpace: 'normal',
-            lineHeight: 1.5,
-            textTransform: 'none' as const,
-            fontStyle: 'normal',
-            letterSpacing: 0,
-          }}>
-          {tip}
-          <div style={{
-            position: 'absolute', top: '100%', left: '50%',
-            transform: 'translateX(-50%)',
-            width: 0, height: 0,
-            borderLeft: '5px solid transparent',
-            borderRight: '5px solid transparent',
-            borderTop: '5px solid var(--glass-bg-strong)',
-          }} />
-        </div>,
-        document.body
-      )}
-    </div>
-  );
+  const [explained, setExplained] = useState(false);
+  return <div className="trade-detail-fact">
+    <div className="trade-detail-fact__label"><span>{label}</span>{tip && <button type="button" aria-label={`About ${label}`} aria-expanded={explained}
+      onClick={()=>setExplained(!explained)}><Info size={12}/></button>}</div>
+    <div className="trade-detail-fact__value" style={{color:valueColor || 'var(--fg)'}}>{typeof value === 'string' && /[0-9]/.test(value) ? <AnimatedText text={value}/> : value}</div>
+    {tip && <AnimatedPanel activeKey={explained ? 'explanation' : 'market'}><p className="trade-detail-fact__help">{tip}</p></AnimatedPanel>}
+  </div>;
 };
 
 export const OrderDetailsModal = ({
@@ -172,40 +72,15 @@ export const OrderDetailsModal = ({
 }) => {
   const [mounted, setMounted] = useState(false);
   const [isSmall, setIsSmall] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
   const dialogKey = payload ? `${payload.kind}:${payload.item.id}` : null;
-
+  const [expanded, setExpanded] = useState(false);
+  useEffect(()=>setExpanded(false),[dialogKey]);
   useEffect(() => {
     setMounted(true);
     const check = () => setIsSmall(window.innerWidth < 640);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    check(); window.addEventListener('resize',check);
+    return () => window.removeEventListener('resize',check);
   }, []);
-
-  useEffect(() => {
-    if (!dialogKey || !mounted) return;
-    const trigger = document.activeElement as HTMLElement | null;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    dialogRef.current?.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); onCloseRef.current(); }
-      if (e.key !== 'Tab') return;
-      const targets = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),[tabindex="0"]') || []);
-      const first = targets[0], last = targets[targets.length - 1];
-      if (e.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); last?.focus(); }
-      else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first?.focus(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKey);
-      if (trigger?.isConnected) trigger.focus();
-    };
-  }, [dialogKey, mounted]);
 
   if (!payload || !mounted) return null;
 
@@ -331,7 +206,7 @@ export const OrderDetailsModal = ({
     const p          = payload.item;
     const mark       = marketPrices[p.pair] || p.entryPrice;
     const pnl        = positionPnl(p, mark);
-    const marginUsed = p.leverage > 0 ? p.size / p.leverage : 0;
+    const marginUsed = p.v4 ? p.v4.collateral + p.v4.openFee : p.leverage > 0 ? p.size / p.leverage : 0;
     const roe        = marginUsed > 0 ? (pnl / marginUsed) * 100 : 0;
     const priceMove  = p.entryPrice > 0 ? ((mark - p.entryPrice) / p.entryPrice) * 100 : 0;
     const openDurMs  = Math.max(0, Date.now() - p.timestamp);
@@ -373,11 +248,11 @@ export const OrderDetailsModal = ({
         <Row isSmall={isSmall} label="Liquidation Price" value={`$${formatPrice(displayLiqPrice)}`} valueColor={bufferColor}
            tip={isCross
              ? `CROSS mode: estimated price at which your shared margin pool would be exhausted. Your entire account balance protects this position — the liq. price shifts as other positions' PnL changes.`
-             : `ISOLATED mode: if mark price reaches this level, your position is force-closed and you lose the margin committed (${formatMoney(marginUsed)} USDT). Only this position's margin is at risk.`} />
+             : `ISOLATED mode: if mark price reaches this level, your position is force-closed and you lose the margin committed (${formatMoney(marginUsed)} mUSDC). Only this position's margin is at risk.`} />
         <Row isSmall={isSmall} label="Liq. Buffer"       value={`${buffer.toFixed(2)}%`} valueColor={bufferColor}
            tip={isCross
              ? `Distance between current price and estimated liquidation price as a % of mark price. CROSS: reflects shared pool health — all cross positions contribute. ${buffer < 10 ? 'Consider reducing exposure.' : ''}`
-             : `How far price must move before liquidation triggers. ${buffer < 5 ? 'Very close — consider adding margin or closing.' : buffer < 10 ? 'Moderate risk.' : 'Safe distance.'}`} />
+             : `How far price must move before liquidation triggers. ${buffer < 5 ? 'Very close — consider reducing exposure or closing.' : buffer < 10 ? 'Moderate risk.' : 'Safe distance.'}`} />
         <Row isSmall={isSmall} label="Position Size"     value={`$${formatMoney(p.size)}`}        tip="Total notional value of your position (margin × leverage). This is the actual exposure, not just the collateral." />
         <Row isSmall={isSmall} label="Leverage"          value={`${p.leverage}×`}                 tip={`${p.leverage}× leverage means a 1% price move = ${p.leverage}% gain or loss on your margin.`} />
         <Row isSmall={isSmall} label="Margin Used"       value={`$${formatMoney(marginUsed)}`}    tip={isCross ? "Margin committed from your account to back this position. In CROSS mode, your full balance can cover losses beyond this amount." : "Maximum you can lose on this position. In ISOLATED mode, losses are capped at this amount."} />
@@ -553,81 +428,25 @@ export const OrderDetailsModal = ({
     footer = <Button onClick={onClose} className="flex-1 h-9 text-[11px]">Close</Button>;
   }
 
-  const overlay = (
-    <div
-      role="presentation"
-      className="velo-modal-enter-backdrop"
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 120,
-        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-        display: 'flex', alignItems: isSmall ? 'flex-end' : 'center', justifyContent: 'center',
-        padding: isSmall ? 0 : 16,
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="velo-order-details-title"
-        className="velo-modal-enter-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%', maxWidth: isSmall ? '100%' : 460,
-          maxHeight: isSmall ? '92dvh' : '88vh',
-          display: 'flex', flexDirection: 'column',
-          borderRadius: isSmall ? '24px 24px 0 0' : 24,
-          background: 'var(--glass-bg-strong)',
-          border: '1px solid var(--glass-border)',
-          boxShadow: '0 32px 96px -16px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset',
-          backdropFilter: 'blur(40px) saturate(1.35)',
-          WebkitBackdropFilter: 'blur(40px) saturate(1.35)',
-          overflow: 'hidden', position: 'relative',
-        }}
-      >
-        {/* Brand accent top line */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite', zIndex: 1 }} />
-
-        {/* Header */}
-        <div style={{
-          padding: isSmall ? '16px 14px 12px' : '16px 18px 14px',
-          borderBottom: '1px solid var(--hairline-strong)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0,
-          paddingTop: isSmall ? 20 : 18,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' as const }}>
-            <span id="velo-order-details-title" style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: isSmall ? 20 : 22, color: 'var(--fg)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-              {headerPair}
-            </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: `color-mix(in oklab, ${sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)'} 10%, transparent)`, color: sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)', border: `1px solid color-mix(in oklab, ${sideUp ? 'var(--pnl-up)' : 'var(--pnl-down)'} 30%, transparent)` }}>{headerSide}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'var(--chip-bg)', color: 'var(--fg-muted)', border: '1px solid var(--hairline-strong)' }}>{payload.kind === 'HISTORY' ? ((payload.item as any)?.action === 'OPEN' ? 'OPENED' : (payload.item as any)?.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED') : payload.kind === 'POSITION' ? 'OPEN' : payload.kind === 'TRANSACTION' ? payload.item.type : 'PENDING'}</span>
-            {copyId && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', border: '1px solid color-mix(in oklab, var(--accent) 30%, transparent)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Copy size={9}/> COPY
-              </span>
-            )}
-          </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', cursor: 'pointer', color: 'var(--fg-muted)', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, flexShrink: 0, transition: 'background 0.12s' }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--chip-bg-hover)'; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--chip-bg)'; }}>
-            <X size={14}/>
-          </button>
-        </div>
-
-        {hero}
-
-        <div className="custom-scrollbar" style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, minHeight: 0, background: 'transparent', paddingBottom: 16 }}>
-          {body}
-        </div>
-
-        <div style={{ padding: isSmall ? '12px 14px calc(12px + env(safe-area-inset-bottom))' : '12px 18px', borderTop: '1px solid var(--hairline-strong)', display: 'flex', gap: 8, flexShrink: 0, background: 'var(--surface-raised)', boxShadow: '0 -12px 28px -24px rgba(0,0,0,.42)' }}>
-          {footer}
-        </div>
-      </div>
+  const facts = React.Children.toArray((body as React.ReactElement<{children:React.ReactNode}>).props.children).filter(Boolean);
+  const summaryLabels = new Set(['Entry Price','Mark Price','Liquidation Price','Position Size','Leverage','Margin Used','Take Profit','Stop Loss','Trigger Price','Size','Margin Reserved','Amount','Type','Status','Time']);
+  const isSummary = (node:React.ReactNode) => React.isValidElement<{label?:string}>(node) && node.type === Row && summaryLabels.has(node.props.label || '');
+  const primary = facts.filter(isSummary), details = facts.filter(node=>!isSummary(node));
+  const status = payload.kind === 'POSITION' ? 'Open' : payload.kind === 'ORDER' ? 'Pending' : payload.kind === 'HISTORY' ? payload.item.action === 'OPEN' ? 'Opened' : payload.item.action === 'LIQUIDATION' ? 'Liquidated' : 'Closed' : payload.item.status || 'Completed';
+  return <Dialog open={!!payload} onClose={onClose} title={headerPair} className="trade-details-dialog">
+    <div className="trade-details-identity"><span className="trade-details-side" data-up={sideUp}>{headerSide}</span><span className="trade-details-status"><i/>{status}</span>{copyId && <span>Copy trade</span>}<span className="trade-details-network"><ShieldCheck size={12}/> Base Sepolia</span></div>
+    <div className="trade-details-scroll custom-scrollbar">
+      {React.isValidElement(hero) ? React.cloneElement(hero as React.ReactElement<{className:string;style:React.CSSProperties}>,{className:'trade-details-hero',style:{}}) : hero}
+      <div className="trade-details-facts">{primary}</div>
+      {details.length > 0 && <section className="trade-details-more">
+        <button type="button" aria-expanded={expanded} aria-controls="trade-execution-facts" onClick={()=>setExpanded(!expanded)}>
+          <span>Execution details</span><ChevronDown size={16} style={{transform:expanded?'rotate(180deg)':'none'}}/>
+        </button>
+        <AnimatedPanel activeKey={expanded ? 'details' : 'market'}><div id="trade-execution-facts" className="trade-details-facts trade-details-facts--execution">{details}</div></AnimatedPanel>
+      </section>}
     </div>
-  );
-
-  return ReactDOM.createPortal(overlay, document.body);
+    <footer className="trade-details-actions">{footer}</footer>
+  </Dialog>;
 };
 
 import { positionPnl } from '@/services/positionValuation.mjs';

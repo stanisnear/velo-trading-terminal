@@ -51,3 +51,13 @@ export function MarginSlider({ value, onChange, label }: {value:number;onChange:
       onChange={event=>onChange(Number(event.currentTarget.value))}/>
   </div>;
 }
+
+/** The control remains mounted while its selected icon gives a short spring response. */
+export function ReactionFeedback({ active, children }: {active:boolean;children:React.ReactNode}) {
+  const reduced=useReducedMotion();
+  if(reduced || !supportsProductMotion())return <span className="velo-reaction-icon">{children}</span>;
+  return <span className="velo-reaction-icon"><AnimatePresence initial={false} mode="popLayout">
+    <motion.span key={active ? 'selected':'idle'} initial={{scale:.72,opacity:.4,rotate:active?-12:0}} animate={{scale:1,opacity:1,rotate:0}} exit={{scale:.8,opacity:0}}
+      transition={{type:'spring',stiffness:560,damping:18,mass:.45}}>{children}</motion.span>
+  </AnimatePresence></span>;
+}

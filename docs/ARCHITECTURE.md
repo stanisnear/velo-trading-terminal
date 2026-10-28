@@ -83,3 +83,8 @@ Shared surface tokens, `materials.css` and `Dialog` own the app's light/dark gla
 ## Still planned
 
 Permission-scoped trading keys, a durable chain indexer, independently verified rankings, copy trading, strategy bots and traditional instruments are not implied by the current architecture. Public LP shares, insurance and funding-rate systems need separate reviewed designs. The product direction remains a broad trader hub; V4 is the current execution foundation, not the limit of that vision.
+
+
+### Social notification lifecycle
+
+`notifications.actor_id` is set by the validated social-event RPC, not accepted from client copy. Private delete triggers on likes, comment_likes, reposts and follows mark the matching recipient alert with `retracted_at`. Event creation and undo share a transaction advisory lock; active deduplication is scoped to the actor/event/reference. Recipient Realtime UPDATEs remove the item. Read queries exclude retractions, and in-memory tombstones prevent stale fetches from resurrecting them. Post/comment foreign-key deletion behavior remains, with an immediate debounced notification resync. See `tests/notification-events.sql` and `tests/notification-undo.sql` for rollback-only DB checks.

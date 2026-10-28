@@ -8,7 +8,7 @@ import { TradeCloseReceipt } from './components/TradeCloseReceipt';
 import { isWalletPlaceholder, createProfileHydrationGate } from './utils/profileIdentity.mjs';
 import { findRecentPositionClose, findRecentOrderOutcome, type ConfirmedClose } from './services/tradeReceipts';
 import { validateUsername as validateRegistryUsername } from './services/usernameService';
-import { canRestoreCachedProfile, createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
+import { canRestoreCachedProfile, hasWalletSignInIntent, createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
 import { publicSupabase } from './services/supabaseStore';
 import { signInWithWallet, cancelWalletSignIn, walletSignInError } from './services/walletAuth';
 import { activeTradingOrders, protectionAfterCancellation } from './services/activeTradingOrders.mjs';
@@ -1884,10 +1884,11 @@ const App = () => {
     const exhaustedHistoryRef = useRef(new Set<string>());
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const notificationReadIds = useRef(new Set<string>());
+    const notificationRetractedIds = useRef(new Set<string>());
     const notificationSeenIds = useRef(new Set<string>());
     const notificationOwner = useRef(user?.id);
     notificationOwner.current = user?.id;
-    useEffect(() => { notificationReadIds.current.clear(); notificationSeenIds.current.clear(); }, [user?.id]);
+    useEffect(() => { notificationReadIds.current.clear(); notificationRetractedIds.current.clear(); notificationSeenIds.current.clear(); }, [user?.id]);
     // Notification-driven focus for the Trade view. tradeFocus.tab forces the
     // PositionsPanel tab; tradeFocus.highlightId briefly outlines a matching row.
     const [tradeFocus, setTradeFocus] = useState<{ tab?: 'POSITIONS' | 'OPEN ORDERS' | 'HISTORY'; highlightId?: string; key: number } | null>(null);
@@ -1992,7 +1993,7 @@ const App = () => {
     // Tracks whether the wallet connected via a genuine user action this session
     // (AppKit connect flow), as opposed to wagmi's silent auto-reconnect on page reload.
     // socialLoginEffect only runs the sign-in/onboard flow for genuine connects.
-    const freshWalletConnectRef = useRef(false);
+    const freshWalletConnectRef = useRef(0);
     const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
     const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
@@ -2285,22 +2286,11 @@ const App = () => {
     // every refresh (user is null during the async restore window).
     const socialLoginHandledRef = useRef(false);
 
-    // When wagmiStatus transitions through 'connecting' it means the user actively
-    // opened AppKit and chose a wallet. Page-reload reconnects go straight from
-    // 'reconnecting' → 'connected' and never hit 'connecting', so this reliably
-    // distinguishes the two cases without any setTimeout hacks.
+    // Connector status is transport state, not user intent. Mobile reconnects can
+    // pass through `connecting` after a refresh; only our sign-in buttons may
+    // arm the continuation below. Never unlock logout or request a signature here.
     useEffect(() => {
-      if (wagmiStatus === 'connecting') {
-        freshWalletConnectRef.current = true;
-        // User explicitly opened AppKit and is picking a wallet — they want
-        // to be signed in. Clear the post-logout lock so restoreSession and
-        // the silent socialLoginEffect can proceed normally. Auto-reconnect
-        // (which goes 'reconnecting' → 'connected', never touching this
-        // branch) leaves the lock untouched.
-        try { if (typeof window !== 'undefined') window.__veloLogoutLock = false; } catch {}
-      }
       if (wagmiStatus === 'disconnected') {
-        freshWalletConnectRef.current = false;
         socialLoginHandledRef.current = false;
       }
       if (signInBusyRef.current && signInWalletRef.current && (wagmiStatus === 'disconnected' || (walletAddress && walletAddress.toLowerCase() !== signInWalletRef.current))) {
@@ -2309,16 +2299,14 @@ const App = () => {
     }, [wagmiStatus, walletAddress]);
     // ── Social login / onboarding trigger ─────────────────────────────────
     // Fires ONLY when the user actively connected their wallet this session
-    // (freshWalletConnectRef=true, set when wagmiStatus passes through 'connecting').
-    // Page-reload auto-reconnects (wagmiStatus goes 'reconnecting'→'connected',
-    // never touching 'connecting') are completely excluded — Supabase INITIAL_SESSION
+    // (freshWalletConnectRef=true, set by an explicit account-choice button).
+    // Page reload never arms this flag — Supabase INITIAL_SESSION
     // handles those. This eliminates the race between restoreSession and this effect.
     useEffect(() => {
       // Logout sentinel — see the IIFE at the top of this file. If the lock
       // is set, this load came from a logout navigate; do NOT silently
       // re-sign-in just because wagmi auto-reconnected to MetaMask. The
-      // lock is cleared when the user explicitly opens AppKit ('connecting'
-      // wagmiStatus transition above).
+      // lock is cleared only by an explicit account-choice action.
       if (typeof window !== 'undefined' && window.__veloLogoutLock) return;
       if (!isWalletConnected || !walletAddress) {
         socialLoginHandledRef.current = false;
@@ -2326,7 +2314,7 @@ const App = () => {
       }
       // KEY GUARD: page-reload reconnects must never trigger this flow.
       // Only a genuine user-initiated AppKit connect sets this flag.
-      if (!freshWalletConnectRef.current) return;
+      if (!hasWalletSignInIntent(freshWalletConnectRef.current)) return;
       if (!authChecked) return;
       if (user) return;
       if (isLoginOpen) return;
@@ -2342,7 +2330,7 @@ const App = () => {
         signInBusyRef.current = true; setSignInBusy(true);
         signInWalletRef.current = walletAddress.toLowerCase();
         try {
-          const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true, onPhase: setSignInPhase });
+          const { data } = await signInWithWallet(walletAddress, signMessageAsync, { onPhase: setSignInPhase });
           if (attempt !== authAttemptRef.current || intentionalLogoutRef.current || freshSignupRef.current) return;
           setSignInPhase('profile');
           const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
@@ -2904,7 +2892,7 @@ const App = () => {
           setUser(restoredUser);
           recordSessionWallet();
           if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
-          setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
+          setNotifications(prev => mergeNotifications([], notifs, notificationReadIds.current, undefined, notificationRetractedIds.current)); // always replace — guard caused stale/empty notifications on refresh
           if (loadedPosts.length > 0) setPosts(loadedPosts);
           try { const prefs = await fetchPreferences(authUser.id); applyPreferences(prefs); } catch (_) {}
           playSound('SUCCESS');
@@ -3191,8 +3179,7 @@ const App = () => {
             // Logout sentinel — see the IIFE at the top of this file. If the
             // user just navigated in from a logout, never restore a session,
             // even if Supabase somehow still has one in storage or memory.
-            // The lock is cleared by the wagmiStatus='connecting' handler
-            // when the user explicitly opens AppKit and picks a wallet.
+            // Only explicit account-choice buttons clear the lock.
             if (typeof window !== 'undefined' && window.__veloLogoutLock) {
                 if (isGetSessionFallback) {
                     setUser(null);
@@ -3307,7 +3294,7 @@ const App = () => {
                         if (liveWallet) break;
                     }
                 }
-                if (freshWalletConnectRef.current && liveWallet && profileWallet && liveWallet !== profileWallet) {
+                if (hasWalletSignInIntent(freshWalletConnectRef.current) && liveWallet && profileWallet && liveWallet !== profileWallet) {
                     console.warn('[velo:auth] session/wallet mismatch — connected', liveWallet.slice(0,8), 'but session is', profileWallet.slice(0,8), '→ signing out stale session');
                     sessionRestoredRef.current = false;
                     clearSessionCache();
@@ -3323,7 +3310,7 @@ const App = () => {
                 setUser(restoredUser);
                 recordSessionWallet();
                 if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
-                setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
+                setNotifications(prev => mergeNotifications([], notifs, notificationReadIds.current, undefined, notificationRetractedIds.current)); // always replace — guard caused stale/empty notifications on refresh
                 if (loadedPosts.length > 0) setPosts(loadedPosts);
                 try {
                     const prefs = await fetchPreferences(session.user.id);
@@ -3344,7 +3331,7 @@ const App = () => {
                 userLoadedFromDB.current = false;
                 autoRecoverAttemptedRef.current = false;
                 burnerRecoveredRef.current = false;
-                freshWalletConnectRef.current = false;
+                freshWalletConnectRef.current = 0;
                 // Always wipe the cached session snapshot. SIGNED_OUT fires
                 // from both our explicit handleLogout AND any Supabase-side
                 // session expiry / cross-tab signOut. Either way the snapshot
@@ -3769,6 +3756,7 @@ const App = () => {
                 })
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload: any) => {
                     if (!mounted) return;
+                    window.dispatchEvent(new Event('velo:notifications-refresh'));
                     const del = payload.old;
                     setPosts(prev => prev.filter(p => p.id !== del.id));
                 })
@@ -3870,6 +3858,7 @@ const App = () => {
                 })
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, (payload: any) => {
                     if (!mounted) return;
+                    window.dispatchEvent(new Event('velo:notifications-refresh'));
                     const del = payload.old;
                     // Match by COMMENT ID across all posts — the PK is the only
                     // field a DELETE payload is guaranteed to carry (post_id may
@@ -4043,12 +4032,15 @@ const App = () => {
                 const notifs = await fetchNotifications(user.id);
                 if (!mounted) return;
                 notifs.forEach(n => notificationSeenIds.current.add(n.id));
-                setNotifications(prev => mergeNotifications(prev, notifs, notificationReadIds.current, startedAt));
+                setNotifications(prev => mergeNotifications(prev, notifs, notificationReadIds.current, startedAt, notificationRetractedIds.current));
             } catch (e) {
                 if (!isRetry && mounted) retryTimer = setTimeout(() => { void load(true); }, 3000);
             }
         };
 
+        let deletionTimer: ReturnType<typeof setTimeout> | null = null;
+        const onDeletion = () => { if (deletionTimer) clearTimeout(deletionTimer); deletionTimer = setTimeout(() => { void load(); }, 250); };
+        window.addEventListener('velo:notifications-refresh', onDeletion);
         const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
         document.addEventListener('visibilitychange', onVisible);
         void load();
@@ -4057,6 +4049,8 @@ const App = () => {
         return () => {
             mounted = false;
             clearInterval(poll); unsubscribe();
+            window.removeEventListener('velo:notifications-refresh', onDeletion);
+            if (deletionTimer) clearTimeout(deletionTimer);
             if (retryTimer) clearTimeout(retryTimer);
             document.removeEventListener('visibilitychange', onVisible);
         };
@@ -4399,11 +4393,11 @@ const App = () => {
                     read: rawNotif.read, relatedId: rawNotif.related_id,
                     postId: rawNotif.post_id, commentId: rawNotif.comment_id,
                 };
-                setNotifications(prev => mergeNotifications(prev, [{ ...notif, suppressed: rawNotif.suppressed, __event: rawNotif.__event }], notificationReadIds.current));
+                setNotifications(prev => mergeNotifications(prev, [{ ...notif, suppressed: rawNotif.suppressed, retracted_at: rawNotif.retracted_at, __event: rawNotif.__event }], notificationReadIds.current, undefined, notificationRetractedIds.current));
                 const isNew = !notificationSeenIds.current.has(notif.id);
                 notificationSeenIds.current.add(notif.id);
                 if (notificationSeenIds.current.size > 500) notificationSeenIds.current.delete(notificationSeenIds.current.values().next().value!);
-                if (isNew && rawNotif.__event === 'INSERT' && !rawNotif.suppressed && !notif.read) {
+                if (isNew && rawNotif.__event === 'INSERT' && !rawNotif.suppressed && !rawNotif.retracted_at && !notif.read) {
                     setToast({ message: rawNotif.message, type: 'INFO' });
                     playSound('CLICK');
                 }
@@ -4791,7 +4785,7 @@ const App = () => {
             await logoutTaskRef.current;
             await walletDisconnectRef.current?.();
             socialLoginHandledRef.current = false;
-            freshWalletConnectRef.current = false;
+            freshWalletConnectRef.current = Date.now();
             intentionalLogoutRef.current = false;
             window.__veloLogoutLock = false;
             try { localStorage.removeItem('velo_logged_out'); } catch {}
@@ -4811,11 +4805,11 @@ const App = () => {
         setSessionNotice(null);
         setVeloWelcomeOpen(false);
         try {
-            if (!isWalletConnected || !walletAddress) { await openAppKitModal({ view: 'Connect' }); return; }
+            if (!isWalletConnected || !walletAddress) { freshWalletConnectRef.current = Date.now(); await openAppKitModal({ view: 'Connect' }); return; }
             socialLoginHandledRef.current = true;
             signInBusyRef.current = true; setSignInBusy(true);
             signInWalletRef.current = walletAddress.toLowerCase();
-            const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true, onPhase: setSignInPhase });
+            const { data } = await signInWithWallet(walletAddress, signMessageAsync, { onPhase: setSignInPhase });
             if (attempt !== authAttemptRef.current) return;
             setSignInPhase('profile');
             const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
@@ -4851,7 +4845,7 @@ const App = () => {
         profileHydrationGate.invalidate();
         userLoadedFromDB.current = false; sessionRestoredRef.current = false;
         autoRecoverAttemptedRef.current = false; burnerRecoveredRef.current = false;
-        freshWalletConnectRef.current = false; socialLoginHandledRef.current = false;
+        freshWalletConnectRef.current = 0; socialLoginHandledRef.current = false;
         setShareCardData(null);setCloseReceipt(null);setManagedCloseShare(null);setPositionSharePickerOpen(false);
         setUser(null); setPositions([]); setOpenOrders([]); setNotifications([]);
         setBurnerAddress(null); setSettingsOpen(false); setLoginOpen(false);
@@ -6565,7 +6559,7 @@ const App = () => {
                         setUser(restoredUser);
                         recordSessionWallet();
                         if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
-                        setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
+                        setNotifications(prev => mergeNotifications([], notifs, notificationReadIds.current, undefined, notificationRetractedIds.current)); // always replace — guard caused stale/empty notifications on refresh
                         if (loadedPosts.length > 0) setPosts(loadedPosts);
                         try {
                             const prefs = await fetchPreferences(authUser.id);
@@ -7098,7 +7092,7 @@ const App = () => {
                                         .from('transactions')
                                         .select('*')
                                         .eq('user_id', user.id)
-                                        .eq('suppressed', false)
+                                        .eq('suppressed', false).is('retracted_at', null)
                                         .in('tx_hash', [rid, `faucet:${rid}`])
                                         .limit(1)
                                         .maybeSingle();
@@ -7140,7 +7134,7 @@ const App = () => {
                         fetchNotifications(user.id).then(fresh => {
                             if (notificationOwner.current !== owner) return;
                             fresh.forEach(n => notificationSeenIds.current.add(n.id));
-                            setNotifications(prev => mergeNotifications(prev, fresh, notificationReadIds.current, startedAt));
+                            setNotifications(prev => mergeNotifications(prev, fresh, notificationReadIds.current, startedAt, notificationRetractedIds.current));
                         }).catch(() => setToast({ message: 'Notifications could not refresh. Reopen the panel to retry.', type: 'ERROR' }));
                     }
                 }} onMarkAllRead={() => void markNotificationIdsRead(notifications.filter(n => !n.read).map(n => n.id))} totalEquity={totalEquity}/>

@@ -48,7 +48,7 @@ export function signInWithWallet(address: string, signMessage: SignMessage, opti
     options.onPhase?.('session');
     const { data: { session } } = await stage(supabase.auth.getSession(), controller.signal, 10_000, 'Session recovery is taking too long. Select Sign in to retry.');
     assertActive();
-    if (!options.force && session?.user.app_metadata?.velo_wallet_verified === wallet && session.expires_at && session.expires_at * 1000 > Date.now() + 60_000) {
+    if (!options.force && session?.user.app_metadata?.velo_wallet_verified === wallet && session.expires_at && session.expires_at * 1000 > Date.now()) {
       return { data: { user: session.user, session }, error: null };
     }
     const post = async (body: { action: string; [key: string]: unknown }) => {

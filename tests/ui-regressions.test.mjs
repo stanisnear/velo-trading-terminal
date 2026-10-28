@@ -28,6 +28,8 @@ function setup(){
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.localStorage=dom.window.localStorage;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
  Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
  globalThis.__veloTestQuery=()=>({data:[],error:null});
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');this.querySelector('button')?.focus();};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');};
  const root=createRoot(document.querySelector('#root'));
  return {dom,root,close:async()=>{await act(async()=>root.unmount());dom.window.close();}};
 }
@@ -42,31 +44,28 @@ test('private-key confirmation/reveal survives fresh profile props and price ref
   assert.match(document.body.textContent,/Hide Key/);assert.ok(document.body.textContent.includes(burner.privateKey));
  } finally {await f.close();}
 });
-test('trade detail tooltip stays open while market prices update',async()=>{
+test('trade detail explanation stays expanded while market prices update',async()=>{
  const f=setup();const item={id:'fixture',pair:'BTC/USD',side:'LONG',entryPrice:50000,exitPrice:51000,size:1000,pnl:20,timestamp:Date.now(),action:'CLOSE',leverage:10};
  const render=price=>f.root.render(React.createElement(OrderDetailsModal,{payload:{kind:'HISTORY',item:{...item}},marketPrices:{'BTC/USD':price},onClose:()=>{},onClosePosition:()=>{},onEditPosition:()=>{},handleCancelOrder:()=>{}}));
  try {
-  await act(async()=>render(51000));const label=[...document.querySelectorAll('span')].find(e=>e.textContent==='Entry Price');assert.ok(label);
-  await act(async()=>{label.dispatchEvent(new window.MouseEvent('mouseover',{bubbles:true}));await new Promise(r=>setTimeout(r,80));});
+  await act(async()=>render(51000));const help=document.querySelector('[aria-label="About Entry Price"]');assert.ok(help);
+  await act(async()=>help.click());assert.equal(help.getAttribute('aria-expanded'),'true');
   assert.match(document.body.textContent,/The average price at which this position was opened/);
-  await act(async()=>render(51010));assert.match(document.body.textContent,/The average price at which this position was opened/);
+  await act(async()=>render(51010));assert.equal(document.querySelector('[aria-label="About Entry Price"]').getAttribute('aria-expanded'),'true');
  } finally {await f.close();}
 });
-test('order details preserves keyboard focus during updates, traps Tab and restores its trigger',async()=>{
+test('native order details preserves keyboard focus during updates and restores its trigger',async()=>{
  const f=setup(); const trigger=document.createElement('button');document.body.append(trigger);trigger.focus();
  const item={id:'fixture',pair:'BTC/USD',side:'LONG',entryPrice:50000,exitPrice:51000,size:1000,pnl:20,timestamp:Date.now(),action:'CLOSE',leverage:10};
  const render=price=>f.root.render(React.createElement(OrderDetailsModal,{payload:{kind:'HISTORY',item:{...item}},marketPrices:{'BTC/USD':price},onClose:()=>{},onClosePosition:()=>{},onEditPosition:()=>{},handleCancelOrder:()=>{}}));
  try {
   await act(async()=>render(51000));
-  const dialog=document.querySelector('[role="dialog"]');
+  const dialog=document.querySelector('dialog');
   const targets=[...dialog.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),[tabindex="0"]')];
-  assert.equal(document.activeElement,dialog.querySelector('[aria-label="Close"]'));
+  assert.equal(document.activeElement,dialog.querySelector('.velo-dialog-close'));
   const last=targets.at(-1);last.focus();
   await act(async()=>render(51010));assert.equal(document.activeElement,last);
-  await act(async()=>last.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true})));
-  assert.equal(document.activeElement,targets[0]);
-  await act(async()=>targets[0].dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true})));
-  assert.equal(document.activeElement,last);
+  // Browser-native Tab containment is verified in the browser, not emulated by JSDOM.
   await act(async()=>f.root.render(null));assert.equal(document.activeElement,trigger);
  } finally {await f.close();}
 });

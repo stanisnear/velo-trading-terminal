@@ -151,7 +151,7 @@ React 19, TypeScript, Vite, wagmi v2 and viem, Reown AppKit for wallets, TanStac
 - `src/services/` holds everything that touches the outside world: contract calls, Pyth streaming, wallet and session handling, Supabase access, and transfer and trade-receipt verification.
 - **No optimistic state for money.** Balances and positions come from contract reads and confirmed receipts, not from what the UI expects to have happened.
 - V4 contract reads own active positions and orders. Old database snapshots and Realtime position/order rows do not repopulate the V4 view; legacy exits remain separate. Supabase still supplies social content, notifications and receipt-backed history.
-- Sign-in has cancellable stages, bounded wallet waiting and an explicit switch-wallet path. App sessions warn before the 30-minute inactivity limit and require renewed sign-in after eight hours. Logout does not close positions.
+- Sign-in has cancellable stages, bounded wallet waiting and an explicit switch-wallet path. App sessions warn before the 30-minute inactivity limit and require renewed sign-in after eight hours. A refresh restores the same valid session without a new wallet signature; connector status never counts as sign-in intent. Logout does not close positions.
 - Design system in `src/styles/`: OKLCH colour tokens, glass surfaces, light and dark modes, Fraunces for the wordmark/editorial type and self-hosted Switzer from Fontshare for the interface.
 
 ### Backend

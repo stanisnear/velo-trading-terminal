@@ -162,3 +162,11 @@ test('navigation drawer is inert when closed, traps focus when open and restores
 });
 
 test.after(async () => { await rm(folder, { recursive: true, force: true }); });
+test('Tab wraps between dialog controls and skips inert collapsed controls',async()=>{
+ const f=setup();try {
+  await act(async()=>f.root.render(React.createElement(Dialog,{open:true,title:'Details',onClose:()=>{}},React.createElement('div',null,React.createElement('div',{inert:true},React.createElement('button',null,'Collapsed')),React.createElement('button',{id:'last'},'Done')))));
+  const first=document.querySelector('.velo-dialog-close'),last=document.querySelector('#last');
+  last.focus();await act(async()=>last.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true})));assert.equal(document.activeElement,first);
+  await act(async()=>first.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true})));assert.equal(document.activeElement,last);
+ }finally{await f.close();}
+});

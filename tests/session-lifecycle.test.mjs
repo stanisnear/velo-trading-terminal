@@ -53,3 +53,11 @@ test('bounded fetch aborts stalled requests and preserves caller cancellation',a
     await assert.rejects(boundedFetch('https://fixture.invalid',{signal:controller.signal},100),{name:'AbortError'});
   } finally { globalThis.fetch=real; }
 });
+test('mobile connector reconnect cannot arm sign-in; only a recent explicit account choice can',async()=>{
+ const {hasWalletSignInIntent}=await import('../src/services/sessionLifecycle.mjs');
+ const now=1_000_000;
+ for(const connectionStatus of ['reconnecting','connecting','connected']) assert.equal(hasWalletSignInIntent(0,now),false,connectionStatus);
+ assert.equal(hasWalletSignInIntent(now,now+60_000),true);
+ assert.equal(hasWalletSignInIntent(now,now+300_001),false);
+ assert.equal(hasWalletSignInIntent(now,now-1),false);
+});
