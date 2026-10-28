@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import React, { act } from 'react';
+import { JSDOM } from 'jsdom';
+import { build } from 'esbuild';
+import { mkdtemp, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+test('exposure drill-down uses current positions, keeps quote updates focused, and handles settlement and empty balances', async () => {
+  const folder = await mkdtemp(path.resolve('audit/dashboard-exposure-')), file = path.join(folder, 'tools.mjs');
+  await build({ stdin: { contents: "export{PositionExposure}from'./src/components/ui/PositionExposure';export{DashboardAccount}from'./src/components/ui/DashboardAccount';", resolveDir: process.cwd(), loader: 'tsx' }, outfile: file, bundle: true, platform: 'node', format: 'esm', external: ['react', 'react-dom', 'lucide-react', 'motion/react'], loader: { '.css': 'empty' } });
+  const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true });
+  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.Element = dom.window.Element; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  dom.window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  const { createRoot } = await import('react-dom/client'), { PositionExposure, DashboardAccount } = await import(pathToFileURL(file));
+  const root = createRoot(document.querySelector('#root'));
+  const makePosition = (id, pair, size, side = 'LONG') => ({ id, pair, size, side, leverage: 10, entryPrice: 100, marginMode: 'ISOLATED', liquidationPrice: 90, timestamp: 1 });
+  const positions = [makePosition('a', 'ETH/USD', 600), makePosition('b', 'SOL/USD', 300, 'SHORT'), makePosition('c', 'BTC/USD', 100), makePosition('d', 'HYPE/USD', 0)];
+  const calls = [], inspect = position => calls.push(position);
+  const render = (positions, pnl) => root.render(React.createElement(PositionExposure, { positions, margin: 100, pnl, onInspect: inspect }));
+  try {
+    await act(async () => render(positions, 25));
+    assert.match(document.querySelector('.position-exposure-row').textContent, /60.0% of notional/);
+    assert.match(document.querySelector('.position-exposure-summary').textContent, /100.00.*25.00/);
+    const fourth = [...document.querySelectorAll('.position-exposure-row')].at(-1);
+    assert.ok(fourth.closest('[hidden]'), 'additional positions are initially collapsed');
+    await act(async () => document.querySelector('.position-exposure-more').click());
+    assert.equal(fourth.closest('[hidden]'), null);
+    const first = document.querySelector('.position-exposure-row');
+    await act(async () => first.focus());
+    assert.equal(document.querySelectorAll('.position-exposure-bar [data-muted=true]').length, 3);
+    const updated = positions.map(p => p.id === 'a' ? { ...p, takeProfit: 110 } : p);
+    await act(async () => render(updated, -10));
+    assert.equal(document.activeElement, first, 'quote changes do not remount the row');
+    assert.equal(document.querySelector('.position-exposure-summary strong[data-positive=false]') !== null, true);
+    await act(async () => first.click());
+    assert.equal(calls.length, 1); assert.equal(calls[0], updated[0], 'inspect receives the current position, not a stale snapshot');
+    await act(async () => render(updated.slice(1), -10));
+    assert.equal(document.querySelectorAll('.position-exposure-bar [data-muted=true]').length, 0, 'settled position cannot leave the remaining bar dimmed');
+    await act(async () => render([makePosition('zero', 'SOL/USD', 0)], 0));
+    assert.doesNotMatch(document.body.textContent, /NaN|Infinity/);
+    await act(async () => render([], 0));
+    assert.equal(document.querySelector('.position-exposure-row'), null);
+    assert.match(document.body.textContent, /Your open positions will appear here/);
+
+    await act(async () => root.render(React.createElement(DashboardAccount, { wallet: '0x1234567890', engine: '0xabcdef1234', addressUrl: address => `https://example.test/address/${address}` })));
+    const toggle = document.querySelector('.dashboard-account-toggle');
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+    assert.ok(document.querySelector('.dashboard-account-links').closest('[hidden]'));
+    await act(async () => { toggle.focus(); toggle.click(); });
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(document.querySelector('a').href, 'https://example.test/address/0x1234567890');
+    assert.equal(document.querySelectorAll('.velo-copy-button').length, 2);
+    await act(async () => toggle.click());
+    assert.equal(document.activeElement, toggle);
+    assert.ok(document.querySelector('.dashboard-account-links').closest('[hidden]'));
+    await act(async () => root.render(React.createElement(DashboardAccount, { engine: '0xabcdef1234', addressUrl: address => `https://example.test/address/${address}` })));
+    await act(async () => document.querySelector('.dashboard-account-toggle').click());
+    assert.equal(document.querySelectorAll('a').length, 1);
+    assert.match(document.body.textContent, /Connect your trading wallet/);
+  } finally {
+    await act(async () => root.unmount()); dom.window.close(); await rm(folder, { recursive: true, force: true });
+  }
+});

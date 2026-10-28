@@ -1,6 +1,7 @@
 import { AccountOverview } from '../AccountOverview';
 import { DashboardActions } from '../DashboardActions';
-import { CopyButton } from '../CopyButton';
+import { PositionExposure } from '../PositionExposure';
+import { DashboardAccount } from '../DashboardAccount';
 import { AnimatedText } from '../AnimatedValue';
 import { SegmentedControl } from '../SegmentedControl';
 import { AnimatedValue } from '../AnimatedValue';
@@ -218,7 +219,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
 
             )}
           </div>
-          <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: isMobile ? 100 : 160, maxHeight: isMobile ? 150 : undefined }}>
+          <div className="dash-portfolio-chart" style={{ padding: '8px 0', height: isMobile ? 180 : 250, flex: 'none' }}>
             <PortfolioChart data={chartData} theme={theme} />
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
@@ -246,74 +247,21 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
 
         </div>
 
-        {/* Right column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Performance */}
+        <aside className="dashboard-overview-rail" aria-label="Account overview">
           <div style={panel}>
-            <div style={{ padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <GlassIcon><Star size={13}/></GlassIcon>
-                <span style={S.label}>Performance</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>Win Rate</span>
-                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{<AnimatedText text={stats.winRate.toFixed(1)}/>}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>Realized PnL</span>
-                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: stats.realizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>${<AnimatedText text={formatMoney(stats.realizedPnl)}/>}</span>
-              </div>
-            </div>
+            <PositionExposure positions={positions} margin={totalMarginUsed} pnl={allPositionsPnl}
+              onInspect={position => setDetailsItem({ kind: 'POSITION', item: position })}/>
           </div>
-
-          {/* On-chain account — reinforces Velo's "real, verifiable on-chain
-              trades" narrative. Shows the trading wallet + a BaseScan link. */}
-          <div style={{ ...panel, flex: 1 }}>
-            <div style={{ padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <GlassIcon><Link2 size={13}/></GlassIcon>
-                <span style={S.label}>On-chain account</span>
-                <span style={{ marginLeft: 'auto', ...S.label, fontSize: 8.5, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', padding: '2px 7px', borderRadius: 999, border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)' }}>Base Sepolia</span>
-              </div>
-              {tradingWalletAddress ? (
-                <div className="dashboard-account-links">{[{label:'Trading wallet',value:tradingWalletAddress},{label:'Perps contract',value:VELO_PERPS_ADDRESS}].map(({label,value})=><div key={label}><p style={S.label}>{label}</p><div><a href={baseScanAddressUrl(value)} target="_blank" rel="noopener noreferrer">{value.slice(0,6)}…{value.slice(-4)}<ExternalLink size={11}/></a><CopyButton value={value} label={`Copy ${label.toLowerCase()}`}/></div></div>)}</div>
-              ) : (
-                <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', lineHeight: 1.6 }}>
-                  Set up your trading wallet to start placing verifiable on-chain trades.
-                </p>
-              )}
+          <section style={panel} className="dashboard-performance" aria-label="Closed-position performance">
+            <header><Star size={15} aria-hidden="true"/><strong>Performance</strong><small><AnimatedValue value={stats.totalTrades} currency={false} digits={0}/> closed</small></header>
+            <div>
+              <span>Realized PnL<strong data-positive={stats.realizedPnl >= 0}><AnimatedValue value={stats.realizedPnl}/></strong></span>
+              <span>Win rate<strong>{stats.totalTrades > 0 ? <><AnimatedText text={stats.winRate.toFixed(1)}/>%</> : '—'}</strong></span>
             </div>
-          </div>
-
-          {/* Margin & exposure — practical at-a-glance risk view, replaces the
-              copy-trading signal stats that aren't in use yet. */}
-          <div style={panel}>
-            <div style={{ padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <GlassIcon><Activity size={13}/></GlassIcon>
-                <span style={S.label}>Margin & exposure</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <p style={S.label}>Margin in use</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}><AnimatedValue value={totalMarginUsed}/></p>
-                </div>
-                <div>
-                  <p style={S.label}>Open positions</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}><AnimatedValue value={positions.length} currency={false} digits={0}/></p>
-                </div>
-                <div>
-                  <p style={S.label}>Unrealized PnL</p>
-                  <p style={{ ...S.display, fontSize: 22, color: allPositionsPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3 }}><AnimatedValue value={allPositionsPnl}/></p>
-                </div>
-                <div>
-                  <p style={S.label}>Buying power</p>
-                  <p style={{ ...S.display, fontSize: 22, color: 'var(--fg)', marginTop: 3 }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+            {stats.totalTrades > 0 && <div className="dashboard-win-track" aria-hidden="true"><span style={{width:`${Math.min(100, Math.max(0,stats.winRate))}%`}}/></div>}
+          </section>
+          <div style={panel}><DashboardAccount wallet={tradingWalletAddress} engine={VELO_PERPS_ADDRESS} addressUrl={baseScanAddressUrl}/></div>
+        </aside>
       </div>
 
       {/* Active Positions */}
@@ -667,16 +615,35 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       </div>
 
       <style>{`
-        .dash-grid-main {
+        .dashboard-page .dash-grid-main {
           display: grid;
-          grid-template-columns: 1fr clamp(300px, 22vw, 360px);
-          gap: 12px;
+          grid-template-columns: minmax(0, 1fr) clamp(290px, 25vw, 340px);
+          align-items: start;
+          gap: 16px;
         }
-        @media (max-width: 900px) {
-          .dash-grid-main {
-            grid-template-columns: 1fr;
-          }
+        .dashboard-overview-rail { display: grid; gap: 12px; min-width: 0; }
+        .dashboard-performance { padding: 17px 18px; font-family: var(--font-sans); }
+        .dashboard-performance header { display: flex; align-items: center; gap: 8px; margin-bottom: 17px; }
+        .dashboard-performance header svg { color: var(--accent-text); }
+        .dashboard-performance header strong { font-size: 13px; font-weight: 600; }
+        .dashboard-performance header small { margin-left: auto; color: var(--fg-muted); font-size: 10px; }
+        .dashboard-performance>div:not(.dashboard-win-track) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .dashboard-performance>div>span { font-size: 11px; color: var(--fg-muted); }
+        .dashboard-performance>div strong { display: block; color: var(--fg); font-size: 20px; font-weight: 600; letter-spacing: -.03em; line-height: 1.5; margin-top: 5px; }
+        .dashboard-performance strong[data-positive=true] { color: var(--pnl-up); }
+        .dashboard-performance strong[data-positive=false] { color: var(--pnl-down); }
+        .dashboard-win-track { height: 3px; border-radius: 99px; overflow: hidden; background: var(--chip-bg); margin-top: 16px; }
+        .dashboard-win-track>span { display: block; height: 100%; background: var(--accent); transition: width 300ms; }
+        @media (max-width: 1023px) {
+          .dashboard-page .dash-grid-main { grid-template-columns: minmax(0, 1fr); padding-inline: 0; }
+          .dashboard-overview-rail { grid-template-columns: 1fr 1fr; align-items: start; }
+          .dashboard-overview-rail>div:first-child { grid-row: span 2; }
         }
+        @media (max-width: 600px) {
+          .dashboard-overview-rail { grid-template-columns: minmax(0, 1fr); }
+          .dashboard-overview-rail>div:first-child { grid-row: auto; }
+        }
+        @media (prefers-reduced-motion: reduce) { .dashboard-win-track>span { transition: none; } }
         @keyframes velo-pill-spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>

@@ -1,0 +1,10 @@
+.dashboard-account-toggle{display:flex;align-items:center;gap:9px;width:100%;border:0;background:transparent;color:var(--fg);padding:15px 18px;font:600 12px var(--font-sans);text-align:left;cursor:pointer;transition:background 180ms}
+.dashboard-account-toggle:hover{background:var(--chip-bg)}
+.dashboard-account-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:-4px;border-radius:14px}
+.dashboard-account-toggle>svg:first-child{color:var(--accent-text)}
+.dashboard-account-toggle>svg:last-child{margin-left:auto;color:var(--fg-muted);transition:transform 240ms}
+.dashboard-account-toggle[aria-expanded=true]>svg:last-child{transform:rotate(180deg)}
+.dashboard-account-toggle small{display:block;margin-top:3px;font-size:10px;font-weight:400;color:var(--fg-muted)}
+.dashboard-account .dashboard-account-links{padding:0 18px 16px}
+.dashboard-account .dashboard-account-links p{font:400 11px/1.5 var(--font-sans);color:var(--fg-muted)}
+@media(prefers-reduced-motion:reduce){.dashboard-account-toggle,.dashboard-account-toggle>svg:last-child{transition:none}}

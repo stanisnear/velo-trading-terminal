@@ -1,8 +1,12 @@
-/* Header and every page start from the same centered frame and outer gutter. */
-:root{--app-frame-max:1600px;--app-frame-gutter:12px}
-.navbar-container{width:min(var(--app-frame-max),calc(100% - var(--app-frame-gutter) - var(--app-frame-gutter)))!important;left:50%!important;transform:translateX(-50%)!important;box-sizing:border-box}
-main.velo-main{padding-inline:var(--app-frame-gutter)!important;box-sizing:border-box}.velo-page-frame{width:100%;max-width:var(--app-frame-max);margin-inline:auto;min-width:0;box-sizing:border-box}
-.velo-page-frame>.dashboard-page{max-width:none!important;width:100%;min-width:0}.velo-page-frame>.markets-page,.velo-page-frame>.lb-view,.velo-page-frame>.asset-page,.velo-page-frame>.social-page{max-width:none!important;width:100%;padding-inline:0!important;box-sizing:border-box}
-.velo-page-frame .velo-trade-workspace{padding-inline:0!important;min-width:0}.velo-page-frame>.social-page .social-feed-grid{width:100%;max-width:none}
-@media(min-width:1251px){.velo-page-frame>.social-page .social-feed-grid{grid-template-columns:minmax(200px,230px) minmax(0,1fr) minmax(220px,260px)}}
-@media(max-width:767px){.navbar-container{top:10px!important;border-radius:18px!important}.navbar-container[data-page-layout=trade]{left:0!important;transform:none!important;top:0!important;width:100%!important;border-radius:0!important}.velo-main.trade-view{padding-inline:0!important}.velo-main:not(.trade-view){padding-top:84px!important}}
+/* Align the outer shell; each page keeps its own reading width and padding. */
+@media (min-width: 1024px) {
+  .navbar-container {
+    width: min(1600px, calc(100% - 24px)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    box-sizing: border-box;
+  }
+  .navbar-container[data-page-layout="standard"] {
+    width: min(1600px, calc(100% - 2 * clamp(16px, 3vw, 48px))) !important;
+  }
+}

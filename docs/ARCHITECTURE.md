@@ -93,3 +93,8 @@ Permission-scoped trading keys, a durable chain indexer, independently verified 
 ### Coin workspace
 
 `src/components/TokenPage.tsx` owns the asset workspace outside the app shell: market history, four reference statistics, official resource links, news and the cashtag-filtered conversation. `CoinComposer` uses the shared `SocialTextField` and the application’s `handleCreatePost`; it does not introduce another API, post table or notification path. Successful creation updates the common `posts` state. Existing `PostCard` handles replies and reactions. The chart supports pointer/touch and keyboard timestamp inspection, locale labels and shared-layout metric/timeframe controls. Directory membership still does not authorize perpetual trading.
+
+
+## Dashboard presentation
+
+`Dashboard` consumes existing account totals and positions; the compact portfolio chart does not stretch to the height of the sidebar. `PositionExposure` displays the actual position notionals, their relative shares and the authoritative margin/PnL totals supplied by App. It opens the existing position-inspection dialog without a new RPC or execution path. `DashboardAccount` keeps wallet/engine explorer and copy controls behind an accessible animated disclosure. The shared app shell aligns navigation while Social, Markets, asset and profile pages keep their existing content limits.
