@@ -56,4 +56,21 @@ test('market, limit and stop share a persistent submit area outside the scrollin
     assert.equal(ticket.querySelector('.velo-order-ticket__footer > button'), submit, 'resize preserves the ticket and its draft');
   } finally { await act(async () => root.unmount()); dom.window.close(); }
 });
+test('signed-out workspace replaces duplicate activity gates with a local preview on desktop and mobile', async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'https://fixture.invalid'});
+ globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.Element=dom.window.Element;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+ dom.window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
+ const root=createRoot(document.querySelector('#root'));let signIns=0;
+ try{
+  await act(async()=>root.render(React.createElement(TradeView,{...tradeProps,user:null,onRequireAuth:()=>signIns++})));
+  assert.equal(document.querySelector('.velo-trade-workspace').dataset.authenticated,'false');
+  assert.equal(document.querySelectorAll('.trade-preview').length,1);
+  assert.equal(document.querySelectorAll('.trade-auth-gate').length,0,'no duplicate or clipped activity sign-in prompt');
+  assert.equal(document.querySelectorAll('.velo-trade-resizer').length,0);
+  await act(async()=>document.querySelector('.trade-preview__footer button').click());assert.equal(signIns,1);
+  await act(async()=>{window.innerWidth=390;window.dispatchEvent(new window.Event('resize'));});
+  assert.equal(document.querySelector('.velo-trade-rail').firstElementChild,document.querySelector('.velo-order-ticket'));
+  assert.equal(document.querySelectorAll('.trade-auth-gate').length,0);
+ }finally{await act(async()=>root.unmount());dom.window.close();}
+});
 test.after(() => rm(folder, { recursive: true, force: true }));

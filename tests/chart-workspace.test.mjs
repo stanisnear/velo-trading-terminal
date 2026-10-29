@@ -21,13 +21,13 @@ test('equity observations preserve genuine timestamps, finite zero, deduplicatio
 });
 
 const chartStub=`
-export const AreaSeries='area',BarSeries='bar',CandlestickSeries='candles',HistogramSeries='hist',LineSeries='line';
+export const BaselineSeries='baseline',AreaSeries='area',BarSeries='bar',CandlestickSeries='candles',HistogramSeries='hist',LineSeries='line';
 export const ColorType={Solid:'solid'},CrosshairMode={Magnet:1},LineStyle={Solid:0,Dotted:1,Dashed:2},TickMarkType={Year:0,Month:1,DayOfMonth:2,TimeWithSeconds:3};
 export const createTextWatermark=()=>({detach(){},applyOptions(){}});
 export function createChart(element,options){
  const state={element,options,series:[],removed:false,range:{from:0,to:100},sets:[],realtime:0,sub:null};
  const scale={getVisibleLogicalRange:()=>state.range,setVisibleLogicalRange:r=>{state.range=r;state.sets.push(r);state.sub?.(r);},fitContent:()=>{state.fits=(state.fits||0)+1;},subscribeVisibleLogicalRangeChange:cb=>state.sub=cb,unsubscribeVisibleLogicalRangeChange:()=>state.sub=null,scrollToRealTime:()=>{state.realtime++;const last=state.series[0].data.length-1;const width=state.range.to-state.range.from;scale.setVisibleLogicalRange({from:last+4-width,to:last+4});}};
- const chart={timeScale:()=>scale,addSeries:()=>{const s={data:[],sets:0,updates:0,setData:d=>{s.data=d;s.sets++;state.sub?.(state.range);},update:p=>{s.updates++;if(s.data.at(-1)?.time===p.time)s.data=[...s.data.slice(0,-1),p];else s.data=[...s.data,p];state.sub?.(state.range);},applyOptions(){},priceScale:()=>({applyOptions(){}}),createPriceLine:()=>({}),removePriceLine(){}};state.series.push(s);return s;},panes:()=>[{}],removePane(){},removeSeries(){},applyOptions(){},subscribeCrosshairMove:cb=>state.crosshair=cb,remove(){state.removed=true;},clearCrosshairPosition(){},setCrosshairPosition(){}};
+ const chart={timeScale:()=>scale,addSeries:(type,options)=>{const s={type,options,data:[],sets:0,updates:0,setData:d=>{s.data=d;s.sets++;state.sub?.(state.range);},update:p=>{s.updates++;if(s.data.at(-1)?.time===p.time)s.data=[...s.data.slice(0,-1),p];else s.data=[...s.data,p];state.sub?.(state.range);},applyOptions:o=>Object.assign(s.options,o),priceScale:()=>({applyOptions(){}}),createPriceLine:()=>({}),removePriceLine(){}};state.series.push(s);return s;},panes:()=>[{}],removePane(){},removeSeries(){},applyOptions(){},subscribeCrosshairMove:cb=>state.crosshair=cb,remove(){state.removed=true;},clearCrosshairPosition(){},setCrosshairPosition(){}};
  state.api=chart;globalThis.__charts.push(state);return chart;
 }`;
 const plugin={name:'charts-offline',setup(b){
@@ -81,9 +81,15 @@ test('real chart components follow first history, timeframe changes and explicit
   await act(async()=>root.render(React.createElement(PortfolioChart,{data:[{timestamp:observedNow-120000,value:100},{timestamp:observedNow,value:115}],theme:'dark'})));
   assert.equal(series.sets,sets);assert.equal(series.updates,1);assert.equal(series.data.at(-1).value,115);
 
+  assert.equal(series.type,'baseline');assert.equal(series.options.baseValue.price,100,'equity uses the selected period starting account value');
+  const chartCount=globalThis.__charts.length;
   const may=Date.parse('2026-05-26T18:13:20Z');
-  await act(async()=>root.render(React.createElement(PortfolioChart,{data:[{timestamp:may,value:0},{timestamp:observedNow,value:-219.22}],theme:'dark',label:'Realized trading PnL',negative:true})));
+  await act(async()=>root.render(React.createElement(PortfolioChart,{data:[{timestamp:may,value:0},{timestamp:observedNow,value:-219.22}],theme:'dark',label:'Realized trading PnL',baseline:0})));
   assert.equal(globalThis.__charts.at(-1).series[0].data[0].time,may/1000,'historical realized PnL is not subject to the device equity cache retention');
+
+  assert.equal(globalThis.__charts.length,chartCount,'changing to loss data does not recreate the chart');
+  assert.equal(series.options.baseValue.price,0,'settlement PnL uses zero, not starting equity');
+  assert.notEqual(series.options.topLineColor,series.options.bottomLineColor,'profits and losses have separate colors');
 
   let observed;
   function History({owner,value,ready}){observed=useEquityHistory(owner,'wallet','engine',value,ready);return null;}

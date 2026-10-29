@@ -7,6 +7,7 @@ import { AnimatedValue } from './AnimatedValue';
 import { TradingDialog } from './TradingDialog';
 import { SegmentedControl } from './SegmentedControl';
 import './AccountPerformance.css';
+import { PerformanceCalendar } from './PerformanceCalendar';
 
 export function AccountPerformance({history,theme,onInspect}:{history:TradeHistoryItem[];theme:'light'|'dark';onInspect:(trade:TradeHistoryItem)=>void}) {
   const [open,setOpen]=useState(false),[period,setPeriod]=useState('ALL');
@@ -28,13 +29,14 @@ export function AccountPerformance({history,theme,onInspect}:{history:TradeHisto
       footer={<button type="button" onClick={()=>setOpen(false)}>Done</button>}>
       <div className="account-performance-controls"><SegmentedControl label="Performance period" compact value={period} onChange={setPeriod} options={performancePeriods.map(value=>({value,label:value==='ALL'?'All time':value}))}/></div>
       <div className="account-performance-result" data-positive={result.realizedPnl>=0}><span>Realized trading PnL</span><strong><AnimatedValue value={result.realizedPnl}/></strong><small>{result.totalTrades} settlements in this period</small></div>
-      <div className="account-performance-chart"><PortfolioChart dateOnly={period !== '1D'} negative={result.realizedPnl<0} data={result.points} theme={theme} label="Cumulative realized PnL" emptyLabel="No settlements in this period."/></div>
+      <div className="account-performance-chart"><PortfolioChart dateOnly={period !== '1D'} baseline={0} data={result.points} theme={theme} label="Cumulative realized PnL" emptyLabel="No settlements in this period."/></div>
       <div className="account-performance-metrics">
         <div><span>Win rate</span><strong>{result.totalTrades?<><AnimatedValue value={result.winRate} currency={false} digits={1}/>%</>:'—'}</strong><small>{result.wins} wins · {result.losses} losses · {result.breakeven} flat</small></div>
         <div><span>Profit factor</span><strong>{result.profitFactor===null?'—':<AnimatedValue value={result.profitFactor} currency={false} digits={2}/>}</strong><small>Gross profits / gross losses</small></div>
         <div><span>Average result</span><strong>{result.totalTrades?<AnimatedValue value={result.average}/>:'—'}</strong><small>Per settlement</small></div>
         <div><span>Largest PnL drawdown</span><strong>{result.totalTrades?<AnimatedValue value={result.drawdown}/>:'—'}</strong><small>From a realized PnL peak</small></div>
       </div>
+      {result.trades.length>0&&<PerformanceCalendar trades={result.trades} onInspect={trade=>{setOpen(false);onInspect(trade);}}/>}
       {result.markets.length>0&&<section className="account-performance-markets"><h3>Market results</h3>{result.markets.map(m=><div key={m.pair} data-positive={m.pnl>=0}>
         <span><strong>{m.pair}</strong><small>{m.count} settled</small><b><AnimatedValue value={m.pnl}/></b></span>
         <span className="account-performance-market-track" aria-hidden="true"><i style={{width:`${Math.abs(m.pnl)/maximum*100}%`}}/></span>

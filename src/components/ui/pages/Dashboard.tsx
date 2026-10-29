@@ -1,5 +1,4 @@
 import { AccountPerformance } from '../AccountPerformance';
-import { accountPerformance } from '../../../services/accountPerformance.mjs';
 import { equityPeriod } from '../../../services/equityHistory.mjs';
 import { AccountOverview } from '../AccountOverview';
 import { DashboardActions } from '../DashboardActions';
@@ -58,7 +57,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
   </button>
 );
 
-// Fake deposit/withdraw modal removed — all funds flow through Orderly on-chain
+// Funding actions use the shared wallet dialogs.
 
 export const Dashboard = ({ equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
   const [chartPeriod, setChartPeriod] = useState<'1D'|'1W'|'1M'|'1Y'|'ALL'>('ALL');
@@ -82,15 +81,13 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
   }, 0);
   const totalMarginUsed = lockedMarginProp !== undefined ? lockedMarginProp : positions.reduce((acc: number, p: Position) => acc + (p.size / p.leverage), 0);
   const equity = equityProp !== undefined ? equityProp : user.balance + totalMarginUsed + allPositionsPnl;
-  const performance = useMemo(() => accountPerformance(user.tradeHistory), [user.tradeHistory]);
-  const totalPnl = performance.realizedPnl + allPositionsPnl;
-  const [chartMetric, setChartMetric] = useState('PNL');
-  const pnlColor = totalPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
-
   const allPeriods = ['1D','1W','1M','ALL'];
-  const chartResult = useMemo(() => accountPerformance(user.tradeHistory, chartPeriod), [user.tradeHistory, chartPeriod]);
-  const chartData = useMemo(() => chartMetric === 'PNL' ? chartResult.points : equityPeriod(equityHistory, chartPeriod), [chartMetric, chartResult, equityHistory, chartPeriod]);
-  const coverageStart = chartMetric === 'PNL' ? performance.firstAt : equityHistory[0]?.timestamp;
+  const chartData = useMemo(() => equityPeriod(equityHistory, chartPeriod), [equityHistory, chartPeriod]);
+  const firstValue = chartData[0]?.value;
+  const equityChange = chartData.length > 1 ? equity - firstValue : null;
+  const changePercent = firstValue > 0 && equityChange !== null ? equityChange / firstValue * 100 : null;
+  const pnlColor = equityChange === null || equityChange === 0 ? 'var(--fg-muted)' : equityChange > 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
+  const coverageStart = equityHistory[0]?.timestamp;
   const coverageLabel = coverageStart ? new Date(coverageStart).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}) : null;
 
   // ── Pending Deposit Detail Modal ────────────────────────────────────────────
@@ -192,8 +189,7 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
               <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 8px' }}><AnimatedValue value={equity}/></p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
-                  {totalPnl >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
-                  ${<AnimatedText text={formatMoney(Math.abs(totalPnl))}/>} ({<AnimatedText text={equity > 0 ? (totalPnl / (equity - totalPnl) * 100).toFixed(2) : '0.00'}/>}%)
+                  {equityChange !== null ? <>{equityChange >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}<AnimatedValue value={equityChange}/>{changePercent !== null && <> (<AnimatedValue value={changePercent} currency={false}/>%)</>}<span style={{fontFamily:'var(--font-sans)',fontWeight:400,color:'var(--fg-subtle)'}}> equity change</span></> : 'Current account value'}
                 </span>
                 <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
                   Buying Power <span style={{ color: 'var(--fg-muted)' }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></span>
@@ -205,15 +201,12 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
 
             )}
           </div>
-          <div className="dashboard-chart-toolbar">
-            <SegmentedControl label="Account chart" compact value={chartMetric} onChange={setChartMetric} options={[{value:'PNL',label:'Trading PnL'},{value:'EQUITY',label:'Equity'}]}/>
-            <span>{chartMetric === 'PNL' && <><AnimatedValue value={chartResult.realizedPnl}/> realized · </>}{chartMetric === 'EQUITY' ? 'Recorded equity' : 'Settled trades'}{coverageLabel ? ` · Since ${coverageLabel}` : ''}</span>
-          </div>
+          <div className="dashboard-chart-toolbar"><span>Total account equity</span><span>{coverageLabel ? `Recorded since ${coverageLabel}` : 'Waiting for the first account observation'}</span></div>
           <div className="dash-portfolio-chart">
-            <PortfolioChart dateOnly={chartPeriod !== '1D' && (chartMetric === 'PNL' || (chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>86400000))} negative={chartMetric === 'PNL' && chartResult.realizedPnl < 0} data={chartData} theme={theme} loading={chartMetric === 'EQUITY' && !equityReady}
-              label={chartMetric === 'PNL' ? 'Realized trading PnL' : 'Recorded account equity'} emptyLabel={chartMetric === 'PNL' ? 'No settled trades in this period.' : 'No recorded equity observations in this period.'}/>
+            <PortfolioChart dateOnly={chartPeriod !== '1D' && chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>86400000} data={chartData} theme={theme} loading={!equityReady}
+              label="Total account equity" emptyLabel="No recorded equity observations in this period."/>
           </div>
-          {chartMetric === 'EQUITY' && <p className="dashboard-history-note">Equity observations saved on this device. Trading PnL includes your earlier settlements.</p>}
+          <p className="dashboard-history-note">Equity includes available funds, locked margin and open PnL. Changes include deposits and withdrawals. Historical snapshots are recorded on this device; realized trade history is in Performance.</p>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user
               always knows where their money is. */}

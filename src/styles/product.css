@@ -135,9 +135,6 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
 .velo-trade-workspace .trade-auth-gate__mark img { width:42px;height:42px; }
 .velo-trade-workspace .trade-auth-gate--compact { padding:14px 18px; flex:1; }
 .velo-trade-workspace .trade-auth-gate--compact .trade-auth-gate__copy strong { font-size:15px; }
-.velo-trade-rail[data-authenticated=false] { align-self:flex-start; height:auto; gap:12px; }
-.velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:240px;flex:0 0 240px; }
-.velo-trade-rail[data-authenticated=false] .velo-order-ticket { flex:none; }
 .velo-order-tabs .velo-segments { border:0; border-radius:0; padding:0 0 8px; background:transparent; border-bottom:1px solid var(--hairline); }
 .velo-order-tabs .velo-segment-lens { top:auto;bottom:-1px;left:0;width:calc(100%/var(--segment-count));height:2px;border:0;border-radius:2px;background:var(--fg);box-shadow:none; }
 .velo-order-tabs .velo-segments>button { text-transform:uppercase;letter-spacing:.08em;font-size:10px;min-height:30px;padding:5px 0; }
@@ -194,11 +191,6 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
   .velo-button,.markets-trade,.lb-podium-card>button { position:relative;isolation:isolate;overflow:hidden; }
   .velo-button:after,.markets-trade:after,.lb-podium-card>button:after { content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.12) 48%,transparent 65%);transform:translateX(-130%);transition:transform 650ms var(--material-ease);z-index:-1; }
   .velo-button:hover:after,.markets-trade:hover:after,.lb-podium-card>button:hover:after { transform:translateX(130%); }
-}
-@media(min-width:1024px) {
-  .velo-trade-rail[data-authenticated=false] { height:auto;max-height:100%;align-self:flex-start;overflow-y:auto;gap:12px; }
-  .velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:auto;min-height:0;max-height:360px;flex:0 1 auto; }
-  .velo-trade-rail[data-authenticated=false] .velo-order-ticket { flex:none; }
 }
 
 /* The top strip masks passing content; the bar itself keeps real translucency. */

@@ -8,3 +8,5 @@
 Other references inform specific implementation decisions documented in `docs/EXPERIENCE-DESIGN-2026-10-28.md`; they are not claims of endorsement or copied paid source.
 
 The copy/check treatment, staggered entrance and hover sheen are original implementations informed by Bencho Copy Field, Motion Primitives Animated Group, React Bits Glare Hover and Magic UI interaction examples. Interface sound cues are original synthesized tones; no Bencho or other third-party recording is bundled.
+
+The settlement calendar is an original Velo implementation informed by [beUI Returns Calendar](https://beui.dev/charts/returns-calendar). Native landing FAQ interaction is informed by [Bencho Pill Accordion](https://bencho.dev/blocks/pill-accordion). Selected settlement-row entrance takes inspiration from [Magic UI Animated List](https://magicui.design/docs/components/animated-list). No source or paid assets from these examples are bundled in this follow-up.

@@ -111,3 +111,11 @@
  .velo-order-ticket__body{padding:18px 16px;gap:14px}
  .velo-order-ticket__footer{padding:12px 16px 20px}
 }
+
+/* A guest sees one full-height terminal rail: public fills, editable preview, fixed action. */
+@media(min-width:1024px){
+ .velo-trade-rail[data-authenticated=false]{height:100%;align-self:stretch;gap:0;overflow:hidden;border:1px solid var(--hairline);border-radius:18px;background:var(--trade-surface);box-sizing:border-box}
+ .velo-trade-rail[data-authenticated=false] .velo-trade-feed{height:clamp(180px,30vh,280px);min-height:96px;max-height:280px;flex:0 1 clamp(180px,30vh,280px);border:0!important;border-radius:0!important;box-shadow:none!important;border-bottom:1px solid var(--hairline)!important}
+ .velo-trade-rail[data-authenticated=false] .velo-order-ticket{flex:1 1 0;min-height:180px;border:0!important;border-radius:0!important;box-shadow:none!important}
+ .velo-trade-workspace[data-authenticated=false] .velo-trade-main{border-bottom:1px solid var(--hairline)}
+}

@@ -1,3 +1,4 @@
+import { TradeOrderPreview } from '../TradeOrderPreview';
 import { ActionContent, AnimatedPanel, MarginSlider } from '../ProductMotion';
 import { SegmentedControl } from '../SegmentedControl';
 import { AnimatedText } from '../AnimatedValue';
@@ -1635,14 +1636,14 @@ export const TradeView = ({
                 </div>
             </div>}
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <OrderBook compact={!user && !isMobile} price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
+                <OrderBook compact={false} price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
             </div>
         </div>
     );
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-        <div className="velo-trade-workspace" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100dvh - 84px)', background: 'transparent', overflow: isMobile ? 'visible' : 'hidden', gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
+        <div data-authenticated={!!user} className="velo-trade-workspace" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100dvh - 84px)', background: 'transparent', overflow: isMobile ? 'visible' : 'hidden', gap: isMobile ? 0 : 10, padding: isMobile ? 0 : '0 10px 10px' }}>
             <PairSelector isOpen={pairOpen} onClose={() => setPairOpen(false)} onSelect={setActivePair} marketPrices={marketPrices} marketChanges={marketChanges} isLiveMode={isLiveMode} />
 
             {/* Order Details Modal — clicked from History row */}
@@ -1729,8 +1730,8 @@ export const TradeView = ({
                 </div>
 
                 {/* Positions panel — desktop only here; on mobile it's below the order form */}
-                {!isMobile && (
-                    <div style={{ height: user ? 168 : 108, flexShrink: 0, display: 'flex', overflow: 'hidden' }}>
+                {!isMobile && user && (
+                    <div style={{ height: 168, flexShrink: 0, display: 'flex', overflow: 'hidden' }}>
                         <PositionsPanel {...panelProps} />
                     </div>
                 )}
@@ -1742,11 +1743,7 @@ export const TradeView = ({
                 {/* Order form */}
                 <section className="velo-order-ticket" aria-label="Order ticket" style={{ borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
                         {!user ? (
-                            <TradeAuthGate
-                                onRequireAuth={onRequireAuth}
-                                title="Sign in to trade"
-                                description="Connect your wallet to place an order and manage your positions."
-                            />
+                            <TradeOrderPreview pair={activePair.id} price={Number(marketPrices[activePair.id]) || 0} maxLeverage={maxLeverage} onSignIn={onRequireAuth}/>
                         ) : (
                         <>
                         <div className="velo-order-ticket__body custom-scrollbar" tabIndex={0} role="group" aria-label="Order parameters">
@@ -1932,7 +1929,7 @@ export const TradeView = ({
             </TradeRail>
 
             {/* ── Mobile-only: Positions panel below order form ── */}
-            {isMobile && (
+            {isMobile && user && (
                 <div style={{ borderRadius: 0, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid var(--hairline)', minHeight: 180, display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <PositionsPanel {...panelProps} />
                 </div>
