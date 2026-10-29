@@ -53,7 +53,7 @@ Copy trading, bots and traditional instruments are **planned and not yet availab
 - **Market, limit and stop** entries. Limits execute at the current adjusted oracle price, no worse than their limit; stop entries have a price bound and orders expire
 - **Take-profit and stop-loss** on any position
 - Keeper-triggered **liquidation** when remaining equity after settlement costs reaches the market's maintenance requirement
-- Charts built on Lightweight Charts with Velo's own data feed, chart tools and indicators
+- Charts built on Lightweight Charts with Velo's own data feed, chart tools and indicators; timeframe changes start at the latest candle, with an explicit Back to live action after historical browsing
 - Live fills tape, open orders, position history and receipt-backed trade records
 - Compact live position attachments and exportable PnL images, with amount/percentage controls and receipt details (see [Sharing](docs/SHARING.md))
 
@@ -122,7 +122,7 @@ Posts, replies, reactions and follows are written to Supabase under row-level se
 
 Use **Position** in the Social composer to attach an open trade, or choose **PnL image** for a branded image you can post or export. The sharing studio uses the **Clean** layout, independent light/dark cards and **$ Amounts / % Return only** controls. Click a compact attachment for status, local opening/closing times and V4-matched transaction details. PnL previews fit the feed and open into an image-and-conversation viewer; new PNG exports are 2400 × 1600. @mention and $ticker suggestions work in posts, replies and sharing notes. Live cards animate PnL and market values in persistent text instead of replacing screenshots, then become static after confirmed settlement. Live Velo posts follow the position through settlement; image snapshots remain fixed, and live images can optionally freeze the captured result when the position closes. Downloaded PNGs always remain snapshots. Closing a position offers a small optional Share action.
 
-The dashboard offers a bounded portfolio chart, an equity breakdown with an allocation ring and separate unrealized PnL, an animated account-action dock, and a fixed-size notional-exposure summary. The full breakdown opens separately, keeping the active-positions table as the main management view. Wallet/engine addresses and copy controls sit in a collapsible on-chain account section. Social and market pages retain their own reading widths. Trade inspection, close and TP/SL use the same glass dialog, typography, scrolling region and fixed actions.
+The dashboard offers a bounded portfolio chart of actual device-local equity observations (saved per account and V4 engine), an equity breakdown with an allocation ring and separate unrealized PnL, an animated account-action dock, and a fixed-size notional-exposure summary. The full breakdown opens separately, keeping the active-positions table as the main management view. Wallet/engine addresses and copy controls open in a separate account dialog, keeping the dashboard height stable. Social and market pages retain their own reading widths. Trade inspection, close and TP/SL use the same glass dialog, typography, scrolling region and fixed actions.
 
 Use the header search or **⌘/Ctrl K** to find pages, public traders, market information and supported perpetuals. The mobile menu offers the same search. Hover or keyboard-focus an author in the feed for a public profile preview; press Arrow Down to enter it and Escape to return. These controls reuse already loaded market and profile data.
 

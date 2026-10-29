@@ -56,14 +56,15 @@ test('exposure drill-down uses current positions, keeps quote updates focused, a
     await act(async () => root.render(React.createElement(DashboardAccount, { wallet: '0x1234567890', engine: '0xabcdef1234', addressUrl: address => `https://example.test/address/${address}` })));
     const toggle = document.querySelector('.dashboard-account-toggle');
     assert.equal(toggle.getAttribute('aria-expanded'), 'false');
-    assert.ok(document.querySelector('.dashboard-account-links').closest('[hidden]'));
+    assert.equal(document.querySelector('.dashboard-account-links'),null);
     await act(async () => { toggle.focus(); toggle.click(); });
     assert.equal(toggle.getAttribute('aria-expanded'), 'true');
     assert.equal(document.querySelector('a').href, 'https://example.test/address/0x1234567890');
     assert.equal(document.querySelectorAll('.velo-copy-button').length, 2);
-    await act(async () => toggle.click());
+    assert.ok(document.querySelector('dialog .dashboard-account-links'),'account details use the top layer and cannot grow the dashboard rail');
+    await act(async () => document.querySelector('.trade-dialog-actions button').click());
     assert.equal(document.activeElement, toggle);
-    assert.ok(document.querySelector('.dashboard-account-links').closest('[hidden]'));
+    assert.equal(document.querySelector('.dashboard-account-links'),null);
     await act(async () => root.render(React.createElement(DashboardAccount, { engine: '0xabcdef1234', addressUrl: address => `https://example.test/address/${address}` })));
     await act(async () => document.querySelector('.dashboard-account-toggle').click());
     assert.equal(document.querySelectorAll('a').length, 1);

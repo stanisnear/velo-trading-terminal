@@ -208,7 +208,7 @@ export const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm, itemType = 
                             <Trash2 size={18} style={{ color: 'var(--pnl-down)' }} />
                         </div>
                         <div>
-                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Delete {label}?</div>
+                            <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Delete {label}?</div>
                             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>This action cannot be undone.</div>
                         </div>
                     </div>
@@ -386,7 +386,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
             }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }} />
                 <div style={{ marginBottom: 20 }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 4 }}>
+                    <h3 style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 4 }}>
                         Edit Position: {position.pair}
                     </h3>
                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>

@@ -13,7 +13,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle, CheckCircle2, ExternalLink, Loader2, X, AlertCircle } from 'lucide-react';
 
 const S = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700 as const, textTransform: 'uppercase' as const, letterSpacing: '0.10em', color: 'var(--fg-subtle)' },

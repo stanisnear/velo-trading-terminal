@@ -1,0 +1,6 @@
+.portfolio-chart{height:100%;width:100%;position:relative;outline:none}
+.portfolio-chart:focus-visible{outline:2px solid var(--accent);outline-offset:-3px;border-radius:10px}
+.portfolio-chart__canvas{position:absolute;inset:0}
+.portfolio-chart__readout{position:absolute;top:10px;left:18px;display:flex;gap:10px;align-items:baseline;padding:7px 10px;border:1px solid var(--glass-border);border-radius:10px;background:var(--glass-bg-strong);backdrop-filter:blur(18px);pointer-events:none;font:600 13px var(--font-sans);box-shadow:var(--glass-shadow)}
+.portfolio-chart__readout time,.portfolio-chart__status{font:400 10px/1.5 var(--font-sans);color:var(--fg-muted)}
+.portfolio-chart__status{position:absolute;left:18px;bottom:30px;pointer-events:none}

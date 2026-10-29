@@ -11,7 +11,7 @@ import { formatMoney } from '@/components/ui/shared';
 
 const S_LB = {
     mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
-    display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
+    display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
     label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' as const },
 };
 const podiumGolds = [
@@ -72,7 +72,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--pnl-up)', display: 'inline-block', boxShadow: '0 0 6px var(--pnl-up)' }} />
                     <span style={{ ...S_LB.label, fontSize: 11, color: 'var(--fg-subtle)' }}>{period} · ALL PAIRS</span>
                 </div>
-                <h1 className="lb-hero-title" style={{ fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--fg)', lineHeight: 1, margin: '0 0 12px' }}>
+                <h1 className="lb-hero-title" style={{ fontFamily: 'var(--font-sans)', fontSize: 72, fontWeight: 400, letterSpacing: '-0.02em', color: 'var(--fg)', lineHeight: 1, margin: '0 0 12px' }}>
                     Top <em style={{ fontStyle: 'italic' }}>Traders</em>
                 </h1>
                 <p style={{ ...S_LB.mono, fontSize: 14, color: 'var(--fg-muted)' }}>Explore testnet trader profiles. Copy trading is planned.</p>
@@ -104,14 +104,14 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                                 display: 'flex', alignItems: 'center', gap: 14,
                                 position: 'relative', overflow: 'hidden', cursor: 'pointer',
                             }}>
-                                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--font-display)', fontSize: 72, fontWeight: 400, color: accentColor, opacity: 0.1, lineHeight: 1, userSelect: 'none' as const, pointerEvents: 'none' }}>{rank}</span>
+                                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--font-sans)', fontSize: 72, fontWeight: 400, color: accentColor, opacity: 0.1, lineHeight: 1, userSelect: 'none' as const, pointerEvents: 'none' }}>{rank}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: accentColor, letterSpacing: '0.08em', width: 22, flexShrink: 0 }}>#{rank}</span>
                                 <div style={{ position: 'relative', width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', border: `2px solid ${accentColor}`, flexShrink: 0 }}>
                                     <img src={trader.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', letterSpacing: '-0.02em', fontSize: 15, color: 'var(--fg)' }}>{trader.username}</span>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', letterSpacing: '-0.02em', fontSize: 15, color: 'var(--fg)' }}>{trader.username}</span>
                                         {isSelf && <span style={{ padding: '1px 5px', borderRadius: 4, background: 'var(--iris-violet)', color: '#fff', fontFamily: 'var(--font-mono)', fontSize: 7, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>You</span>}
                                     </div>
                                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'var(--fg-subtle)' }}>{trader.handle}</span>
@@ -149,7 +149,7 @@ export const LeaderboardView = ({ traders, user, walletAddress, handleFollow, ha
                             position: 'relative', overflow: 'visible',
                         }}>
                             {/* Rank watermark */}
-                            <span style={{ position: 'absolute', top: isFirst ? 14 : 10, left: 16, fontFamily: 'var(--font-display)', fontSize: isFirst ? 76 : 60, fontWeight: 400, color: accentColor, opacity: 0.18, lineHeight: 1, userSelect: 'none' as const }}>{rank}</span>
+                            <span style={{ position: 'absolute', top: isFirst ? 14 : 10, left: 16, fontFamily: 'var(--font-sans)', fontSize: isFirst ? 76 : 60, fontWeight: 400, color: accentColor, opacity: 0.18, lineHeight: 1, userSelect: 'none' as const }}>{rank}</span>
                             {/* Rank badge */}
                             <span style={{ position: 'absolute', top: 14, left: 16, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: accentColor, letterSpacing: '0.08em', opacity: 0.9 }}>#{rank}</span>
                             {isSelf && (

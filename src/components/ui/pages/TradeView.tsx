@@ -48,10 +48,8 @@ interface OrderlyPosition {
 // ─────────────────────────────────────────────────────────────────────────────
 const S = {
     // Three type roles from the brand spec:
-    //   display  → Instrument Serif italic  (prices, pair names, hero values)
-    //   mono     → JetBrains Mono           (all numeric data, labels, tabs)
-    //   sans     → Inter Tight              (UI buttons, body copy)
-    display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+    // Switzer throughout the interface; mono is reserved for compact data labels.
+    display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' },
     mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
     label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' as const },
     sans:    { fontFamily: 'var(--font-sans)', fontWeight: 700 },

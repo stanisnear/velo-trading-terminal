@@ -49,7 +49,7 @@ interface Props {
 
 const S = {
   mono:    { fontFamily: 'var(--font-mono)' } as React.CSSProperties,
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
   sans:    { fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6 } as React.CSSProperties,
 };

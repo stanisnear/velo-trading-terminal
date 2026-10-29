@@ -11,7 +11,7 @@ import { VerifiedBadge, formatMoney } from '@/components/ui/shared';
 export const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, isCopying, showUsersModal, onViewProfile, stats, traders = [] }: any) => {
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const hasCustomBanner = Boolean(profile.banner && !profile.banner.includes('photo-1579546929518-9e396f3cc809'));

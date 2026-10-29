@@ -1,3 +1,4 @@
+import { useEquityHistory } from './hooks/useEquityHistory';
 import { QuickSearch } from './components/QuickSearch';
 import { MarketSparkline } from './components/ui/MarketSparkline';
 import { AnimatedText } from './components/ui/AnimatedValue';
@@ -517,7 +518,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
 
@@ -720,7 +721,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
     };
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
@@ -817,7 +818,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => onViewProfile(t)}>
                                     <img src={t.avatar} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
                                     <div>
-                                        <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 13, color: 'var(--fg)', letterSpacing: '-0.01em', margin: 0 }}>{t.username}</p>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 13, color: 'var(--fg)', letterSpacing: '-0.01em', margin: 0 }}>{t.username}</p>
                                         <p style={{ ...S.label, fontSize: 9, margin: 0 }}>{t.handle}</p>
                                     </div>
                                 </div>
@@ -893,7 +894,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                 {/* Posts */}
                 {filteredPosts.length === 0 ? (
                     <div style={{ ...panel, padding: '40px 20px', textAlign: 'center' }}>
-                        <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 22, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 6 }}>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 22, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 6 }}>
                             {filter === 'FOLLOWING' ? (user ? 'Follow a trader to see their posts.' : 'Log in to see posts from traders you follow.')
                                 : filter === 'SIGNALS' ? 'No live trade signals yet.'
                                 : filter === 'TRENDING' ? 'Nothing trending yet.'
@@ -930,7 +931,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
     const activePositions = positions.filter((p: Position) => !p.isCopyTrade);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const tabBtn = (t: string): React.CSSProperties => ({
@@ -1000,7 +1001,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
     const isCopying = user?.copying.includes(trader.id);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     // Fetch trader's real positions from Supabase when TRADES tab is opened
@@ -1147,7 +1148,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
                  textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
         mono:  { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        disp:  { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        disp:  { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
     };
 
     const RiskBar = ({ value, max = 25 }: { value: number; max?: number }) => {
@@ -2512,6 +2513,17 @@ const App = () => {
         const freeBalance = isLive ? veloPerpsTrading.usdcBalance : user.balance;
         return freeBalance + totalLockedMargin + totalUnrealizedPnl;
     }, [user?.balance, walletAddress, veloPerpsTrading.usdcBalance, totalLockedMargin, totalUnrealizedPnl]);
+
+    // Wait for the complete account read AND its mapped positions. A wallet's
+    // initial zero balance or an intermediate position sync is not equity history.
+    const equityReady = !!user && (!walletAddress || (
+      veloPerpsTrading.hasAccountSnapshot && !veloPerpsTrading.readError &&
+      positions.length === veloPerpsTrading.openPositions.length &&
+      positions.every(p => Number.isFinite(marketPrices[p.pair]) && marketPrices[p.pair] > 0) &&
+      veloPerpsTrading.openPositions.every(p => positions.some(row => row.id === `velo_${p.tradeId}` && row.size === p.notionalUSDC))
+    ));
+    const equityHistory = useEquityHistory(user?.id, veloPerpsTrading.traderAddress || user?.id,
+      VELO_PERPS_ADDRESS, totalEquity, equityReady);
 
     // Cross-margin unrealized — only cross positions lend their gains as
     // additional buying power; isolated positions don't.
@@ -5857,7 +5869,7 @@ const App = () => {
                             <AlertTriangle size={24} style={{ color: 'oklch(0.74 0.18 30)' }} />
                         </div>
                         <div>
-                            <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', marginBottom: 8, letterSpacing: '-0.02em' }}>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, color: 'var(--fg)', marginBottom: 8, letterSpacing: '-0.02em' }}>
                                 {walletSessionAlert.type === 'account' ? 'Account Changed' : 'Network Changed'}
                             </p>
                             <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6 }}>
@@ -5956,7 +5968,7 @@ const App = () => {
             {needsRederive && (
               <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: 16 }}>
                 <div style={{ width: 'min(420px, 100%)', background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 20, boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(40px) saturate(1.8)', WebkitBackdropFilter: 'blur(40px) saturate(1.8)', padding: 24, position: 'relative' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 22, color: 'var(--fg)', marginBottom: 8 }}>Restore your trading wallet</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 22, color: 'var(--fg)', marginBottom: 8 }}>Restore your trading wallet</div>
                   <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5, margin: '0 0 18px' }}>
                     You're signed in on a new device. Authorize one signature to restore your Velo trading wallet — it re-derives the <strong>same address and funds</strong>. This is required before you can trade. It costs nothing and isn't a transaction.
                   </p>
@@ -6634,7 +6646,7 @@ const App = () => {
                   onClosePosition={(p, result) => recordConfirmedClose({ pair:p.pair.replace('-', '/'), side:p.isLong?'LONG':'SHORT',
                     size:p.notionalUSDC, entryPrice:p.entryPrice, leverage:p.leverage, marginMode:p.marginMode,
                     timestamp:p.openedAt*1000 }, result, false)}/>}
-                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
+                {activeTab === TabView.DASHBOARD && user && <Dashboard equityHistory={equityHistory} equityReady={equityReady} user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
                     if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);

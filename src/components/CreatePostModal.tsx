@@ -91,7 +91,7 @@ export const CreatePostModal = ({ isOpen, onClose, user, onSubmit, traders = [] 
                             alt={user.username}
                         />
                         <div>
-                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 16, color: 'var(--fg)', letterSpacing: '-0.02em' }}>{user.username}</div>
+                            <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 16, color: 'var(--fg)', letterSpacing: '-0.02em' }}>{user.username}</div>
                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.04em' }}>{user.handle}</div>
                         </div>
                         <button onClick={animatedClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', padding: 4 }}>

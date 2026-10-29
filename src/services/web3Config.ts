@@ -115,6 +115,7 @@ createAppKit({
   themeMode: 'dark',
   themeVariables: {
     '--w3m-accent': '#91b99f',
+    '--w3m-font-family': 'Switzer, -apple-system, BlinkMacSystemFont, sans-serif',
     '--w3m-border-radius-master': '12px',
   },
 });

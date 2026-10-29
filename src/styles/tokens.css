@@ -893,7 +893,7 @@ html.light .navbar-container {
 
 .token-data-panel { background:transparent !important; padding:22px 0 !important; }
 .token-data-heading { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding-bottom:12px; }
-.token-data-heading > span { color:var(--fg); font:500 18px/1.2 var(--font-display); }
+.token-data-heading > span { color:var(--fg); font:500 18px/1.2 var(--font-sans); }
 .token-data-heading > small { color:var(--fg-subtle); font:500 9px/1.2 var(--font-mono); letter-spacing:.07em; text-transform:uppercase; }
 .token-stats-grid { border-top:1px solid var(--hairline); }
 .token-stat { min-width:0; padding:13px 14px; border-right:1px solid var(--hairline); border-bottom:1px solid var(--hairline); }

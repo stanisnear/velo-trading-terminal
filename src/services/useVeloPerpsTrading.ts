@@ -83,6 +83,7 @@ const BASE_SEPOLIA_RPC =
 export interface UseVeloPerpsTradingState {
   isReady: boolean;
   isInitialLoading: boolean;
+  hasAccountSnapshot: boolean;
   isPending: boolean;
   lastError: string | null;
   readError: string | null;
@@ -613,6 +614,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
   return {
     isReady,
     isInitialLoading,
+    hasAccountSnapshot: isReady && loadedAccountRef.current === traderAddress,
     isPending,
     lastError,
     readError,

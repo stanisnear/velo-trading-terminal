@@ -7,7 +7,7 @@ import { Button, formatMoney, formatPrice } from '@/components/ui/shared';
 import { Position, OpenOrder, TradeHistoryItem, Transaction } from '@/utils/types';
 
 const S = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
 };

@@ -208,7 +208,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
 
   const MidBand = (
     <div style={{ padding: '6px 12px', borderTop: '1px solid var(--hairline)', borderBottom: '1px solid var(--hairline)', background: 'var(--chip-bg)', textAlign: 'center', flexShrink: 0 }}>
-      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>${<AnimatedText text={fmtPrice(price)}/>}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-sans)', fontStyle: 'normal' }}>${<AnimatedText text={fmtPrice(price)}/>}</span>
     </div>
   );
 

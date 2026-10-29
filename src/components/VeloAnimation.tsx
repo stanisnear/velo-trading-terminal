@@ -112,7 +112,7 @@ export const VeloAnimation: React.FC<VeloAnimationProps> = ({ kind, onDone, labe
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
             animation: 'veloAnimGlyph 0.4s 0.5s cubic-bezier(0.34,1.56,0.64,1) both',
-            fontFamily: 'var(--font-display)', fontStyle: 'italic',
+            fontFamily: 'var(--font-sans)', fontStyle: 'normal',
             fontSize: 34, color: c.accent, lineHeight: 1,
           }}>
             {c.icon}
@@ -120,7 +120,7 @@ export const VeloAnimation: React.FC<VeloAnimationProps> = ({ kind, onDone, labe
         </div>
 
         <p style={{
-          fontFamily: 'var(--font-display)', fontStyle: 'italic',
+          fontFamily: 'var(--font-sans)', fontStyle: 'normal',
           fontSize: 22, fontWeight: 400, letterSpacing: '-0.02em',
           color: 'var(--fg)', marginBottom: label ? 6 : 0,
           animation: 'veloAnimUp 0.4s 0.45s ease both',

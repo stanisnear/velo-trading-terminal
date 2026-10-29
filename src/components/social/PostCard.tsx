@@ -152,7 +152,7 @@ export const PostCard = (props: any) => {
     useEffect(() => { if (defaultOpenComments) setShowComments(true); }, [defaultOpenComments]);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' },
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' as const },
     };
 

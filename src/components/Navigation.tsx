@@ -69,7 +69,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
                 <div style={{ padding: '14px 16px 10px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--hairline)' }}>
                     <img src={user.avatar} style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid var(--hairline-strong)', objectFit: 'cover', flexShrink: 0 }} alt="" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, color: 'var(--fg)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileDisplayName(user)}</div>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 14, color: 'var(--fg)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileDisplayName(user)}</div>
                         <div style={{ ...S.label, fontSize: 9, marginTop: 1 }}>{`@${profileDisplayName(user)}`}</div>
                     </div>
                 </div>
@@ -246,7 +246,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                                     background: 'color-mix(in oklab, var(--velo-violet) 8%, var(--bg))',
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>Notifications</span>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 17, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>Notifications</span>
                                         {unreadCount > 0 && (
                                             <span style={{
                                                 fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
@@ -361,7 +361,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--velo-violet)')}
                             onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
                             <div className="navbar-account-copy" style={{ display: 'flex', minWidth: 0, flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                                <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{profileDisplayName(user)}</span>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{profileDisplayName(user)}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}><AnimatedValue value={totalEquity > 0 ? totalEquity : user.balance}/></span>
                             </div>
                             <img src={user.avatar} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--hr-2)' }} />
@@ -436,7 +436,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
 
     const S = {
         mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
         label:   { fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' },
     };
 
@@ -462,7 +462,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(60px + env(safe-area-inset-top, 0px))', borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ ...S.display, fontStyle: 'italic', fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
                     </div>
                     <button aria-label="Close navigation" onClick={() => setSidebarOpen(false)} style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 12, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', color: 'var(--fg-2)' }}>
                         <X size={15}/>

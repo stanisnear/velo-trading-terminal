@@ -1,3 +1,4 @@
+import { equityPeriod } from '../../../services/equityHistory.mjs';
 import { AccountOverview } from '../AccountOverview';
 import { DashboardActions } from '../DashboardActions';
 import { PositionExposure } from '../PositionExposure';
@@ -57,7 +58,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
 
 // Fake deposit/withdraw modal removed — all funds flow through Orderly on-chain
 
-export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
+export const Dashboard = ({ equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
   const [chartPeriod, setChartPeriod] = useState<'1D'|'1W'|'1M'|'1Y'|'ALL'>('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
@@ -90,22 +91,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   const allPeriods: Array<'1D'|'1W'|'1M'|'1Y'|'ALL'> = ['1D','1W','1M','1Y','ALL'];
   const availablePeriods = allPeriods.filter(p => p === 'ALL' || ageMs >= periodMs[p]);
 
-  // Memoized so it only recomputes when the inputs that actually shape the
-  // chart change (the stored PnL history, the live equity figure, or the
-  // selected period) — not on every unrelated re-render (modal open, hover,
-  // etc.). Combined with PortfolioChart no longer tearing itself down on data
-  // changes, this keeps the Dashboard responsive even while prices tick.
-  const chartData = useMemo(() => {
-    const history = [...user.pnlHistory];
-    const now = new Date();
-    const nowEntry = { time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: equity, timestamp: now.getTime() };
-    if (history.length === 0 || history[history.length - 1].value !== equity) history.push(nowEntry);
-    else history[history.length - 1] = nowEntry;
-    if (chartPeriod === 'ALL') return history;
-    const cutoff = Date.now() - periodMs[chartPeriod];
-    return history.filter((d: any) => (d.timestamp || 0) >= cutoff);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.pnlHistory, equity, chartPeriod]);
+  const chartData = useMemo(() => equityPeriod(equityHistory, chartPeriod), [equityHistory, chartPeriod]);
 
   // ── Pending Deposit Detail Modal ────────────────────────────────────────────
   const PendingDepositDetailModal = ({ deposit, onClose }: { deposit: any; onClose: () => void }) => {
@@ -220,7 +206,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
             )}
           </div>
           <div className="dash-portfolio-chart" style={{ padding: '8px 0', height: isMobile ? 180 : 250, flex: 'none' }}>
-            <PortfolioChart data={chartData} theme={theme} />
+            <PortfolioChart data={chartData} theme={theme} loading={!equityReady} />
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user

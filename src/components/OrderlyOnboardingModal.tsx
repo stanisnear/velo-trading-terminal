@@ -69,7 +69,7 @@ interface Props {
 }
 
 const F = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.025em', lineHeight: 1.05 },
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.025em', lineHeight: 1.05 },
   sans:    { fontFamily: 'var(--font-sans)',    letterSpacing: '-0.005em' },
   mono:    { fontFamily: 'var(--font-mono)' },
 };

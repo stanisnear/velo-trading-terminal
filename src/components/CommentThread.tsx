@@ -240,7 +240,7 @@ function CommentRow({
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
     };
 
     const previewUrl = extractFirstUrl(comment.content);
@@ -566,7 +566,7 @@ export function CommentThread({
             {rootComments.length === 0 && (
                 <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
                     <MessageCircle size={28} style={{ color: 'var(--fg-subtle)', marginBottom: 8 }} />
-                    <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>No comments yet.</p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 18, color: 'var(--fg-subtle)', fontStyle: 'normal' }}>No comments yet.</p>
                     <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', marginTop: 4 }}>Be the first to comment.</p>
                 </div>
             )}

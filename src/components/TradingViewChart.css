@@ -1,0 +1,4 @@
+.chart-back-to-live{position:absolute;right:88px;bottom:40px;z-index:3;display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--glass-border);border-radius:11px;color:var(--fg);background:var(--glass-bg-strong);backdrop-filter:blur(20px) saturate(1.15);box-shadow:var(--glass-shadow);font:550 11px var(--font-sans);cursor:pointer;transition:background .16s,box-shadow .16s}
+.chart-back-to-live:hover{background:var(--surface-raised);box-shadow:0 0 0 1px var(--accent)}
+.chart-back-to-live:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:640px){.chart-back-to-live{right:82px;bottom:36px;padding:9px 10px}}

@@ -24,7 +24,7 @@ const BASE_SEPOLIA_RPC =
   import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
 
 const S = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,

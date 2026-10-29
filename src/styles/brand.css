@@ -282,7 +282,7 @@ html.light .vp {
 :root {
   color-scheme: dark;
   --font-display: "Fraunces", "Editorial New", "Tiempos Headline", ui-serif, Georgia, serif;
-  --font-sans: "Geist", "Sohne", "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-sans: "Switzer", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Geist Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -994,7 +994,7 @@ body.modal-open .navbar-container, body.modal-open .velo-mobile-bottom-nav {
   background: color-mix(in oklab, var(--velo-sage) 8%, transparent);
 }
 .trade-auth-gate__copy { display: flex; flex-direction: column; gap: 5px; max-width: 290px; }
-.trade-auth-gate__copy strong { color: var(--fg); font: 600 20px/1.2 var(--font-display); }
+.trade-auth-gate__copy strong { color: var(--fg); font: 600 20px/1.2 var(--font-sans); }
 .trade-auth-gate__copy span { color: var(--fg-subtle); font: 13px/1.5 var(--font-sans); }
 .trade-auth-gate__button {
   min-height: 44px; min-width: 190px; padding: 0 20px; border-radius: 11px; cursor: pointer;
