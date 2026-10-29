@@ -81,6 +81,10 @@ test('real chart components follow first history, timeframe changes and explicit
   await act(async()=>root.render(React.createElement(PortfolioChart,{data:[{timestamp:observedNow-120000,value:100},{timestamp:observedNow,value:115}],theme:'dark'})));
   assert.equal(series.sets,sets);assert.equal(series.updates,1);assert.equal(series.data.at(-1).value,115);
 
+  const may=Date.parse('2026-05-26T18:13:20Z');
+  await act(async()=>root.render(React.createElement(PortfolioChart,{data:[{timestamp:may,value:0},{timestamp:observedNow,value:-219.22}],theme:'dark',label:'Realized trading PnL',negative:true})));
+  assert.equal(globalThis.__charts.at(-1).series[0].data[0].time,may/1000,'historical realized PnL is not subject to the device equity cache retention');
+
   let observed;
   function History({owner,value,ready}){observed=useEquityHistory(owner,'wallet','engine',value,ready);return null;}
   await act(async()=>root.render(React.createElement(History,{owner:'one',value:0,ready:false})));

@@ -1,3 +1,5 @@
+import { AccountPerformance } from '../AccountPerformance';
+import { accountPerformance } from '../../../services/accountPerformance.mjs';
 import { equityPeriod } from '../../../services/equityHistory.mjs';
 import { AccountOverview } from '../AccountOverview';
 import { DashboardActions } from '../DashboardActions';
@@ -9,7 +11,7 @@ import { AnimatedValue } from '../AnimatedValue';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, ArrowDownCircle, ArrowUpCircle, Copy, Edit, History, TrendingUp, TrendingDown, User, Star, Loader2, ExternalLink, Clock, AlertCircle, CheckCircle2, X, Link2 } from 'lucide-react';
 import { PortfolioChart } from '@/components/PortfolioChart';
-import { formatMoney, formatPrice, calculateStats } from '@/components/ui/shared';
+import { formatMoney, formatPrice } from '@/components/ui/shared';
 import { Position } from '@/utils/types';
 import { OrderDetailsModal } from '@/components/ui/OrderDetailsModal';
 import { baseScanAddressUrl, VELO_PERPS_ADDRESS } from '@/services/veloPerpsService';
@@ -80,18 +82,16 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
   }, 0);
   const totalMarginUsed = lockedMarginProp !== undefined ? lockedMarginProp : positions.reduce((acc: number, p: Position) => acc + (p.size / p.leverage), 0);
   const equity = equityProp !== undefined ? equityProp : user.balance + totalMarginUsed + allPositionsPnl;
-  const totalPnl = user.realizedPnL + allPositionsPnl;
-  const stats = calculateStats(user.tradeHistory);
+  const performance = useMemo(() => accountPerformance(user.tradeHistory), [user.tradeHistory]);
+  const totalPnl = performance.realizedPnl + allPositionsPnl;
+  const [chartMetric, setChartMetric] = useState('PNL');
   const pnlColor = totalPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
 
-  // Only expose periods the account is old enough to have data for
-  const joinedMs = user.joinedDate ? new Date(user.joinedDate).getTime() : Date.now();
-  const ageMs = Date.now() - joinedMs;
-  const periodMs: Record<string, number> = { '1D': 86400000, '1W': 604800000, '1M': 2592000000, '1Y': 31536000000 };
-  const allPeriods: Array<'1D'|'1W'|'1M'|'1Y'|'ALL'> = ['1D','1W','1M','1Y','ALL'];
-  const availablePeriods = allPeriods.filter(p => p === 'ALL' || ageMs >= periodMs[p]);
-
-  const chartData = useMemo(() => equityPeriod(equityHistory, chartPeriod), [equityHistory, chartPeriod]);
+  const allPeriods = ['1D','1W','1M','ALL'];
+  const chartResult = useMemo(() => accountPerformance(user.tradeHistory, chartPeriod), [user.tradeHistory, chartPeriod]);
+  const chartData = useMemo(() => chartMetric === 'PNL' ? chartResult.points : equityPeriod(equityHistory, chartPeriod), [chartMetric, chartResult, equityHistory, chartPeriod]);
+  const coverageStart = chartMetric === 'PNL' ? performance.firstAt : equityHistory[0]?.timestamp;
+  const coverageLabel = coverageStart ? new Date(coverageStart).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}) : null;
 
   // ── Pending Deposit Detail Modal ────────────────────────────────────────────
   const PendingDepositDetailModal = ({ deposit, onClose }: { deposit: any; onClose: () => void }) => {
@@ -185,11 +185,11 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
       {/* Top row */}
       <div className="dash-grid-main">
         {/* Portfolio card */}
-        <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
+        <div className="dashboard-portfolio-card" style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}><p style={{...S.label,margin:0}}>Total equity</p><AccountOverview equity={equity} available={buyingPowerProp!==undefined?buyingPowerProp:user.balance} margin={totalMarginUsed} pnl={allPositionsPnl}/></div>
-              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}><AnimatedValue value={equity}/></p>
+              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 8px' }}><AnimatedValue value={equity}/></p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
                   {totalPnl >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
@@ -200,14 +200,20 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
                 </span>
               </div>
             </div>
-            {availablePeriods.length > 1 && (
-              <SegmentedControl label="Portfolio period" compact options={availablePeriods.map(p => ({value:p,label:p}))} value={chartPeriod} onChange={value => setChartPeriod(value as typeof chartPeriod)}/>
+            {allPeriods.length > 1 && (
+              <SegmentedControl label="Portfolio period" compact options={allPeriods.map(p => ({value:p,label:p}))} value={chartPeriod} onChange={value => setChartPeriod(value as typeof chartPeriod)}/>
 
             )}
           </div>
-          <div className="dash-portfolio-chart" style={{ padding: '8px 0', height: isMobile ? 180 : 250, flex: 'none' }}>
-            <PortfolioChart data={chartData} theme={theme} loading={!equityReady} />
+          <div className="dashboard-chart-toolbar">
+            <SegmentedControl label="Account chart" compact value={chartMetric} onChange={setChartMetric} options={[{value:'PNL',label:'Trading PnL'},{value:'EQUITY',label:'Equity'}]}/>
+            <span>{chartMetric === 'PNL' && <><AnimatedValue value={chartResult.realizedPnl}/> realized · </>}{chartMetric === 'EQUITY' ? 'Recorded equity' : 'Settled trades'}{coverageLabel ? ` · Since ${coverageLabel}` : ''}</span>
           </div>
+          <div className="dash-portfolio-chart">
+            <PortfolioChart dateOnly={chartPeriod !== '1D' && (chartMetric === 'PNL' || (chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>86400000))} negative={chartMetric === 'PNL' && chartResult.realizedPnl < 0} data={chartData} theme={theme} loading={chartMetric === 'EQUITY' && !equityReady}
+              label={chartMetric === 'PNL' ? 'Realized trading PnL' : 'Recorded account equity'} emptyLabel={chartMetric === 'PNL' ? 'No settled trades in this period.' : 'No recorded equity observations in this period.'}/>
+          </div>
+          {chartMetric === 'EQUITY' && <p className="dashboard-history-note">Equity observations saved on this device. Trading PnL includes your earlier settlements.</p>}
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user
               always knows where their money is. */}
@@ -238,14 +244,7 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
             <PositionExposure positions={positions} margin={totalMarginUsed} pnl={allPositionsPnl}
               onInspect={position => setDetailsItem({ kind: 'POSITION', item: position })}/>
           </div>
-          <section style={panel} className="dashboard-performance" aria-label="Closed-position performance">
-            <header><Star size={15} aria-hidden="true"/><strong>Performance</strong><small><AnimatedValue value={stats.totalTrades} currency={false} digits={0}/> closed</small></header>
-            <div>
-              <span>Realized PnL<strong data-positive={stats.realizedPnl >= 0}><AnimatedValue value={stats.realizedPnl}/></strong></span>
-              <span>Win rate<strong>{stats.totalTrades > 0 ? <><AnimatedText text={stats.winRate.toFixed(1)}/>%</> : '—'}</strong></span>
-            </div>
-            {stats.totalTrades > 0 && <div className="dashboard-win-track" aria-hidden="true"><span style={{width:`${Math.min(100, Math.max(0,stats.winRate))}%`}}/></div>}
-          </section>
+          <div style={panel} className="dashboard-performance-card"><AccountPerformance history={user.tradeHistory} theme={theme} onInspect={item => setDetailsItem({kind:'HISTORY',item})}/></div>
           <div style={panel}><DashboardAccount wallet={tradingWalletAddress} engine={VELO_PERPS_ADDRESS} addressUrl={baseScanAddressUrl}/></div>
         </aside>
       </div>
@@ -604,32 +603,25 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
         .dashboard-page .dash-grid-main {
           display: grid;
           grid-template-columns: minmax(0, 1fr) clamp(290px, 25vw, 340px);
-          align-items: start;
+          align-items: stretch;
           gap: 16px;
         }
-        .dashboard-overview-rail { display: grid; gap: 12px; min-width: 0; }
-        .dashboard-performance { padding: 17px 18px; font-family: var(--font-sans); }
-        .dashboard-performance header { display: flex; align-items: center; gap: 8px; margin-bottom: 17px; }
-        .dashboard-performance header svg { color: var(--accent-text); }
-        .dashboard-performance header strong { font-size: 13px; font-weight: 600; }
-        .dashboard-performance header small { margin-left: auto; color: var(--fg-muted); font-size: 10px; }
-        .dashboard-performance>div:not(.dashboard-win-track) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .dashboard-performance>div>span { font-size: 11px; color: var(--fg-muted); }
-        .dashboard-performance>div strong { display: block; color: var(--fg); font-size: 20px; font-weight: 600; letter-spacing: -.03em; line-height: 1.5; margin-top: 5px; }
-        .dashboard-performance strong[data-positive=true] { color: var(--pnl-up); }
-        .dashboard-performance strong[data-positive=false] { color: var(--pnl-down); }
-        .dashboard-win-track { height: 3px; border-radius: 99px; overflow: hidden; background: var(--chip-bg); margin-top: 16px; }
-        .dashboard-win-track>span { display: block; height: 100%; background: var(--accent); transition: width 300ms; }
+        .dashboard-overview-rail { display: grid; grid-template-rows: auto minmax(168px,1fr) auto; gap: 12px; min-width: 0; }
+        .dashboard-portfolio-card { min-width: 0; }
+        .dashboard-chart-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 22px 0; flex-wrap:wrap; }
+        .dashboard-chart-toolbar>span { font:400 10px/1.5 var(--font-sans);color:var(--fg-subtle); }
+        .dashboard-page .dash-portfolio-chart { height:220px;min-height:180px;flex:1;padding:8px 0; }
+        .dashboard-history-note { margin:0;padding:0 22px 12px;font:400 10px/1.5 var(--font-sans);color:var(--fg-subtle); }
         @media (max-width: 1023px) {
           .dashboard-page .dash-grid-main { grid-template-columns: minmax(0, 1fr); padding-inline: 0; }
-          .dashboard-overview-rail { grid-template-columns: 1fr 1fr; align-items: start; }
-          .dashboard-overview-rail>div:first-child { grid-row: span 2; }
+          .dashboard-overview-rail { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; align-items: stretch; }
+          .dashboard-overview-rail>div:first-child { grid-row: auto; }
+          .dashboard-overview-rail>div:last-child { grid-column: 1 / -1; }
         }
         @media (max-width: 600px) {
-          .dashboard-overview-rail { grid-template-columns: minmax(0, 1fr); }
+          .dashboard-overview-rail { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
           .dashboard-overview-rail>div:first-child { grid-row: auto; }
         }
-        @media (prefers-reduced-motion: reduce) { .dashboard-win-track>span { transition: none; } }
         @keyframes velo-pill-spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>

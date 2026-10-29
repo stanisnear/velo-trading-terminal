@@ -196,8 +196,9 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
   .velo-button:hover:after,.markets-trade:hover:after,.lb-podium-card>button:hover:after { transform:translateX(130%); }
 }
 @media(min-width:1024px) {
-  .velo-trade-rail[data-authenticated=false] { height:100%;align-self:stretch; }
-  .velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:auto;min-height:180px;flex:1 1 0; }
+  .velo-trade-rail[data-authenticated=false] { height:auto;max-height:100%;align-self:flex-start;overflow-y:auto;gap:12px; }
+  .velo-trade-rail[data-authenticated=false] .velo-trade-feed { height:auto;min-height:0;max-height:360px;flex:0 1 auto; }
+  .velo-trade-rail[data-authenticated=false] .velo-order-ticket { flex:none; }
 }
 
 /* The top strip masks passing content; the bar itself keeps real translucency. */

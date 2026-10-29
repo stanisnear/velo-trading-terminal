@@ -55,6 +55,7 @@ Copy trading, bots and traditional instruments are **planned and not yet availab
 - Keeper-triggered **liquidation** when remaining equity after settlement costs reaches the market's maintenance requirement
 - Charts built on Lightweight Charts with Velo's own data feed, chart tools and indicators; timeframe changes start at the latest candle, with an explicit Back to live action after historical browsing
 - Live fills tape, open orders, position history and receipt-backed trade records
+- Complete paginated account history with cumulative realized trading PnL, period filters and a performance breakdown by market. Equity observations remain separate from historical settlement results.
 - Compact live position attachments and exportable PnL images, with amount/percentage controls and receipt details (see [Sharing](docs/SHARING.md))
 
 ### Discover

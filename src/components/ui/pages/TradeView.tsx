@@ -1635,7 +1635,7 @@ export const TradeView = ({
                 </div>
             </div>}
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <OrderBook price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
+                <OrderBook compact={!user && !isMobile} price={currentPrice} pair={activePair.id} rows={isMobile ? 8 : 10} openOrders={openOrders} />
             </div>
         </div>
     );

@@ -15,7 +15,7 @@ import { pythPriceStream } from '@/services/pythPriceService';
  * is genuine platform activity, with honest empty states until trades arrive.
  */
 
-interface OrderBookProps { price: number; pair: string; rows?: number; openOrders?: any[]; }
+interface OrderBookProps { price: number; pair: string; rows?: number; openOrders?: any[]; compact?: boolean; }
 
 interface Fill {
   id: string; pair: string; side: 'LONG' | 'SHORT';
@@ -60,7 +60,7 @@ function rowToFill(r: any, flash = false): Fill | null {
   };
 }
 
-export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, openOrders: liveOpenOrders }) => {
+export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, openOrders: liveOpenOrders, compact = false }) => {
   const [view, setView] = useState<'trades' | 'depth' | 'book'>('trades');
   const [showAllFills, setShowAllFills] = useState(false);
   const [fills, setFills] = useState<Fill[]>([]);
@@ -213,7 +213,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', fontFamily: 'var(--font-mono)', userSelect: 'none', overflow: 'hidden', background: 'var(--bg-base-2)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: compact ? 'auto' : '100%', width: '100%', fontFamily: 'var(--font-mono)', userSelect: 'none', overflow: 'hidden', background: 'var(--bg-base-2)' }}>
       <style>{`@keyframes veloFillFlashBuy{0%{background:rgba(62,207,142,0.28)}100%{background:transparent}}@keyframes veloFillFlashSell{0%{background:rgba(255,80,80,0.28)}100%{background:transparent}}`}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
@@ -239,7 +239,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
       </div>
 
       {loadError && <div role="status" style={{ padding: '8px 12px', fontSize: 11, color: 'var(--fg-muted)' }}>{loadError} <button onClick={() => setReload(x => x + 1)}>Retry</button></div>}
-      <div style={{ flex: 1, minHeight: 0, overflowY: view === 'trades' && showAllFills ? 'auto' : 'hidden', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
+      <div style={{ flex: compact ? '0 1 auto' : 1, minHeight: compact ? 56 : 0, maxHeight: compact ? 240 : undefined, overflowY: compact || view === 'trades' && showAllFills ? 'auto' : 'hidden', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
         {view === 'trades' ? (
           loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 11 }}>Loading fills…</div>

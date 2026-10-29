@@ -1,3 +1,4 @@
+import { readHistoryPages } from './accountPerformance.mjs';
 import { profileDisplayName } from '../utils/profileIdentity.mjs';
 import { boundedFetch } from './sessionLifecycle.mjs';
 import { createCommentWriter } from './commentPersistence.mjs';
@@ -650,43 +651,21 @@ export async function deleteOrdersForPosition(positionId: string) {
 // TRADE HISTORY
 // ══════════════════════════════════════════════════════════════════
 
-export async function fetchTradeHistory(userId: string, limit = 100): Promise<TradeHistoryItem[]> {
-  const { data, error } = await supabase
-    .from('trade_history').select('*')
-    .eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
-  if (error) {
-    console.error('[supabase] fetchTradeHistory error:', error.message, error.code);
-    // Retry once after a short delay — covers JWT-not-yet-active on page load
-    await new Promise(r => setTimeout(r, 800));
-    const retry = await supabase
-      .from('trade_history').select('*')
-      .eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
-    if (retry.error) {
-      console.error('[supabase] fetchTradeHistory retry failed:', retry.error.message);
-      throw retry.error;
+export async function fetchTradeHistory(userId: string, limit = Infinity): Promise<TradeHistoryItem[]> {
+  const rows = await readHistoryPages(async (offset: number, size: number) => {
+    const query = () => supabase.from('trade_history').select('*').eq('user_id', userId)
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + size - 1);
+    let result = await query();
+    if (result.error) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      result = await query();
     }
-    return (retry.data || []).map((r: any): TradeHistoryItem => ({
-      id:               r.id,
-      pair:             r.pair,
-      side:             r.side,
-      entryPrice:       r.entry_price,
-      exitPrice:        r.exit_price,
-      size:             r.size,
-      pnl:              r.pnl,
-      timestamp:        new Date(r.created_at).getTime(),
-      action:           r.action,
-      copyTraderId:     r.copy_trader_id || undefined,
-      leverage:         r.leverage != null ? Number(r.leverage) : undefined,
-      marginMode:       r.margin_mode || undefined,
-      liquidationPrice: r.liquidation_price != null ? Number(r.liquidation_price) : undefined,
-      openedAt:         r.opened_at ? new Date(r.opened_at).getTime() : undefined,
-      onChain:          r.on_chain || false,
-      orderlyOrderId:   r.orderly_order_id != null ? Number(r.orderly_order_id) : undefined,
-      orderlyOrderUrl:  r.orderly_order_url || undefined,
-      txHash:           r.tx_hash || undefined,
-    }));
-  }
-  return (data || []).map((r: any): TradeHistoryItem => ({
+    // Never turn a failed older page into a misleading partial performance total.
+    if (result.error) throw result.error;
+    return result.data || [];
+  }, limit);
+  return rows.map((r: any): TradeHistoryItem => ({
     id:               r.id,
     pair:             r.pair,
     side:             r.side,
