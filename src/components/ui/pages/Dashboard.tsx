@@ -1,5 +1,5 @@
 import { AccountPerformance } from '../AccountPerformance';
-import { equityPeriod } from '../../../services/equityHistory.mjs';
+import { equityView } from '../../../services/equityHistory.mjs';
 import { AccountOverview } from '../AccountOverview';
 import { DashboardActions } from '../DashboardActions';
 import { PositionExposure } from '../PositionExposure';
@@ -60,7 +60,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
 // Funding actions use the shared wallet dialogs.
 
 export const Dashboard = ({ equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
-  const [chartPeriod, setChartPeriod] = useState<'1D'|'1W'|'1M'|'1Y'|'ALL'>('ALL');
+  const [chartPeriod, setChartPeriod] = useState('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
   const [activityPage, setActivityPage] = useState(1);
@@ -81,14 +81,13 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
   }, 0);
   const totalMarginUsed = lockedMarginProp !== undefined ? lockedMarginProp : positions.reduce((acc: number, p: Position) => acc + (p.size / p.leverage), 0);
   const equity = equityProp !== undefined ? equityProp : user.balance + totalMarginUsed + allPositionsPnl;
-  const allPeriods = ['1D','1W','1M','ALL'];
-  const chartData = useMemo(() => equityPeriod(equityHistory, chartPeriod), [equityHistory, chartPeriod]);
-  const firstValue = chartData[0]?.value;
-  const equityChange = chartData.length > 1 ? equity - firstValue : null;
-  const changePercent = firstValue > 0 && equityChange !== null ? equityChange / firstValue * 100 : null;
+  const chartView = useMemo(() => equityView(equityHistory, chartPeriod), [equityHistory, chartPeriod]);
+  const chartData = chartView.points;
+  const equityChange = chartView.change;
+  const changePercent = chartView.percent;
   const pnlColor = equityChange === null || equityChange === 0 ? 'var(--fg-muted)' : equityChange > 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
-  const coverageStart = equityHistory[0]?.timestamp;
-  const coverageLabel = coverageStart ? new Date(coverageStart).toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'}) : null;
+  const coverageLabel = chartView.firstAt !== null && chartView.lastAt !== null
+    ? `${new Date(chartView.firstAt).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})} – ${new Date(chartView.lastAt).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}` : null;
 
   // ── Pending Deposit Detail Modal ────────────────────────────────────────────
   const PendingDepositDetailModal = ({ deposit, onClose }: { deposit: any; onClose: () => void }) => {
@@ -196,17 +195,17 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
                 </span>
               </div>
             </div>
-            {allPeriods.length > 1 && (
-              <SegmentedControl label="Portfolio period" compact options={allPeriods.map(p => ({value:p,label:p}))} value={chartPeriod} onChange={value => setChartPeriod(value as typeof chartPeriod)}/>
+            {chartView.options.length > 1 && (
+              <SegmentedControl label="Portfolio period" compact options={chartView.options} value={chartView.period} onChange={setChartPeriod}/>
 
             )}
           </div>
-          <div className="dashboard-chart-toolbar"><span>Total account equity</span><span>{coverageLabel ? `Recorded since ${coverageLabel}` : 'Waiting for the first account observation'}</span></div>
+          <div className="dashboard-chart-toolbar"><span>Total account equity</span><span>{coverageLabel ? coverageLabel : 'Waiting for the first account observation'}</span></div>
           <div className="dash-portfolio-chart">
-            <PortfolioChart dateOnly={chartPeriod !== '1D' && chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>86400000} data={chartData} theme={theme} loading={!equityReady}
+            <PortfolioChart rangeKey={chartView.period} dateOnly={chartView.period !== '1D' && chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>86400000} data={chartData} theme={theme} loading={!equityReady}
               label="Total account equity" emptyLabel="No recorded equity observations in this period."/>
           </div>
-          <p className="dashboard-history-note">Equity includes available funds, locked margin and open PnL. Changes include deposits and withdrawals. Historical snapshots are recorded on this device; realized trade history is in Performance.</p>
+          <p className="dashboard-history-note">Account equity includes cash movements and open PnL. Longer ranges unlock as recorded history becomes available. Realized trade history is in Performance.</p>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user
               always knows where their money is. */}

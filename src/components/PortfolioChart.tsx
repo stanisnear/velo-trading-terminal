@@ -5,7 +5,7 @@ import type { EquityObservation } from '../hooks/useEquityHistory';
 import './PortfolioChart.css';
 
 type Point = { time:UTCTimestamp; value:number };
-export function PortfolioChart({ data, theme, loading=false, label='Account equity', baseline, dateOnly=false, emptyLabel='No equity observations in this period.' }:{data:EquityObservation[];theme:'light'|'dark';loading?:boolean;baseline?:number;dateOnly?:boolean;label?:string;emptyLabel?:string}) {
+export function PortfolioChart({ data, theme, loading=false, label='Account equity', baseline, dateOnly=false, rangeKey='', emptyLabel='No equity observations in this period.' }:{data:EquityObservation[];theme:'light'|'dark';loading?:boolean;baseline?:number;dateOnly?:boolean;rangeKey?:string;label?:string;emptyLabel?:string}) {
   const container = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi|null>(null);
   const seriesRef = useRef<ISeriesApi<'Baseline'>|null>(null);
@@ -36,7 +36,9 @@ export function PortfolioChart({ data, theme, loading=false, label='Account equi
     chartRef.current=chart;seriesRef.current=series;pointsRef.current=[];
     const resize=new ResizeObserver(entries=>{
       const rect=entries[0]?.contentRect;
-      if(rect?.width>0 && rect?.height>0) requestAnimationFrame(()=>{if(!disposed)chart.applyOptions({width:rect.width,height:rect.height});});
+      if(rect?.width>0 && rect?.height>0) requestAnimationFrame(()=>{
+        if(!disposed){chart.applyOptions({width:rect.width,height:rect.height});chart.timeScale().fitContent();}
+      });
     });
     resize.observe(container.current);
     return()=>{disposed=true;resize.disconnect();chart.remove();chartRef.current=null;seriesRef.current=null;pointsRef.current=[];};
@@ -52,8 +54,13 @@ export function PortfolioChart({ data, theme, loading=false, label='Account equi
     series.applyOptions({pointMarkersVisible:points.length===1,baseValue:{type:'price',price:baseline ?? points[0]?.value ?? 0}});
     pointsRef.current=points;
     if(!tailOnly||points.length!==previous.length)chart.timeScale().fitContent();
-    setInspected(null);
+    setInspected(previous=>previous ? points.find(point=>point.time===previous.time)??null : null);
   },[points,theme,baseline,dateOnly]);
+  useEffect(()=>{
+    chartRef.current?.clearCrosshairPosition();
+    chartRef.current?.timeScale().fitContent();
+    setInspected(null);
+  },[rangeKey,theme,dateOnly]);
   const inspect=(event:React.KeyboardEvent)=>{
     if(!points.length)return;
     if(event.key==='Escape'){setInspected(null);chartRef.current?.clearCrosshairPosition();return;}

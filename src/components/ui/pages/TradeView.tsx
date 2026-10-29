@@ -1,4 +1,3 @@
-import { TradeOrderPreview } from '../TradeOrderPreview';
 import { ActionContent, AnimatedPanel, MarginSlider } from '../ProductMotion';
 import { SegmentedControl } from '../SegmentedControl';
 import { AnimatedText } from '../AnimatedValue';
@@ -763,30 +762,28 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', flex: 1 }}>
                     {TABS.map(({ k, label, n }) => (
-                        <button key={k} onClick={() => setTab(k)} style={{ ...S.label,
+                        <button key={k} onClick={() => user ? setTab(k) : onRequireAuth?.()} style={{ ...S.label,
                             padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const,
                             borderBottom: `2px solid ${tab === k ? 'var(--iris-violet)' : 'transparent'}`,
                             color: tab === k ? 'var(--fg)' : 'var(--fg-subtle)',
                             fontSize: 10, transition: 'all 0.12s',
                         }}>
-                            {label} <span style={{ opacity: 0.4, marginLeft: 2 }}>· {n}</span>
+                            {label} {user && <span style={{ opacity: 0.4, marginLeft: 2 }}>· {n}</span>}
                         </button>
                     ))}
                 </div>
             </div>
 
             {/* Body */}
-            <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', paddingBottom: isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
+            <div className="trade-activity-body custom-scrollbar" style={{ flex: 1, minHeight: 0, overflowY: user ? 'auto' : 'hidden', paddingBottom: user && isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
 
                 {!user ? (
-                    <div style={{ padding: isMobile ? '18px 14px' : '20px 16px' }}>
                         <TradeAuthGate
                             compact
                             onRequireAuth={onRequireAuth}
                             title="Your trading activity"
                             description="Sign in to view positions, working orders and history."
                         />
-                    </div>
                 ) : <>
 
                 {/* POSITIONS */}
@@ -1730,8 +1727,8 @@ export const TradeView = ({
                 </div>
 
                 {/* Positions panel — desktop only here; on mobile it's below the order form */}
-                {!isMobile && user && (
-                    <div style={{ height: 168, flexShrink: 0, display: 'flex', overflow: 'hidden' }}>
+                {!isMobile && (
+                    <div className="velo-trade-activity" style={{ height: user ? 168 : 132, flexShrink: 0, display: 'flex', overflow: 'hidden' }}>
                         <PositionsPanel {...panelProps} />
                     </div>
                 )}
@@ -1743,7 +1740,7 @@ export const TradeView = ({
                 {/* Order form */}
                 <section className="velo-order-ticket" aria-label="Order ticket" style={{ borderRadius: isMobile ? 0 : 18, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: isMobile ? 'none' : '1px solid var(--hairline)', boxShadow: isMobile ? 'none' : 'var(--glass-shadow)' }}>
                         {!user ? (
-                            <TradeOrderPreview pair={activePair.id} price={Number(marketPrices[activePair.id]) || 0} maxLeverage={maxLeverage} onSignIn={onRequireAuth}/>
+                            <TradeAuthGate onRequireAuth={onRequireAuth} title="Sign in to trade" description="Connect your wallet to place an order and manage your positions."/>
                         ) : (
                         <>
                         <div className="velo-order-ticket__body custom-scrollbar" tabIndex={0} role="group" aria-label="Order parameters">
@@ -1929,8 +1926,8 @@ export const TradeView = ({
             </TradeRail>
 
             {/* ── Mobile-only: Positions panel below order form ── */}
-            {isMobile && user && (
-                <div style={{ borderRadius: 0, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid var(--hairline)', minHeight: 180, display: 'flex', flexDirection: 'column', flex: 1 }}>
+            {isMobile && (
+                <div className="velo-trade-activity" style={{ borderRadius: 0, background: 'var(--glass-bg)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid var(--hairline)', minHeight: user ? 180 : 132, display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <PositionsPanel {...panelProps} />
                 </div>
             )}

@@ -239,7 +239,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
       </div>
 
       {loadError && <div role="status" style={{ padding: '8px 12px', fontSize: 11, color: 'var(--fg-muted)' }}>{loadError} <button onClick={() => setReload(x => x + 1)}>Retry</button></div>}
-      <div style={{ flex: compact ? '0 1 auto' : 1, minHeight: compact ? 56 : 0, maxHeight: compact ? 240 : undefined, overflowY: compact || view === 'trades' && showAllFills ? 'auto' : 'hidden', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
+      <div style={{ flex: compact ? '0 1 auto' : 1, minHeight: compact ? 56 : 0, maxHeight: compact ? 240 : undefined, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
         {view === 'trades' ? (
           loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 11 }}>Loading fills…</div>

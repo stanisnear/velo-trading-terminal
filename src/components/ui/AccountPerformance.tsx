@@ -29,7 +29,7 @@ export function AccountPerformance({history,theme,onInspect}:{history:TradeHisto
       footer={<button type="button" onClick={()=>setOpen(false)}>Done</button>}>
       <div className="account-performance-controls"><SegmentedControl label="Performance period" compact value={period} onChange={setPeriod} options={performancePeriods.map(value=>({value,label:value==='ALL'?'All time':value}))}/></div>
       <div className="account-performance-result" data-positive={result.realizedPnl>=0}><span>Realized trading PnL</span><strong><AnimatedValue value={result.realizedPnl}/></strong><small>{result.totalTrades} settlements in this period</small></div>
-      <div className="account-performance-chart"><PortfolioChart dateOnly={period !== '1D'} baseline={0} data={result.points} theme={theme} label="Cumulative realized PnL" emptyLabel="No settlements in this period."/></div>
+      <div className="account-performance-chart"><PortfolioChart rangeKey={period} dateOnly={period !== '1D'} baseline={0} data={result.points} theme={theme} label="Cumulative realized PnL" emptyLabel="No settlements in this period."/></div>
       <div className="account-performance-metrics">
         <div><span>Win rate</span><strong>{result.totalTrades?<><AnimatedValue value={result.winRate} currency={false} digits={1}/>%</>:'—'}</strong><small>{result.wins} wins · {result.losses} losses · {result.breakeven} flat</small></div>
         <div><span>Profit factor</span><strong>{result.profitFactor===null?'—':<AnimatedValue value={result.profitFactor} currency={false} digits={2}/>}</strong><small>Gross profits / gross losses</small></div>

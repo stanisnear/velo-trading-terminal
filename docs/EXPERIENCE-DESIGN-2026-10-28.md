@@ -172,3 +172,8 @@ The typography sweep removes remaining editorial face declarations from app navi
 - **Amicro** ([reference](https://amicro.dev/)): direct retrieval remained blocked (403/429) in this pass. No newly inspected Amicro source or copied component is claimed. Existing stateful-action patterns remain documented above.
 
 The guest order preview is a useful new tool: direction, margin, leverage and a price-movement scenario update a payoff graphic and rolling sizing/PnL values immediately, without any RPC write. Its button enters the existing sign-in flow. Account and performance curves use two-sided baseline colors, keeping account-value change separate from realized trading profit.
+
+
+### Correction after feedback
+
+The guest order preview described above was removed at the user's request. Distinct locked order/activity panels are restored, with bounded public-feed sizing and no editable visitor parameters. No additional design experiments accompany this correction. Equity controls now reflect actual available ranges and show their timestamps; chart resizing refits the data to the new width. The Performance calendar and its existing presentation remain.

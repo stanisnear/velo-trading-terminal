@@ -112,10 +112,14 @@
  .velo-order-ticket__footer{padding:12px 16px 20px}
 }
 
-/* A guest sees one full-height terminal rail: public fills, editable preview, fixed action. */
+/* Restore distinct locked panels; only the public feed and chart expose data. */
 @media(min-width:1024px){
- .velo-trade-rail[data-authenticated=false]{height:100%;align-self:stretch;gap:0;overflow:hidden;border:1px solid var(--hairline);border-radius:18px;background:var(--trade-surface);box-sizing:border-box}
- .velo-trade-rail[data-authenticated=false] .velo-trade-feed{height:clamp(180px,30vh,280px);min-height:96px;max-height:280px;flex:0 1 clamp(180px,30vh,280px);border:0!important;border-radius:0!important;box-shadow:none!important;border-bottom:1px solid var(--hairline)!important}
- .velo-trade-rail[data-authenticated=false] .velo-order-ticket{flex:1 1 0;min-height:180px;border:0!important;border-radius:0!important;box-shadow:none!important}
- .velo-trade-workspace[data-authenticated=false] .velo-trade-main{border-bottom:1px solid var(--hairline)}
+ .velo-trade-rail[data-authenticated=false]{height:100%;gap:12px;min-height:0}
+ .velo-trade-rail[data-authenticated=false] .velo-trade-feed{height:clamp(180px,30vh,300px);flex:0 1 clamp(180px,30vh,300px);min-height:96px}
+ .velo-trade-rail[data-authenticated=false] .velo-order-ticket{flex:1 1 0;min-height:200px;justify-content:center}
+ .velo-trade-rail[data-authenticated=false] .velo-order-ticket>.trade-auth-gate{flex:1;justify-content:center;padding:20px;gap:12px}
 }
+.velo-trade-workspace .velo-trade-activity .trade-activity-body{display:flex;flex-direction:column}
+.velo-trade-workspace .velo-trade-activity .trade-auth-gate--compact{min-height:0;padding:12px 18px;max-height:100%;box-sizing:border-box}
+.velo-trade-workspace .velo-trade-activity .trade-auth-gate__copy{max-width:none}
+@media(max-width:1023px){.velo-trade-workspace .velo-trade-activity .trade-auth-gate--compact{padding:16px;min-height:80px}}

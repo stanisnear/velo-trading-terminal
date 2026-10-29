@@ -24,7 +24,7 @@ if(import.meta.hot)import.meta.hot.dispose(removePressFeedback);
 // on the deployed site and type  __VELO_BUILD__  (or just read the banner).
 // Bump the tag whenever a delta batch ships, so "did my deploy go out?" is a
 // two-second check instead of a guessing game.
-export const VELO_BUILD = 'equity-settlements-preview-20261029';
+export const VELO_BUILD = 'locked-trade-equity-ranges-20261029';
 (window as any).__VELO_BUILD__ = VELO_BUILD;
 document.documentElement.setAttribute('data-velo-build', VELO_BUILD); // visible in DevTools → Elements on <html>
 console.info(`%c VELO %c build ${VELO_BUILD} `, 'background:#557a64;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px;font-weight:700', 'background:#161a17;color:#a2afa6;border-radius:0 3px 3px 0;padding:2px 6px');

@@ -27,7 +27,7 @@ export const createTextWatermark=()=>({detach(){},applyOptions(){}});
 export function createChart(element,options){
  const state={element,options,series:[],removed:false,range:{from:0,to:100},sets:[],realtime:0,sub:null};
  const scale={getVisibleLogicalRange:()=>state.range,setVisibleLogicalRange:r=>{state.range=r;state.sets.push(r);state.sub?.(r);},fitContent:()=>{state.fits=(state.fits||0)+1;},subscribeVisibleLogicalRangeChange:cb=>state.sub=cb,unsubscribeVisibleLogicalRangeChange:()=>state.sub=null,scrollToRealTime:()=>{state.realtime++;const last=state.series[0].data.length-1;const width=state.range.to-state.range.from;scale.setVisibleLogicalRange({from:last+4-width,to:last+4});}};
- const chart={timeScale:()=>scale,addSeries:(type,options)=>{const s={type,options,data:[],sets:0,updates:0,setData:d=>{s.data=d;s.sets++;state.sub?.(state.range);},update:p=>{s.updates++;if(s.data.at(-1)?.time===p.time)s.data=[...s.data.slice(0,-1),p];else s.data=[...s.data,p];state.sub?.(state.range);},applyOptions:o=>Object.assign(s.options,o),priceScale:()=>({applyOptions(){}}),createPriceLine:()=>({}),removePriceLine(){}};state.series.push(s);return s;},panes:()=>[{}],removePane(){},removeSeries(){},applyOptions(){},subscribeCrosshairMove:cb=>state.crosshair=cb,remove(){state.removed=true;},clearCrosshairPosition(){},setCrosshairPosition(){}};
+ const chart={timeScale:()=>scale,addSeries:(type,options)=>{const s={type,options,data:[],sets:0,updates:0,setData:d=>{s.data=d;s.sets++;state.sub?.(state.range);},update:p=>{s.updates++;if(s.data.at(-1)?.time===p.time)s.data=[...s.data.slice(0,-1),p];else s.data=[...s.data,p];state.sub?.(state.range);},applyOptions:o=>Object.assign(s.options,o),priceScale:()=>({applyOptions(){}}),createPriceLine:()=>({}),removePriceLine(){}};state.series.push(s);return s;},panes:()=>[{}],removePane(){},removeSeries(){},applyOptions:o=>{state.lastOptions=o;},subscribeCrosshairMove:cb=>state.crosshair=cb,remove(){state.removed=true;},clearCrosshairPosition(){},setCrosshairPosition(){}};
  state.api=chart;globalThis.__charts.push(state);return chart;
 }`;
 const plugin={name:'charts-offline',setup(b){
@@ -41,7 +41,7 @@ test('real chart components follow first history, timeframe changes and explicit
  await build({stdin:{contents:"export{TradingViewChart}from'./src/components/TradingViewChart';export{PortfolioChart}from'./src/components/PortfolioChart';export{useEquityHistory}from'./src/hooks/useEquityHistory';",resolveDir:process.cwd(),loader:'tsx'},outfile:file,bundle:true,format:'esm',platform:'node',external:['react','react-dom','lucide-react','motion/react'],loader:{'.css':'empty'},plugins:[plugin]});
  const dom=new JSDOM('<div id="root"></div>',{pretendToBeVisual:true,url:'https://velo.test'});
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.Element=dom.window.Element;globalThis.MutationObserver=dom.window.MutationObserver;globalThis.getComputedStyle=dom.window.getComputedStyle;globalThis.localStorage=dom.window.localStorage;
- globalThis.ResizeObserver=class{observe(){}disconnect(){}};globalThis.requestAnimationFrame=cb=>setTimeout(cb,0);globalThis.IS_REACT_ACT_ENVIRONMENT=true;globalThis.__charts=[];
+ globalThis.__resizeObservers=[];globalThis.ResizeObserver=class{constructor(callback){this.callback=callback;globalThis.__resizeObservers.push(this);}observe(){}disconnect(){}};globalThis.requestAnimationFrame=cb=>setTimeout(cb,0);globalThis.IS_REACT_ACT_ENVIRONMENT=true;globalThis.__charts=[];
  dom.window.matchMedia=()=>({matches:true,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
  const {createRoot}=await import('react-dom/client'),{TradingViewChart,PortfolioChart,useEquityHistory}=await import(pathToFileURL(file));
  const root=createRoot(document.querySelector('#root'));
@@ -90,6 +90,15 @@ test('real chart components follow first history, timeframe changes and explicit
   assert.equal(globalThis.__charts.length,chartCount,'changing to loss data does not recreate the chart');
   assert.equal(series.options.baseValue.price,0,'settlement PnL uses zero, not starting equity');
   assert.notEqual(series.options.topLineColor,series.options.bottomLineColor,'profits and losses have separate colors');
+
+  let fits=state.fits;
+  await act(async()=>{globalThis.__resizeObservers.at(-1).callback([{contentRect:{width:1100,height:220}}]);await new Promise(resolve=>setTimeout(resolve,5));});
+  assert.equal(state.lastOptions.width,1100);
+  assert.ok(state.fits>fits,'resize refits the data rather than leaving a narrow plot at the right');
+  fits=state.fits;
+  await act(async()=>root.render(React.createElement(PortfolioChart,{data:[{timestamp:may,value:0},{timestamp:observedNow,value:-219.22}],theme:'dark',label:'Realized trading PnL',baseline:0,rangeKey:'ALL'})));
+  assert.ok(state.fits>fits,'an explicit range selection refits even if the points have not changed');
+  assert.equal(globalThis.__charts.length,chartCount,'range selection preserves the chart instance');
 
   let observed;
   function History({owner,value,ready}){observed=useEquityHistory(owner,'wallet','engine',value,ready);return null;}
