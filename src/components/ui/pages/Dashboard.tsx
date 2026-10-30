@@ -59,7 +59,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
 
 // Funding actions use the shared wallet dialogs.
 
-export const Dashboard = ({ equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
+export const Dashboard = ({ pendingOrderCollateral=0, equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
   const [chartPeriod, setChartPeriod] = useState('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
@@ -77,7 +77,7 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
   // fall back to local calculation for backwards compatibility.
   const allPositionsPnl = unrealizedProp !== undefined ? unrealizedProp : positions.reduce((acc: number, p: Position) => {
     const cp = marketPrices[p.pair] || p.entryPrice;
-    return acc + positionPnl(p, cp);
+    return acc + accountPositionPnl(p, cp);
   }, 0);
   const totalMarginUsed = lockedMarginProp !== undefined ? lockedMarginProp : positions.reduce((acc: number, p: Position) => acc + (p.size / p.leverage), 0);
   const equity = equityProp !== undefined ? equityProp : user.balance + totalMarginUsed + allPositionsPnl;
@@ -182,7 +182,7 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
         <div className="dashboard-portfolio-card" style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}><p style={{...S.label,margin:0}}>Total equity</p><AccountOverview equity={equity} available={buyingPowerProp!==undefined?buyingPowerProp:user.balance} margin={totalMarginUsed} pnl={allPositionsPnl}/></div>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}><p style={{...S.label,margin:0}}>Total equity</p><AccountOverview equity={equity} available={buyingPowerProp!==undefined?buyingPowerProp:user.balance} margin={totalMarginUsed} reserved={pendingOrderCollateral} pnl={allPositionsPnl}/></div>
               <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 8px' }}><AnimatedValue value={equity}/></p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
@@ -725,4 +725,4 @@ const FailedDepositPill: React.FC<{ deposit: any; onClaimTestnetUsdc?: () => voi
     )}
   </div>
 );
-import { positionPnl } from '@/services/positionValuation.mjs';
+import { positionPnl, accountPositionPnl } from '@/services/positionValuation.mjs';

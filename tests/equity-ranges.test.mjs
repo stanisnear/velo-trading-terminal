@@ -65,3 +65,13 @@ test('range controls disable unavailable options and keyboard navigation skips t
   assert.equal(document.activeElement,buttons[0]);assert.equal(calls.at(-1),'1D');
  }finally{await act(async()=>root.unmount());dom.window.close();await rm(dir,{recursive:true,force:true});}
 });
+
+test('shared history preserves observations older than the bounded device cache',async()=>{
+ const {mergeEquityHistory}=await import('../src/services/equityHistory.mjs');
+ const remote=[{timestamp:now-180*day,value:100},{timestamp:now-7*day,value:120},{timestamp:now-1000,value:130}];
+ const recent=[{timestamp:now-500,value:131},{timestamp:now,value:132},{timestamp:now,value:NaN}];
+ const merged=mergeEquityHistory(remote,recent,now);
+ assert.equal(merged[0].timestamp,now-180*day);assert.equal(merged.at(-1).value,132);
+ assert(merged.length<remote.length+recent.length,'the device wins overlapping minute buckets');
+ assert.equal(equityView(merged,'ALL',now).change,32);
+});

@@ -25,17 +25,17 @@ export function AccountPerformance({history,theme,onInspect}:{history:TradeHisto
       <span className="account-performance-caption">View analysis <ArrowUpRight size={12}/></span>
     </button>
     <TradingDialog open={open} onClose={()=>setOpen(false)} title="Your performance" className="account-performance-dialog"
-      identity={<span>Account trade history · All recorded settlements</span>}
+      identity={<span>Realized trade history</span>}
       footer={<button type="button" onClick={()=>setOpen(false)}>Done</button>}>
       <div className="account-performance-controls"><SegmentedControl label="Performance period" compact value={period} onChange={setPeriod} options={performancePeriods.map(value=>({value,label:value==='ALL'?'All time':value}))}/></div>
-      <div className="account-performance-result" data-positive={result.realizedPnl>=0}><span>Realized trading PnL</span><strong><AnimatedValue value={result.realizedPnl}/></strong><small>{result.totalTrades} settlements in this period</small></div>
-      <div className="account-performance-chart"><PortfolioChart rangeKey={period} dateOnly={period !== '1D'} baseline={0} data={result.points} theme={theme} label="Cumulative realized PnL" emptyLabel="No settlements in this period."/></div>
-      <div className="account-performance-metrics">
+      <div className="account-performance-result" data-positive={result.totalTrades?result.realizedPnl>=0:undefined}><span>Realized trading PnL</span><strong><AnimatedValue value={result.realizedPnl}/></strong><small>{result.totalTrades} settlements in this period</small></div>
+      {result.totalTrades>0?<div className="account-performance-chart"><PortfolioChart rangeKey={period} dateOnly={period !== '1D'} baseline={0} data={result.points} theme={theme} label="Cumulative realized PnL"/></div>:<div className="account-performance-empty" role="status"><Star size={20}/><strong>No settled trades in this period</strong>{total.totalTrades>0?<button type="button" onClick={()=>setPeriod('ALL')}>View all {total.totalTrades} settlements <ArrowUpRight size={13}/></button>:<span>Your results appear here after a trade closes.</span>}</div>}
+      {result.totalTrades>0&&<div className="account-performance-metrics">
         <div><span>Win rate</span><strong>{result.totalTrades?<><AnimatedValue value={result.winRate} currency={false} digits={1}/>%</>:'—'}</strong><small>{result.wins} wins · {result.losses} losses · {result.breakeven} flat</small></div>
         <div><span>Profit factor</span><strong>{result.profitFactor===null?'—':<AnimatedValue value={result.profitFactor} currency={false} digits={2}/>}</strong><small>Gross profits / gross losses</small></div>
         <div><span>Average result</span><strong>{result.totalTrades?<AnimatedValue value={result.average}/>:'—'}</strong><small>Per settlement</small></div>
         <div><span>Largest PnL drawdown</span><strong>{result.totalTrades?<AnimatedValue value={result.drawdown}/>:'—'}</strong><small>From a realized PnL peak</small></div>
-      </div>
+      </div>}
       {result.trades.length>0&&<PerformanceCalendar trades={result.trades} onInspect={trade=>{setOpen(false);onInspect(trade);}}/>}
       {result.markets.length>0&&<section className="account-performance-markets"><h3>Market results</h3>{result.markets.map(m=><div key={m.pair} data-positive={m.pnl>=0}>
         <span><strong>{m.pair}</strong><small>{m.count} settled</small><b><AnimatedValue value={m.pnl}/></b></span>
@@ -45,7 +45,7 @@ export function AccountPerformance({history,theme,onInspect}:{history:TradeHisto
         <span><strong>{trade.pair} <small>{trade.side==='LONG'?'Long':'Short'}</small></strong><time dateTime={new Date(trade.timestamp).toISOString()}>{new Date(trade.timestamp).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time></span>
         <b data-positive={trade.pnl>=0}><AnimatedValue value={trade.pnl}/></b><ArrowUpRight size={14}/>
       </button>)}</section>}
-      <p className="account-performance-note">Includes recorded closes and liquidations across your account history. Partial closes count as separate settlements. Open-position PnL and transfers are excluded; stored results are used without adding estimated fees.</p>
+      {result.totalTrades>0&&<p className="account-performance-note">Closed and liquidated trades, including partial closes. Transfers and open-position PnL are excluded.</p>}
     </TradingDialog>
   </>;
 }

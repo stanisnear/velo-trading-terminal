@@ -35,7 +35,13 @@ test('performance drill-down filters actual settlements and hands the latest row
   await act(async()=>{receipt.focus();render([old,updated]);});
   assert.equal(document.activeElement,receipt,'history updates preserve receipt focus');
   await act(async()=>receipt.click());assert.deepEqual(calls[0],updated);assert.equal(document.querySelector('dialog'),null);assert.equal(document.activeElement,trigger);
-  await act(async()=>render([]));await act(async()=>trigger.click());
+  await act(async()=>render([old]));await act(async()=>trigger.click());
+  assert.equal(document.querySelector('[data-points]'),null,'an empty period never mounts a blank financial chart');
+  const allHistory=document.querySelector('.account-performance-empty button');
+  await act(async()=>allHistory.click());
+  assert.equal(JSON.parse(document.querySelector('[data-points]').dataset.points).at(-1).value,100,'the empty state leads to the actual older settlements');
+  await act(async()=>render([]));
+  assert.equal(document.querySelector('[data-points]'),null);assert.equal(document.querySelector('.account-performance-metrics'),null);
   assert.match(document.querySelector('dialog').textContent,/0 settlements/);assert.doesNotMatch(document.querySelector('dialog').textContent,/NaN|Infinity/);
  }finally{await act(async()=>root.unmount());dom.window.close();await rm(folder,{recursive:true,force:true});}
 });

@@ -6,6 +6,25 @@ export function positionPnl(position, mark, now = Date.now()) {
   return positionSettlement(position, mark, now).pnl;
 }
 
+// Entry fees have already left the wallet. Trade-result PnL includes that fee;
+// adding it to net collateral would deduct it from account equity a second time.
+export function accountPositionPnl(position, mark, now = Date.now()) {
+  if (!position.v4) return positionPnl(position,mark,now);
+  const settlement=positionSettlement(position,mark,now);
+  return settlement.payout-settlement.collateral;
+}
+export function accountEquity(cash,positions,marks,orders=[],now=Date.now()) {
+  let equity=cash;
+  for(const position of positions){
+    const mark=marks[position.pair];
+    if(!(mark>0)||!Number.isFinite(mark))return null;
+    equity+=position.v4?positionSettlement(position,mark,now).payout:
+      position.size/position.leverage+positionPnl(position,mark,now);
+  }
+  for(const order of orders)if(order.active)equity+=order.collateralUSDC;
+  return Number.isFinite(equity)&&equity>=0?equity:null;
+}
+
 export function positionSettlement(p, mark, now = Date.now(), keeper = false) {
   if (!p.v4) {
     const pnl = positionPnl(p, mark, now), collateral = p.size / p.leverage;

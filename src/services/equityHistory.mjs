@@ -19,6 +19,15 @@ export function observeEquity(history, value, timestamp = Date.now()) {
   const next = normalizeEquityHistory([...history, {timestamp,value}], timestamp);
   return next.length === history.length && next.every((p,i) => p.timestamp===history[i].timestamp && p.value===history[i].value) ? history : next;
 }
+/** Remote history is not subject to the device cache's 90-day retention. */
+export function mergeEquityHistory(archive, recent, now=Date.now()) {
+  const points=new Map();
+  for(const source of [archive,recent])for(const point of source || []){
+    if(Number.isFinite(point?.timestamp)&&point.timestamp<=now+60000&&Number.isFinite(point?.value)&&point.value>=0)
+      points.set(Math.floor(point.timestamp/60000),point);
+  }
+  return [...points.values()].sort((a,b)=>a.timestamp-b.timestamp);
+}
 const durations = {'1D':86400000,'1W':604800000,'1M':2592000000,'1Y':31536000000};
 function validObservations(history, now) {
   return [...new Map((Array.isArray(history)?history:[])

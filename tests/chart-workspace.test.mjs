@@ -124,12 +124,27 @@ test('real chart components follow first history, timeframe changes and explicit
   } finally { if(priorZone===undefined)delete process.env.TZ;else process.env.TZ=priorZone; }
 
   let observed;
-  function History({owner,value,ready}){observed=useEquityHistory(owner,'wallet','engine',value,ready);return null;}
+  function History({owner,value,ready,remote}){observed=useEquityHistory(owner,'wallet','engine',value,ready,remote);return null;}
   await act(async()=>root.render(React.createElement(History,{owner:'one',value:0,ready:false})));
   assert.deepEqual(observed,[],'wallet hydration zero is never recorded');
   await act(async()=>root.render(React.createElement(History,{owner:'one',value:200,ready:true})));
   assert.equal(observed.at(-1).value,200);
   await act(async()=>root.render(React.createElement(History,{owner:'two',value:0,ready:false})));
   assert.deepEqual(observed,[],'switching accounts cannot leak previous history');
+  const loads=[],writes=[];
+  const remote={load:owner=>new Promise(resolve=>loads.push({owner,resolve})),save:async(...args)=>{writes.push(args);}};
+  await act(async()=>root.render(React.createElement(History,{owner:'remote-a',value:0,ready:false,remote})));
+  await act(async()=>root.render(React.createElement(History,{owner:'remote-b',value:0,ready:false,remote})));
+  const ancient={timestamp:Date.now()-180*86400000,value:100};
+  await act(async()=>loads.find(x=>x.owner==='remote-b').resolve([ancient]));
+  assert.equal(observed[0].timestamp,ancient.timestamp,'a new device loads the full shared history');
+  await act(async()=>loads.find(x=>x.owner==='remote-a').resolve([{...ancient,value:9999}]));
+  assert.equal(observed[0].value,100,'late network results cannot cross accounts');
+  await act(async()=>root.render(React.createElement(History,{owner:'remote-b',value:200,ready:true,remote})));
+  await act(async()=>root.render(React.createElement(History,{owner:'remote-b',value:201,ready:true,remote})));
+  assert.equal(observed.at(-1).value,201);assert.equal(observed[0].value,100);
+  assert.equal(writes.length,1,'live ticks produce at most one shared write in a five-minute bucket');
+  assert.equal(writes[0][0],'remote-b');assert.equal(writes[0][3][0].valuationVersion,2);
+
  }finally{await act(async()=>root.unmount());dom.window.close();await rm(dir,{recursive:true,force:true});}
 });

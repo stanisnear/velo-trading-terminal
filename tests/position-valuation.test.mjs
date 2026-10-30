@@ -34,3 +34,16 @@ test('trigger return sliders invert the fee-aware estimate for long and short po
   const exhausted = positionSettlement(position, 0, now, true);
   assert.equal(exhausted.payout, 0); assert.equal(exhausted.keeperFee, 0);
 });
+
+test('account equity counts cash, net payouts and pending escrow without charging entry fees twice', async()=>{
+ const {accountEquity,accountPositionPnl}=await import('../src/services/positionValuation.mjs');
+ const payout=positionSettlement(position,100,now).payout;
+ const cashAfterOpen=899.2; // 1000 minus 99.8 collateral and the 1 entry fee
+ assert.equal(accountEquity(cashAfterOpen,[position],{[position.pair]:100},[],now),cashAfterOpen+payout);
+ assert(Math.abs(accountPositionPnl(position,100,now)-positionPnl(position,100,now)-1)<1e-8);
+ const orders=[{active:true,collateralUSDC:30},{active:false,collateralUSDC:500}];
+ assert.equal(accountEquity(970,[],{},orders,now),1000,'escrow is allocated money, not a loss');
+ assert.equal(accountEquity(1000,[],{},[],now),1000,'cancelling returns escrow without creating profit');
+ assert.equal(accountEquity(899.2,[position],{},[],now),null,'missing marks cannot produce an account snapshot');
+ assert.equal(accountEquity(cashAfterOpen+payout,[],{},[],now),accountEquity(cashAfterOpen,[position],{[position.pair]:100},[],now),'settling at the quote conserves equity');
+});

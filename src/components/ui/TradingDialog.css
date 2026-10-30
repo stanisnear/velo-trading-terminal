@@ -13,3 +13,7 @@
 .trade-dialog .velo-manage-tabs[data-motion=true]>button[aria-selected=true]{background:transparent;box-shadow:none}
 
 .trade-dialog .position-details-body{padding:0;gap:18px}.trade-dialog .position-details-result{margin:0}.trade-dialog .position-details-facts dd{font:600 14px/1.5 var(--font-sans)}.trade-dialog .position-details-note:last-child{margin-bottom:20px}.trade-dialog-actions>button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;border:1px solid var(--hairline);border-radius:12px;background:var(--primary-bg);color:var(--primary-fg);font:600 13px var(--font-sans);padding:10px 16px;cursor:pointer;flex:1}
+.velo-native-dialog.trade-dialog .velo-dialog-heading,.trade-dialog-identity{flex:0 0 auto}
+.trade-dialog-scroll{flex:1 1 auto;scroll-padding-block:12px;padding-top:6px;padding-bottom:12px;border-top:1px solid var(--hairline)}
+.trade-dialog-actions>.velo-button--secondary{background:var(--secondary-bg);color:var(--secondary-fg,var(--fg))}
+.trade-dialog-actions>.velo-button--danger{background:color-mix(in srgb,var(--pnl-down) 12%,transparent);color:var(--pnl-down);border-color:color-mix(in srgb,var(--pnl-down) 25%,transparent)}

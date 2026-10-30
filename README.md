@@ -125,7 +125,7 @@ Use **Position** in the Social composer to attach an open trade, or choose **PnL
 
 ### Account and performance
 
-The dashboard shows total account equity, available funds, margin and open PnL. Its equity chart uses observations saved for the account and trading engine on the device. Time-range controls enable when that history supports distinct periods; chart labels and inspection timestamps use the user's locale and time zone. Performance provides a separate realized-settlement PnL chart, a calendar and receipt inspection. Cash movements and open PnL are excluded from realized trading results.
+The dashboard shows total account equity: available wallet funds, refundable pending-order collateral and estimated position closeout values. Entry fees are not deducted twice. Its equity chart combines private observations saved in Supabase with a bounded device cache and verified historical checkpoints where available. History is scoped to the account, trader, chain and engine. Time-range controls enable when that history supports distinct periods; chart labels and inspection timestamps use the user's locale and time zone. Performance provides a separate realized-settlement PnL chart, a calendar and receipt inspection. Cash movements and open PnL are excluded from realized trading results.
 
 ### Navigation and interface
 

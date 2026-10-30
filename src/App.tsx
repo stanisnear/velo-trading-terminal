@@ -1,4 +1,5 @@
 import { useEquityHistory } from './hooks/useEquityHistory';
+import { equityStore } from './services/equityStore';
 import { QuickSearch } from './components/QuickSearch';
 import { MarketSparkline } from './components/ui/MarketSparkline';
 import { AnimatedText } from './components/ui/AnimatedValue';
@@ -56,7 +57,7 @@ import { VeloManagePositionModal } from './components/VeloManagePositionModal';
 import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
 import { VeloAdminPanel } from './components/VeloAdminPanel';
 import { VeloLegacyPositions } from './components/VeloLegacyPositions';
-import { positionPnl, liquidationEstimate } from './services/positionValuation.mjs';
+import { positionPnl, accountPositionPnl, accountEquity, liquidationEstimate } from './services/positionValuation.mjs';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE, IS_V4 } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
@@ -2484,46 +2485,32 @@ const App = () => {
     [positions]);
 
     const totalUnrealizedPnl = useMemo(() =>
-        positions.reduce((acc, p) => {
-            const mark = marketPrices[p.pair] || p.entryPrice;
-            return acc + positionPnl(p, mark);
-        }, 0),
-    [positions, marketPrices]);
+        positions.reduce((sum,p)=>sum+accountPositionPnl(p,marketPrices[p.pair]||p.entryPrice),0),
+    [positions,marketPrices]);
 
-    // ── Equity & buying power ─────────────────────────────────────────────────
-    //
-    // Definitions (industry standard):
-    //   • Total Equity   = total value of the trading account
-    //                    = Free Balance + Locked Margin + Unrealized PnL
-    //                    = your mUSDC + your trading PnL.
-    //                      It does NOT change when you open a position — it only
-    //                      moves on price action (PnL) or new deposits/withdrawals.
-    //   • Buying Power   = how much you have available to open new positions
-    //                    = Free Balance only.
-    //                      Drops by exactly the margin amount when you open.
-    //
-    // Phase 3 — VeloPerps source semantics:
-    //   veloPerpsTrading.usdcBalance is the FREE wallet balance (the contract
-    //   pulls collateral OUT of the wallet on open, so wallet balance never
-    //   includes locked margin). Same semantics as demo mode's user.balance,
-    //   so we can use the single formula below for both wallet and email users.
+    const pendingOrderCollateral = useMemo(()=>veloPerpsTrading.conditionalOrders.reduce((sum,order)=>sum+(order.active?order.collateralUSDC:0),0),[veloPerpsTrading.conditionalOrders]);
+
+    // Wallet funds + estimated position payouts + refundable order escrow.
+    // Paid entry fees are not subtracted twice; transfers are never trading PnL.
     const totalEquity = useMemo(() => {
-        if (!user) return 0;
-        const isLive = !!walletAddress;
-        const freeBalance = isLive ? veloPerpsTrading.usdcBalance : user.balance;
-        return freeBalance + totalLockedMargin + totalUnrealizedPnl;
-    }, [user?.balance, walletAddress, veloPerpsTrading.usdcBalance, totalLockedMargin, totalUnrealizedPnl]);
+        if(!user)return 0;
+        const cash=walletAddress?veloPerpsTrading.usdcBalance:user.balance;
+        return accountEquity(cash,positions,marketPrices,walletAddress?veloPerpsTrading.conditionalOrders:[]) ?? cash+totalLockedMargin+totalUnrealizedPnl;
+    },[user?.id,user?.balance,walletAddress,veloPerpsTrading.usdcBalance,veloPerpsTrading.conditionalOrders,positions,marketPrices,totalLockedMargin,totalUnrealizedPnl]);
 
     // Wait for the complete account read AND its mapped positions. A wallet's
     // initial zero balance or an intermediate position sync is not equity history.
-    const equityReady = !!user && (!walletAddress || (
+    const equityReady = !!user && !!walletAddress && (
       veloPerpsTrading.hasAccountSnapshot && !veloPerpsTrading.readError &&
       positions.length === veloPerpsTrading.openPositions.length &&
-      positions.every(p => Number.isFinite(marketPrices[p.pair]) && marketPrices[p.pair] > 0) &&
+      positions.every(p => {
+        const quote=pythPriceStream.getMeta(p.pair);
+        return quote && Math.abs(Date.now()/1000-quote.publishTime)<=60 && quote.price===marketPrices[p.pair];
+      }) &&
       veloPerpsTrading.openPositions.every(p => positions.some(row => row.id === `velo_${p.tradeId}` && row.size === p.notionalUSDC))
-    ));
+    );
     const equityHistory = useEquityHistory(user?.id, veloPerpsTrading.traderAddress || user?.id,
-      VELO_PERPS_ADDRESS, totalEquity, equityReady);
+      VELO_PERPS_ADDRESS, totalEquity, equityReady, equityStore);
 
     // Cross-margin unrealized — only cross positions lend their gains as
     // additional buying power; isolated positions don't.
@@ -6646,7 +6633,7 @@ const App = () => {
                   onClosePosition={(p, result) => recordConfirmedClose({ pair:p.pair.replace('-', '/'), side:p.isLong?'LONG':'SHORT',
                     size:p.notionalUSDC, entryPrice:p.entryPrice, leverage:p.leverage, marginMode:p.marginMode,
                     timestamp:p.openedAt*1000 }, result, false)}/>}
-                {activeTab === TabView.DASHBOARD && user && <Dashboard equityHistory={equityHistory} equityReady={equityReady} user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
+                {activeTab === TabView.DASHBOARD && user && <Dashboard pendingOrderCollateral={pendingOrderCollateral} equityHistory={equityHistory} equityReady={equityReady} user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
                     if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);
