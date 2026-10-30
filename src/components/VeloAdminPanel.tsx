@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 /**
  * VeloAdminPanel — protocol owner dashboard.
@@ -136,7 +137,7 @@ const verLabel = (v: number): string => {
   return `v${v}`;
 };
 
-const S = {  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+const S = {  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
@@ -797,7 +798,7 @@ export const VeloAdminPanel: React.FC = () => {
                 {gaStats.top_pages.map((p, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < gaStats.top_pages!.length - 1 ? '1px solid var(--hairline)' : 'none' }}>
                     <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>{p.path}</span>
-                    <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>{p.views.toLocaleString('en-US')}</span>
+                    <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>{<AnimatedText text={p.views.toLocaleString('en-US')}/>}</span>
                   </div>
                 ))}
               </div>
@@ -1053,10 +1054,10 @@ export const VeloAdminPanel: React.FC = () => {
           <div>
             <div style={S.label}>Accrued (claimable)</div>
             <div style={{ ...S.display, fontSize: 32, color: 'var(--fg)', marginTop: 4 }}>
-              ${feeBalance.toFixed(2)}
+              ${<AnimatedText text={feeBalance.toFixed(2)}/>}
             </div>
             <div style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)', marginTop: 4 }}>
-              Open {(openFeeBps / 100).toFixed(2)}% + Close {(closeFeeBps / 100).toFixed(2)}% per trade
+              Open {<AnimatedText text={(openFeeBps / 100).toFixed(2)}/>}% + Close {<AnimatedText text={(closeFeeBps / 100).toFixed(2)}/>}% per trade
             </div>
           </div>
           <button
@@ -1106,7 +1107,7 @@ export const VeloAdminPanel: React.FC = () => {
             <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: `1px solid ${keeperEthBalance !== null && keeperEthBalance < 0.005 ? 'rgba(255,60,60,0.4)' : 'var(--hairline)'}` }}>
               <div style={S.label}>Keeper ETH balance</div>
               <div style={{ ...S.display, fontSize: 28, marginTop: 6, color: keeperEthBalance === null ? 'var(--fg-muted)' : keeperEthBalance < 0.005 ? 'var(--pnl-down)' : keeperEthBalance < 0.02 ? '#f97316' : 'var(--pnl-up)' }}>
-                {keeperEthBalance === null ? '…' : `${keeperEthBalance.toFixed(4)} ETH`}
+                {<AnimatedText text={keeperEthBalance === null ? '…' : `${keeperEthBalance.toFixed(4)} ETH`}/>}
               </div>
               {keeperEthBalance !== null && keeperEthBalance < 0.005 && (
                 <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 4 }}>Critical — top up now or keepers stop</div>
@@ -1155,7 +1156,7 @@ export const VeloAdminPanel: React.FC = () => {
           <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
             <div style={S.label}>Pool reserves</div>
             <div style={{ ...S.display, fontSize: 28, color: poolBalance < 500 ? 'var(--pnl-down)' : 'var(--pnl-up)', marginTop: 6 }}>
-              ${poolBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+              ${<AnimatedText text={poolBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}/>}
             </div>
             {poolBalance < 500 && (
               <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 4 }}>Low - seed more</div>
@@ -1164,7 +1165,7 @@ export const VeloAdminPanel: React.FC = () => {
           <div style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)' }}>
             <div style={S.label}>Your mUSDC balance</div>
             <div style={{ ...S.display, fontSize: 28, color: 'var(--fg)', marginTop: 6 }}>
-              ${adminUsdcBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+              ${<AnimatedText text={adminUsdcBalance.toLocaleString('en-US', { maximumFractionDigits: 2 })}/>}
             </div>
             {faucetCooldownEnd > 0 && faucetCooldownEnd > Date.now() / 1000 && (
               <div style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)', marginTop: 4 }}>
@@ -1408,7 +1409,7 @@ const StatCard: React.FC<{ label: string; value: string; accent?: boolean }> = (
       ...S.display, fontSize: 26, marginTop: 6,
       color: accent ? 'var(--pnl-up)' : 'var(--fg)',
     }}>
-      {value}
+      <AnimatedText text={value}/>
     </div>
   </div>
 );

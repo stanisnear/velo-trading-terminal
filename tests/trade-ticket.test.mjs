@@ -36,7 +36,7 @@ test('market, limit and stop share a persistent submit area outside the scrollin
       await act(async () => tab.click());
       assert.equal(Number(divider.getAttribute('aria-valuenow')), type === 'MARKET' ? marketHeight : marketHeight - 60);
       assert.equal(ticket.querySelector('.velo-order-ticket__footer > button'), submit);
-      assert.equal([...body.querySelectorAll('label')].some(label => label.textContent === 'Price'), type !== 'MARKET');
+      assert.equal([...body.querySelectorAll('label')].some(label => label.textContent === 'Price' && !label.closest('[hidden], [inert]')), type !== 'MARKET');
     }
     const initialHeight = Number(divider.getAttribute('aria-valuenow'));
     await act(async () => divider.dispatchEvent(new window.KeyboardEvent('keydown', {key:'ArrowDown',bubbles:true,cancelable:true})));
@@ -55,5 +55,26 @@ test('market, limit and stop share a persistent submit area outside the scrollin
     assert.equal(document.querySelector('.velo-trade-rail').firstElementChild, ticket, 'mobile DOM and keyboard order put the ticket before the feed');
     assert.equal(ticket.querySelector('.velo-order-ticket__footer > button'), submit, 'resize preserves the ticket and its draft');
   } finally { await act(async () => root.unmount()); dom.window.close(); }
+});
+test('signed-out workspace restores locked order and activity panels without editable trading controls', async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'https://fixture.invalid'});
+ globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.Element=dom.window.Element;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+ dom.window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
+ const root=createRoot(document.querySelector('#root'));let signIns=0;
+ try{
+  await act(async()=>root.render(React.createElement(TradeView,{...tradeProps,user:null,onRequireAuth:()=>signIns++})));
+  assert.equal(document.querySelector('.velo-trade-workspace').dataset.authenticated,'false');
+  assert.equal(document.querySelectorAll('.trade-preview').length,0);
+  assert.equal(document.querySelectorAll('.velo-order-ticket input,.velo-order-ticket select').length,0);
+  assert.equal(document.querySelectorAll('.trade-auth-gate').length,2);
+  assert.ok(document.querySelector('.velo-trade-activity .trade-auth-gate--compact'),'activity stays in its own locked panel');
+  assert.doesNotMatch(document.querySelector('.velo-trade-activity').textContent,/· 0/,'anonymous counts are unknown, not empty accounts');
+  assert.equal(document.querySelectorAll('.velo-trade-resizer').length,0);
+  await act(async()=>document.querySelector('.velo-order-ticket .trade-auth-gate__button').click());assert.equal(signIns,1);
+  await act(async()=>{window.innerWidth=390;window.dispatchEvent(new window.Event('resize'));});
+  assert.equal(document.querySelector('.velo-trade-rail').firstElementChild,document.querySelector('.velo-order-ticket'));
+  assert.equal(document.querySelectorAll('.trade-auth-gate').length,2);
+  assert.equal(document.querySelectorAll('.velo-order-ticket input').length,0);
+ }finally{await act(async()=>root.unmount());dom.window.close();}
 });
 test.after(() => rm(folder, { recursive: true, force: true }));

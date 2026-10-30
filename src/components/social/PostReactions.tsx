@@ -1,6 +1,10 @@
-import React, { createContext, useContext, useState } from 'react';
+import { AnimatedText } from '../ui/AnimatedValue';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Lightbulb, PartyPopper, TrendingUp, SmilePlus } from 'lucide-react';
 import { Post } from '@/utils/types';
+import { ReactionFeedback, supportsProductMotion } from '../ui/ProductMotion';
+import './PostReactions.css';
 
 export type ReactionKind = 'insightful' | 'celebrate' | 'bullish';
 export const ReactionContext = createContext<{
@@ -18,23 +22,48 @@ export function PostReactions({ post }: { post: Post }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const root=useRef<HTMLDivElement>(null), trigger=useRef<HTMLButtonElement>(null), locked=useRef(false);
+  const reduced=useReducedMotion();
+  const animated=!reduced&&supportsProductMotion();
   const reactions = post.reactions || [];
   const selected = reactions.find(reaction => reaction.userId === userId)?.kind;
+  useEffect(()=>{
+    if(!expanded)return;
+    const outside=(event:PointerEvent)=>{if(event.target instanceof Node&&!root.current?.contains(event.target))setExpanded(false);};
+    document.addEventListener('pointerdown',outside);
+    return()=>document.removeEventListener('pointerdown',outside);
+  },[expanded]);
   async function choose(kind: ReactionKind) {
     if (!userId) { requireAuth(); return; }
-    if (busy) return;
-    setBusy(true); setError('');
-    try { await react(post.id, selected === kind ? null : kind); }
+    if (locked.current) return;
+    locked.current=true;setBusy(true);setError('');
+    try { await react(post.id, selected === kind ? null : kind);setExpanded(false); }
     catch { setError('Reaction not saved. Try again.'); }
-    finally { setBusy(false); }
+    finally { locked.current=false;setBusy(false); }
   }
-  return <div className="post-reactions" aria-label="Post reactions">
-    <button type="button" title={expanded ? 'Hide reactions' : 'React to this post'} aria-label="React to this post" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}><SmilePlus size={16} /></button>
-    {choices.map(({ kind, label, Icon }) => {
-      const count = reactions.filter(reaction => reaction.kind === kind).length;
-      return expanded || count > 0 ? <button key={kind} type="button" title={label} aria-label={`${label}: ${count}`} aria-pressed={selected === kind} disabled={busy} onClick={() => void choose(kind)}><Icon size={15} /><span>{count || label}</span></button> : null;
+  const items=choices.filter(choice=>expanded||reactions.some(reaction=>reaction.kind===choice.kind));
+  const dock=<div className="reaction-dock" role="group" aria-label="Choose a reaction" aria-busy={busy}
+    onKeyDown={event=>{
+      if(!['ArrowRight','ArrowLeft','Home','End'].includes(event.key))return;
+      const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+      const index=buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;
+      event.preventDefault();buttons[next]?.focus();
+    }}>
+    {items.map(({kind,label,Icon},index)=>{
+      const count=reactions.filter(reaction=>reaction.kind===kind).length;
+      const content=<button type="button" title={label} aria-label={`${label}: ${count}`} aria-pressed={selected===kind} disabled={busy} onClick={()=>void choose(kind)}>
+        <ReactionFeedback active={selected===kind}><Icon size={17} strokeWidth={1.7}/></ReactionFeedback>
+        <span>{expanded?label:null}{count?<span className="reaction-count"><AnimatedText text={count}/></span>:null}</span>
+      </button>;
+      return animated?<motion.div key={kind} initial={{opacity:0,y:6,scale:.94}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:3}} transition={{type:'spring',stiffness:520,damping:30,delay:index*.025}}>{content}</motion.div>:<div key={kind}>{content}</div>;
     })}
-    {error && <span role="alert">{error}</span>}
-    <style>{`.post-reactions{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding-top:8px}.post-reactions button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:6px 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--fg-muted);font:500 12px var(--font-sans);cursor:pointer;transition:background 150ms,color 150ms,transform 150ms}.post-reactions button:hover{background:var(--chip-bg);color:var(--fg)}.post-reactions button[aria-pressed=true]{border-color:var(--accent);background:var(--chip-bg);color:var(--accent-text)}.post-reactions button:active{transform:scale(.95)}.post-reactions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.post-reactions [role=alert]{color:var(--pnl-down);font-size:12px}@media(prefers-reduced-motion:reduce){.post-reactions button{transition:none}}`}</style>
+  </div>;
+  return <div ref={root} className={`post-reactions${expanded?' is-expanded':''}`} aria-label="Post reactions" onKeyDown={event=>{
+    if(event.key==='Escape'&&expanded){event.preventDefault();event.stopPropagation();setExpanded(false);trigger.current?.focus();}
+  }}>
+    <button ref={trigger} type="button" className="reaction-trigger" title={expanded?'Hide reactions':'React to this post'} aria-label="React to this post" aria-expanded={expanded} onClick={()=>setExpanded(value=>!value)}><SmilePlus size={17}/></button>
+    {animated?<AnimatePresence initial={false}>{items.length>0&&<motion.div key="dock" initial={{opacity:0,scale:.96,x:-5}} animate={{opacity:1,scale:1,x:0}} exit={{opacity:0,scale:.96,x:-5}} transition={{type:'spring',stiffness:460,damping:32}}>{dock}</motion.div>}</AnimatePresence>:items.length>0?dock:null}
+    {error&&<span role="alert">{error}</span>}
   </div>;
 }

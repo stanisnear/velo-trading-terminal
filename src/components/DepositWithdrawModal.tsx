@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEPOSIT / WITHDRAW MODAL — post-onboarding
 // Lets an already-active Orderly user top up or withdraw USDC from the vault.
@@ -48,7 +49,7 @@ interface Props {
 
 const S = {
   mono:    { fontFamily: 'var(--font-mono)' } as React.CSSProperties,
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' } as React.CSSProperties,
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
   sans:    { fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6 } as React.CSSProperties,
 };
@@ -230,11 +231,11 @@ export const DepositWithdrawModal: React.FC<Props> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div style={{ padding: '10px 12px', background: 'var(--chip-bg)', borderRadius: 10, border: '1px solid var(--hairline)' }}>
               <div style={{ ...S.label, fontSize: 9 }}>Wallet USDC</div>
-              <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>{walletUsdcNum.toFixed(2)}</div>
+              <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>{<AnimatedText text={walletUsdcNum.toFixed(2)}/>}</div>
             </div>
             <div style={{ padding: '10px 12px', background: 'var(--chip-bg)', borderRadius: 10, border: '1px solid var(--hairline)' }}>
               <div style={{ ...S.label, fontSize: 9 }}>Vault USDC</div>
-              <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--pnl-up)', marginTop: 2 }}>{orderlyBalance.toFixed(2)}</div>
+              <div style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--pnl-up)', marginTop: 2 }}>{<AnimatedText text={orderlyBalance.toFixed(2)}/>}</div>
             </div>
           </div>
 
@@ -244,7 +245,7 @@ export const DepositWithdrawModal: React.FC<Props> = ({
               <span style={S.label}>Amount (USDC)</span>
               <button onClick={() => setAmount(max.toFixed(2))}
                 style={{ ...S.mono, fontSize: 10, fontWeight: 700, color: 'var(--iris-violet)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                MAX ({max.toFixed(2)})
+                MAX ({<AnimatedText text={max.toFixed(2)}/>})
               </button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', background: 'var(--chip-bg)', borderRadius: 12, border: '1px solid var(--hairline)' }}>

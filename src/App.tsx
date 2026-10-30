@@ -1,8 +1,22 @@
+import { useEquityHistory } from './hooks/useEquityHistory';
+import { equityStore } from './services/equityStore';
+import { QuickSearch } from './components/QuickSearch';
+import { MarketSparkline } from './components/ui/MarketSparkline';
+import { AnimatedText } from './components/ui/AnimatedValue';
+import { SegmentedControl } from './components/ui/SegmentedControl';
+import { SocialTagProvider, SocialTextField } from './components/social/SocialTextField';
+import { positionShareMetadata } from './utils/positionShareMetadata.mjs';
+import { PositionComposerTools } from './components/PositionComposerTools';
+import { TradeCloseReceipt } from './components/TradeCloseReceipt';
+import { isWalletPlaceholder, createProfileHydrationGate } from './utils/profileIdentity.mjs';
 import { findRecentPositionClose, findRecentOrderOutcome, type ConfirmedClose } from './services/tradeReceipts';
 import { validateUsername as validateRegistryUsername } from './services/usernameService';
-import { createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
+import { canRestoreCachedProfile, hasWalletSignInIntent, createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
 import { publicSupabase } from './services/supabaseStore';
 import { signInWithWallet, cancelWalletSignIn, walletSignInError } from './services/walletAuth';
+import { activeTradingOrders, protectionAfterCancellation } from './services/activeTradingOrders.mjs';
+import { WalletSignInDialog } from './components/WalletSignInDialog';
+import type { WalletSignInPhase } from './services/walletAuth';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { VeloOnboardingModal, useOnboardingGuard } from './components/VeloOnboardingModal';
@@ -26,37 +40,36 @@ import { fetchPricesResilient, pythPriceStream, fetchPythKlines, fetchOlderPythK
 import { orderEngine } from './services/orderEngine';
 import { WalletConnectButton } from './components/WalletConnectButton';
 import { useChainId, useAccount, usePublicClient, useSignMessage, useSwitchChain } from 'wagmi';
-import { useAppKit } from '@reown/appkit/react';
+import { useAppKit, useAppKitState } from '@reown/appkit/react';
 import { OrderlyOnboardingModal } from './components/OrderlyOnboardingModal';
 // VeloWelcomeModal merged into VeloOnboardingModal
 import { VeloBridgeModal } from './components/VeloBridgeModal';
 import { VeloDepositModal } from './components/VeloDepositModal';
-import { VeloShareTradeModal, type ClosedTradeShareData } from './components/VeloShareTradeModal';
+import { SharedMarkContext, SharedPositionCard } from './components/SharedPositionCard';
+import { PositionSharePicker } from './components/PositionSharePicker';
 import { VeloUsernameModal } from './components/VeloUsernameModal';
 import { VeloSendModal } from './components/VeloSendModal';
 import { VeloFaucetModal } from './components/VeloFaucetModal';
 import { TransactionRecoveryNotice } from './components/TransactionRecoveryNotice';
 import { reconcileIncomingTransfers } from './services/incomingTransfers.mjs';
-import { VeloWithdrawModal } from './components/VeloWithdrawModal';
 import { VeloShareCard, type ShareCardData } from './components/VeloShareCard';
 import { VeloManagePositionModal } from './components/VeloManagePositionModal';
 import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
 import { VeloAdminPanel } from './components/VeloAdminPanel';
 import { VeloLegacyPositions } from './components/VeloLegacyPositions';
-import { positionPnl, liquidationEstimate } from './services/positionValuation.mjs';
+import { positionPnl, accountPositionPnl, accountEquity, liquidationEstimate } from './services/positionValuation.mjs';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE, IS_V4 } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentThread } from './components/CommentThread';
-import { TokenInteractiveChart } from './components/TokenInteractiveChart';
-import { useMarketDiscovery, fetchMarketData, tradingPairForAsset, marketWatchKey } from './services/marketDiscovery';
-import { mentionsTicker } from '../shared/marketDiscovery.mjs';
+import { TokenPage } from './components/TokenPage';
+import { useMarketDiscovery } from './services/marketDiscovery';
 import { setReactionActor } from './services/reactionState.mjs';
 import { useQuery } from '@tanstack/react-query';
-import { MentionDropdown, WallCompose } from './components/social/Compose';
+import { WallCompose } from './components/social/Compose';
 import { ProfileHeader } from './components/social/ProfileHeader';
-import { PostCard, LinkPreviewCard, renderContentWithMentions, extractFirstUrl, COMMENT_LIKE_HANDLER, setCommentLikeHandler } from './components/social/PostCard';
+import { PostCard, PostMediaViewer, LinkPreviewCard, renderContentWithMentions, extractFirstUrl, COMMENT_LIKE_HANDLER, setCommentLikeHandler } from './components/social/PostCard';
 import { LeaderboardView } from './components/ui/pages/LeaderboardView';
 import { Navbar, MobileSidebar, MobileBottomNav } from './components/Navigation';
 import { useSharedPost } from './services/useSharedPost';
@@ -130,7 +143,6 @@ import { trackPageView, setAnalyticsUser } from './services/analytics';
 import { TradeView } from '@/components/ui/pages/TradeView';
 import { AccountChoiceDialog } from './components/AccountChoiceDialog';
 import { postPath, parsePostPath } from '../shared/socialLinks.mjs';
-import { coinOverview } from '../shared/coinOverview.mjs';
 import { mergeNotifications } from './services/notificationState.mjs';
 import { ReactionContext, PostReactions, type ReactionKind } from './components/social/PostReactions';
 import { Dashboard } from '@/components/ui/pages/Dashboard';
@@ -139,61 +151,7 @@ import { OrderDetailsModal, DetailsPayload } from '@/components/ui/OrderDetailsM
 
 import { Candle, Post, TabView, Trader, UserProfile, Position, PAIRS, SOCIAL_FEATURED_PAIRS, TOP_SOCIAL_PAIRS, VALID_TICKER_SYMBOLS, ORDERLY_PAIRS, Notification, OrderType, TradeHistoryItem, Comment, MarginMode, Transaction, OpenOrder, ChartTimeframe, VERIFICATION_LABELS, isTradablePair } from './utils/types';
 
-// --- Sound Service (Refined) ---
-const playSound = (type: 'SUCCESS' | 'ERROR' | 'OPEN' | 'CLOSE' | 'CLICK') => {
-    try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        const now = ctx.currentTime;
-        
-        if (type === 'SUCCESS') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(523.25, now); // C5
-            osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
-            gain.gain.setValueAtTime(0.05, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-            osc.start(now);
-            osc.stop(now + 0.4);
-        } else if (type === 'ERROR') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.linearRampToValueAtTime(100, now + 0.15);
-            gain.gain.setValueAtTime(0.05, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-            osc.start(now);
-            osc.stop(now + 0.2);
-        } else if (type === 'OPEN') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, now);
-            gain.gain.setValueAtTime(0.05, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-            osc.start(now);
-            osc.stop(now + 0.15);
-        } else if (type === 'CLOSE') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, now);
-            gain.gain.setValueAtTime(0.03, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-            osc.start(now);
-            osc.stop(now + 0.1);
-        } else {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(1200, now);
-            gain.gain.setValueAtTime(0.01, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-            osc.start(now);
-            osc.stop(now + 0.03);
-        }
-    } catch (e) {
-        // Ignore audio context errors
-    }
-};
+import { playInterfaceSound as playSound } from './services/interfaceSound';
 
 // --- Helper Functions ---
 
@@ -214,7 +172,8 @@ function readSessionCache(): any | null {
       localStorage.removeItem(VELO_SESSION_CACHE_KEY);
       return null;
     }
-    return parsed;
+    const auth = JSON.parse(localStorage.getItem('velo-auth-token') || 'null');
+    return canRestoreCachedProfile(parsed, auth, localStorage.getItem('velo_logged_out') === '1', Date.now(), Number(localStorage.getItem('velo_session_started_at') || 0)) ? parsed : null;
   } catch { return null; }
 }
 
@@ -459,7 +418,7 @@ const PairSelector = ({ isOpen, onClose, onSelect, marketPrices = {} }: any) => 
                                 <VeloAssetIcon src={p.logo} symbol={p.id.split('/')[0]} size={32} className="group-hover:scale-105 transition-transform" />
                                 <div className="text-left"><p className="font-bold text-[var(--fg)]">{p.id}</p><p className="text-xs text-[var(--fg-subtle)]">{p.name}</p></div>
                             </div>
-                            <div className="text-right"><span className="block text-sm font-medium text-[var(--fg)]">{marketPrices[p.id] > 0 ? `$${formatPrice(marketPrices[p.id])}` : '—'}</span><span className="text-[10px] text-[var(--fg-subtle)]">{p.name}</span></div>
+                            <div className="text-right"><span className="block text-sm font-medium text-[var(--fg)]">{<AnimatedText text={marketPrices[p.id] > 0 ? `$${formatPrice(marketPrices[p.id])}` : '—'}/>}</span><span className="text-[10px] text-[var(--fg-subtle)]">{p.name}</span></div>
                         </button>
                     ))}
                 </div>
@@ -493,34 +452,9 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
     };
 
-    const drawSparkline = (data: number[], up: boolean) => {
-        if (!data || data.length < 2) return null;
-        const w = 100, h = 24;
-        const min = Math.min(...data), max = Math.max(...data);
-        const range = max - min || 1;
-        const pts = data.map((v, i) => {
-            const x = (i / (data.length - 1)) * w;
-            const y = h - ((v - min) / range) * h;
-            return `${x},${y}`;
-        }).join(' ');
-        const color = up ? 'var(--pnl-up)' : 'var(--pnl-down)';
-        const fillPts = `0,${h} ${pts} ${w},${h}`;
-        return (
-            <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
-                <defs>
-                    <linearGradient id={`sg-${up ? 'u' : 'd'}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-                        <stop offset="100%" stopColor={color} stopOpacity="0" />
-                    </linearGradient>
-                </defs>
-                <polygon points={fillPts} fill={`url(#sg-${up ? 'u' : 'd'})`} />
-                <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-        );
-    };
 
     return (
-        <div className="social-token-rail" style={{ marginBottom: 12 }}>
+        <div className="social-token-rail">
             <div style={{ background: 'var(--glass-bg)', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--hairline)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                 <div className="social-token-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
                     {TOP_SOCIAL_PAIRS.map((p, i) => {
@@ -529,7 +463,7 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                         const up = chg >= 0;
                         const spark = sparklines[p.symbol] || [];
                         return (
-                            <div key={p.symbol} className="social-token-card"
+                            <div key={p.symbol} className="social-token-card" role="button" tabIndex={0} aria-label={`View ${p.name}`} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onTickerClick(p.symbol); } }}
                                 onClick={() => onTickerClick(p.symbol)}
                                 style={{ background: 'transparent', borderLeft: i > 0 ? '1px solid var(--hairline)' : 'none', padding: '13px 15px', cursor: 'pointer', transition: 'background 0.15s', position: 'relative', overflow: 'hidden' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--fg) 5%, transparent)'; }}
@@ -542,20 +476,20 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, color: 'var(--fg-subtle)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
                                     </div>
                                     <span style={{ marginLeft: 'auto', ...S.mono, fontSize: 11, fontWeight: 700, color: up ? 'var(--pnl-up)' : 'var(--pnl-down)', background: up ? 'oklch(0.68 0.18 162 / 0.1)' : 'oklch(0.65 0.2 25 / 0.1)', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                                        {up ? '+' : ''}{chg.toFixed(2)}%
+                                        {up ? '+' : ''}{<AnimatedText text={chg.toFixed(2)}/>}%
                                     </span>
                                 </div>
                                 <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)', display: 'block', marginBottom: 8, letterSpacing: '-0.01em' }}>
-                                    {price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}
+                                    {<AnimatedText text={price != null ? (price >= 1000 ? `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(5)}`) : '—'}/>}
                                 </span>
-                                {drawSparkline(spark, up)}
+                                <MarketSparkline values={spark} positive={up}/>
                             </div>
                         );
                     })}
                 </div>
             </div>
             {onNavigateToMarkets && (
-                <div style={{ textAlign: 'center', marginTop: 8 }}>
+                <div className="social-markets-link" style={{ textAlign: 'center', marginTop: 8 }}>
                     <button onClick={onNavigateToMarkets} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--iris-violet)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, opacity: 0.8, transition: 'opacity 0.15s', padding: '4px 8px' }}
                         onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                         onMouseLeave={e => (e.currentTarget.style.opacity = '0.8')}
@@ -568,507 +502,9 @@ const TopTokensBar = ({ prices, changes, onTickerClick, onNavigateToMarkets }: {
     );
 };
 
-// ── Token Page (Stocktwits-style) ────────────────────────────────────────────
-// ── Token metadata for enriched token pages ────────────────────────────────
-const TOKEN_META: Record<string, { geckoId: string; website?: string; twitter?: string; whitepaper?: string; description?: string; longDescription?: string; supply?: string; marketCapRank?: number; category?: string; launchYear?: number }> = {
-    BTC:  { geckoId: 'bitcoin',           website: 'https://bitcoin.org',     twitter: 'https://twitter.com/bitcoin',      whitepaper: 'https://bitcoin.org/bitcoin.pdf',
-        description: 'The original peer-to-peer electronic cash system and decentralized store of value.',
-        longDescription: 'Bitcoin is the world\'s first cryptocurrency, created in 2009 by the pseudonymous Satoshi Nakamoto. It operates on a decentralized blockchain, secured by a global network of miners using proof-of-work consensus. With a hard cap of 21 million coins, Bitcoin is designed to be deflationary — often called "digital gold." It is the most liquid, widely held, and institutionally adopted crypto asset, with ETFs, futures markets, and corporate treasury holdings worldwide.',
-        supply: '21M max', category: 'Layer 1', launchYear: 2009 },
-    ETH:  { geckoId: 'ethereum',          website: 'https://ethereum.org',    twitter: 'https://twitter.com/ethereum',     whitepaper: 'https://ethereum.org/en/whitepaper',
-        description: 'A decentralized platform for smart contracts and the backbone of decentralized finance.',
-        longDescription: 'Ethereum is the leading programmable blockchain, enabling developers to build decentralized applications (dApps), DeFi protocols, NFTs, and DAOs. Transitioned to proof-of-stake in 2022 ("The Merge"), drastically cutting energy consumption. Its native currency ETH is used to pay gas fees across the entire Ethereum ecosystem. Layer-2 networks like Arbitrum, Optimism, and Base extend its throughput. ETH is also deflationary post-EIP-1559, with fee burns reducing supply over time.',
-        supply: 'No hard cap', category: 'Layer 1', launchYear: 2015 },
-    SOL:  { geckoId: 'solana',            website: 'https://solana.com',      twitter: 'https://twitter.com/solana',       whitepaper: 'https://solana.com/solana-whitepaper.pdf',
-        description: 'High-throughput Layer 1 with sub-second finality and ultra-low fees.',
-        longDescription: 'Solana is a high-performance Layer 1 blockchain capable of processing up to 65,000 transactions per second using a novel consensus mechanism combining Proof of History (PoH) with Proof of Stake. It powers a booming ecosystem of DeFi, NFTs, consumer apps, and payment infrastructure. Known for low fees (often fractions of a cent) and fast finality, Solana has become the preferred chain for retail users and high-frequency trading bots alike.',
-        supply: '~580M', category: 'Layer 1', launchYear: 2020 },
-    DOGE: { geckoId: 'dogecoin',          website: 'https://dogecoin.com',    twitter: 'https://twitter.com/dogecoin',
-        description: 'The original meme coin — now a widely accepted payment method with a massive community.',
-        longDescription: 'Dogecoin was created in 2013 as a lighthearted parody of cryptocurrency culture, featuring the iconic Shiba Inu dog. Despite its meme origins, DOGE has grown into one of the top cryptocurrencies by market cap, used for tipping, microtransactions, and payments. Its community is one of the most active in crypto. Elon Musk\'s public endorsements have historically driven significant price action. Dogecoin uses a merged-mining approach with Litecoin and has no supply cap.',
-        supply: '~144B', category: 'Meme Coin', launchYear: 2013 },
-    WIF:  { geckoId: 'dogwifcoin',        website: 'https://dogwifcoin.org',  twitter: 'https://twitter.com/dogwifcoin',
-        description: 'Solana\'s breakout meme token — a dog wearing a hat that captured the 2024 cycle.',
-        longDescription: 'dogwifhat (WIF) is a Solana-native meme coin featuring a Shiba Inu wearing a knit hat. Launched in late 2023, it became one of the defining meme tokens of the 2024 bull cycle, reaching a multi-billion dollar market cap. Unlike earlier meme coins, WIF has no utility or roadmap — its value is entirely driven by community conviction, social virality, and speculative momentum on Solana\'s fast and cheap infrastructure.',
-        supply: '998.9M', category: 'Meme Coin', launchYear: 2023 },
-    JUP:  { geckoId: 'jupiter-exchange-solana', website: 'https://jup.ag',   twitter: 'https://twitter.com/JupiterExchange',
-        description: 'The dominant swap aggregator on Solana, routing trades across every DEX for best execution.',
-        longDescription: 'Jupiter is Solana\'s most used swap aggregator and DeFi hub. It routes transactions across all major Solana DEXs to find the best price with minimal slippage. Beyond swaps, Jupiter offers limit orders, perpetual futures (Jupiter Perps), and launchpad services for new tokens. Its governance token JUP gives holders voting rights over protocol upgrades and fee distribution. Jupiter processes billions in monthly volume and is considered infrastructure-critical for the Solana DeFi ecosystem.',
-        supply: '10B', category: 'DeFi', launchYear: 2021 },
-    AVAX: { geckoId: 'avalanche-2',       website: 'https://avax.network',    twitter: 'https://twitter.com/avalancheavax',
-        description: 'Modular Layer 1 enabling custom blockchains (Subnets) with near-instant finality.',
-        longDescription: 'Avalanche is a Layer 1 blockchain platform distinguished by its unique multi-chain architecture: the X-Chain for assets, C-Chain for EVM-compatible contracts, and P-Chain for staking. Its Subnet technology allows enterprises and developers to launch custom blockchains with their own validators and tokenomics. Avalanche achieves sub-second finality through the Avalanche consensus protocol, making it competitive for DeFi, gaming, and institutional applications.',
-        supply: '720M max', category: 'Layer 1', launchYear: 2020 },
-    LINK: { geckoId: 'chainlink',         website: 'https://chain.link',      twitter: 'https://twitter.com/chainlink',
-        description: 'The leading decentralized oracle network, connecting blockchains to real-world data.',
-        longDescription: 'Chainlink is the industry-standard oracle infrastructure that connects smart contracts to external data sources, APIs, and payment systems. It powers price feeds for virtually every major DeFi protocol, enables cross-chain interoperability via CCIP, and provides verifiable randomness (VRF) for NFTs and gaming. LINK is staked by node operators to provide cryptoeconomic security guarantees. Chainlink\'s data feeds secure hundreds of billions in DeFi TVL.',
-        supply: '1B', category: 'Oracle', launchYear: 2017 },
-    PEPE: { geckoId: 'pepe',              website: 'https://pepecoin.vip',    twitter: 'https://twitter.com/pepe_coin_',
-        description: 'Ethereum-native frog meme coin that became the defining asset of the 2023 meme supercycle.',
-        longDescription: 'PEPE is an ERC-20 meme token launched in April 2023, based on the famous Pepe the Frog internet character. With no utility or team allocation, it quickly became one of the most traded tokens in crypto history, reaching a market cap of billions within weeks. PEPE represents the purest form of speculative meme trading — a test of collective attention and narrative momentum. It trades 24/7 with extreme volatility and remains a bellwether for meme coin sentiment.',
-        supply: '420.69T', category: 'Meme Coin', launchYear: 2023 },
-    RNDR: { geckoId: 'render-token',      website: 'https://rendernetwork.com', twitter: 'https://twitter.com/rendertoken',
-        description: 'Decentralized GPU rendering network connecting 3D artists with idle GPU capacity.',
-        longDescription: 'Render Network is a distributed GPU computing platform that allows creators to render 3D graphics and visual effects by leveraging idle GPU resources from node operators. Artists pay RNDR tokens to render jobs; operators earn RNDR for providing compute. As AI and 3D content creation demand explodes, Render positions itself as decentralized compute infrastructure at the intersection of AI, media, and blockchain. The network has migrated to Solana for improved throughput.',
-        supply: '536M', category: 'AI / DePIN', launchYear: 2020 },
-    NEAR: { geckoId: 'near',              website: 'https://near.org',        twitter: 'https://twitter.com/nearprotocol',
-        description: 'User-friendly Layer 1 with sharding, human-readable accounts, and AI integration.',
-        longDescription: 'NEAR Protocol is a sharded, proof-of-stake Layer 1 blockchain designed for mainstream adoption. It features human-readable account names (e.g. alice.near), low fees, and Nightshade sharding for horizontal scalability. NEAR has pivoted toward AI-native blockchain infrastructure, with a focus on on-chain AI agents and data ownership. Its JavaScript SDK makes it accessible to millions of web developers. The ecosystem includes Aurora (EVM), Rainbow Bridge, and a growing DeFi landscape.',
-        supply: '1B', category: 'Layer 1', launchYear: 2020 },
-    TIA:  { geckoId: 'celestia',          website: 'https://celestia.org',    twitter: 'https://twitter.com/CelestiaOrg',
-        description: 'Pioneering modular data availability layer that decouples consensus from execution.',
-        longDescription: 'Celestia is the first modular blockchain network to separate data availability from consensus and execution. Rather than running smart contracts, Celestia specializes exclusively in ordering and publishing transaction data, allowing rollups and other chains to use it as a cheap data availability layer. This architecture enables any developer to launch a custom blockchain (rollup) that inherits Celestia\'s security without the constraints of monolithic chains. TIA is staked to secure the network and pay for data publishing.',
-        supply: '1B', category: 'Modular', launchYear: 2023 },
-    INJ:  { geckoId: 'injective-protocol', website: 'https://injective.com', twitter: 'https://twitter.com/Injective_',
-        description: 'DeFi-first Layer 1 with on-chain orderbooks, cross-chain derivatives, and zero gas fees.',
-        longDescription: 'Injective is a Layer 1 blockchain purpose-built for decentralized finance. It features a fully on-chain orderbook DEX, cross-chain trading via IBC and bridges, perpetual futures, binary options, and prediction markets. INJ holders govern the protocol and participate in a weekly token burn that reduces supply over time. Built with Cosmos SDK and using Tendermint consensus, Injective achieves fast finality and is EVM-compatible via its Ethereum bridge.',
-        supply: '100M', category: 'DeFi', launchYear: 2021 },
-    PYTH: { geckoId: 'pyth-network',      website: 'https://pyth.network',    twitter: 'https://twitter.com/PythNetwork',
-        description: 'High-fidelity oracle network delivering real-time financial data from first-party sources.',
-        longDescription: 'Pyth Network is a decentralized oracle solution that sources price data directly from first-party providers including trading firms, exchanges, and market makers — not from secondary aggregators. This provides faster and more accurate price feeds than traditional oracle models. Pyth operates on Solana and distributes data cross-chain via Wormhole. It publishes prices for equities, forex, commodities, and crypto with sub-second update speeds, making it the preferred oracle for high-frequency DeFi protocols.',
-        supply: '10B', category: 'Oracle', launchYear: 2021 },
-    BONK: { geckoId: 'bonk',              website: 'https://bonkcoin.com',    twitter: 'https://twitter.com/bonk_inu',
-        description: 'Solana\'s community dog coin — airdropped to builders and traders to revive the ecosystem.',
-        longDescription: 'BONK is a Solana-native meme coin launched in December 2022 as a community gift to Solana builders, NFT holders, and traders at the depths of the bear market following the FTX collapse. The airdrop strategy generated immediate viral adoption and helped reignite enthusiasm for the Solana ecosystem. BONK has since grown into a multi-billion dollar asset with real integrations across Solana dApps, DEXs, and wallets, and has become a cultural symbol of Solana\'s recovery.',
-        supply: '93.7T', category: 'Meme Coin', launchYear: 2022 },
-};
-
-// ── Interactive token chart with price/mcap toggle ─────────────────────────
-const TokenPage = ({ ticker: identifier, posts, traders, user, prices, changes, onClose, onLike, onRepost, onComment, onViewProfile, showUsersModal, onDeletePost, onDeleteComment, handleCopyTrade, onNavigateToTrade, watchlist, onToggleWatchlist, onSinglePost, onNavigateToTicker }: any) => {
-    const [activeTab, setActiveTab] = useState<'posts' | 'news'>('posts');
-    const [news, setNews] = useState<any[]>([]);
-    const [newsLoading, setNewsLoading] = useState(true);
-    const [descExpanded, setDescExpanded] = useState(false);
-    const discovery = useMarketDiscovery();
-    const pairInfo = discovery.resolve(identifier);
-    const ticker = pairInfo?.symbol || identifier;
-    const pairId = pairInfo?.pairId || `${ticker}/USD`;
-    const details = useQuery({
-        queryKey: ['public-markets', 'coin', pairInfo?.assetId],
-        queryFn: ({ signal }) => fetchMarketData('coin', pairInfo!.assetId, undefined, signal),
-        enabled: !!pairInfo?.assetId, staleTime: 600000, retry: 1,
-    });
-    const tokenInfo = details.data;
-    const price = pairInfo?.price ?? tokenInfo?.asset?.price;
-    const change = pairInfo?.change ?? tokenInfo?.asset?.change;
-    const chg = change ?? 0;
-    const up = chg >= 0;
-    const fallbackMeta = pairInfo && TOKEN_META[ticker]?.geckoId === pairInfo.geckoId ? TOKEN_META[ticker] : undefined;
-    const meta = pairInfo ? { ...fallbackMeta,
-        geckoId: pairInfo.geckoId,
-        website: tokenInfo?.links?.website?.[0] || fallbackMeta?.website,
-        twitter: tokenInfo?.links?.twitter?.[0] || fallbackMeta?.twitter,
-        whitepaper: tokenInfo?.links?.whitepaper?.[0] || fallbackMeta?.whitepaper } : undefined;
-    const tradable = pairInfo && tradingPairForAsset(pairInfo);
-
-    const tickerPosts = React.useMemo(() => {
-        return posts.filter((p: any) =>
-            mentionsTicker(p.content, ticker)
-        ).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [posts, ticker]);
-
-    // Fetch news
-    React.useEffect(() => {
-        setNewsLoading(true);
-        if (!pairInfo) { setNewsLoading(false); return; }
-        const categories = ticker === 'BTC' ? 'BTC' : ticker === 'ETH' ? 'ETH' : ticker === 'SOL' ? 'SOL' : ticker;
-        const controller = new AbortController();
-        fetch(`https://min-api.cryptocompare.com/data/v2/news/?categories=${categories}&extraParams=Velo&sortOrder=latest`, { signal: controller.signal })
-            .then(r => r.json())
-            .then(d => { if (!controller.signal.aborted) { setNews((d.Data || []).slice(0, 8)); setNewsLoading(false); } })
-            .catch(() => { if (!controller.signal.aborted) { setNews([]); setNewsLoading(false); } });
-        return () => controller.abort();
-    }, [ticker]);
-
-    if (!pairInfo) return <main className="p-8" aria-busy={discovery.isPending}><h1>{discovery.isPending ? 'Loading market...' : 'Market unavailable'}</h1>{discovery.isError && <button onClick={() => void discovery.refetch()}>Retry</button>}<button onClick={onClose}>Back to markets</button></main>;
-
-    const S = {
-        mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        numeric: { fontFamily: 'var(--font-sans)', fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: 'normal' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
-        label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
-    };
-    const panel: React.CSSProperties = { borderBottom: '1px solid var(--hairline)', overflow: 'hidden' };
-
-    const handleViewProfileWrapper = (partial: { id: string }) => {
-        const trader = traders.find((t: any) => t.id === partial.id);
-        if (trader) onViewProfile(trader); else if (user && user.id === partial.id) onViewProfile(user);
-    };
-
-    // Sentiment — derived from post keyword analysis
-    const bullCount = tickerPosts.filter((p: any) => {
-        const c = (p.content || '').toLowerCase();
-        return c.includes('bull') || c.includes('moon') || c.includes('long') || c.includes('buy') || c.includes('up') || c.includes('pumping');
-    }).length;
-    const bearCount = tickerPosts.filter((p: any) => {
-        const c = (p.content || '').toLowerCase();
-        return c.includes('bear') || c.includes('short') || c.includes('sell') || c.includes('dump') || c.includes('down') || c.includes('crash');
-    }).length;
-    const sentimentTotal = bullCount + bearCount || 1;
-    const bullPct = Math.round((bullCount / sentimentTotal) * 100);
-    const bearPct = 100 - bullPct;
-    // When there are no posts, show market-sentiment proxy from price change
-    const bullPctDisplay = tickerPosts.length > 0 ? bullPct : (up ? Math.round(50 + Math.min(Math.abs(chg) * 3, 45)) : Math.round(50 - Math.min(Math.abs(chg) * 3, 45)));
-    const bearPctDisplay = 100 - bullPctDisplay;
-
-    const quote = pairInfo.price != null ? pairInfo : (tokenInfo?.asset || pairInfo);
-    const mcap = quote.marketCap;
-    const volume24h = quote.volume;
-    const high24h = quote.high24h;
-    const low24h = quote.low24h;
-    const circulatingSupply = quote.supply;
-    const ath = quote.ath;
-    const athDate = quote.athDate;
-    const priceChange7d = quote.change7d;
-    const priceChange30d = quote.change30d;
-    const rank = quote.rank;
-    const fdv = quote.fdv;
-
-    const formatLarge = (n?: number) => {
-        if (!n) return '—';
-        if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-        if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-        if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
-        return `$${n.toFixed(2)}`;
-    };
-    const formatQuote = (n?: number) => {
-        if (n == null || !Number.isFinite(n)) return '—';
-        if (n >= 1000) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-        if (n >= 1) return `$${n.toFixed(2)}`;
-        if (n >= 0.01) return `$${n.toFixed(4)}`;
-        if (n >= 0.0001) return `$${n.toFixed(6)}`;
-        return `$${n.toFixed(8)}`;
-    };
-    const description = meta?.longDescription || meta?.description || coinOverview(tokenInfo?.description);
-    const descShort = description.length > 220 ? description.slice(0, 220).trimEnd() + '…' : description;
-
-    return (
-        <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", padding: "18px 24px max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))" }} className="animate-fade-in token-page">
-            {/* Back button */}
-            <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 14, padding: 0 }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg)'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--fg-muted)'}>
-                ← ALL MARKETS
-            </button>
-
-            {/* Token header */}
-            <div className="token-hero" style={{ ...panel, padding: '20px 22px', marginBottom: 14 }}>
-                <div className="token-header-inner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
-                    <div className="token-header-left" style={{ display: 'grid', gridTemplateColumns: '48px minmax(0,1fr)', alignItems: 'center', columnGap: 13, flex: 1, minWidth: 0 }}>
-                        {(pairInfo?.logo || tokenInfo?.image?.large) && (
-                            <VeloAssetIcon className="token-header-icon" src={pairInfo?.logo || tokenInfo?.image?.large} symbol={ticker} size={46} />
-                        )}
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                                <h1 style={{ ...S.display, fontSize: 32, fontWeight: 500, color: 'var(--fg)', lineHeight: 1.15, margin: 0 }}>{pairInfo.name}</h1>
-                                {(pairInfo?.name || tokenInfo?.name) && (
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)' }}>{ticker}</span>
-                                )}
-                                {rank && <span className="token-meta-chip">Rank #{rank}</span>}
-                                {meta?.category && <span className="token-meta-chip">{meta.category}</span>}
-                            </div>
-                            <div className="token-quote-line">
-                                <span style={{ ...S.numeric, fontSize: 22, fontWeight: 650, color: 'var(--fg)', lineHeight: 1 }}>
-                                    {formatQuote(price)}
-                                </span>
-                                <span className={`token-day-change ${up ? 'positive' : 'negative'}`}>
-                                    {change == null ? '24h unavailable' : `${up ? '▲' : '▼'} ${Math.abs(chg).toFixed(2)}% 24h`}
-                                </span>
-                                {priceChange7d != null && (
-                                    <span className="token-period-change" style={{ color: priceChange7d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                        7D {priceChange7d >= 0 ? '+' : ''}{priceChange7d.toFixed(2)}%
-                                    </span>
-                                )}
-                                {priceChange30d != null && (
-                                    <span className="token-period-change hide-mobile" style={{ color: priceChange30d >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                        30D {priceChange30d >= 0 ? '+' : ''}{priceChange30d.toFixed(2)}%
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right: Watchlist + Trade button */}
-                    <div className="token-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        {onToggleWatchlist && (() => {
-                            const pairId = marketWatchKey(pairInfo);
-                            const isFav = watchlist?.includes(pairId);
-                            return (
-                                <button
-                                    onClick={() => onToggleWatchlist(pairId)}
-                                    title={isFav ? 'Remove from watchlist' : 'Add to watchlist'}
-                                    aria-label={isFav ? 'Remove from watchlist' : 'Add to watchlist'}
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 11, border: `1px solid ${isFav ? 'color-mix(in oklab,var(--accent) 55%,var(--hairline))' : 'var(--hairline-strong)'}`, background: isFav ? 'color-mix(in oklab,var(--accent) 9%,transparent)' : 'var(--chip-bg)', cursor: 'pointer', color: isFav ? 'var(--accent-text)' : 'var(--fg-subtle)', transition: 'all 0.15s' }}>
-                                    <Star size={16} fill={isFav ? 'currentColor' : 'none'} strokeWidth={1.5}/>
-                                </button>
-                            );
-                        })()}
-                        {onNavigateToTrade && tradable && (
-                            <button
-                                className="token-trade-btn"
-                                onClick={() => onNavigateToTrade(ticker)}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 40, padding: '0 16px', borderRadius: 11, border: '1px solid color-mix(in oklab,var(--accent) 60%,var(--hairline))', cursor: 'pointer', background: 'var(--accent)', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                                <TrendingUp size={13} strokeWidth={2.5}/> Trade
-                            </button>
-                        )}
-                        {!tradable && <span className="token-trade-unavailable">Perpetual not listed</span>}
-                    </div>
-                </div>
-            </div>
-
-                    {/* About section — rich description */}
-                    {description && (
-                        <section className="token-overview" style={{ ...panel, padding: '20px 0 24px', marginBottom: 24 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
-                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>About {pairInfo?.name || ticker}</span>
-                                {meta?.category && (
-                                    <span style={{ marginLeft: 'auto', ...S.label, fontSize: 9, color: 'var(--iris-violet)', background: 'color-mix(in oklab, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 6, padding: '2px 8px' }}>
-                                        {meta.category}
-                                    </span>
-                                )}
-                            </div>
-                            <p style={{ maxWidth: 900, fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg-muted)', lineHeight: 1.7, marginBottom: 14 }}>
-                                {descExpanded ? description : descShort}
-                            </p>
-                            {description.length > 220 && (
-                                <button onClick={() => setDescExpanded(e => !e)} style={{ background: 'none', border: 'none', cursor: 'pointer', ...S.label, fontSize: 10, color: 'var(--iris-violet)', padding: 0, marginBottom: 12 }}>
-                                    {descExpanded ? 'Show less ↑' : 'Read more ↓'}
-                                </button>
-                            )}
-                            {(meta?.website || meta?.twitter || meta?.whitepaper) && (
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                    {meta.website && (
-                                        <a href={meta.website} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            <ExternalLink size={11}/> Website
-                                        </a>
-                                    )}
-                                    {meta.twitter && (
-                                        <a href={meta.twitter} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            𝕏 Twitter
-                                        </a>
-                                    )}
-                                    {meta.whitepaper && (
-                                        <a href={meta.whitepaper} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            <ExternalLink size={11}/> Whitepaper
-                                        </a>
-                                    )}
-                                    {quote.cmcSlug && (
-                                        <a href={`https://coinmarketcap.com/currencies/${quote.cmcSlug}/`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: '1px solid var(--hairline)', background: 'var(--chip-bg)', textDecoration: 'none', ...S.label, fontSize: 10, color: 'var(--fg)', transition: 'border-color 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                            <ExternalLink size={11}/> CoinMarketCap
-                                        </a>
-                                    )}
-                                </div>
-                            )}
-                        </section>
-                    )}
-
-            <div className="token-page-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 280px', gap: 16, alignItems: 'start' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {/* Interactive chart */}
-                    <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
-                        <TokenInteractiveChart
-                            key={pairInfo.assetId}
-                            up={up}
-                            ticker={ticker}
-                            currentPrice={price || 0}
-                            assetId={pairInfo.assetId}
-                        />
-                    </div>
-
-                    {/* Stats strip */}
-                    {(mcap || ath || circulatingSupply || high24h || low24h) && (
-                        <div className="token-data-panel" style={{ ...panel, padding: '17px 19px' }}>
-                            <div className="token-data-heading"><span>Market data</span></div>
-                            <div className="token-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0 }}>
-                                {mcap && (
-                                    <div className="token-stat">
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Market Cap</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{formatLarge(mcap)}</div>
-                                    </div>
-                                )}
-                                {volume24h && (
-                                    <div className="token-stat">
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Volume</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{formatLarge(volume24h)}</div>
-                                    </div>
-                                )}
-                                {(high24h || low24h) && (
-                                    <div className="token-stat">
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>24h Range</div>
-                                        <div style={{ ...S.numeric, fontSize: 12, fontWeight: 650, color: 'var(--fg)' }}>{low24h ? formatQuote(low24h) : '—'} <span style={{ color: 'var(--fg-subtle)' }}>–</span> {high24h ? formatQuote(high24h) : '—'}</div>
-                                    </div>
-                                )}
-                                {circulatingSupply && (
-                                    <div className="token-stat">
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>Circulating</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>
-                                            {circulatingSupply >= 1e12 ? `${(circulatingSupply / 1e12).toFixed(2)}T` : circulatingSupply >= 1e9 ? `${(circulatingSupply / 1e9).toFixed(2)}B` : circulatingSupply >= 1e6 ? `${(circulatingSupply / 1e6).toFixed(2)}M` : circulatingSupply.toFixed(0)}
-                                        </div>
-                                    </div>
-                                )}
-                                {ath && (
-                                    <div className="token-stat">
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>All-Time High</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{ath >= 1000 ? `$${ath.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : `$${ath.toFixed(4)}`}</div>
-                                        {athDate && <div style={{ ...S.label, fontSize: 8, marginTop: 2 }}>{new Date(athDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</div>}
-                                    </div>
-                                )}
-                                {(fdv || rank) && (
-                                    <div className="token-stat">
-                                        <div style={{ ...S.label, fontSize: 9, marginBottom: 3 }}>{fdv ? 'Fully diluted value' : 'Market rank'}</div>
-                                        <div style={{ ...S.numeric, fontSize: 14, fontWeight: 650, color: 'var(--fg)' }}>{fdv ? formatLarge(fdv) : `#${rank}`}</div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tabs */}
-                    <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--hairline)' }}>
-                        {(['posts', 'news'] as const).map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)}
-                                style={{ padding: '8px 20px', border: 'none', background: 'transparent', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: activeTab === tab ? 'var(--fg)' : 'var(--fg-subtle)', borderBottom: activeTab === tab ? '2px solid var(--iris-violet)' : '2px solid transparent', textTransform: 'uppercase' as const, marginBottom: -1 }}>
-                                {tab === 'posts' ? `Posts (${tickerPosts.length})` : 'News'}
-                            </button>
-                        ))}
-                    </div>
-
-                    {activeTab === 'posts' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {tickerPosts.length === 0 ? (
-                                <div style={{ ...panel, padding: '40px 20px', textAlign: 'center' }}>
-                                    <p style={{ ...S.display, fontSize: 20, color: 'var(--fg)', marginBottom: 6 }}>No posts yet.</p>
-                                    <p style={{ ...S.label, fontSize: 10 }}>Be the first to mention ${ticker} in the feed.</p>
-                                </div>
-                            ) : tickerPosts.map((post: any) => (
-                                <PostCard key={post.id} post={post} user={user} onLike={onLike} onRepost={onRepost} onComment={onComment} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfileWrapper} showUsersModal={showUsersModal} onDelete={onDeletePost} onDeleteComment={onDeleteComment} traders={traders} onTickerClick={(t: string) => { if (onNavigateToTicker) onNavigateToTicker(t); }} onSinglePost={onSinglePost} />
-                            ))}
-                        </div>
-                    )}
-
-                    {activeTab === 'news' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {newsLoading ? (
-                                <div style={{ ...panel, padding: 24, textAlign: 'center' }}>
-                                    <p style={{ ...S.label, fontSize: 10 }}>Loading news…</p>
-                                </div>
-                            ) : news.length === 0 ? (
-                                <div style={{ ...panel, padding: 24, textAlign: 'center' }}>
-                                    <p style={{ ...S.label, fontSize: 10 }}>No news found.</p>
-                                </div>
-                            ) : news.map((article: any) => (
-                                <a key={article.id} href={article.url} target="_blank" rel="noopener noreferrer"
-                                    style={{ ...panel, padding: '14px 16px', display: 'flex', gap: 14, textDecoration: 'none', transition: 'border-color 0.15s' }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--iris-violet)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                                    {article.imageurl && (
-                                        <img src={article.imageurl} style={{ width: 72, height: 72, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--hairline)' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                    )}
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--fg)', lineHeight: 1.4, marginBottom: 5 }}>{article.title}</p>
-                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{article.body}</p>
-                                        <div style={{ display: 'flex', gap: 10, marginTop: 7, alignItems: 'center' }}>
-                                            <span style={{ ...S.label, fontSize: 9 }}>{article.source_info?.name || article.source}</span>
-                                            <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--fg-subtle)', display: 'inline-block' }}/>
-                                            <span style={{ ...S.label, fontSize: 9 }}>{new Date(article.published_on * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                                        </div>
-                                    </div>
-                                </a>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Related-market shortcuts */}
-                <div className="token-market-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div className="vp" style={panel}>
-                        <div style={{ padding: '14px 16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
-                                <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Related markets</span>
-                            </div>
-                            {TOP_SOCIAL_PAIRS.filter(p => p.symbol !== ticker).map(p => {
-                                const pc = changes[p.pairId] ?? 0;
-                                const pu = pc >= 0;
-                                return (
-                                    <div key={p.symbol} onClick={() => onClose(p.symbol)}
-                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--hairline)', cursor: 'pointer', gap: 8 }}
-                                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                                            <VeloAssetIcon src={p.logo} symbol={p.symbol} size={28} />
-                                            <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{p.symbol}</span>
-                                        </div>
-                                        <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: pu ? 'var(--pnl-up)' : 'var(--pnl-down)', flexShrink: 0 }}>{pu ? '+' : ''}{pc.toFixed(2)}%</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                    {/* Top posters for this ticker */}
-                    <div className="vp" style={panel}>
-                        <div style={{ padding: '14px 16px' }}>
-                            <p style={{ ...S.label, marginBottom: 12 }}>Top posters · ${ticker}</p>
-                            {(() => {
-                                const counts: Record<string, { trader: any; count: number }> = {};
-                                tickerPosts.forEach((p: any) => {
-                                    if (!counts[p.authorId]) {
-                                        const t = traders.find((tr: any) => tr.id === p.authorId);
-                                        if (t) counts[p.authorId] = { trader: t, count: 0 };
-                                    }
-                                    if (counts[p.authorId]) counts[p.authorId].count++;
-                                });
-                                const sorted = Object.values(counts).sort((a: any, b: any) => b.count - a.count).slice(0, 5);
-                                if (sorted.length === 0) return <p style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)', textAlign: 'center', padding: '8px 0' }}>No posts yet</p>;
-                                return sorted.map(({ trader, count }: any) => (
-                                    <div key={trader.id} onClick={() => onViewProfile(trader)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--hairline)', cursor: 'pointer' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                                            <img src={trader.avatar} style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--hairline)' }}/>
-                                            <div>
-                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg)', display: 'block' }}>{trader.username}</span>
-                                                <span style={{ ...S.label, fontSize: 9 }}>{trader.handle}</span>
-                                            </div>
-                                        </div>
-                                        <span style={{ ...S.label, fontSize: 9, color: 'var(--iris-violet)' }}>{count} post{count !== 1 ? 's' : ''}</span>
-                                    </div>
-                                ));
-                            })()}
-                        </div>
-                    </div>
-                    {/* Quick trade CTA */}
-                    {onNavigateToTrade && tradable && (
-                        <div style={{ ...panel, padding: '14px 16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--holo-linear)', backgroundSize: '220% 100%', display: 'inline-block' }}/>
-                                <span style={{ ...S.display, fontSize: 14, color: 'var(--fg)' }}>Trade now</span>
-                            </div>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)', marginBottom: 12, lineHeight: 1.5 }}>Open a long or short position on ${ticker} with up to 50× leverage.</p>
-                            <button
-                                onClick={() => onNavigateToTrade(ticker)}
-                                style={{ width: '100%', padding: '10px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite', color: '#0B0B0E', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', transition: 'opacity 0.15s' }}
-                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
-                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                                Open ${ticker} Trade →
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
 // ─── Single Post View (like Twitter /status/:id) ────────────────────────────
 const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onLike, onRepost, onComment, onDeletePost, onDeleteComment, onViewProfile, showUsersModal, handleCopyTrade, onBack, onTickerClick }: any) => {
+    const [imageOpen, setImageOpen] = useState(false);
     const shared = useSharedPost(postId, commentId, post => setPosts((prev: Post[]) => [...prev.filter(p => p.id !== post.id), post]));
     const post = shared.status === 'ready' ? (posts.find((p: Post) => p.id === postId) || shared.post) : null;
 
@@ -1083,7 +519,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
 
@@ -1127,8 +563,6 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                     <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                         <div style={{ cursor: 'pointer', position: 'relative' as const }} onClick={() => onViewProfile({ id: post.authorId })}>
                             <img src={post.authorAvatar} style={{ width: 52, height: 52, borderRadius: '50%', border: '2px solid var(--hairline-strong)', display: 'block' }} />
-                            {/* Online pulse dot */}
-                            <div style={{ position: 'absolute', bottom: 1, right: 1, width: 12, height: 12, borderRadius: '50%', background: 'var(--pnl-up)', border: '2px solid var(--glass-bg)' }} />
                         </div>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -1158,10 +592,12 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                         {renderContentWithMentions(post.content, onViewProfile, traders, onTickerClick, VALID_TICKER_SYMBOLS)}
                     </p>
                     {(() => { const u = extractFirstUrl(post.content); return u ? <LinkPreviewCard url={u} /> : null; })()}
+                    {post.tradeSnapshot && <SharedPositionCard snapshot={post.tradeSnapshot} imageUrl={post.image} onImageClick={()=>setImageOpen(true)}/>}
+                    {!post.tradeSnapshot && post.image && <button type="button" className="post-image-preview" aria-label="Expand post image" onClick={()=>setImageOpen(true)}><img src={post.image} alt="Post attachment" decoding="async"/></button>}
                 </div>
 
                 {/* Trade signal card */}
-                {post.isTradeSignal && post.tradeDetails && (
+                {!post.tradeSnapshot && post.isTradeSignal && post.tradeDetails && (
                     <div style={{ margin: '16px 24px 0', background: 'color-mix(in oklab, var(--accent) 6%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)', borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -1181,7 +617,7 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                         { label: 'Likes', value: post.likes },
                     ].map(s => (
                         <div key={s.label}>
-                            <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>{s.value}</span>
+                            <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}><AnimatedText text={s.value}/></span>
                             <span style={{ ...S.label, fontSize: 10, marginLeft: 5 }}>{s.label}</span>
                         </div>
                     ))}
@@ -1223,25 +659,23 @@ const SinglePostView = ({ postId, commentId, posts, setPosts, user, traders, onL
                 compact={false}
                 focusCommentId={commentId}
             />
+            {imageOpen && <PostMediaViewer post={post} user={user} traders={traders} onClose={()=>setImageOpen(false)} onLike={onLike} onRepost={onRepost} onComment={onComment} onDelete={onDeletePost} onDeleteComment={onDeleteComment} onViewProfile={onViewProfile} onTickerClick={onTickerClick} showUsersModal={showUsersModal} handleCopyTrade={handleCopyTrade}/>}
         </div>
     );
 };
 
-const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost }: any) => {
+const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onViewProfile, onPostCreate, onRequireAuth, onLike, onRepost, onComment, showUsersModal, onDeletePost, onDeleteComment, prices, changes, initialTicker, onTickerChange, onNavigateToTrade, onNavigateToMarkets, watchlist, onToggleWatchlist, focusPostId, openCommentsPostId, onSinglePost, onSharePosition, sharePositions = [] }: any) => {
     const { socialAssets } = useMarketDiscovery();
     const [newPostContent, setNewPostContent] = useState('');
+    const [positionAttachment, setPositionAttachment] = useState<ShareCardData | null>(null);
+    const [publishingPost, setPublishingPost] = useState(false);
     const [filter, setFilter] = useState<'LATEST' | 'TRENDING' | 'FOLLOWING' | 'SIGNALS'>('LATEST');
-    const [feedMentionQuery, setFeedMentionQuery] = useState<string | null>(null);
-    const [feedMentionTrigger, setFeedMentionTrigger] = useState<'@' | '$' | null>(null);
     const [activeTicker, setActiveTicker] = useState<string | null>(initialTicker || null);
     const setActiveTickerWithURL = (t: string | null) => { setActiveTicker(t); if (onTickerChange) onTickerChange(t); };
     // Sync when parent navigates (back button, URL change)
     useEffect(() => {
         setActiveTicker(initialTicker || null);
     }, [initialTicker]);
-    const [feedMentionStart, setFeedMentionStart] = useState(0);
-    const [feedMentionIdx, setFeedMentionIdx] = useState(0);
-    const feedTextareaRef = useRef<HTMLTextAreaElement>(null);
     // Track which post should auto-open comments
     const [forceOpenCommentsId, setForceOpenCommentsId] = useState<string | null>(openCommentsPostId || null);
 
@@ -1266,57 +700,6 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
         return () => clearTimeout(timer);
     }, [focusPostId, openCommentsPostId]);
 
-    const feedMentionResults: any[] = React.useMemo(() => {
-        if (feedMentionQuery === null) return [];
-        const q = feedMentionQuery.toLowerCase();
-        if (feedMentionTrigger === '$') {
-            if (!q) return [];
-            const tickers = socialAssets.filter(p =>
-                p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)
-            ).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
-            return tickers;
-        }
-        if (feedMentionTrigger === '@' && q.length > 0) {
-            return traders.filter((t: any) => {
-                if (t.id === user?.id) return false;
-                return (t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q);
-            }).slice(0, 6);
-        }
-        return [];
-    }, [feedMentionQuery, feedMentionTrigger, traders, user, socialAssets]);
-
-    const handleFeedTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const val = e.target.value;
-        const cursor = e.target.selectionStart ?? val.length;
-        setNewPostContent(val);
-        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9]*)$/);
-        if (atMatch) {
-            setFeedMentionTrigger('@');
-            setFeedMentionQuery(atMatch[1]);
-            setFeedMentionStart(cursor - atMatch[0].length);
-            setFeedMentionIdx(0);
-        } else if (dollarMatch) {
-            setFeedMentionTrigger('$');
-            setFeedMentionQuery(dollarMatch[1]);
-            setFeedMentionStart(cursor - dollarMatch[0].length);
-            setFeedMentionIdx(0);
-        } else {
-            setFeedMentionQuery(null);
-            setFeedMentionTrigger(null);
-        }
-    };
-    const completeFeedMention = (item: any) => {
-        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
-        const cursor = feedTextareaRef.current?.selectionStart ?? feedMentionStart + (feedMentionQuery?.length ?? 0) + 1;
-        const before = newPostContent.slice(0, feedMentionStart);
-        const after = newPostContent.slice(cursor);
-        const next = before + insertion + ' ' + after;
-        setNewPostContent(next);
-        setFeedMentionQuery(null);
-        setFeedMentionTrigger(null);
-        setTimeout(() => { if (feedTextareaRef.current) { const p = before.length + insertion.length + 1; feedTextareaRef.current.focus(); feedTextareaRef.current.setSelectionRange(p, p); } }, 0);
-    };
     const filteredPosts = React.useMemo(() => {
         const base = [...posts];
         // Apply filter FIRST, then sort
@@ -1339,7 +722,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
     };
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const panel: React.CSSProperties = { background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)', boxShadow: 'var(--glass-shadow)', overflow: 'hidden' };
@@ -1373,16 +756,17 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             }));
     }, [posts]);
     return (
-        <div style={{ width: '100%', maxWidth: 1600, margin: '0 auto' }} className="animate-fade-in">
+        <div style={{ width: '100%', maxWidth: 1380, margin: '0 auto' }} className="animate-fade-in social-page">
             {activeTicker ? (
                 <TokenPage
                     ticker={activeTicker}
+                    onPostCreate={onPostCreate} onRequireAuth={onRequireAuth}
                     posts={posts}
                     traders={traders}
                     user={user}
                     prices={prices}
                     changes={changes}
-                    onClose={(sym?: string) => { if (sym && typeof sym === 'string') setActiveTickerWithURL(sym); else { setActiveTickerWithURL(null); onNavigateToMarkets?.(); } }}
+                    onClose={() => { setActiveTickerWithURL(null); onNavigateToMarkets?.(); }}
                     onLike={onLike}
                     onRepost={onRepost}
                     onComment={onComment}
@@ -1435,7 +819,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => onViewProfile(t)}>
                                     <img src={t.avatar} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
                                     <div>
-                                        <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 13, color: 'var(--fg)', letterSpacing: '-0.01em', margin: 0 }}>{t.username}</p>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 13, color: 'var(--fg)', letterSpacing: '-0.01em', margin: 0 }}>{t.username}</p>
                                         <p style={{ ...S.label, fontSize: 9, margin: 0 }}>{t.handle}</p>
                                     </div>
                                 </div>
@@ -1467,7 +851,7 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
                                         <img src={t.avatar} style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)' }}>{t.username}</span>
                                     </div>
-                                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.pnl >= 0 ? '+' : ''}${Math.abs(t.pnl).toFixed(0)}</span>
+                                    <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: t.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{t.pnl >= 0 ? '+' : ''}${<AnimatedText text={Math.abs(t.pnl).toFixed(0)}/>}</span>
                                 </div>
                             ))}
                         {traders.filter((t: any) => t.id !== user?.id).length === 0 && (
@@ -1479,58 +863,39 @@ const SocialFeed = ({ traders, posts, user, handleFollow, handleCopyTrade, onVie
             </div>
 
             {/* Right — tokens strip + compose + feed */}
+            <aside className="social-market-sidebar" aria-label="Market watch">
+                <div className="social-rail-heading"><span className="live-dot"/>Market watch</div>
+                <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets}/>
+                <p className="social-market-caption">Explore an asset to see market details and join its conversation.</p>
+            </aside>
             <div className="social-feed-main" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Top Tokens Bar */}
-                <TopTokensBar prices={prices || {}} changes={changes || {}} onTickerClick={setActiveTickerWithURL} onNavigateToMarkets={onNavigateToMarkets} />
                 {/* Compose */}
-                <div className="vp" style={panel}>
+                <div className="vp velo-composer" style={panel}>
                     <div style={{ padding: 16, display: 'flex', gap: 12 }}>
                         <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--chip-bg)', overflow: 'hidden', flexShrink: 0, border: '1px solid var(--hairline)' }}>
                             {user ? <img src={user.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserCircle size={38} style={{ color: 'var(--fg-subtle)' }} />}
                         </div>
-                        <div style={{ flex: 1, position: 'relative' as const }}>
-                            <textarea
-                                ref={feedTextareaRef}
-                                placeholder="What's happening in the markets? Use @handle or $BTC to tag someone"
-                                value={newPostContent}
-                                onChange={handleFeedTextChange}
-                                onKeyDown={e => {
-                                    if (feedMentionQuery !== null && feedMentionResults.length > 0) {
-                                        if (e.key === 'ArrowDown') { e.preventDefault(); setFeedMentionIdx(i => Math.min(i+1, feedMentionResults.length-1)); return; }
-                                        if (e.key === 'ArrowUp')   { e.preventDefault(); setFeedMentionIdx(i => Math.max(i-1, 0)); return; }
-                                        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); completeFeedMention(feedMentionResults[feedMentionIdx]); return; }
-                                        if (e.key === 'Escape') { setFeedMentionQuery(null); setFeedMentionTrigger(null); return; }
-                                    }
-                                }}
-                                onBlur={() => setTimeout(() => { setFeedMentionQuery(null); setFeedMentionTrigger(null); }, 150)}
-                                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg)', resize: 'none', height: 72, lineHeight: 1.6 }}
-                            />
-                            <MentionDropdown results={feedMentionResults} anchorRef={feedTextareaRef} activeIndex={feedMentionIdx} onSelect={completeFeedMention} onHover={setFeedMentionIdx} />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.06em' }}>@handle · $TICKER to tag</span>
-                                <button onClick={() => { onPostCreate(newPostContent); setNewPostContent(''); }} disabled={!newPostContent.trim()}
-                                    style={{ padding: '7px 18px', borderRadius: 20, background: 'var(--fg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--bg-base)', cursor: 'pointer', letterSpacing: '0.05em', opacity: !newPostContent.trim() ? 0.4 : 1, transition: 'opacity 0.15s' }}>Post</button>
+                        <div style={{ flex: 1, minWidth: 0, position: 'relative' as const }}>
+                            <SocialTextField className="velo-compose-field" aria-label="Write a post" placeholder="What's happening in the markets?" value={newPostContent} onValueChange={setNewPostContent} people={traders} style={{width:'100%',minHeight:46,resize:'none'}} />
+                            <div className="velo-composer-footer">
+                                <PositionComposerTools authenticated={!!user} onRequireAuth={onRequireAuth} choices={sharePositions} attachment={positionAttachment} onChange={setPositionAttachment} onPnl={()=>user ? onSharePosition?.() : onRequireAuth?.()} action={
+                                <button onClick={async () => { if (publishingPost) return; setPublishingPost(true); try { const attachment = positionAttachment ? {...positionAttachment,updatedAt:Date.now()} : undefined; const id = await onPostCreate(newPostContent, attachment ? {pair:attachment.pair,side:attachment.side,leverage:attachment.leverage,entry:attachment.entryPrice,snapshot:attachment} : undefined); if (id) { setNewPostContent('');setPositionAttachment(null); } } finally { setPublishingPost(false); } }} disabled={publishingPost || !newPostContent.trim()}
+                                    style={{alignSelf:'flex-end',padding:'8px 18px',borderRadius:20,background:'var(--fg)',border:0,font:'600 12px var(--font-sans)',color:'var(--bg)',cursor:'pointer',opacity:!newPostContent.trim() || publishingPost ? .4 : 1}}>{publishingPost ? 'Posting…' : 'Post'}</button>} />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Filter tabs */}
-                <div className="vp" style={{ ...panel, padding: 0, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', gap: 0 }}>
-                        {['LATEST','TRENDING','FOLLOWING','SIGNALS'].map(f => (
-                            <button key={f} onClick={() => setFilter(f as any)}
-                                style={{ flex: 1, padding: '11px 8px', border: 'none', background: filter === f ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', color: filter === f ? 'var(--iris-violet)' : 'var(--fg-subtle)', borderBottom: filter === f ? '2px solid var(--iris-violet)' : '2px solid transparent', transition: 'all 0.15s' }}>
-                                {f}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                <SegmentedControl label="Feed filter" options={[
+                    {value:'LATEST',label:'Latest'}, {value:'TRENDING',label:'Trending'},
+                    {value:'FOLLOWING',label:'Following'}, {value:'SIGNALS',label:'Signals'},
+                ]} value={filter} onChange={value => setFilter(value as any)}/>
 
                 {/* Posts */}
                 {filteredPosts.length === 0 ? (
                     <div style={{ ...panel, padding: '40px 20px', textAlign: 'center' }}>
-                        <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 22, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 6 }}>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 22, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 6 }}>
                             {filter === 'FOLLOWING' ? (user ? 'Follow a trader to see their posts.' : 'Log in to see posts from traders you follow.')
                                 : filter === 'SIGNALS' ? 'No live trade signals yet.'
                                 : filter === 'TRENDING' ? 'Nothing trending yet.'
@@ -1567,7 +932,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
     const activePositions = positions.filter((p: Position) => !p.isCopyTrade);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const tabBtn = (t: string): React.CSSProperties => ({
@@ -1613,7 +978,7 @@ const ProfileView = ({ user, handleUpdateProfile, posts, traders = [], onPostCre
                                 <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{p.pair}</span>
                                 <span style={{ padding: '2px 8px', borderRadius: 6, background: p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.15)' : 'oklch(0.66 0.22 25/0.15)', border: `1px solid ${p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.3)' : 'oklch(0.66 0.22 25/0.3)'}`, ...S.label, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span>
                             </div>
-                            <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Size ${formatMoney(p.size)}</span>
+                            <span style={{ ...S.label }}>Entry ${<AnimatedText text={formatPrice(p.entryPrice)}/>} · Size ${<AnimatedText text={formatMoney(p.size)}/>}</span>
                         </div>
                         <span style={{ padding: '4px 10px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                     </div>
@@ -1637,7 +1002,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
     const isCopying = user?.copying.includes(trader.id);
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     // Fetch trader's real positions from Supabase when TRADES tab is opened
@@ -1706,7 +1071,7 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                                 <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(8px) saturate(1.1)', WebkitBackdropFilter: 'blur(8px) saturate(1.1)' }}>
                                     <span style={{ ...S.label }}>Unrealized PnL</span>
                                     <span style={{ ...S.mono, fontSize: 16, fontWeight: 700, color: unrealizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                        {unrealizedPnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(unrealizedPnl))}
+                                        {unrealizedPnl >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(unrealizedPnl))}/>}
                                     </span>
                                 </div>
                             )}
@@ -1720,12 +1085,12 @@ const PublicProfileView = ({ trader, user, posts, traders = [], onBack, handleFo
                                                 <span style={{ ...S.mono, fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{p.pair}</span>
                                                 <span style={{ padding: '2px 8px', borderRadius: 6, background: p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.15)' : 'oklch(0.66 0.22 25/0.15)', border: `1px solid ${p.side === 'LONG' ? 'oklch(0.78 0.18 150/0.3)' : 'oklch(0.66 0.22 25/0.3)'}`, ...S.label, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span>
                                             </div>
-                                            <span style={{ ...S.label }}>Entry ${formatPrice(p.entryPrice)} · Mark ${formatPrice(curPrice)} · Size ${formatMoney(p.size)}</span>
+                                            <span style={{ ...S.label }}>Entry ${<AnimatedText text={formatPrice(p.entryPrice)}/>} · Mark ${<AnimatedText text={formatPrice(curPrice)}/>} · Size ${<AnimatedText text={formatMoney(p.size)}/>}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                                             <span style={{ padding: '3px 8px', borderRadius: 8, background: 'color-mix(in oklab, var(--accent) 10%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)', ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--iris-violet)' }}>{p.leverage}×</span>
                                             <span style={{ ...S.mono, fontSize: 12, fontWeight: 700, color: posUnreal >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                                                {posUnreal >= 0 ? '+' : '-'}${formatMoney(Math.abs(posUnreal))}
+                                                {posUnreal >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(posUnreal))}/>}
                                             </span>
                                         </div>
                                     </div>
@@ -1784,7 +1149,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
                  textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
         mono:  { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        disp:  { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        disp:  { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
     };
 
     const RiskBar = ({ value, max = 25 }: { value: number; max?: number }) => {
@@ -1837,7 +1202,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                     {isReducing
                         ? `Reducing leverage locks more margin but moves your liquidation price further away, increasing your safety buffer.`
                         : `Increasing leverage frees up margin but brings your liquidation price closer — your buffer shrinks.`}
-                    {addedSize > 0 && ` Your new order ($${formatMoney(addedSize)}) will be merged into the existing position.`}
+                    {addedSize > 0 && <> Your new order ($<AnimatedText text={formatMoney(addedSize)}/>) will be merged into the existing position.</>}
                 </p>
 
                 {/* ── Buffer comparison ── */}
@@ -1850,7 +1215,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                                 <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>Before</span>
                                 <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: bufColor(oldBuf) }}>
-                                    {oldBuf.toFixed(1)}%
+                                    {<AnimatedText text={oldBuf.toFixed(1)}/>}%
                                 </span>
                             </div>
                             <RiskBar value={oldBuf} />
@@ -1869,7 +1234,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                                 <span style={{ ...S.label, fontSize: 9, color: 'var(--fg-subtle)' }}>After</span>
                                 <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: bufColor(newBuf) }}>
-                                    {newBuf >= 100 ? '∞' : newBuf.toFixed(1) + '%'}
+                                    {<AnimatedText text={newBuf >= 100 ? '∞' : newBuf.toFixed(1) + '%'}/>}
                                 </span>
                             </div>
                             <RiskBar value={newBuf} />
@@ -1883,7 +1248,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--hairline)',
                                   display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ ...S.mono, fontSize: 11, color: bufImproves ? 'var(--pnl-up)' : '#f97316', fontWeight: 700 }}>
-                            {bufImproves ? '↑' : '↓'} {Math.abs(newBuf - oldBuf).toFixed(1)}pp
+                            {bufImproves ? '↑' : '↓'} {<AnimatedText text={Math.abs(newBuf - oldBuf).toFixed(1)}/>}pp
                         </span>
                         <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>
                             {bufImproves
@@ -1917,9 +1282,9 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
                                   border: `1px solid ${marginDelta > 0 ? 'oklch(0.55 0.18 50/0.25)' : 'oklch(0.78 0.18 150/0.20)'}` }}>
                         <p style={{ ...S.mono, fontSize: 11, fontWeight: 700,
                                     color: marginDelta > 0 ? '#f97316' : 'var(--pnl-up)', margin: 0 }}>
-                            {marginDelta > 0
+                            {<AnimatedText text={marginDelta > 0
                                 ? `$${formatMoney(marginDelta)} will be locked as additional margin`
-                                : `✓ $${formatMoney(Math.abs(marginDelta))} freed back to your balance`}
+                                : `✓ $${formatMoney(Math.abs(marginDelta))} freed back to your balance`}/>}
                         </p>
                     </div>
                 )}
@@ -1959,7 +1324,7 @@ const App = () => {
     // Initialize from localStorage cache immediately — eliminates the "Log In" flash
     // on every page load while Supabase session restore runs in the background.
     // Supabase INITIAL_SESSION overwrites this with fresh data once it resolves.
-    const [user, setUser] = useState<UserProfile | null>(null);
+    const [user, setUser] = useState<UserProfile | null>(() => readSessionCache());
     // Tracks whether the initial auth check is complete — prevents flash of "not logged in" on refresh
     // If we have a cached user, skip the loading screen — Supabase refreshes in background.
     // If no cache, show loading until session restore completes.
@@ -1967,7 +1332,9 @@ const App = () => {
     // Bumped after intentional logout clears, to re-arm socialLoginEffect when wallet stays connected
     const [retryAuthTick, setRetryAuthTick] = useState(0);
     const [signInBusy, setSignInBusy] = useState(false);
+    const [signInPhase, setSignInPhase] = useState<WalletSignInPhase>('session');
     const signInBusyRef = useRef(false);
+    const signInWalletRef = useRef('');
     const [sessionNotice, setSessionNotice] = useState<'signed-out' | 'expired' | null>(null);
     const [sessionWarning, setSessionWarning] = useState<number | null>(null);
     const [sessionHardExpiry, setSessionHardExpiry] = useState(false);
@@ -1976,7 +1343,8 @@ const App = () => {
     const [publicLoading, setPublicLoading] = useState(false);
     const publicLoadRef = useRef<Promise<void> | null>(null);
 
-    const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE); 
+    const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE);
+    const [quickSearchOpen,setQuickSearchOpen]=useState(false);
 
     // ── Analytics: virtual page_view on tab change (SPA navigation) ──────────
     useEffect(() => {
@@ -2019,10 +1387,11 @@ const App = () => {
     const exhaustedHistoryRef = useRef(new Set<string>());
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const notificationReadIds = useRef(new Set<string>());
+    const notificationRetractedIds = useRef(new Set<string>());
     const notificationSeenIds = useRef(new Set<string>());
     const notificationOwner = useRef(user?.id);
     notificationOwner.current = user?.id;
-    useEffect(() => { notificationReadIds.current.clear(); notificationSeenIds.current.clear(); }, [user?.id]);
+    useEffect(() => { notificationReadIds.current.clear(); notificationRetractedIds.current.clear(); notificationSeenIds.current.clear(); }, [user?.id]);
     // Notification-driven focus for the Trade view. tradeFocus.tab forces the
     // PositionsPanel tab; tradeFocus.highlightId briefly outlines a matching row.
     const [tradeFocus, setTradeFocus] = useState<{ tab?: 'POSITIONS' | 'OPEN ORDERS' | 'HISTORY'; highlightId?: string; key: number } | null>(null);
@@ -2127,7 +1496,7 @@ const App = () => {
     // Tracks whether the wallet connected via a genuine user action this session
     // (AppKit connect flow), as opposed to wagmi's silent auto-reconnect on page reload.
     // socialLoginEffect only runs the sign-in/onboard flow for genuine connects.
-    const freshWalletConnectRef = useRef(false);
+    const freshWalletConnectRef = useRef(0);
     const [isVeloBridgeOpen, setVeloBridgeOpen] = useState(false);
     const [isVeloDepositOpen, setVeloDepositOpen] = useState(false);
     const [isVeloUsernameOpen, setVeloUsernameOpen] = useState(false);
@@ -2138,7 +1507,10 @@ const App = () => {
     const [isCrossAccountOpen, setCrossAccountOpen] = useState(false);
     const [crossAccountTab, setCrossAccountTab] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
     const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
-    const [shareTradeData, setShareTradeData] = useState<ClosedTradeShareData | null>(null);
+    const [positionSharePickerOpen, setPositionSharePickerOpen] = useState(false);
+    const [closeReceipt, setCloseReceipt] = useState<ShareCardData | null>(null);
+    const [managedCloseShare, setManagedCloseShare] = useState<ShareCardData | null>(null);
+    const shareImageUpload = useRef<{key:string;url:string} | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
     const [orderlyDWModal, setOrderlyDWModal] = useState<{ open: boolean; type: 'DEPOSIT' | 'WITHDRAW' }>({ open: false, type: 'DEPOSIT' });
 
@@ -2156,6 +1528,7 @@ const App = () => {
     const { address: walletAddress, isConnected: isWalletConnected, status: wagmiStatus } = useAccount();
     const { switchChain } = useSwitchChain();
     const { open: openAppKitModal } = useAppKit();
+    const { open: appKitOpen } = useAppKitState();
     const publicClient = usePublicClient({ chainId: 84532 });
     const { signMessageAsync } = useSignMessage();
     // Guard so the auto-recovery signature prompt fires at most once per session.
@@ -2416,37 +1789,27 @@ const App = () => {
     // every refresh (user is null during the async restore window).
     const socialLoginHandledRef = useRef(false);
 
-    // When wagmiStatus transitions through 'connecting' it means the user actively
-    // opened AppKit and chose a wallet. Page-reload reconnects go straight from
-    // 'reconnecting' → 'connected' and never hit 'connecting', so this reliably
-    // distinguishes the two cases without any setTimeout hacks.
+    // Connector status is transport state, not user intent. Mobile reconnects can
+    // pass through `connecting` after a refresh; only our sign-in buttons may
+    // arm the continuation below. Never unlock logout or request a signature here.
     useEffect(() => {
-      if (wagmiStatus === 'connecting') {
-        freshWalletConnectRef.current = true;
-        // User explicitly opened AppKit and is picking a wallet — they want
-        // to be signed in. Clear the post-logout lock so restoreSession and
-        // the silent socialLoginEffect can proceed normally. Auto-reconnect
-        // (which goes 'reconnecting' → 'connected', never touching this
-        // branch) leaves the lock untouched.
-        try { if (typeof window !== 'undefined') window.__veloLogoutLock = false; } catch {}
-      }
       if (wagmiStatus === 'disconnected') {
-        freshWalletConnectRef.current = false;
         socialLoginHandledRef.current = false;
       }
-    }, [wagmiStatus]);
+      if (signInBusyRef.current && signInWalletRef.current && (wagmiStatus === 'disconnected' || (walletAddress && walletAddress.toLowerCase() !== signInWalletRef.current))) {
+        ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false);
+      }
+    }, [wagmiStatus, walletAddress]);
     // ── Social login / onboarding trigger ─────────────────────────────────
     // Fires ONLY when the user actively connected their wallet this session
-    // (freshWalletConnectRef=true, set when wagmiStatus passes through 'connecting').
-    // Page-reload auto-reconnects (wagmiStatus goes 'reconnecting'→'connected',
-    // never touching 'connecting') are completely excluded — Supabase INITIAL_SESSION
+    // (freshWalletConnectRef=true, set by an explicit account-choice button).
+    // Page reload never arms this flag — Supabase INITIAL_SESSION
     // handles those. This eliminates the race between restoreSession and this effect.
     useEffect(() => {
       // Logout sentinel — see the IIFE at the top of this file. If the lock
       // is set, this load came from a logout navigate; do NOT silently
       // re-sign-in just because wagmi auto-reconnected to MetaMask. The
-      // lock is cleared when the user explicitly opens AppKit ('connecting'
-      // wagmiStatus transition above).
+      // lock is cleared only by an explicit account-choice action.
       if (typeof window !== 'undefined' && window.__veloLogoutLock) return;
       if (!isWalletConnected || !walletAddress) {
         socialLoginHandledRef.current = false;
@@ -2454,7 +1817,7 @@ const App = () => {
       }
       // KEY GUARD: page-reload reconnects must never trigger this flow.
       // Only a genuine user-initiated AppKit connect sets this flag.
-      if (!freshWalletConnectRef.current) return;
+      if (!hasWalletSignInIntent(freshWalletConnectRef.current)) return;
       if (!authChecked) return;
       if (user) return;
       if (isLoginOpen) return;
@@ -2468,9 +1831,11 @@ const App = () => {
         if (signInBusyRef.current) return;
         const attempt = ++authAttemptRef.current;
         signInBusyRef.current = true; setSignInBusy(true);
+        signInWalletRef.current = walletAddress.toLowerCase();
         try {
-          const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
+          const { data } = await signInWithWallet(walletAddress, signMessageAsync, { onPhase: setSignInPhase });
           if (attempt !== authAttemptRef.current || intentionalLogoutRef.current || freshSignupRef.current) return;
+          setSignInPhase('profile');
           const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
           if (attempt !== authAttemptRef.current || intentionalLogoutRef.current) return;
           if (error) throw error;
@@ -2579,6 +1944,7 @@ const App = () => {
           // Without onChainTradeId the manage modal can't be reached — the UI
           // falls back to the legacy EditPositionModal which only saves to Supabase.
           onChainTradeId: tradeIdKey,
+          openTxHash: p.openTxHash || openTxMap[tradeIdKey],
           onChainContract: VELO_PERPS_ADDRESS,
           takeProfit: overlayTp,
           stopLoss: overlaySl,
@@ -2594,7 +1960,7 @@ const App = () => {
       setPositions((prev) => {
         // Keep any non-Velo positions (demo-mode legacy) intact, replace the Velo subset.
         const nonVelo = prev.filter((p) => !p.id.startsWith('velo_'));
-        return [...nonVelo, ...onChainPositions];
+        return IS_V4 ? onChainPositions : [...nonVelo, ...onChainPositions];
       });
     }, [user, isWalletConnected, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
@@ -2613,6 +1979,7 @@ const App = () => {
         leverage: pos.leverage, marginMode: pos.marginMode,
         liquidationPrice: pos.liquidationPrice, action: result.action,
         onChain: true, txHash: result.txHash,
+        positionId: `velo_${result.tradeId}`,
         orderlyOrderUrl: `https://sepolia.basescan.org/tx/${result.txHash}`,
       };
       setUser(prev => {
@@ -2622,6 +1989,15 @@ const App = () => {
       if (isSupabaseConfigured()) insertTradeHistory(user.id, historyItem).catch(() => {
         setToast({ message: 'Trade confirmed on-chain, but history could not be saved. Please retry the refresh.', type: 'ERROR' });
       });
+      if (IS_V4 && activeEngine) return {
+        pair: pos.pair, side: pos.side, leverage: pos.leverage, entryPrice: pos.entryPrice,
+        closePrice: result.exitPrice, size: pos.size, collateral: result.payoutUSDC - result.pnlUSDC,
+        pnl: result.pnlUSDC, pnlPct: result.pnlUSDC / Math.max(0.000001, result.payoutUSDC - result.pnlUSDC) * 100,
+        traderHandle: user.handle, status: result.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
+        contract: VELO_PERPS_ADDRESS, chainId: 84532, tradeId: result.tradeId.toString(),
+        trader: veloPerpsTrading.traderAddress, txHash: result.txHash,
+        ...positionShareMetadata(pos,user.tradeHistory),closedAt:Date.now(),
+      } as ShareCardData;
     };
 
     // Disappearance is only a cue to look up a receipt, never evidence of liquidation.
@@ -2664,27 +2040,14 @@ const App = () => {
     useEffect(() => {
       if (!user || !isWalletConnected) return;
       if (veloPerpsTrading.isInitialLoading) return;
-      const mapped: OpenOrder[] = veloPerpsTrading.conditionalOrders.map((o) => {
-        const uiPair = o.pair.replace('-', '/');
-        const orderType: OrderType = o.triggerKind === 'LIMIT' ? 'LIMIT' : 'STOP';
-        return {
-          id: `velo_ord_${o.orderId.toString()}`,
-          pair: uiPair,
-          side: o.isLong ? 'LONG' : 'SHORT',
-          type: orderType,
-          price: o.triggerPrice,
-          size: o.collateralUSDC * o.leverage,
-          leverage: o.leverage,
-          timestamp: o.createdAt * 1000,
-          onChain: true, onChainContract: VELO_PERPS_ADDRESS,
-        } as OpenOrder;
-      });
+      const mapped: OpenOrder[] = activeTradingOrders(veloPerpsTrading.conditionalOrders, veloPerpsTrading.openPositions, VELO_PERPS_ADDRESS);
       setOpenOrders((prev) => {
+        if (IS_V4) return mapped;
         // Replace the on-chain subset, keep any non-on-chain orders intact.
         const nonVelo = prev.filter((o) => !o.id.startsWith('velo_ord_'));
         return [...nonVelo, ...mapped];
       });
-    }, [user, isWalletConnected, veloPerpsTrading.conditionalOrders, veloPerpsTrading.isInitialLoading]);
+    }, [user, isWalletConnected, veloPerpsTrading.conditionalOrders, veloPerpsTrading.openPositions, veloPerpsTrading.isInitialLoading]);
 
     const orderLookups = useRef(new Set<string>());
     // A cancelled order also disappears. Only its receipt can identify a fill.
@@ -2832,7 +2195,7 @@ const App = () => {
      */
     const handleEditPosition = (p: Position | null, initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS') => {
       if (!p) { setEditingPosition(null); setManagingPosition(null); return; }
-      if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+      if (IS_V4 && (!p.onChain || p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase())) {
         setToast({message:'Refresh this position before managing it. Legacy positions have separate exit controls.',type:'INFO'}); return;
       }
       if (p.onChain && p.onChainTradeId) { setManagingPositionTab(initialTab === 'TRIGGERS' ? 'TRIGGERS' : 'PARTIAL'); setManagingPosition(p); }
@@ -2840,6 +2203,7 @@ const App = () => {
     };
     const [activeSocialTicker, setActiveSocialTicker] = useState<string | null>(null);
     const openCoin = (identifier: string) => {
+        if (typeof identifier !== 'string' || !identifier.trim()) return;
         setActiveSocialTicker(identifier);
         setSinglePostId(null);
         setSingleCommentId(null);
@@ -2943,6 +2307,7 @@ const App = () => {
     // Always start false so INITIAL_SESSION refreshes data from Supabase on every load.
     // The localStorage cache handles instant display; Supabase provides fresh data.
     const sessionRestoredRef = useRef(false);
+    const profileHydrationGate = useRef(createProfileHydrationGate()).current;
 
     // Guard: user explicitly logged out — block all automatic session restores until next manual login
     const intentionalLogoutRef = useRef(false);
@@ -2980,7 +2345,9 @@ const App = () => {
       silentLoginCallbackRef.current = async (authUser: any, profile: any) => {
         if (!authUser || intentionalLogoutRef.current) return;
         const attempt = authAttemptRef.current;
+        const hydration = profileHydrationGate.begin();
         try {
+          if (isWalletPlaceholder(profile?.username)) return;
           const restoredUser = profile ? dbProfileToUserProfile(profile) : {
             id: authUser.id,
             username: profile?.username || authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'Trader',
@@ -2992,12 +2359,12 @@ const App = () => {
             tradeHistory: [], transactionHistory: [], pnlHistory: [],
             joinedDate: new Date().toISOString(), likes: [], reposts: [],
           } as UserProfile;
-          if (intentionalLogoutRef.current) return;
+          if (!profileHydrationGate.current(hydration) || intentionalLogoutRef.current) return;
           setUser({ ...restoredUser });
           setAuthChecked(true);
           const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-            fetchPositions(authUser.id),
-            fetchOpenOrders(authUser.id),
+            IS_V4 ? Promise.resolve([]) : fetchPositions(authUser.id),
+            IS_V4 ? Promise.resolve([]) : fetchOpenOrders(authUser.id),
             fetchTradeHistory(authUser.id),
             fetchTransactions(authUser.id),
             fetchNotifications(authUser.id),
@@ -3024,12 +2391,11 @@ const App = () => {
           // wallet_address so the UI always shows the correct address.
           if (walletAddress) restoredUser.walletAddress = walletAddress;
           else if (profile?.wallet_address) restoredUser.walletAddress = profile.wallet_address;
-          if (attempt !== authAttemptRef.current || intentionalLogoutRef.current || window.__veloLogoutLock) return;
+          if (!profileHydrationGate.current(hydration) || attempt !== authAttemptRef.current || intentionalLogoutRef.current || window.__veloLogoutLock) return;
           setUser(restoredUser);
           recordSessionWallet();
-          setPositions(positions);
-          setOpenOrders(orders);
-          setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
+          if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
+          setNotifications(prev => mergeNotifications([], notifs, notificationReadIds.current, undefined, notificationRetractedIds.current)); // always replace — guard caused stale/empty notifications on refresh
           if (loadedPosts.length > 0) setPosts(loadedPosts);
           try { const prefs = await fetchPreferences(authUser.id); applyPreferences(prefs); } catch (_) {}
           playSound('SUCCESS');
@@ -3119,35 +2485,32 @@ const App = () => {
     [positions]);
 
     const totalUnrealizedPnl = useMemo(() =>
-        positions.reduce((acc, p) => {
-            const mark = marketPrices[p.pair] || p.entryPrice;
-            return acc + positionPnl(p, mark);
-        }, 0),
-    [positions, marketPrices]);
+        positions.reduce((sum,p)=>sum+accountPositionPnl(p,marketPrices[p.pair]||p.entryPrice),0),
+    [positions,marketPrices]);
 
-    // ── Equity & buying power ─────────────────────────────────────────────────
-    //
-    // Definitions (industry standard):
-    //   • Total Equity   = total value of the trading account
-    //                    = Free Balance + Locked Margin + Unrealized PnL
-    //                    = your mUSDC + your trading PnL.
-    //                      It does NOT change when you open a position — it only
-    //                      moves on price action (PnL) or new deposits/withdrawals.
-    //   • Buying Power   = how much you have available to open new positions
-    //                    = Free Balance only.
-    //                      Drops by exactly the margin amount when you open.
-    //
-    // Phase 3 — VeloPerps source semantics:
-    //   veloPerpsTrading.usdcBalance is the FREE wallet balance (the contract
-    //   pulls collateral OUT of the wallet on open, so wallet balance never
-    //   includes locked margin). Same semantics as demo mode's user.balance,
-    //   so we can use the single formula below for both wallet and email users.
+    const pendingOrderCollateral = useMemo(()=>veloPerpsTrading.conditionalOrders.reduce((sum,order)=>sum+(order.active?order.collateralUSDC:0),0),[veloPerpsTrading.conditionalOrders]);
+
+    // Wallet funds + estimated position payouts + refundable order escrow.
+    // Paid entry fees are not subtracted twice; transfers are never trading PnL.
     const totalEquity = useMemo(() => {
-        if (!user) return 0;
-        const isLive = !!walletAddress;
-        const freeBalance = isLive ? veloPerpsTrading.usdcBalance : user.balance;
-        return freeBalance + totalLockedMargin + totalUnrealizedPnl;
-    }, [user?.balance, walletAddress, veloPerpsTrading.usdcBalance, totalLockedMargin, totalUnrealizedPnl]);
+        if(!user)return 0;
+        const cash=walletAddress?veloPerpsTrading.usdcBalance:user.balance;
+        return accountEquity(cash,positions,marketPrices,walletAddress?veloPerpsTrading.conditionalOrders:[]) ?? cash+totalLockedMargin+totalUnrealizedPnl;
+    },[user?.id,user?.balance,walletAddress,veloPerpsTrading.usdcBalance,veloPerpsTrading.conditionalOrders,positions,marketPrices,totalLockedMargin,totalUnrealizedPnl]);
+
+    // Wait for the complete account read AND its mapped positions. A wallet's
+    // initial zero balance or an intermediate position sync is not equity history.
+    const equityReady = !!user && !!walletAddress && (
+      veloPerpsTrading.hasAccountSnapshot && !veloPerpsTrading.readError &&
+      positions.length === veloPerpsTrading.openPositions.length &&
+      positions.every(p => {
+        const quote=pythPriceStream.getMeta(p.pair);
+        return quote && Math.abs(Date.now()/1000-quote.publishTime)<=60 && quote.price===marketPrices[p.pair];
+      }) &&
+      veloPerpsTrading.openPositions.every(p => positions.some(row => row.id === `velo_${p.tradeId}` && row.size === p.notionalUSDC))
+    );
+    const equityHistory = useEquityHistory(user?.id, veloPerpsTrading.traderAddress || user?.id,
+      VELO_PERPS_ADDRESS, totalEquity, equityReady, equityStore);
 
     // Cross-margin unrealized — only cross positions lend their gains as
     // additional buying power; isolated positions don't.
@@ -3316,8 +2679,7 @@ const App = () => {
             // Logout sentinel — see the IIFE at the top of this file. If the
             // user just navigated in from a logout, never restore a session,
             // even if Supabase somehow still has one in storage or memory.
-            // The lock is cleared by the wagmiStatus='connecting' handler
-            // when the user explicitly opens AppKit and picks a wallet.
+            // Only explicit account-choice buttons clear the lock.
             if (typeof window !== 'undefined' && window.__veloLogoutLock) {
                 if (isGetSessionFallback) {
                     setUser(null);
@@ -3352,6 +2714,7 @@ const App = () => {
             // Either way: if sessionRestoredRef is true, we must NOT call setAuthChecked prematurely.
             if (sessionRestoredRef.current) return;
             sessionRestoredRef.current = true;
+            const hydration = profileHydrationGate.begin();
             try {
                 let profileData = await getProfile(session.user.id);
                 // Retry once on failure (Supabase cold start / transient network blip)
@@ -3360,11 +2723,15 @@ const App = () => {
                     profileData = await getProfile(session.user.id);
                 }
                 const profile = profileData?.profile;
+                if (!profileHydrationGate.current(hydration) || intentionalLogoutRef.current) return;
                 if (!profile) { sessionRestoredRef.current = false; setAuthChecked(true); setSessionNotice('expired'); return; }
+                if (!profileHydrationGate.current(hydration) || isWalletPlaceholder(profile.username)) return;
                 const restoredUser = dbProfileToUserProfile(profile);
+                // Profile hydration is independent of slower history/social reads.
+                if (!intentionalLogoutRef.current && !window.__veloLogoutLock) setUser(restoredUser);
                 const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-                    fetchPositions(session.user.id),
-                    fetchOpenOrders(session.user.id),
+                    IS_V4 ? Promise.resolve([]) : fetchPositions(session.user.id),
+                    IS_V4 ? Promise.resolve([]) : fetchOpenOrders(session.user.id),
                     fetchTradeHistory(session.user.id),
                     fetchTransactions(session.user.id),
                     fetchNotifications(session.user.id),
@@ -3427,7 +2794,7 @@ const App = () => {
                         if (liveWallet) break;
                     }
                 }
-                if (liveWallet && profileWallet && liveWallet !== profileWallet) {
+                if (hasWalletSignInIntent(freshWalletConnectRef.current) && liveWallet && profileWallet && liveWallet !== profileWallet) {
                     console.warn('[velo:auth] session/wallet mismatch — connected', liveWallet.slice(0,8), 'but session is', profileWallet.slice(0,8), '→ signing out stale session');
                     sessionRestoredRef.current = false;
                     clearSessionCache();
@@ -3439,12 +2806,11 @@ const App = () => {
                 // Wallet matches (or hasn't reconnected — trust the shared session).
                 console.info('[velo:auth] session restored for', profile?.username, liveWallet ? `(wallet ${liveWallet.slice(0,8)})` : '(wallet pending)');
 
-                if (intentionalLogoutRef.current || window.__veloLogoutLock) return;
+                if (!profileHydrationGate.current(hydration) || intentionalLogoutRef.current || window.__veloLogoutLock) return;
                 setUser(restoredUser);
                 recordSessionWallet();
-                setPositions(positions);
-                setOpenOrders(orders);
-                setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
+                if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
+                setNotifications(prev => mergeNotifications([], notifs, notificationReadIds.current, undefined, notificationRetractedIds.current)); // always replace — guard caused stale/empty notifications on refresh
                 if (loadedPosts.length > 0) setPosts(loadedPosts);
                 try {
                     const prefs = await fetchPreferences(session.user.id);
@@ -3452,7 +2818,7 @@ const App = () => {
                 } catch (_) { /* use defaults */ }
                 // Restore to the page the user was on — don't force /trade
                 // navigateFromPath is called separately on mount and handles the URL
-            } catch(e) { sessionRestoredRef.current = false; setSessionNotice('expired'); console.warn('Session restore error:', e); }
+            } catch(e) { if (profileHydrationGate.current(hydration)) sessionRestoredRef.current = false; console.warn('Session restore interrupted; will retry on reconnect.'); }
             finally { setAuthChecked(true); }
         };
 
@@ -3465,7 +2831,7 @@ const App = () => {
                 userLoadedFromDB.current = false;
                 autoRecoverAttemptedRef.current = false;
                 burnerRecoveredRef.current = false;
-                freshWalletConnectRef.current = false;
+                freshWalletConnectRef.current = 0;
                 // Always wipe the cached session snapshot. SIGNED_OUT fires
                 // from both our explicit handleLogout AND any Supabase-side
                 // session expiry / cross-tab signOut. Either way the snapshot
@@ -3498,9 +2864,15 @@ const App = () => {
         
         // Fallback: if INITIAL_SESSION didn't fire (older Supabase SDK), restore via getSession.
         // This is also the authoritative source — only this path marks authChecked on null session.
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
-            await restoreSession(session, true);
-        });
+        const recoverSession = () => {
+            if (document.visibilityState !== 'visible' || intentionalLogoutRef.current || window.__veloLogoutLock) return;
+            void supabase.auth.getSession().then(({ data: { session }, error }) => {
+                if (!error) return restoreSession(session, true);
+            }).catch(() => { /* Preserve the session through an offline refresh. */ });
+        };
+        recoverSession();
+        window.addEventListener('online', recoverSession);
+        document.addEventListener('visibilitychange', recoverSession);
         
         // ── Cross-tab auth broadcast ─────────────────────────────────────
         // Converge sessions across tabs proactively. When THIS tab's auth
@@ -3555,6 +2927,8 @@ const App = () => {
             authEvents.cancel();
             subscription.unsubscribe();
             clearTimeout(authTimeout);
+            window.removeEventListener('online', recoverSession);
+            document.removeEventListener('visibilitychange', recoverSession);
             window.removeEventListener('storage', onStorage);
             try { bc?.close(); } catch {}
         };
@@ -3882,6 +3256,7 @@ const App = () => {
                 })
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload: any) => {
                     if (!mounted) return;
+                    window.dispatchEvent(new Event('velo:notifications-refresh'));
                     const del = payload.old;
                     setPosts(prev => prev.filter(p => p.id !== del.id));
                 })
@@ -3983,6 +3358,7 @@ const App = () => {
                 })
                 .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'comments' }, (payload: any) => {
                     if (!mounted) return;
+                    window.dispatchEvent(new Event('velo:notifications-refresh'));
                     const del = payload.old;
                     // Match by COMMENT ID across all posts — the PK is the only
                     // field a DELETE payload is guaranteed to carry (post_id may
@@ -4156,12 +3532,15 @@ const App = () => {
                 const notifs = await fetchNotifications(user.id);
                 if (!mounted) return;
                 notifs.forEach(n => notificationSeenIds.current.add(n.id));
-                setNotifications(prev => mergeNotifications(prev, notifs, notificationReadIds.current, startedAt));
+                setNotifications(prev => mergeNotifications(prev, notifs, notificationReadIds.current, startedAt, notificationRetractedIds.current));
             } catch (e) {
                 if (!isRetry && mounted) retryTimer = setTimeout(() => { void load(true); }, 3000);
             }
         };
 
+        let deletionTimer: ReturnType<typeof setTimeout> | null = null;
+        const onDeletion = () => { if (deletionTimer) clearTimeout(deletionTimer); deletionTimer = setTimeout(() => { void load(); }, 250); };
+        window.addEventListener('velo:notifications-refresh', onDeletion);
         const onVisible = () => { if (document.visibilityState === 'visible') void load(); };
         document.addEventListener('visibilitychange', onVisible);
         void load();
@@ -4170,6 +3549,8 @@ const App = () => {
         return () => {
             mounted = false;
             clearInterval(poll); unsubscribe();
+            window.removeEventListener('velo:notifications-refresh', onDeletion);
+            if (deletionTimer) clearTimeout(deletionTimer);
             if (retryTimer) clearTimeout(retryTimer);
             document.removeEventListener('visibilitychange', onVisible);
         };
@@ -4512,11 +3893,11 @@ const App = () => {
                     read: rawNotif.read, relatedId: rawNotif.related_id,
                     postId: rawNotif.post_id, commentId: rawNotif.comment_id,
                 };
-                setNotifications(prev => mergeNotifications(prev, [{ ...notif, suppressed: rawNotif.suppressed, __event: rawNotif.__event }], notificationReadIds.current));
+                setNotifications(prev => mergeNotifications(prev, [{ ...notif, suppressed: rawNotif.suppressed, retracted_at: rawNotif.retracted_at, __event: rawNotif.__event }], notificationReadIds.current, undefined, notificationRetractedIds.current));
                 const isNew = !notificationSeenIds.current.has(notif.id);
                 notificationSeenIds.current.add(notif.id);
                 if (notificationSeenIds.current.size > 500) notificationSeenIds.current.delete(notificationSeenIds.current.values().next().value!);
-                if (isNew && rawNotif.__event === 'INSERT' && !rawNotif.suppressed && !notif.read) {
+                if (isNew && rawNotif.__event === 'INSERT' && !rawNotif.suppressed && !rawNotif.retracted_at && !notif.read) {
                     setToast({ message: rawNotif.message, type: 'INFO' });
                     playSound('CLICK');
                 }
@@ -4585,7 +3966,7 @@ const App = () => {
     // KEY REQUIREMENT: tables must have REPLICA IDENTITY FULL (set in the database schema)
     // so that DELETE events carry the full old row — not just the PK.
     useEffect(() => {
-        if (!user || !isSupabaseConfigured()) return;
+        if (IS_V4 || !user || !isSupabaseConfigured()) return;
 
         const rowToPosition = (r: any): Position => ({
             id:               r.id,
@@ -4748,6 +4129,7 @@ const App = () => {
                 // we already have in local state (within $0.01 rounding).
                 setUser(prevUser => {
                     if (!prevUser) return null;
+                    if (updated.username && !isWalletPlaceholder(updated.username)) prevUser = {...prevUser,username:updated.username,handle:updated.handle || `@${updated.username}`,avatar:updated.avatar_url || prevUser.avatar,banner:updated.banner_url ?? prevUser.banner};
                     // If THIS tab has a deposit/withdraw RPC in-flight, skip — the
                     // optimistic local balance is already correct and the DB write
                     // (adjust_balance RPC) is the authoritative update. Applying the
@@ -4903,7 +4285,7 @@ const App = () => {
             await logoutTaskRef.current;
             await walletDisconnectRef.current?.();
             socialLoginHandledRef.current = false;
-            freshWalletConnectRef.current = false;
+            freshWalletConnectRef.current = Date.now();
             intentionalLogoutRef.current = false;
             window.__veloLogoutLock = false;
             try { localStorage.removeItem('velo_logged_out'); } catch {}
@@ -4923,10 +4305,13 @@ const App = () => {
         setSessionNotice(null);
         setVeloWelcomeOpen(false);
         try {
-            if (!isWalletConnected || !walletAddress) { await openAppKitModal({ view: 'Connect' }); return; }
+            if (!isWalletConnected || !walletAddress) { freshWalletConnectRef.current = Date.now(); await openAppKitModal({ view: 'Connect' }); return; }
             socialLoginHandledRef.current = true;
             signInBusyRef.current = true; setSignInBusy(true);
-            const { data } = await signInWithWallet(walletAddress, signMessageAsync, { force: true });
+            signInWalletRef.current = walletAddress.toLowerCase();
+            const { data } = await signInWithWallet(walletAddress, signMessageAsync, { onPhase: setSignInPhase });
+            if (attempt !== authAttemptRef.current) return;
+            setSignInPhase('profile');
             const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', data.user!.id).single();
             if (attempt !== authAttemptRef.current || intentionalLogoutRef.current) return;
             if (error) throw error;
@@ -4957,9 +4342,11 @@ const App = () => {
             authBroadcastRef.current?.postMessage({ type: 'LOGOUT' });
         } catch {}
         clearSessionCache(); clearNotifCache();
+        profileHydrationGate.invalidate();
         userLoadedFromDB.current = false; sessionRestoredRef.current = false;
         autoRecoverAttemptedRef.current = false; burnerRecoveredRef.current = false;
-        freshWalletConnectRef.current = false; socialLoginHandledRef.current = false;
+        freshWalletConnectRef.current = 0; socialLoginHandledRef.current = false;
+        setShareCardData(null);setCloseReceipt(null);setManagedCloseShare(null);setPositionSharePickerOpen(false);
         setUser(null); setPositions([]); setOpenOrders([]); setNotifications([]);
         setBurnerAddress(null); setSettingsOpen(false); setLoginOpen(false);
         setAccountChoiceOpen(false); setSidebarOpen(false);
@@ -5761,7 +5148,7 @@ const App = () => {
         if (processingIds.current.has(id)) return;
         const p = positionsRef.current.find(x => x.id === id);
         if (!p || !user) return;
-        if (IS_V4 && p.onChain && p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
+        if (IS_V4 && (!p.onChain || p.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase())) {
           setToast({ message:'Refresh this position before closing. Legacy positions have separate exit controls.',type:'INFO' });
           return;
         }
@@ -5807,7 +5194,8 @@ const App = () => {
 
             setToast({ message: 'Closing position — waiting for on-chain confirmation…', type: 'SUCCESS' });
             veloPerpsTrading.closePosition(tradeId, veloPair).then((result) => {
-                recordConfirmedClose(p, result);
+                const share = recordConfirmedClose(p, result);
+                if (share) setCloseReceipt(share);
                 setPositions(prev => prev.filter(x => x.id !== id));
                 setOpenOrders(prev => prev.filter(o => o.relatedPositionId !== id));
                 setToast({ message: `Position closed · PnL $${result.pnlUSDC.toFixed(2)}`, type: 'SUCCESS' });
@@ -5867,6 +5255,19 @@ const App = () => {
         }
     };
     const handleCancelOrder = (id: string) => {
+        const protection = openOrders.find(order => order.id === id);
+        if (protection?.onChain && ['TAKE_PROFIT', 'STOP_LOSS'].includes(protection.type)) {
+            try {
+                const position = positionsRef.current.find(p => p.id === protection.relatedPositionId);
+                const next = protectionAfterCancellation(protection, position, VELO_PERPS_ADDRESS);
+                void veloPerpsTrading.setTriggers(next.tradeId, next.takeProfit, next.stopLoss).then(() => {
+                    setPositions(prev => prev.map(p => p.id === position!.id ? { ...p, takeProfit: next.takeProfit || undefined, stopLoss: next.stopLoss || undefined } : p));
+                    setOpenOrders(prev => prev.filter(order => order.id !== id));
+                    setToast({ message: 'Protection cancelled on-chain', type: 'SUCCESS' });
+                }).catch(error => setToast({ message: error.shortMessage || error.message || 'Cancellation not confirmed', type: 'ERROR' }));
+            } catch (error: any) { setToast({ message: error.message, type: 'ERROR' }); }
+            return;
+        }
         // On-chain conditional order? Route to V3 cancelConditionalOrder.
         if (id.startsWith('velo_ord_')) {
             if (IS_V4 && openOrders.find(o => o.id === id)?.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
@@ -6022,7 +5423,13 @@ const App = () => {
                 }
             }
         }
+        profileHydrationGate.invalidate();
         setUser(prev => prev ? { ...prev, ...updatedData } : null);
+        setTraders(prev => prev.map(trader => trader.id === user.id ? {...trader,...updatedData} : trader));
+        setPosts(prev => prev.map(post => ({ ...post,
+          ...(post.authorId === user.id ? {authorAvatar:updatedData.avatar || post.authorAvatar,authorHandle:updatedData.handle || post.authorHandle} : {}),
+          comments: post.comments.map(comment => comment.authorId === user.id ? {...comment,authorAvatar:updatedData.avatar || comment.authorAvatar,authorHandle:updatedData.handle || comment.authorHandle} : comment),
+        })));
         setToast({ message: 'Profile updated', type: 'SUCCESS' });
         playSound('SUCCESS');
         return { ok: true };
@@ -6044,13 +5451,13 @@ const App = () => {
         const tempId = `p_${Date.now()}`;
         // Optimistic local update with temp id
         if (targetProfileId && targetProfileId !== user.id) { setToast({ message: 'Publish on your own profile and mention the trader instead.', type: 'INFO' }); return null; }
-        const tempPost: Post = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[], isTradeSignal: !!tradeSignal, tradeDetails: tradeSignal, targetProfileId };
+        const tempPost: Post = { id: tempId, authorId: user.id, authorHandle: user.handle, authorAvatar: user.avatar, content: c, timestamp: new Date().toISOString(), likes:0, reposts:0, likedBy:[], repostedBy:[], comments:[], isTradeSignal: !!tradeSignal, tradeDetails: tradeSignal, tradeSnapshot: tradeSignal?.snapshot, image: tradeSignal?.imageUrl, targetProfileId };
         // Tentative dedupe registration — cleared in the catch so a genuine
         // retry after failure isn't blocked, but a double-click never lands.
         lastPostRef.current = { c: c.trim(), ts: Date.now() };
         try {
             if (!isSupabaseConfigured()) throw new Error('Publishing is unavailable.');
-            const { data, error } = await supabaseCreatePost(user.id, c, undefined, tradeSignal, targetProfileId);
+            const { data, error } = await supabaseCreatePost(user.id, c, tradeSignal?.imageUrl, tradeSignal, targetProfileId);
             if (error) {
                 throw new Error(typeof error === 'string' ? error : (error as any)?.message || 'create post failed');
             } else if (data) {
@@ -6373,18 +5780,19 @@ const App = () => {
 
     // True whenever any overlay/modal is open — used to push navbar behind the backdrop
     const anyModalOpen =
+        quickSearchOpen ||
         accountChoiceOpen || isLoginOpen || isResetPasswordOpen || isOrderlyOnboardingOpen ||
         isVeloWelcomeOpen || isVeloBridgeOpen || isVeloDepositOpen ||
         isVeloUsernameOpen || isVeloSendOpen || isVeloWithdrawOpen ||
         isCrossAccountOpen || isSettingsOpen || orderlyDWModal.open ||
-        usersListModal.isOpen || sidebarOpen || leverageModalOpen;
+        usersListModal.isOpen || sidebarOpen || leverageModalOpen || positionSharePickerOpen || !!shareCardData || !!closeReceipt;
 
     // Watch the DOM as well as app state so dialogs owned by leaf components
     // (such as chart settings) suppress the floating navigation consistently.
     React.useEffect(() => {
         const syncModalLayer = () => {
             const hasDialog = !!document.querySelector(
-                '.velo-modal-enter-backdrop, .velo-modal-overlay, .velo-modal-card, [role="dialog"][aria-modal="true"], [aria-modal="true"], [data-modal-layer="true"], w3m-modal.open, appkit-modal.open'
+                'dialog[open], .velo-modal-enter-backdrop, .velo-modal-overlay, .velo-modal-card, [role="dialog"][aria-modal="true"], [aria-modal="true"], [data-modal-layer="true"], w3m-modal.open, appkit-modal.open'
             );
             document.body.classList.toggle('modal-open', anyModalOpen || hasDialog);
         };
@@ -6393,7 +5801,7 @@ const App = () => {
             subtree: true,
             childList: true,
             attributes: true,
-            attributeFilter: ['class', 'aria-modal', 'data-modal-layer'],
+            attributeFilter: ['class', 'open', 'aria-modal', 'data-modal-layer'],
         });
         syncModalLayer();
         return () => {
@@ -6405,7 +5813,28 @@ const App = () => {
     return (
         <>
         <ReactionContext.Provider value={{ userId: user?.id, react: handleReaction, requireAuth: () => void handleRequireAuth() }}>
-        {(sessionNotice || sessionWarning !== null || signInBusy) && (
+        <SharedMarkContext.Provider value={marketPrices}>
+        <SocialTagProvider people={traders}>
+        {closeReceipt && <TradeCloseReceipt data={closeReceipt} onClose={()=>setCloseReceipt(null)} onShare={()=>{setShareCardData(closeReceipt);setCloseReceipt(null);}}/>}
+        <PositionSharePicker open={positionSharePickerOpen} onClose={() => setPositionSharePickerOpen(false)} positions={positions} history={user?.tradeHistory || []}
+          onPosition={p => {
+            const mark = marketPrices[p.pair] || p.entryPrice, pnl = positionPnl(p, mark);
+            const collateral = p.v4 ? p.v4.collateral + p.v4.openFee : p.size / p.leverage;
+            setShareCardData({ presentation:'pnl',...positionShareMetadata(p,user?.tradeHistory),pair:p.pair,side:p.side,leverage:p.leverage,entryPrice:p.entryPrice,markPrice:mark,size:p.size,
+              collateral,pnl,pnlPct:collateral > 0 ? pnl/collateral*100 : 0,status:'OPEN',traderHandle:user?.handle,
+              chainId:84532,contract:p.onChainContract,tradeId:p.onChainTradeId,trader:veloPerpsTrading.traderAddress,openedAt:p.timestamp,v4:p.v4 });
+          }} onHistory={t => {
+            const collateral = t.size / (t.leverage || 1);
+            setShareCardData({presentation:'pnl',...positionShareMetadata(t,user?.tradeHistory),pair:t.pair,side:t.side,leverage:t.leverage || 1,entryPrice:t.entryPrice,closePrice:t.exitPrice,size:t.size,
+              collateral,pnl:t.pnl,pnlPct:collateral > 0 ? t.pnl/collateral*100 : 0,status:t.action === 'LIQUIDATION' ? 'LIQUIDATED':'CLOSED',
+              traderHandle:user?.handle,chainId:84532,contract:VELO_PERPS_ADDRESS,tradeId:t.positionId?.replace('velo_',''),
+              trader:veloPerpsTrading.traderAddress,txHash:t.txHash});
+          }}/>
+        <WalletSignInDialog open={signInBusy && !appKitOpen} phase={signInPhase}
+          onCancel={() => { ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); socialLoginHandledRef.current = false; }}
+          onSwitchWallet={() => { ++authAttemptRef.current; cancelWalletSignIn(); signInBusyRef.current = false; setSignInBusy(false); void handleChooseAnotherAccount(); }}
+          onOpenWallet={() => void openAppKitModal({ view: 'Account' })} />
+        {!signInBusy && (sessionNotice || sessionWarning !== null) && (
           <div role="dialog" aria-modal="true" aria-label={signInBusy ? 'Wallet sign-in' : 'Session status'} style={{ position: 'fixed', inset: 0, zIndex: 30000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,.6)', padding: 20 }}>
             <div style={{ background: 'var(--glass-bg-strong)', color: 'var(--fg)', border: '1px solid var(--hairline)', borderRadius: 18, padding: 28, maxWidth: 410, width: '100%' }}>
               <h2 style={{ fontSize: 22, marginBottom: 12 }}>{signInBusy ? 'Complete sign-in in your wallet' : sessionWarning !== null ? 'Still here?' : sessionNotice === 'expired' ? 'Sign in again' : 'You’re signed out'}</h2>
@@ -6427,7 +5856,7 @@ const App = () => {
                             <AlertTriangle size={24} style={{ color: 'oklch(0.74 0.18 30)' }} />
                         </div>
                         <div>
-                            <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', marginBottom: 8, letterSpacing: '-0.02em' }}>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, color: 'var(--fg)', marginBottom: 8, letterSpacing: '-0.02em' }}>
                                 {walletSessionAlert.type === 'account' ? 'Account Changed' : 'Network Changed'}
                             </p>
                             <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6 }}>
@@ -6526,7 +5955,7 @@ const App = () => {
             {needsRederive && (
               <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: 16 }}>
                 <div style={{ width: 'min(420px, 100%)', background: 'var(--glass-2)', border: '1px solid var(--hr-2)', borderRadius: 20, boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(40px) saturate(1.8)', WebkitBackdropFilter: 'blur(40px) saturate(1.8)', padding: 24, position: 'relative' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 22, color: 'var(--fg)', marginBottom: 8 }}>Restore your trading wallet</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 22, color: 'var(--fg)', marginBottom: 8 }}>Restore your trading wallet</div>
                   <p style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5, margin: '0 0 18px' }}>
                     You're signed in on a new device. Authorize one signature to restore your Velo trading wallet — it re-derives the <strong>same address and funds</strong>. This is required before you can trade. It costs nothing and isn't a transaction.
                   </p>
@@ -6566,6 +5995,13 @@ const App = () => {
               }}
               onAuth={async (authUser, passedProfile, isNewAccount) => {
                     if (!authUser) return;
+                    const hydration = profileHydrationGate.begin();
+                    try {
+                        localStorage.removeItem('velo_logged_out');
+                        localStorage.setItem('velo_session_started_at', String(Date.now()));
+                        localStorage.setItem(`velo_activity_${authUser.id}`, String(Date.now()));
+                    } catch {}
+                    window.__veloLogoutLock = false;
                     intentionalLogoutRef.current = false;
                     freshSignupRef.current = !!isNewAccount;
                     socialLoginHandledRef.current = true; // prevent socialLoginEffect re-firing for both new and returning users
@@ -6592,9 +6028,11 @@ const App = () => {
                             tradeHistory: [], transactionHistory: [], pnlHistory: [],
                             joinedDate: new Date().toISOString(), likes: [], reposts: [],
                         } as UserProfile;
+                        if (!profileHydrationGate.current(hydration)) return;
+                        setUser(restoredUser);
                         const [positions, orders, history, txns, notifs, loadedPosts] = await Promise.all([
-                            fetchPositions(authUser.id),
-                            fetchOpenOrders(authUser.id),
+                            IS_V4 ? Promise.resolve([]) : fetchPositions(authUser.id),
+                            IS_V4 ? Promise.resolve([]) : fetchOpenOrders(authUser.id),
                             fetchTradeHistory(authUser.id),
                             fetchTransactions(authUser.id),
                             fetchNotifications(authUser.id),
@@ -6618,11 +6056,11 @@ const App = () => {
                         userLoadedFromDB.current = true;
                         if (walletAddress) restoredUser.walletAddress = walletAddress;
                         else if (passedProfile?.wallet_address) restoredUser.walletAddress = passedProfile.wallet_address;
+                        if (!profileHydrationGate.current(hydration) || intentionalLogoutRef.current) return;
                         setUser(restoredUser);
                         recordSessionWallet();
-                        setPositions(positions);
-                        setOpenOrders(orders);
-                        setNotifications(notifs); // always replace — guard caused stale/empty notifications on refresh
+                        if (!IS_V4) { setPositions(positions); setOpenOrders(orders); }
+                        setNotifications(prev => mergeNotifications([], notifs, notificationReadIds.current, undefined, notificationRetractedIds.current)); // always replace — guard caused stale/empty notifications on refresh
                         if (loadedPosts.length > 0) setPosts(loadedPosts);
                         try {
                             const prefs = await fetchPreferences(authUser.id);
@@ -6631,6 +6069,8 @@ const App = () => {
                         playSound('SUCCESS');
                     } catch (e) {
                         console.warn('onAuth error:', e);
+                        if (!profileHydrationGate.current(hydration) || intentionalLogoutRef.current) return;
+                        if (passedProfile) { setUser(dbProfileToUserProfile(passedProfile)); return; }
                         const username = authUser.user_metadata?.username || authUser.email?.split('@')[0] || 'Trader';
                         setUser({
                             id: authUser.id, username, handle: `@${username.replace(/\s+/g, '')}`,
@@ -6698,16 +6138,19 @@ const App = () => {
               isOpen={isVeloBridgeOpen}
               onClose={() => setVeloBridgeOpen(false)}
             />
-            {/* ── Velo Deposit Modal (main wallet → trading wallet, same chain) ── */}
+            {/* Unified funds dialog: activity follows the selected direction. */}
             <VeloDepositModal
-              isOpen={isVeloDepositOpen}
-              onClose={() => setVeloDepositOpen(false)}
-              onSuccess={async (txHash, amount) => {
-                setToast({ message: `Deposited $${amount.toFixed(2)} to trading wallet`, type: 'SUCCESS' });
+              isOpen={isVeloDepositOpen || isVeloWithdrawOpen}
+              defaultTab={isVeloWithdrawOpen ? 'withdraw' : 'deposit'}
+              onClose={() => { setVeloDepositOpen(false); setVeloWithdrawOpen(false); }}
+              onSuccess={async (txHash, amount, direction) => {
+                const activityType = direction === 'withdraw' ? 'WITHDRAW' : 'DEPOSIT';
+                const message = direction === 'withdraw' ? `Withdrew $${amount.toFixed(2)} mUSDC to wallet` : `Deposited $${amount.toFixed(2)} mUSDC to trading wallet`;
+                setToast({ message, type: 'SUCCESS' });
                 if (user?.id && isSupabaseConfigured()) {
                   try {
-                    await recordTransaction(user.id, 'DEPOSIT', amount, { txHash, onChain: true });
-                    await createNotification(user.id, 'DEPOSIT', `Deposited $${amount.toFixed(2)} mUSDC to trading wallet`, txHash);
+                    await recordTransaction(user.id, activityType, amount, { txHash, onChain: true });
+                    await createNotification(user.id, activityType, message, txHash);
                     const txns = await fetchTransactions(user.id);
                     setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
                   } catch (e) { console.warn('[velo] deposit tx record failed', e); }
@@ -6716,15 +6159,6 @@ const App = () => {
                 // waiting for the next 5s poll — the dashboard's TOTAL EQUITY
                 // visibly jumps the moment the user sees the SUCCESS toast.
                 try { await veloPerpsTrading.refresh(); } catch {}
-              }}
-            />
-            {/* ── Velo Share Trade Modal (post-close share-to-feed prompt) ── */}
-            <VeloShareTradeModal
-              isOpen={!!shareTradeData}
-              trade={shareTradeData}
-              onClose={() => setShareTradeData(null)}
-              onShare={(content, tradeSignal) => {
-                handleCreatePost(content, tradeSignal).catch(() => {});
               }}
             />
             {/* ── Velo Username Modal (on-chain handle claim) ── */}
@@ -6843,39 +6277,35 @@ const App = () => {
                 try { await veloPerpsTrading.refresh(); } catch {}
               }}
             />
-            {/* ── Velo Withdraw Modal (trading wallet → main or custom 0x) ── */}
-            <VeloWithdrawModal
-              isOpen={isVeloWithdrawOpen}
-              onClose={() => setVeloWithdrawOpen(false)}
-              onSuccess={async (hash, amount) => {
-                setToast({ message: `Withdrew $${amount.toFixed(2)} mUSDC`, type: 'SUCCESS' });
-                // Record the withdrawal in Recent Activity. on-chain meta keeps
-                // it from double-applying to the legacy Supabase balance.
-                if (user?.id && isSupabaseConfigured()) {
-                  try {
-                    await recordTransaction(user.id, 'WITHDRAW', amount, { txHash: hash, onChain: true });
-                    await createNotification(user.id, 'WITHDRAW', `Withdrew $${amount.toFixed(2)} mUSDC to wallet`, hash);
-                    const txns = await fetchTransactions(user.id);
-                    setUser(prev => prev ? { ...prev, transactionHistory: txns } : null);
-                  } catch (e) { console.warn('[velo] withdraw tx record failed', e); }
-                }
-                // Refresh the burner balance so TOTAL EQUITY visibly drops by
-                // the withdrawn amount immediately.
-                try { await veloPerpsTrading.refresh(); } catch {}
-              }}
-            />
             {/* ── Velo Share Card (PNG export) ── */}
             {shareCardData && (
               <VeloShareCard
                 isOpen={!!shareCardData}
                 onClose={() => setShareCardData(null)}
                 data={shareCardData}
+                onPost={async (content, snapshot, image) => {
+                  if (!user) return null;
+                  const key = JSON.stringify([user.id,content,snapshot]);
+                  let imageUrl = shareImageUpload.current?.key === key ? shareImageUpload.current.url : '';
+                  if (image && !imageUrl) {
+                    const path = `${user.id}/${crypto.randomUUID()}.png`;
+                    const { error } = await supabase.storage.from('post-images').upload(path, image, {contentType:'image/png',cacheControl:'31536000',upsert:false});
+                    if (error) throw new Error('Image upload failed. Your draft is kept; please retry.');
+                    imageUrl = supabase.storage.from('post-images').getPublicUrl(path).data.publicUrl;
+                    shareImageUpload.current = {key,url:imageUrl};
+                  }
+                  const id = await handleCreatePost(content, { imageUrl, pair: snapshot.pair, side: snapshot.side, leverage: snapshot.leverage, entry: snapshot.entryPrice, snapshot });
+                  if (id) { setActiveTab(TabView.SOCIAL); setSocialFocusPostId(id); }
+                  return id;
+                }}
               />
             )}
             {/* ── Velo Manage Position Modal (V2: add/reduce margin, partial close, TP/SL) ── */}
             <VeloManagePositionModal
               isOpen={!!managingPosition}
-              onClose={() => { setManagingPosition(null); setManagingPositionTab('PARTIAL'); }}
+              onClose={() => { setManagingPosition(null); setManagingPositionTab('PARTIAL'); setManagedCloseShare(null); }}
+              settled={managedCloseShare || undefined}
+              onShareClosed={managedCloseShare ? ()=>{setShareCardData(managedCloseShare);setManagingPosition(null);setManagedCloseShare(null);} : undefined}
               position={managingPosition}
               currentPrice={managingPosition ? (marketPrices[managingPosition.pair] || managingPosition.entryPrice) : 0}
               userBalance={veloPerpsTrading.usdcBalance ?? user?.balance ?? 0}
@@ -6898,7 +6328,8 @@ const App = () => {
                     ? await veloPerpsTrading.closePosition(tradeId, pair.replace('/', '-') as any)
                     : await veloPerpsTrading.partialClose(tradeId, fracBps, pair.replace('/', '-') as any);
                   if (pos) {
-                    recordConfirmedClose(pos, r);
+                    const share = recordConfirmedClose(pos, r);
+                    setManagedCloseShare(share || null);
                     setPositions(prev => fracBps === 10000 ? prev.filter(p => p.id !== pos.id)
                       : prev.map(p => p.id === pos.id ? { ...p, size: p.size * (1 - r.fractionBps / 10000) } : p));
                   }
@@ -6914,7 +6345,9 @@ const App = () => {
                     setPositions((prev: any[]) => prev.map((p: any) =>
                       p.id === pos.id ? { ...p, takeProfit: tp || undefined, stopLoss: sl || undefined } : p
                     ));
-                    // Sync openOrders: replace any existing TP/SL orders for this position
+                    // V4 protection rows are rebuilt from confirmed contract positions.
+                    if (IS_V4) return r;
+                    // Legacy/demo protection retains its existing local projection.
                     const id = pos.id;
                     setOpenOrders((prevOrders: any[]) => {
                       const filtered = prevOrders.filter((o: any) => o.relatedPositionId !== id);
@@ -7040,8 +6473,9 @@ const App = () => {
                 marketPrices={marketPrices}
             />
             <UsersListModal isOpen={usersListModal.isOpen} onClose={() => setUsersListModal(prev => ({ ...prev, isOpen: false }))} title={usersListModal.title} userIds={usersListModal.userIds} traders={traders} onViewProfile={handleViewProfile}/>
-            <MobileSidebar isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
-            <Navbar activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
+            <MobileSidebar onSearch={()=>{setSidebarOpen(false);window.setTimeout(()=>setQuickSearchOpen(true),0);}} isOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} user={user} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} onRequireAuth={handleRequireAuth} totalEquity={totalEquity} buyingPower={buyingPower} isContractOwner={isContractOwner} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setSingleCommentId(null); setActiveTab(TabView.SOCIAL); }}/>
+            <QuickSearch open={quickSearchOpen} setOpen={setQuickSearchOpen} people={traders} signedIn={!!user} onNavigate={tab=>{setSinglePostId(null);setActiveSocialTicker(null);setActiveTab(tab);}} onAsset={asset=>{setSinglePostId(null);setActiveSocialTicker(asset.assetId);setActiveTab(TabView.COIN);}} onTrade={pair=>{setActivePair(pair);setActiveTab(TabView.TRADE);}} onProfile={handleViewProfile}/>
+            <Navbar onSearch={()=>setQuickSearchOpen(true)} activeTab={activeTab === TabView.COIN ? TabView.MARKETS : activeTab} setActiveTab={setActiveTab} toggleTheme={() => { const next = theme === 'dark' ? 'light' : 'dark'; setTheme(next); localStorage.setItem('velo_theme', next); updatePrefs({ theme: next }); }} theme={theme} handleLogout={handleLogout} user={user} onRequireAuth={handleRequireAuth} unreadCount={notifications.filter(n => !n.read).length} setMobileMenuOpen={setSidebarOpen} notifications={notifications} onCreatePost={() => { if (user) setCreatePostModalOpen(true); else handleRequireAuth(); }} onOpenSettings={() => setSettingsOpen(true)} isContractOwner={isContractOwner} anyModalOpen={anyModalOpen} onSocialClick={() => { setActiveSocialTicker(null); setSinglePostId(null); setActiveTab(TabView.SOCIAL); }} onNotificationClick={(n: any) => {
                     if (!n.read) void markNotificationIdsRead([n.id]);
 
                     // Route based on notification type so the click actually lands somewhere useful
@@ -7142,7 +6576,7 @@ const App = () => {
                                         .from('transactions')
                                         .select('*')
                                         .eq('user_id', user.id)
-                                        .eq('suppressed', false)
+                                        .eq('suppressed', false).is('retracted_at', null)
                                         .in('tx_hash', [rid, `faucet:${rid}`])
                                         .limit(1)
                                         .maybeSingle();
@@ -7184,7 +6618,7 @@ const App = () => {
                         fetchNotifications(user.id).then(fresh => {
                             if (notificationOwner.current !== owner) return;
                             fresh.forEach(n => notificationSeenIds.current.add(n.id));
-                            setNotifications(prev => mergeNotifications(prev, fresh, notificationReadIds.current, startedAt));
+                            setNotifications(prev => mergeNotifications(prev, fresh, notificationReadIds.current, startedAt, notificationRetractedIds.current));
                         }).catch(() => setToast({ message: 'Notifications could not refresh. Reopen the panel to retry.', type: 'ERROR' }));
                     }
                 }} onMarkAllRead={() => void markNotificationIdsRead(notifications.filter(n => !n.read).map(n => n.id))} totalEquity={totalEquity}/>
@@ -7199,7 +6633,7 @@ const App = () => {
                   onClosePosition={(p, result) => recordConfirmedClose({ pair:p.pair.replace('-', '/'), side:p.isLong?'LONG':'SHORT',
                     size:p.notionalUSDC, entryPrice:p.entryPrice, leverage:p.leverage, marginMode:p.marginMode,
                     timestamp:p.openedAt*1000 }, result, false)}/>}
-                {activeTab === TabView.DASHBOARD && user && <Dashboard user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
+                {activeTab === TabView.DASHBOARD && user && <Dashboard pendingOrderCollateral={pendingOrderCollateral} equityHistory={equityHistory} equityReady={equityReady} user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
                     if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);
@@ -7237,8 +6671,9 @@ const App = () => {
                   <TradeView tradingPending={veloPerpsTrading.isPending} activePair={activePair} setActivePair={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); }} marketPrices={marketPrices} marketChanges={marketChanges} candles={candles} chartHistoryStatus={chartHistoryStatus} onRetryChartHistory={() => setChartHistoryRetry(retry => retry + 1)} onLoadOlderHistory={loadOlderChartHistory} user={user} positions={positions} openOrders={openOrders} onOpenPosition={handleOpenPosition} onClosePosition={handleClosePosition} handleCancelOrder={handleCancelOrder} onRequireAuth={handleRequireAuth} onEditPosition={handleEditPosition} onOpenCrossAccount={(tab?: 'DEPOSIT' | 'WITHDRAW') => { setCrossAccountTab(tab || 'DEPOSIT'); setCrossAccountOpen(true); }} crossFreeBalance={veloPerpsTrading.crossFreeBalance} crossTotalBalance={veloPerpsTrading.crossTotalBalance} onSharePosition={(p: any) => {
                     const cp = marketPrices[p.pair] || p.entryPrice;
                     const pnl = positionPnl(p, cp);
-                    const collateral = p.size / p.leverage;
+                    const collateral = p.v4 ? p.v4.collateral + p.v4.openFee : p.size / p.leverage;
                     setShareCardData({
+                      ...positionShareMetadata(p,user?.tradeHistory),
                       pair: p.pair,
                       side: p.side as 'LONG' | 'SHORT',
                       leverage: p.leverage,
@@ -7250,6 +6685,8 @@ const App = () => {
                       pnlPct: (pnl / collateral) * 100,
                       traderHandle: user?.handle,
                       status: 'OPEN',
+                      chainId: 84532, contract: p.onChainContract, tradeId: p.onChainTradeId,
+                      trader: veloPerpsTrading.traderAddress, openedAt: p.timestamp, v4: p.v4,
                     });
                   }} onShareHistory={(t: any) => {
                     // History rows show closed trades. Open the share card with
@@ -7257,6 +6694,7 @@ const App = () => {
                     const collateral = t.size && t.leverage ? t.size / t.leverage : (t.collateralUSDC || 0);
                     const pnlPct = collateral > 0 ? (t.pnl / collateral) * 100 : 0;
                     setShareCardData({
+                      ...positionShareMetadata(t,user?.tradeHistory),
                       pair: t.pair,
                       side: t.side as 'LONG' | 'SHORT',
                       leverage: t.leverage,
@@ -7268,6 +6706,8 @@ const App = () => {
                       pnlPct,
                       traderHandle: user?.handle,
                       status: t.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
+                      chainId: 84532, contract: VELO_PERPS_ADDRESS, tradeId: t.positionId?.replace('velo_', ''),
+                      trader: veloPerpsTrading.traderAddress, txHash: t.txHash,
                     });
                   }} appTheme={theme} onTimeframeChange={(tf: ChartTimeframe) => {
                     setChartPrefs(prev => ({ ...prev, chartTf: tf }));
@@ -7284,10 +6724,10 @@ const App = () => {
                 />
                 </> }
                 {activeTab === TabView.MARKETS && <MarketsView marketPrices={marketPrices} marketChanges={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(pair: any) => { setActivePair(pair); updatePrefs({ activePair: pair.id }); setActiveTab(TabView.TRADE); }} onNavigateToSocial={(ticker: string) => { openCoin(ticker); }}/>}
-                {activeTab === TabView.COIN && activeSocialTicker && <TokenPage
+                {activeTab === TabView.COIN && activeSocialTicker && <TokenPage onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth}
                     key={activeSocialTicker} ticker={activeSocialTicker} posts={posts} traders={traders} user={user}
                     prices={marketPrices} changes={marketChanges} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist}
-                    onClose={(identifier?: string) => identifier ? openCoin(identifier) : setActiveTab(TabView.MARKETS)}
+                    onClose={() => { setActiveSocialTicker(null); setActiveTab(TabView.MARKETS); }}
                     onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onViewProfile={handleViewProfile}
                     showUsersModal={(title: string, userIds: string[]) => setUsersListModal({ isOpen: true, title, userIds })}
                     onDeletePost={(id: string) => handleDeletePostWithConfirm(id, async pid => { await supabaseDeletePost(pid); setPosts(rows => rows.filter(row => row.id !== pid)); })}
@@ -7299,7 +6739,7 @@ const App = () => {
                 {activeTab === TabView.SOCIAL && (singlePostId ? (
                     <SinglePostView setPosts={setPosts} postId={singlePostId} commentId={singleCommentId} posts={posts} user={user} traders={traders} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); setSinglePostId(null); setSingleCommentId(null); }); }} onDeleteComment={handleDeleteComment} onViewProfile={handleViewProfile} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} handleCopyTrade={handleCopyTrade} onBack={() => { setSinglePostId(null); setSingleCommentId(null); }} onTickerClick={(ticker: string) => { openCoin(ticker); }}/>
                 ) : (
-                    <SocialFeed traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={null} onTickerChange={(t: string | null) => { if (t) openCoin(t); }} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
+                    <SocialFeed sharePositions={positions.map(p=>{const mark=marketPrices[p.pair] || p.entryPrice;const pnl=positionPnl(p,mark);const collateral=p.v4 ? p.v4.collateral+p.v4.openFee : p.size/p.leverage;return {...positionShareMetadata(p,user?.tradeHistory),pair:p.pair,side:p.side,leverage:p.leverage,entryPrice:p.entryPrice,markPrice:mark,size:p.size,collateral,pnl,pnlPct:pnl/collateral*100,status:'OPEN',chainId:84532,contract:p.onChainContract,tradeId:p.onChainTradeId,trader:veloPerpsTrading.traderAddress,traderHandle:user?.handle,openedAt:p.timestamp,v4:p.v4};})} onSharePosition={() => setPositionSharePickerOpen(true)} traders={traders} posts={posts} user={user} handleFollow={handleFollow} handleCopyTrade={handleCopyTrade} onViewProfile={handleViewProfile} onPostCreate={handleCreatePost} onRequireAuth={handleRequireAuth} onLike={handleLike} onRepost={handleRepost} onComment={handleComment} showUsersModal={(t:string, ids:string[]) => setUsersListModal({isOpen:true, title:t, userIds:ids})} prices={marketPrices} changes={marketChanges} initialTicker={null} onTickerChange={(t: string | null) => { if (t) openCoin(t); }} watchlist={watchlist} onToggleWatchlist={handleToggleWatchlist} onNavigateToTrade={(ticker: string) => { const pair = PAIRS.find(p => p.id.startsWith(ticker + '/')); if (pair) { setActivePair(pair); updatePrefs({ activePair: pair.id }); } setActiveTab(TabView.TRADE); }} onNavigateToMarkets={() => setActiveTab(TabView.MARKETS)} onDeletePost={(id:string) => { handleDeletePostWithConfirm(id, async (pid) => { setPosts(prev => prev.filter(p => p.id !== pid)); if (isSupabaseConfigured()) await supabaseDeletePost(pid).catch(e => console.error('[velo] deletePost error:', e)); }); }} onDeleteComment={handleDeleteComment} focusPostId={socialFocusPostId} openCommentsPostId={socialOpenCommentsPostId} onSinglePost={(id: string) => { setSingleCommentId(null); setSinglePostId(id); }}/>
                 ))}
                 {(activeTab === TabView.SOCIAL || activeTab === TabView.COIN || activeTab === TabView.LEADERBOARD || activeTab === TabView.PUBLIC_PROFILE) && (publicLoading || publicLoadErrors.posts || publicLoadErrors.profiles) && (
                   <div role="status" style={{ padding: '10px 16px', color: 'var(--fg-muted)', background: 'var(--chip-bg)', borderRadius: 10, marginBottom: 12 }}>
@@ -7342,6 +6782,8 @@ const App = () => {
             />
         </div>
         <PWAInstallBanner />
+        </SocialTagProvider>
+        </SharedMarkContext.Provider>
         </ReactionContext.Provider>
         </>
     )

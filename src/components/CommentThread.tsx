@@ -1,3 +1,4 @@
+import { SocialTextField } from './social/SocialTextField';
 /**
  * CommentThread.tsx
  * Full Twitter-style threaded comments: likes, replies, @/$-tagging, OG/link previews.
@@ -77,66 +78,6 @@ export function renderContent(
     });
 }
 
-// ── MentionDropdown (self-contained) ─────────────────────────────────────────
-function MentionDropdown({ results, anchorRef, activeIndex, onSelect, onHover }: {
-    results: any[];
-    anchorRef: React.RefObject<HTMLElement>;
-    activeIndex: number;
-    onSelect: (item: any) => void;
-    onHover: (i: number) => void;
-}) {
-    const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-    useEffect(() => {
-        const update = () => {
-            const rect = anchorRef.current?.getBoundingClientRect();
-            if (rect) setPos({ top: rect.bottom + 4, left: rect.left });
-        };
-        update();
-        window.addEventListener('scroll', update, true);
-        window.addEventListener('resize', update);
-        return () => { window.removeEventListener('scroll', update, true); window.removeEventListener('resize', update); };
-    }, [anchorRef, results.length]);
-
-    if (!pos || results.length === 0) return null;
-
-    return createPortal(
-        <div style={{
-            position: 'fixed', zIndex: 99999, top: pos.top, left: pos.left,
-            minWidth: 240, background: 'var(--bg-base-2, #1a1a2e)',
-            border: '1px solid var(--hairline-strong)', borderRadius: 12,
-            boxShadow: '0 8px 30px rgba(0,0,0,0.3)', overflow: 'hidden',
-        }}>
-            {results.map((item: any, i: number) => (
-                item._type === 'ticker' ? (
-                    <button key={item.assetId || item.symbol}
-                        onMouseDown={e => { e.preventDefault(); onSelect(item); }}
-                        onMouseEnter={() => onHover(i)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: i === activeIndex ? 'var(--chip-bg)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const }}>
-                        <VeloAssetIcon src={item.logo} symbol={item.symbol} size={28} />
-                        <div>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>${item.symbol}</div>
-                            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--fg-subtle)' }}>{item.name}</div>
-                        </div>
-                    </button>
-                ) : (
-                    <button key={item.id}
-                        onMouseDown={e => { e.preventDefault(); onSelect(item); }}
-                        onMouseEnter={() => onHover(i)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: i === activeIndex ? 'var(--chip-bg)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const }}>
-                        <img src={item.avatar} alt={item.username} style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid var(--hairline)' }} />
-                        <div>
-                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 13, color: 'var(--fg)' }}>{item.username}</div>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>{item.handle}</div>
-                        </div>
-                    </button>
-                )
-            ))}
-        </div>,
-        document.body
-    );
-}
-
 // ── LinkPreviewCard ───────────────────────────────────────────────────────────
 function LinkPreviewCard({ url }: { url: string }) {
     const [meta, setMeta] = useState<{ title?: string; description?: string; image?: string; siteName?: string } | null>(null);
@@ -197,51 +138,10 @@ interface CommentInputProps {
 }
 
 function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmit, autoFocus, compact }: CommentInputProps) {
-    const { socialAssets } = useMarketDiscovery();
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
-    const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-    const [mentionTrigger, setMentionTrigger] = useState<'@' | '$' | null>(null);
-    const [mentionStart, setMentionStart] = useState(0);
-    const [mentionIdx, setMentionIdx] = useState(0);
     const ref = useRef<HTMLTextAreaElement>(null);
-
-    useEffect(() => { if (autoFocus) setTimeout(() => ref.current?.focus(), 80); }, [autoFocus]);
-
-    const mentionResults = useMemo(() => {
-        if (mentionQuery === null) return [];
-        const q = mentionQuery.toLowerCase();
-        if (mentionTrigger === '$' && q) {
-            return socialAssets.filter(p => p.symbol.toLowerCase().startsWith(q) || p.name.toLowerCase().startsWith(q)).slice(0, 4).map(p => ({ ...p, _type: 'ticker' }));
-        }
-        if (mentionTrigger === '@' && q.length > 0) {
-            return traders.filter((t: any) => t.id !== user?.id && ((t.handle || '').toLowerCase().includes(q) || (t.username || '').toLowerCase().includes(q))).slice(0, 5);
-        }
-        return [];
-    }, [mentionQuery, mentionTrigger, traders, user]);
-
-    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const val = e.target.value;
-        const cursor = e.target.selectionStart ?? val.length;
-        setText(val);
-        const atMatch = val.slice(0, cursor).match(/@([A-Za-z0-9_]*)$/);
-        const dollarMatch = val.slice(0, cursor).match(/\$([A-Za-z0-9.-]*)$/);
-        if (atMatch) { setMentionTrigger('@'); setMentionQuery(atMatch[1]); setMentionStart(cursor - atMatch[0].length); setMentionIdx(0); }
-        else if (dollarMatch) { setMentionTrigger('$'); setMentionQuery(dollarMatch[1]); setMentionStart(cursor - dollarMatch[0].length); setMentionIdx(0); }
-        else { setMentionQuery(null); setMentionTrigger(null); }
-    };
-
-    const completeMention = (item: any) => {
-        const insertion = item._type === 'ticker' ? `$${item.symbol}` : (item.handle || ('@' + item.username));
-        const cursor = ref.current?.selectionStart ?? mentionStart + (mentionQuery?.length ?? 0) + 1;
-        const before = text.slice(0, mentionStart);
-        const after = text.slice(cursor);
-        setText(before + insertion + ' ' + after);
-        setMentionQuery(null); setMentionTrigger(null);
-        setTimeout(() => {
-            if (ref.current) { const p = before.length + insertion.length + 1; ref.current.focus(); ref.current.setSelectionRange(p, p); }
-        }, 0);
-    };
+    useEffect(() => { if (!autoFocus) return; const timer=setTimeout(()=>ref.current?.focus(),80); return()=>clearTimeout(timer); },[autoFocus]);
 
     const submit = async () => {
         if (!text.trim() || loading) return;
@@ -277,24 +177,7 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
                 <div style={{ background: 'var(--chip-bg)', border: '1px solid var(--hairline)', borderRadius: 14, padding: '8px 12px', transition: 'border-color 0.15s' }}
                     onFocusCapture={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline-strong)'}
                     onBlurCapture={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--hairline)'}>
-                    <textarea
-                        ref={ref}
-                        value={text}
-                        onChange={handleChange}
-                        onKeyDown={e => {
-                            if (mentionQuery !== null && mentionResults.length > 0) {
-                                if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionResults.length - 1)); return; }
-                                if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); return; }
-                                if (e.key === 'Tab') { e.preventDefault(); completeMention(mentionResults[mentionIdx]); return; }
-                                if (e.key === 'Escape') { setMentionQuery(null); setMentionTrigger(null); return; }
-                            }
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
-                        }}
-                        onBlur={() => setTimeout(() => { setMentionQuery(null); setMentionTrigger(null); }, 150)}
-                        placeholder={placeholder}
-                        rows={compact ? 1 : 2}
-                        style={{ width: '100%', background: 'none', border: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: compact ? 13 : 14, color: 'var(--fg)', resize: 'none', lineHeight: 1.5 }}
-                    />
+                    <SocialTextField ref={ref} aria-label={placeholder} value={text} onValueChange={setText} onSubmit={submit} people={traders} disabled={loading} placeholder={placeholder} rows={compact ? 1 : 2} className="social-reply-field" style={{width:'100%',background:'transparent',border:0,outline:0,fontFamily:'var(--font-sans)',fontSize:14,color:'var(--fg)',resize:'vertical',lineHeight:1.5}} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-subtle)', letterSpacing: '0.05em' }}>@mention · $TICKER · ⌘↵</span>
                         <button onClick={submit} disabled={!text.trim() || loading}
@@ -303,7 +186,6 @@ function CommentInput({ user, traders, placeholder = 'Add a comment…', onSubmi
                         </button>
                     </div>
                 </div>
-                <MentionDropdown results={mentionResults} anchorRef={ref as any} activeIndex={mentionIdx} onSelect={completeMention} onHover={setMentionIdx} />
             </div>
         </div>
     );
@@ -358,7 +240,7 @@ function CommentRow({
 
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
     };
 
     const previewUrl = extractFirstUrl(comment.content);
@@ -684,7 +566,7 @@ export function CommentThread({
             {rootComments.length === 0 && (
                 <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--hairline)', borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
                     <MessageCircle size={28} style={{ color: 'var(--fg-subtle)', marginBottom: 8 }} />
-                    <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>No comments yet.</p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 18, color: 'var(--fg-subtle)', fontStyle: 'normal' }}>No comments yet.</p>
                     <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', marginTop: 4 }}>Be the first to comment.</p>
                 </div>
             )}

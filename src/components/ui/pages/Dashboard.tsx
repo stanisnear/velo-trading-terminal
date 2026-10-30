@@ -1,13 +1,22 @@
+import { AccountPerformance } from '../AccountPerformance';
+import { equityView } from '../../../services/equityHistory.mjs';
+import { AccountOverview } from '../AccountOverview';
+import { DashboardActions } from '../DashboardActions';
+import { PositionExposure } from '../PositionExposure';
+import { DashboardAccount } from '../DashboardAccount';
+import { AnimatedText } from '../AnimatedValue';
+import { SegmentedControl } from '../SegmentedControl';
+import { AnimatedValue } from '../AnimatedValue';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, ArrowDownCircle, ArrowUpCircle, Copy, Edit, History, TrendingUp, TrendingDown, User, Star, Loader2, ExternalLink, Clock, AlertCircle, CheckCircle2, X, Link2 } from 'lucide-react';
 import { PortfolioChart } from '@/components/PortfolioChart';
-import { formatMoney, formatPrice, calculateStats } from '@/components/ui/shared';
+import { formatMoney, formatPrice } from '@/components/ui/shared';
 import { Position } from '@/utils/types';
 import { OrderDetailsModal } from '@/components/ui/OrderDetailsModal';
 import { baseScanAddressUrl, VELO_PERPS_ADDRESS } from '@/services/veloPerpsService';
 
 const S = {
-  display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
+  display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans, system-ui, sans-serif)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
@@ -24,21 +33,12 @@ const panel: React.CSSProperties = {
   position: 'relative',
 };
 
-const Ico3D = ({ tone, size = 30, children }: { tone: { grad: string; glow: string }; size?: number; children: React.ReactNode }) => (
-  <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, background: tone.grad, boxShadow: `0 8px 20px -5px ${tone.glow}, 0 1px 0 rgba(255,255,255,0.4) inset, 0 -3px 8px -4px rgba(0,0,0,0.5) inset`, animation: 'veloFloat 4.5s ease-in-out infinite' }}>
-    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(58% 48% at 33% 18%, rgba(255,255,255,0.5), transparent 62%)', pointerEvents: 'none' }} />
-    <div style={{ position: 'relative', zIndex: 1, color: '#fff', display: 'flex', filter: 'drop-shadow(0 1px 1.5px rgba(0,0,0,0.4))' }}>{children}</div>
+const GlassIcon = ({ size = 30, children }: { size?: number; children: React.ReactNode }) => (
+  <div style={{ position:'relative',width:size,height:size,borderRadius:'50%',display:'grid',placeItems:'center',flexShrink:0,background:'var(--chip-bg)',border:'1px solid var(--hairline-strong)',boxShadow:'0 1px 0 var(--glass-ring) inset',backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)' }}>
+    <div style={{ position:'absolute',inset:0,borderRadius:'inherit',background:'linear-gradient(140deg,rgba(255,255,255,.14),transparent 55%)',pointerEvents:'none' }}/>
+    <div style={{position:'relative',color:'var(--accent-text)',display:'flex'}}>{children}</div>
   </div>
 );
-
-// Quiet, related materials keep the dashboard calm; green remains the live-state accent.
-const iconBg = {
-  violet: { grad: 'linear-gradient(150deg, #718a77, #3a4c3f)', glow: 'rgba(91, 129, 101, 0.42)' },
-  green:  { grad: 'linear-gradient(150deg, #8fc39b, #477253)', glow: 'rgba(86, 145, 99, 0.34)' },
-  indigo: { grad: 'linear-gradient(150deg, #74847a, #424b45)', glow: 'rgba(88, 105, 93, 0.34)' },
-  blue:   { grad: 'linear-gradient(150deg, #87998b, #4a5c4e)', glow: 'rgba(89, 116, 96, 0.34)' },
-  sky:    { grad: 'linear-gradient(150deg, #a2b9a8, #5d7864)', glow: 'rgba(104, 136, 111, 0.30)' },
-};
 
 // Solid primary action button — no animation
 const BtnPrimary = ({ onClick, children, style }: any) => (
@@ -57,10 +57,10 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
   </button>
 );
 
-// Fake deposit/withdraw modal removed — all funds flow through Orderly on-chain
+// Funding actions use the shared wallet dialogs.
 
-export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
-  const [chartPeriod, setChartPeriod] = useState<'1D'|'1W'|'1M'|'1Y'|'ALL'>('ALL');
+export const Dashboard = ({ pendingOrderCollateral=0, equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
+  const [chartPeriod, setChartPeriod] = useState('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
   const [activityPage, setActivityPage] = useState(1);
@@ -77,37 +77,15 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   // fall back to local calculation for backwards compatibility.
   const allPositionsPnl = unrealizedProp !== undefined ? unrealizedProp : positions.reduce((acc: number, p: Position) => {
     const cp = marketPrices[p.pair] || p.entryPrice;
-    return acc + positionPnl(p, cp);
+    return acc + accountPositionPnl(p, cp);
   }, 0);
   const totalMarginUsed = lockedMarginProp !== undefined ? lockedMarginProp : positions.reduce((acc: number, p: Position) => acc + (p.size / p.leverage), 0);
   const equity = equityProp !== undefined ? equityProp : user.balance + totalMarginUsed + allPositionsPnl;
-  const totalPnl = user.realizedPnL + allPositionsPnl;
-  const stats = calculateStats(user.tradeHistory);
-  const pnlColor = totalPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
-
-  // Only expose periods the account is old enough to have data for
-  const joinedMs = user.joinedDate ? new Date(user.joinedDate).getTime() : Date.now();
-  const ageMs = Date.now() - joinedMs;
-  const periodMs: Record<string, number> = { '1D': 86400000, '1W': 604800000, '1M': 2592000000, '1Y': 31536000000 };
-  const allPeriods: Array<'1D'|'1W'|'1M'|'1Y'|'ALL'> = ['1D','1W','1M','1Y','ALL'];
-  const availablePeriods = allPeriods.filter(p => p === 'ALL' || ageMs >= periodMs[p]);
-
-  // Memoized so it only recomputes when the inputs that actually shape the
-  // chart change (the stored PnL history, the live equity figure, or the
-  // selected period) — not on every unrelated re-render (modal open, hover,
-  // etc.). Combined with PortfolioChart no longer tearing itself down on data
-  // changes, this keeps the Dashboard responsive even while prices tick.
-  const chartData = useMemo(() => {
-    const history = [...user.pnlHistory];
-    const now = new Date();
-    const nowEntry = { time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), value: equity, timestamp: now.getTime() };
-    if (history.length === 0 || history[history.length - 1].value !== equity) history.push(nowEntry);
-    else history[history.length - 1] = nowEntry;
-    if (chartPeriod === 'ALL') return history;
-    const cutoff = Date.now() - periodMs[chartPeriod];
-    return history.filter((d: any) => (d.timestamp || 0) >= cutoff);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.pnlHistory, equity, chartPeriod]);
+  const chartView = useMemo(() => equityView(equityHistory, chartPeriod), [equityHistory, chartPeriod]);
+  const chartData = chartView.points;
+  const equityChange = chartView.change;
+  const changePercent = chartView.percent;
+  const pnlColor = equityChange === null || equityChange === 0 ? 'var(--fg-muted)' : equityChange > 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
 
   // ── Pending Deposit Detail Modal ────────────────────────────────────────────
   const PendingDepositDetailModal = ({ deposit, onClose }: { deposit: any; onClose: () => void }) => {
@@ -137,7 +115,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
           {/* Amount hero */}
           <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid var(--hairline-strong)', textAlign: 'center', background: 'rgba(34,197,94,0.05)' }}>
             <div style={{ ...S.label, fontSize: 10, marginBottom: 4 }}>Amount</div>
-            <div style={{ ...S.mono, fontSize: 32, fontWeight: 700, color: 'var(--pnl-up)' }}>+${formatMoney(deposit.amount ?? 0)}</div>
+            <div style={{ ...S.mono, fontSize: 32, fontWeight: 700, color: 'var(--pnl-up)' }}>+${<AnimatedText text={formatMoney(deposit.amount ?? 0)}/>}</div>
             <div style={{ ...S.sans, fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>USDC → Velo Trading Wallet</div>
           </div>
           {/* Details */}
@@ -185,7 +163,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
   };
 
   return (
-    <div style={{ maxWidth: 1600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 'max(88px, calc(env(safe-area-inset-bottom, 0px) + 88px))' }} className="animate-fade-in">
+    <div style={{ maxWidth: 1600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 'max(88px, calc(env(safe-area-inset-bottom, 0px) + 88px))' }} className="dashboard-page animate-fade-in">
       {/* Pending Deposit Detail Modal */}
       {pendingDepositDetail && <PendingDepositDetailModal deposit={pendingDepositDetail} onClose={() => setPendingDepositDetail(null)} />}
       {/* On-chain deposit/withdraw handled by OrderlyOnboardingModal in App.tsx */}
@@ -201,31 +179,28 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       {/* Top row */}
       <div className="dash-grid-main">
         {/* Portfolio card */}
-        <div style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
+        <div className="dashboard-portfolio-card" style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
           <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
             <div>
-              <p style={{ ...S.label, marginBottom: 5 }}>Total Equity</p>
-              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, marginBottom: 8 }}>${formatMoney(equity)}</p>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}><p style={{...S.label,margin:0}}>Total equity</p><AccountOverview equity={equity} available={buyingPowerProp!==undefined?buyingPowerProp:user.balance} margin={totalMarginUsed} reserved={pendingOrderCollateral} pnl={allPositionsPnl}/></div>
+              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 8px' }}><AnimatedValue value={equity}/></p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
-                  {totalPnl >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
-                  ${formatMoney(Math.abs(totalPnl))} ({equity > 0 ? (totalPnl / (equity - totalPnl) * 100).toFixed(2) : '0.00'}%)
+                  {equityChange !== null ? <>{equityChange >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}<AnimatedValue value={equityChange}/>{changePercent !== null && <> (<AnimatedValue value={changePercent} currency={false}/>%)</>}<span style={{fontFamily:'var(--font-sans)',fontWeight:400,color:'var(--fg-subtle)'}}> equity change</span></> : 'Current account value'}
                 </span>
                 <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
-                  Buying Power <span style={{ color: 'var(--fg-muted)' }}>${formatMoney(buyingPowerProp !== undefined ? buyingPowerProp : user.balance)}</span>
+                  Buying Power <span style={{ color: 'var(--fg-muted)' }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></span>
                 </span>
               </div>
             </div>
-            {availablePeriods.length > 1 && (
-              <div style={{ display: 'flex', gap: 3, background: 'var(--chip-bg)', borderRadius: 9, padding: 3, flexShrink: 0, alignSelf: 'flex-start' }}>
-                {availablePeriods.map(p => (
-                  <button key={p} onClick={() => setChartPeriod(p)} style={{ padding: '4px 9px', borderRadius: 6, border: 'none', cursor: 'pointer', ...S.mono, fontSize: 11, fontWeight: 700, transition: 'all 0.15s', background: chartPeriod === p ? 'var(--bg-base)' : 'transparent', color: chartPeriod === p ? 'var(--fg)' : 'var(--fg-subtle)', boxShadow: chartPeriod === p ? '0 1px 4px rgba(0,0,0,0.15)' : 'none' }}>{p}</button>
-                ))}
-              </div>
+            {chartView.options.length > 1 && (
+              <SegmentedControl label="Portfolio period" compact options={chartView.options} value={chartView.period} onChange={setChartPeriod}/>
+
             )}
           </div>
-          <div className="dash-portfolio-chart" style={{ flex: 1, padding: '8px 0', minHeight: isMobile ? 100 : 160, maxHeight: isMobile ? 150 : undefined }}>
-            <PortfolioChart data={chartData} theme={theme} />
+          <div className="dash-portfolio-chart">
+            <PortfolioChart rangeKey={chartView.period} dateOnly={chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>7*86400000} data={chartData} theme={theme} loading={!equityReady}
+              label="Total account equity" emptyLabel="No recorded equity observations in this period."/>
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user
@@ -248,119 +223,25 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
               </div>
             );
           })()}
-          <div className="dash-action-btns" style={{ padding: '0 22px 18px', display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
-            <button onClick={() => (onOpenDeposit ?? onOpenOrderlyOnboarding)?.() } style={{ flex: '1 1 110px', padding: '10px', borderRadius: 11, background: 'var(--pnl-up)', border: 'none', ...S.mono, fontSize: 12, fontWeight: 700, color: '#061108', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'opacity 0.15s' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>Deposit</button>
-            <BtnSecondary onClick={() => onOpenWithdraw?.()} style={{ flex: '1 1 110px', padding: '10px' }}>Withdraw</BtnSecondary>
-            {onClaimTestnetUsdc && <BtnSecondary onClick={onClaimTestnetUsdc} style={{ flex: '1 1 110px', padding: '10px' }}>Faucet</BtnSecondary>}
-            {/* SEND — peer-to-peer mUSDC by @handle or 0x address. Visible at all
-                times because it's a core SocialFi action: pay or tip another user
-                without ever leaving the app. */}
-            {onOpenSend && (
-              <BtnSecondary onClick={() => onOpenSend?.()} style={{ flex: '1 1 110px', padding: '10px' }}>Send</BtnSecondary>
-            )}
-            {/* BRIDGE — cross-chain mUSDC via LayerZero. Less frequent action,
-                lighter visual weight. */}
-            {onOpenBridge && (
-              <BtnSecondary onClick={() => onOpenBridge?.()} style={{ flex: '1 1 110px', padding: '10px', opacity: 0.85 }}>Bridge</BtnSecondary>
-            )}
-          </div>
+          <DashboardActions deposit={onOpenDeposit??onOpenOrderlyOnboarding} withdraw={onOpenWithdraw} faucet={onClaimTestnetUsdc} send={onOpenSend} bridge={onOpenBridge} claiming={claimingFaucet}/>
+
         </div>
 
-        {/* Right column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Performance */}
+        <aside className="dashboard-overview-rail" aria-label="Account overview">
           <div style={panel}>
-            <div style={{ padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <Ico3D tone={iconBg.violet}><Star size={13}/></Ico3D>
-                <span style={S.label}>Performance</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>Win Rate</span>
-                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>{stats.winRate.toFixed(1)}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>Realized PnL</span>
-                <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: stats.realizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>${formatMoney(stats.realizedPnl)}</span>
-              </div>
-            </div>
+            <PositionExposure positions={positions} margin={totalMarginUsed} pnl={allPositionsPnl}
+              onInspect={position => setDetailsItem({ kind: 'POSITION', item: position })}/>
           </div>
-
-          {/* On-chain account — reinforces Velo's "real, verifiable on-chain
-              trades" narrative. Shows the trading wallet + a BaseScan link. */}
-          <div style={{ ...panel, flex: 1 }}>
-            <div style={{ padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Ico3D tone={iconBg.green}><Link2 size={13}/></Ico3D>
-                <span style={S.label}>On-chain account</span>
-                <span style={{ marginLeft: 'auto', ...S.label, fontSize: 8.5, background: 'color-mix(in oklab, var(--accent) 12%, transparent)', color: 'var(--iris-violet)', padding: '2px 7px', borderRadius: 999, border: '1px solid color-mix(in oklab, var(--accent) 25%, transparent)' }}>Base Sepolia</span>
-              </div>
-              {tradingWalletAddress ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div>
-                    <p style={S.label}>Trading wallet</p>
-                    <a href={baseScanAddressUrl(tradingWalletAddress)} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4, ...S.mono, fontSize: 12, fontWeight: 700, color: 'var(--fg)', textDecoration: 'none' }}>
-                      {tradingWalletAddress.slice(0, 6)}…{tradingWalletAddress.slice(-4)}
-                      <ExternalLink size={11} style={{ color: 'var(--fg-subtle)' }}/>
-                    </a>
-                  </div>
-                  <div style={{ height: 1, background: 'var(--hairline)' }}/>
-                  <div>
-                    <p style={S.label}>Perps contract</p>
-                    <a href={baseScanAddressUrl(VELO_PERPS_ADDRESS)} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4, ...S.mono, fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', textDecoration: 'none' }}>
-                      {VELO_PERPS_ADDRESS.slice(0, 6)}…{VELO_PERPS_ADDRESS.slice(-4)}
-                      <ExternalLink size={10} style={{ color: 'var(--fg-subtle)' }}/>
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <p style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)', lineHeight: 1.6 }}>
-                  Set up your trading wallet to start placing verifiable on-chain trades.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Margin & exposure — practical at-a-glance risk view, replaces the
-              copy-trading signal stats that aren't in use yet. */}
-          <div style={panel}>
-            <div style={{ padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Ico3D tone={iconBg.indigo}><Activity size={13}/></Ico3D>
-                <span style={S.label}>Margin & exposure</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <p style={S.label}>Margin in use</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}>${formatMoney(totalMarginUsed)}</p>
-                </div>
-                <div>
-                  <p style={S.label}>Open positions</p>
-                  <p style={{ ...S.display, fontSize: 26, color: 'var(--fg)', marginTop: 3 }}>{positions.length}</p>
-                </div>
-                <div>
-                  <p style={S.label}>Unrealized PnL</p>
-                  <p style={{ ...S.display, fontSize: 22, color: allPositionsPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)', marginTop: 3 }}>${formatMoney(allPositionsPnl)}</p>
-                </div>
-                <div>
-                  <p style={S.label}>Buying power</p>
-                  <p style={{ ...S.display, fontSize: 22, color: 'var(--fg)', marginTop: 3 }}>${formatMoney(buyingPowerProp !== undefined ? buyingPowerProp : user.balance)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+          <div style={panel} className="dashboard-performance-card"><AccountPerformance history={user.tradeHistory} theme={theme} onInspect={item => setDetailsItem({kind:'HISTORY',item})}/></div>
+          <div style={panel}><DashboardAccount wallet={tradingWalletAddress} engine={VELO_PERPS_ADDRESS} addressUrl={baseScanAddressUrl}/></div>
+        </aside>
       </div>
 
       {/* Active Positions */}
       <div style={{ ...panel, overflowX: 'auto' }}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <Ico3D tone={iconBg.blue}><Activity size={13}/></Ico3D>
+            <GlassIcon><Activity size={13}/></GlassIcon>
             <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>All active positions</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -424,23 +305,23 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                       </div>
                     </td>
                     <td style={{ padding: '9px 14px', ...S.mono, fontSize: 11, fontWeight: 700, color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${formatMoney(p.size)}</td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>${formatPrice(p.entryPrice)}</td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${formatPrice(cp)}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${<AnimatedText text={formatMoney(p.size)}/>}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>${<AnimatedText text={formatPrice(p.entryPrice)}/>}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg)' }}>${<AnimatedText text={formatPrice(cp)}/>}</td>
                     <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, color: 'var(--fg-muted)' }}>
                       {p.takeProfit && p.takeProfit > 0
-                        ? <span style={{ color: 'var(--pnl-up)' }}>TP {formatPrice(p.takeProfit)}</span>
+                        ? <span style={{ color: 'var(--pnl-up)' }}>TP {<AnimatedText text={formatPrice(p.takeProfit)}/>}</span>
                         : <span>--</span>}
                       {' / '}
                       {p.stopLoss && p.stopLoss > 0
-                        ? <span style={{ color: 'var(--pnl-down)' }}>SL {formatPrice(p.stopLoss)}</span>
+                        ? <span style={{ color: 'var(--pnl-down)' }}>SL {<AnimatedText text={formatPrice(p.stopLoss)}/>}</span>
                         : <span>--</span>}
                       <button onClick={() => onEditPosition(p, 'TRIGGERS')} style={{ marginLeft: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', padding: 2, opacity: 0.5 }}
                         title="Set Take Profit / Stop Loss"
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0.5'}><Edit size={10}/></button>
                     </td>
-                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, fontWeight: 700, color: pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{pnl >= 0 ? '+' : ''}${formatMoney(pnl)}</td>
+                    <td style={{ padding: '9px 14px', ...S.mono, fontSize: 12, fontWeight: 700, color: pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{pnl >= 0 ? '+' : ''}${<AnimatedText text={formatMoney(pnl)}/>}</td>
                     <td style={{ padding: '9px 14px', textAlign: 'right' as const }}>
                       <button onClick={() => handleClosePosition(p.id)} style={{ padding: '3px 9px', borderRadius: 6, background: 'oklch(0.66 0.22 25/0.1)', border: '1px solid oklch(0.66 0.22 25/0.2)', ...S.mono, fontSize: 10, color: 'var(--pnl-down)', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>Close</button>
                     </td>
@@ -455,7 +336,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       {/* Recent Activity */}
       <div style={{ ...panel, overflowX: 'auto' }}>
         <div style={{ padding: '13px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', gap: 9 }}>
-          <Ico3D tone={iconBg.sky}><History size={13}/></Ico3D>
+          <GlassIcon><History size={13}/></GlassIcon>
           <span style={{ ...S.display, fontSize: 15, color: 'var(--fg)' }}>Recent Activity</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -547,7 +428,7 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
                           )}
                         </td>
                         <td style={{ padding: '11px 14px', ...S.mono, fontSize: 12, fontWeight: 700, color: credited ? 'var(--pnl-up)' : 'var(--fg-muted)' }}>
-                          +${formatMoney(t.amount ?? 0)}
+                          +${<AnimatedText text={formatMoney(t.amount ?? 0)}/>}
                         </td>
                         <td style={{ padding: '11px 14px', textAlign: 'right' as const, ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
                           {(() => {
@@ -707,15 +588,24 @@ export const Dashboard = ({ user, positions, marketPrices, handleClosePosition, 
       </div>
 
       <style>{`
-        .dash-grid-main {
+        .dashboard-page .dash-grid-main {
           display: grid;
-          grid-template-columns: 1fr clamp(300px, 22vw, 360px);
-          gap: 12px;
+          grid-template-columns: minmax(0, 1fr) clamp(290px, 25vw, 340px);
+          align-items: stretch;
+          gap: 16px;
         }
-        @media (max-width: 900px) {
-          .dash-grid-main {
-            grid-template-columns: 1fr;
-          }
+        .dashboard-overview-rail { display: grid; grid-template-rows: auto minmax(168px,1fr) auto; gap: 12px; min-width: 0; }
+        .dashboard-portfolio-card { min-width: 0; }
+        .dashboard-page .dash-portfolio-chart { height:220px;min-height:180px;flex:1;padding:8px 0; }
+        @media (max-width: 1023px) {
+          .dashboard-page .dash-grid-main { grid-template-columns: minmax(0, 1fr); padding-inline: 0; }
+          .dashboard-overview-rail { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; align-items: stretch; }
+          .dashboard-overview-rail>div:first-child { grid-row: auto; }
+          .dashboard-overview-rail>div:last-child { grid-column: 1 / -1; }
+        }
+        @media (max-width: 600px) {
+          .dashboard-overview-rail { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+          .dashboard-overview-rail>div:first-child { grid-row: auto; }
         }
         @keyframes velo-pill-spin { to { transform: rotate(360deg); } }
       `}</style>
@@ -751,7 +641,7 @@ const PendingDepositPill: React.FC<{ deposit: any; onClick?: () => void }> = ({ 
       <Loader2 size={13} style={{ animation: 'velo-pill-spin 1.2s linear infinite', color: 'var(--accent)', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, color: 'var(--fg)', fontSize: 12 }}>
-          ${deposit.amount.toFixed(2)} USDC settling
+          ${<AnimatedText text={deposit.amount.toFixed(2)}/>} USDC settling
         </div>
         <div style={{ fontSize: 10.5, color: 'var(--fg-muted)', letterSpacing: '0.02em', marginTop: 2 }}>
           {isConfirmed ? 'Confirmed on-chain · awaiting credit' : 'Waiting for confirmation'} · {elapsedStr}
@@ -790,7 +680,7 @@ const FailedDepositPill: React.FC<{ deposit: any; onClaimTestnetUsdc?: () => voi
       <AlertCircle size={13} style={{ color: 'oklch(0.78 0.20 25)', flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, color: 'var(--fg)', fontSize: 12 }}>
-          ${deposit.amount.toFixed(2)} USDC — credit didn't arrive
+          ${<AnimatedText text={deposit.amount.toFixed(2)}/>} USDC — credit didn't arrive
         </div>
         <div style={{ fontSize: 10.5, color: 'var(--fg-muted)', letterSpacing: '0.02em', marginTop: 2, lineHeight: 1.5 }}>
           Cross-chain settlement timed out. Funds may still arrive — or use the testnet faucet to fund your trading account directly.
@@ -835,4 +725,4 @@ const FailedDepositPill: React.FC<{ deposit: any; onClaimTestnetUsdc?: () => voi
     )}
   </div>
 );
-import { positionPnl } from '@/services/positionValuation.mjs';
+import { positionPnl, accountPositionPnl } from '@/services/positionValuation.mjs';

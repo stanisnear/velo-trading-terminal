@@ -600,7 +600,7 @@ export async function fetchConditionalOrders(
   const blockNumber = await publicClient.getBlockNumber();
   const orderIds = await publicClient.readContract({
       address: engineAddress(engine),
-      abi: VELO_PERPS_V3_ABI,
+      abi: IS_V4 && engine === 'active' ? VELO_PERPS_V4_ABI : VELO_PERPS_V3_ABI,
       functionName: 'getTraderOrders',
       args: [trader], blockNumber,
     });
@@ -610,7 +610,7 @@ export async function fetchConditionalOrders(
     orderIds.map(async (id) => {
       const raw: any = await publicClient.readContract({
         address: engineAddress(engine),
-        abi: VELO_PERPS_V3_ABI,
+        abi: IS_V4 && engine === 'active' ? VELO_PERPS_V4_ABI : VELO_PERPS_V3_ABI,
         functionName: 'conditionalOrders',
         args: [id], blockNumber,
       });
@@ -959,6 +959,7 @@ export async function addMargin(
   tradeId: bigint,
   amountUSDC: number,
 ): Promise<{ txHash: `0x${string}` }> {
+  if (IS_V4) throw new Error('V4 uses fixed isolated collateral. Margin adjustments are unavailable.');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
   const amount_6 = toUsdc6(amountUSDC);
@@ -1005,6 +1006,7 @@ export async function reduceMargin(
   pythUpdateData: `0x${string}`[],
   pythFee: bigint,
 ): Promise<{ txHash: `0x${string}` }> {
+  if (IS_V4) throw new Error('V4 uses fixed isolated collateral. Margin adjustments are unavailable.');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
   const amount_6 = toUsdc6(amountUSDC);
@@ -1029,6 +1031,7 @@ export async function partialClose(
   pythUpdateData: `0x${string}`[],
   pythFee: bigint,
 ): Promise<ConfirmedClose> {
+  if (IS_V4) throw new Error('Use full position close for V4. Partial closes are unavailable.');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
   if (fractionBps < 1 || fractionBps > 10_000) throw new Error('fractionBps out of range');
@@ -1061,7 +1064,7 @@ export async function setTriggers(
 
   const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: VELO_PERPS_ADDRESS,
-    abi: VELO_PERPS_V3_ABI,
+    abi: VELO_PERPS_ABI,
     functionName: 'setTriggers',
     args: [tradeId, tp_E18, sl_E18],
     account, chain: walletClient.chain,
@@ -1084,6 +1087,7 @@ export async function depositCross(
   publicClient: PublicClient,
   amountUSDC: number,
 ): Promise<{ txHash: `0x${string}` }> {
+  if (IS_V4) throw new Error('V4 uses isolated margin. Cross deposits are unavailable.');
   if (!IS_V3) throw new Error('depositCross requires V3');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
@@ -1125,6 +1129,7 @@ export async function withdrawCross(
   amountUSDC: number,
   engine: VeloEngine = 'active',
 ): Promise<{ txHash: `0x${string}` }> {
+  if (IS_V4 && engine === 'active') throw new Error('Use the separate legacy exit controls to withdraw old cross collateral.');
   if (!IS_V3) throw new Error('withdrawCross requires V3');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
@@ -1260,7 +1265,7 @@ export async function cancelConditionalOrder(
 
   const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: engineAddress(engine),
-    abi: VELO_PERPS_V3_ABI,
+    abi: IS_V4 && engine === 'active' ? VELO_PERPS_V4_ABI : VELO_PERPS_V3_ABI,
     functionName: 'cancelConditionalOrder',
     args: [orderId],
     account, chain: walletClient.chain,

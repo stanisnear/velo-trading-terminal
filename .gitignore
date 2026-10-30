@@ -19,3 +19,7 @@ contracts/lib/
 contracts/out/
 contracts/cache/
 audit/
+.DS_Store
+*.tsbuildinfo
+coverage/
+contracts/broadcast/

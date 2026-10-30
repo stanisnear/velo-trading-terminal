@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { validateUsername as validateRegistryUsername } from '../services/usernameService';
 import { signInWithWallet } from '../services/walletAuth';
 // VeloOnboardingModal — new-user registration only.
@@ -302,10 +303,11 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       if (taken && taken.id !== authUser.id) {
         setGlobalError(`@${uname} is already taken. Choose another username.`); setStep('REVIEW'); return;
       }
-      const { error: profileError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', authUser.id);
+      const { data: savedProfile, error: profileError } = await supabase.from('profiles').update({ username: uname, handle: `@${uname}` }).eq('id', authUser.id).select('*').single();
       if (profileError) throw profileError;
+      if (savedProfile?.username !== uname) throw new Error('Your username was not saved. Please retry.');
       if (contactEmail) { const { error } = await supabase.rpc('set_my_contact_email', { contact_email: contactEmail }); if (error) throw error; }
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+      const profile = savedProfile;
 
       setStep('BURNER_SIGN');
       const result = await setupBurnerWallet({
@@ -436,7 +438,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 transform: helloPhase >= 1 ? 'translateY(0)' : 'translateY(14px)',
                 transition: 'opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s',
               }}>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 36, fontWeight: 700, color: 'var(--fg)', margin: '0 0 10px', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                <h1 style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 36, fontWeight: 700, color: 'var(--fg)', margin: '0 0 10px', letterSpacing: '-0.02em', lineHeight: 1 }}>
                   Hello.
                 </h1>
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--fg-muted)', margin: '0 0 6px', lineHeight: 1.6, maxWidth: 300 }}>
@@ -457,7 +459,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 18 }}>
                   {[['25×', 'Leverage'], ['0.1%', 'Fee / side'], ['Pyth', 'Oracle']].map(([v, l]) => (
                     <div key={l} style={{ textAlign: 'center' }}>
-                      <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 15, fontWeight: 700, color: 'var(--accent)', lineHeight: 1 }}>{v}</div>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 15, fontWeight: 700, color: 'var(--accent)', lineHeight: 1 }}>{v}</div>
                       <div style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginTop: 3 }}>{l}</div>
                     </div>
                   ))}
@@ -473,7 +475,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'oklch(0.74 0.18 30 / 0.1)', border: '1.5px solid oklch(0.74 0.18 30 / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="oklch(0.74 0.18 30)" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 </div>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px' }}>Wrong network</p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 18, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px' }}>Wrong network</p>
                 <p style={{ fontSize: 12.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>
                   Velo runs on <strong style={{ color: 'var(--fg)' }}>Base Sepolia</strong>. Please switch your wallet.
                 </p>
@@ -492,7 +494,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <VeloWordmark size={22} />
                 <span style={{ width: 1, height: 22, background: 'var(--hairline-strong)' }} />
                 <div>
-                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Pick your handle</p>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 17, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Pick your handle</p>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>New account · Step 1 of 3</p>
                 </div>
               </div>
@@ -519,7 +521,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <VeloWordmark size={22} />
                 <span style={{ width: 1, height: 22, background: 'var(--hairline-strong)' }} />
                 <div>
-                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Stay in the loop</p>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 17, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Stay in the loop</p>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 2 of 3</p>
                 </div>
               </div>
@@ -541,7 +543,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 <VeloWordmark size={22} />
                 <span style={{ width: 1, height: 22, background: 'var(--hairline-strong)' }} />
                 <div>
-                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Ready to launch</p>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 17, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.2 }}>Ready to launch</p>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--fg-subtle)', margin: '3px 0 0', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Step 3 of 3</p>
                 </div>
               </div>
@@ -577,7 +579,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Creating @{username}</p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Creating @{username}</p>
                 <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Setting up your account…</p>
               </div>
             </div>
@@ -586,7 +588,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>One signature needed</p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>One signature needed</p>
                 <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Derives your trading wallet — no gas, no ETH spent.</p>
               </div>
                 <div style={{ display: 'flex', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'color-mix(in oklab, var(--accent) 7%, transparent)', border: '1px solid color-mix(in oklab, var(--accent) 20%, transparent)' }}>
@@ -599,7 +601,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Topping up gas</p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Topping up gas</p>
                 <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Sending your trading wallet a little ETH…</p>
               </div>
             </div>
@@ -608,7 +610,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, padding: '24px 0' }}>
               <SpinRing />
               <div style={{ textAlign: 'center' }}>
-                <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Claiming 1,000 mUSDC</p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, color: 'var(--fg)', margin: '0 0 6px', fontWeight: 700 }}>Claiming 1,000 mUSDC</p>
                 <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: 0 }}>Minting your testnet USDC on Base Sepolia…</p>
               </div>
               {claimTxHash && (
@@ -631,12 +633,12 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="oklch(0.78 0.18 150)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 11 9 16 18 6"/></svg>
                 </div>
               </div>
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.85s both' }}>You're live.</p>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 26, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.85s both' }}>You're live.</p>
               <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 22px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.35s ease 1.0s both' }}>@{username} · trading wallet funded</p>
               <div style={{ width: '100%', borderRadius: 16, border: '1px solid var(--hairline-strong)', background: 'var(--chip-bg)', overflow: 'hidden', marginBottom: 16, animation: 'vOnbSlideUp 0.35s ease 1.15s both' }}>
                 <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}>Balance credited</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 26, fontWeight: 700, color: 'oklch(0.78 0.18 150)' }}>${(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 26, fontWeight: 700, color: 'oklch(0.78 0.18 150)' }}>${<AnimatedText text={(claimBalance || 1000).toLocaleString('en-US', { maximumFractionDigits: 0 })}/>}</span>
                 </div>
                 {burnerAddr && (
                   <div style={{ padding: '11px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -670,7 +672,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 10 8 14 16 6"/></svg>
                 </div>
               </div>
-              <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.82s both' }}>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px', letterSpacing: '-0.02em', animation: 'vOnbSlideUp 0.4s ease 0.82s both' }}>
                 Welcome back{returningName ? `, ${returningName}` : ''}.
               </p>
               <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 20px', letterSpacing: '0.04em', animation: 'vOnbSlideUp 0.38s ease 1.0s both' }}>

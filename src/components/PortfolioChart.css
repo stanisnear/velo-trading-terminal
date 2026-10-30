@@ -1,0 +1,9 @@
+.portfolio-chart{height:100%;width:100%;position:relative;outline:none;display:flex;flex-direction:column;min-width:0;min-height:0}
+.portfolio-chart:focus-visible{outline:2px solid var(--accent);outline-offset:-3px;border-radius:10px}
+.portfolio-chart__canvas{position:relative;flex:1;min-height:0;min-width:0}
+.portfolio-chart__summary{height:40px;flex-shrink:0;display:flex;align-items:center;padding:0 18px;box-sizing:border-box;min-width:0;pointer-events:none}
+.portfolio-chart__readout,.portfolio-chart__range{display:flex;gap:6px 10px;align-items:baseline;flex-wrap:wrap;min-width:0;font:600 13px/1.4 var(--font-sans)}
+.portfolio-chart__readout time,.portfolio-chart__range time{white-space:nowrap}
+.portfolio-chart__range{font:400 10px/1.5 var(--font-sans);color:var(--fg-subtle)}
+.portfolio-chart__readout time,.portfolio-chart__status{font:400 10px/1.5 var(--font-sans);color:var(--fg-muted)}
+.portfolio-chart__status{position:absolute;left:18px;bottom:30px;pointer-events:none}

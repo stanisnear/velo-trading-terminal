@@ -1,3 +1,5 @@
+import { AnimatedText } from './ui/AnimatedValue';
+import { profileDisplayName } from '../utils/profileIdentity.mjs';
 /**
  * Navigation — desktop Navbar (with notifications dropdown + profile popup),
  * MobileSidebar, and MobileBottomNav. Extracted from App.tsx (stage 2 of the
@@ -6,7 +8,9 @@
  * shared formatMoney helper.
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
+import { transitionAppearance } from '../utils/appearanceTransition';
+import { AnimatedValue } from './ui/AnimatedValue';
 import {
   Bell, Check, Copy, LayoutDashboard, LogOut, Menu, Moon, PlusCircle, Sun,
   UserCircle, Wallet, X, Settings, Shield, Trophy, TrendingUp, BarChart2,
@@ -15,6 +19,7 @@ import {
 import { TabView } from '@/utils/types';
 import { formatMoney } from '@/components/ui/shared';
 import { WalletConnectButton } from './WalletConnectButton';
+import { GlassNav } from './ui/GlassNav';
 
 export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, onNavigateDashboard, totalEquity, anchorRef }: any) => {
     const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
@@ -52,7 +57,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
         <>
             {/* backdrop */}
             <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={onClose} />
-            <div style={{
+            <div className="velo-popover" style={{
                 position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999,
                 width: 260, background: 'var(--bg-base-2)', border: '1px solid var(--hairline-strong)',
                 borderRadius: 16, boxShadow: '0 16px 40px rgba(0,0,0,0.4)', overflow: 'hidden',
@@ -64,15 +69,15 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
                 <div style={{ padding: '14px 16px 10px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--hairline)' }}>
                     <img src={user.avatar} style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid var(--hairline-strong)', objectFit: 'cover', flexShrink: 0 }} alt="" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, color: 'var(--fg)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.username}</div>
-                        <div style={{ ...S.label, fontSize: 9, marginTop: 1 }}>{user.handle}</div>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 14, color: 'var(--fg)', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileDisplayName(user)}</div>
+                        <div style={{ ...S.label, fontSize: 9, marginTop: 1 }}>{`@${profileDisplayName(user)}`}</div>
                     </div>
                 </div>
 
                 {/* Equity display */}
                 <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={S.label}>Total Equity</span>
-                    <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--iris-violet)' }}>${(totalEquity || user.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--iris-violet)' }}>${<AnimatedText text={(totalEquity || user.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/>}</span>
                 </div>
 
                 {/* Wallet address */}
@@ -124,7 +129,7 @@ export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost,
     );
 };
 
-export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen, onSocialClick, onMarkAllRead }: any) => {
+export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogout, user, onRequireAuth, unreadCount, setMobileMenuOpen, notifications, onNotificationClick, isNotifOpen, setNotifOpen, totalEquity, onCreatePost, onOpenSettings, isContractOwner, anyModalOpen, onSocialClick, onMarkAllRead, onSearch }: any) => {
     const navItems = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
         { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
@@ -149,6 +154,8 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
         label: { fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.14em' },
     };
     return (
+      <>
+        <div className="velo-header-veil" aria-hidden="true" />
         <nav
             style={{
                 position: 'fixed',
@@ -170,7 +177,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                 WebkitBackdropFilter: 'blur(8px) saturate(1.1)',
                 boxShadow: 'var(--glass-shadow)',
             }}
-            className="navbar-container navbar-mobile-flush"
+            className="navbar-container navbar-mobile-flush" data-page-layout={activeTab===TabView.TRADE?'trade':'standard'}
         >
             <div className="navbar-brand" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <button
@@ -200,37 +207,11 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
             </div>
 
             <div className="hidden lg:flex" style={{ justifyContent: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, borderRadius: 14, background: 'var(--chip)', border: '1px solid var(--hr)', minWidth: 'fit-content' }}>
-                {navItems.map((item: any) => {
-                    const isActive = activeTab === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => item.id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(item.id)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 7,
-                                padding: '8px 14px',
-                                borderRadius: 10,
-                                border: 'none',
-                                cursor: 'pointer',
-                                background: isActive ? 'var(--bg)' : 'transparent',
-                                color: isActive ? 'var(--fg)' : 'var(--fg-2)',
-                                boxShadow: isActive ? '0 1px 0 var(--hr-2) inset, 0 -1px 0 rgba(0,0,0,0.18) inset' : 'none',
-                                transition: 'all 0.12s',
-                                ...S.label,
-                            }}
-                        >
-                            <item.icon size={12} strokeWidth={isActive ? 2.4 : 2} />
-                            {item.label}
-                        </button>
-                    )
-                })}
-                </div>
+                <GlassNav items={navItems} activeId={activeTab} onSelect={id => id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(id)} />
             </div>
 
             <div className="navbar-controls" style={{ display: 'flex', alignItems: 'center', gap: 8, justifySelf: 'end' }}>
+                {onSearch&&<button type="button" className="navbar-search" aria-label="Search Velo" title="Search Velo (⌘/Ctrl K)" onClick={onSearch}><Search size={17}/></button>}
                 <div className="navbar-testnet chip" style={{ minWidth: 76, justifyContent: 'center', gap: 6 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--fg-2)' }}>TESTNET</span>
                 </div>
@@ -243,7 +224,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                     {isNotifOpen && (
                         <>
                             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setNotifOpen(false)}/>
-                            <div style={{
+                            <div className="velo-popover" style={{
                                 position: 'fixed', right: 12, top: 76,
                                 width: 'min(360px, calc(100vw - 24px))',
                                 background: 'var(--bg)',
@@ -265,7 +246,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                                     background: 'color-mix(in oklab, var(--velo-violet) 8%, var(--bg))',
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>Notifications</span>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 17, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>Notifications</span>
                                         {unreadCount > 0 && (
                                             <span style={{
                                                 fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
@@ -365,7 +346,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                     )}
                 </div>
 
-                <button className="navbar-theme-toggle" aria-label={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} title={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} onClick={toggleTheme} style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
+                <button className="navbar-theme-toggle" aria-label={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} title={theme === 'dark' ? 'Switch to light appearance' : 'Switch to dark appearance'} onClick={event => transitionAppearance(() => flushSync(toggleTheme), event.currentTarget)} style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 14, border: '1px solid var(--hr)', cursor: 'pointer', background: 'var(--chip)', color: 'var(--fg-2)', transition: 'all 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as any}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--chip-h)')} onMouseLeave={e => (e.currentTarget.style.background = 'var(--chip)')}>
                     {theme === 'dark' ? <Sun size={16}/> : <Moon size={16}/>}
                 </button>
@@ -376,12 +357,12 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                         <button
                             onClick={() => setAvatarPopupOpen(prev => !prev)}
                             className="hidden lg:flex"
-                            style={{ alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                            style={{ maxWidth: 190, minWidth: 0, flexShrink: 1, alignItems: 'center', gap: 10, padding: '5px 6px 5px 12px', borderRadius: 999, background: 'var(--chip)', border: `1px solid ${avatarPopupOpen ? 'var(--velo-violet)' : 'var(--hr)'}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
                             onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--velo-violet)')}
                             onMouseLeave={e => { if (!avatarPopupOpen) e.currentTarget.style.borderColor = 'var(--hr)'; }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                                <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{user.username}</span>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}>${formatMoney(totalEquity > 0 ? totalEquity : user.balance)}</span>
+                            <div className="navbar-account-copy" style={{ display: 'flex', minWidth: 0, flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, letterSpacing: '-0.03em', color: 'var(--fg)', lineHeight: 1 }}>{profileDisplayName(user)}</span>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontFeatureSettings: '"tnum" 1', fontWeight: 700, color: 'var(--pnl-up)', lineHeight: 1 }}><AnimatedValue value={totalEquity > 0 ? totalEquity : user.balance}/></span>
                             </div>
                             <img src={user.avatar} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--hr-2)' }} />
                         </button>
@@ -411,9 +392,10 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
                 )}
             </div>
         </nav>
+      </>
     );
 }
-export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick }: any) => {
+export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick, onSearch }: any) => {
     const drawerRef = useRef<HTMLDivElement>(null);
     const closeRef = useRef(setSidebarOpen);
     closeRef.current = setSidebarOpen;
@@ -454,7 +436,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
 
     const S = {
         mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' },
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
         label:   { fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' },
     };
 
@@ -480,7 +462,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(60px + env(safe-area-inset-top, 0px))', borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ ...S.display, fontStyle: 'italic', fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
                     </div>
                     <button aria-label="Close navigation" onClick={() => setSidebarOpen(false)} style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 12, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', color: 'var(--fg-2)' }}>
                         <X size={15}/>
@@ -488,6 +470,7 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                 </div>
 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px 0' }}>
+                    {onSearch&&<button type="button" className="sidebar-quick-search" onClick={onSearch}><Search size={18}/>Search markets & traders</button>}
                     {navItems.map(item => {
                         const isActive = activeTab === item.id;
                         return (
@@ -521,8 +504,8 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'var(--chip)', borderRadius: 16, border: '1px solid var(--hr)' }}>
                                 <img src={user.avatar} style={{ width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--hr-2)', flexShrink: 0, objectFit: 'cover' }} alt=""/>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.username}</div>
-                                    <div style={{ ...S.label, fontSize: 9, marginTop: 2, color: 'var(--fg-2)' }}>{user.handle}</div>
+                                    <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{profileDisplayName(user)}</div>
+                                    <div style={{ ...S.label, fontSize: 9, marginTop: 2, color: 'var(--fg-2)' }}>{`@${profileDisplayName(user)}`}</div>
                                 </div>
                                 <div style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--chip)', border: '1px solid var(--hr)', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-2)' }}>TESTNET</div>
                             </div>
@@ -531,19 +514,19 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
                                 <div style={{ padding: '12px', background: 'var(--chip)', borderRadius: 14, border: '1px solid var(--hr)' }}>
                                     <div style={{ ...S.label, marginBottom: 4 }}>Total Equity</div>
                                     <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>
-                                        ${formatMoney(totalEquity > 0 ? totalEquity : user.balance)}
+                                        <AnimatedValue value={totalEquity > 0 ? totalEquity : user.balance}/>
                                     </div>
                                 </div>
                                 <div style={{ padding: '12px', background: 'var(--chip)', borderRadius: 14, border: '1px solid var(--hr)' }}>
                                     <div style={{ ...S.label, marginBottom: 4 }}>Buying Power</div>
                                     <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--iris-violet)' }}>
-                                        ${formatMoney(buyingPower ?? user.balance)}
+                                        ${<AnimatedText text={formatMoney(buyingPower ?? user.balance)}/>}
                                     </div>
                                 </div>
                             </div>
 
                             <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={toggleTheme} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
+                                <button onClick={event => transitionAppearance(() => flushSync(toggleTheme), event.currentTarget)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
                                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-h)'}
                                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip)'}>
                                     {theme === 'dark' ? <Sun size={13}/> : <Moon size={13}/>}
@@ -576,41 +559,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, user, onSocialClick }
     ].filter(item => !item.requiresAuth || user);
     return (
         <div className="velo-mobile-bottom-nav lg:hidden fixed left-2 right-2 z-[60]" style={{ bottom: 'max(10px, env(safe-area-inset-bottom, 10px))' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, gap: 4, padding: '6px 6px', borderRadius: 26, background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(28px) saturate(1.3)', WebkitBackdropFilter: 'blur(28px) saturate(1.3)' }}>
-                {items.map((item) => {
-                    const isActive = activeTab === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => item.id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(item.id)}
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 5,
-                                minHeight: 62,
-                                padding: '8px 4px',
-                                borderRadius: 20,
-                                border: 'none',
-                                cursor: 'pointer',
-                                background: isActive ? 'var(--bg)' : 'transparent',
-                                color: isActive ? 'var(--velo-violet)' : 'var(--fg-3)',
-                                boxShadow: isActive ? '0 1px 0 var(--hr-2) inset, 0 -1px 0 rgba(0,0,0,0.18) inset' : 'none',
-                                touchAction: 'manipulation',
-                                WebkitTapHighlightColor: 'transparent',
-                                userSelect: 'none',
-                                WebkitUserSelect: 'none',
-                                outline: 'none',
-                                transition: 'background 0.15s, color 0.15s',
-                            }}
-                        >
-                            <item.icon size={22} strokeWidth={isActive ? 2.4 : 1.8} />
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{item.label}</span>
-                        </button>
-                    );
-                })}
-            </div>
+            <GlassNav mobile items={items} activeId={activeTab} onSelect={id => id === TabView.SOCIAL && onSocialClick ? onSocialClick() : setActiveTab(id)} />
         </div>
     );
 }

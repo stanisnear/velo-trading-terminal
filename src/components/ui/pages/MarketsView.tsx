@@ -1,3 +1,4 @@
+import { AnimatedText } from '../AnimatedValue';
 import React, { useMemo, useState } from 'react';
 import { Activity, ArrowDownRight, ArrowUpRight, ChevronRight, Search, Star } from 'lucide-react';
 import { PAIRS, isTradablePair } from '@/utils/types';
@@ -96,7 +97,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
         .markets-page { width:min(1320px,100%); margin:0 auto; padding:clamp(22px,4vw,44px) clamp(16px,3.2vw,42px) 112px; color:var(--fg); }
         .markets-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:24px; }
         .markets-eyebrow,.markets-label { color:var(--fg-subtle); font:600 10px/1.3 var(--font-mono); letter-spacing:.13em; text-transform:uppercase; }
-        .markets-title { margin:7px 0 0; font:500 clamp(32px,5vw,48px)/1.02 var(--font-display); color:var(--fg); }
+        .markets-title { margin:7px 0 0; font:500 clamp(32px,5vw,48px)/1.02 var(--font-sans); color:var(--fg); }
         .markets-title em { font-weight:400; }
         .markets-subtitle { margin:9px 0 0; color:var(--fg-muted); font:14px/1.45 var(--font-sans); }
         .markets-live { display:inline-flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid var(--hairline); border-radius:999px; color:var(--fg-muted); font:600 10px/1 var(--font-mono); letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
@@ -189,9 +190,9 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
       </header>
 
       <section className="markets-overview" aria-label="Market overview">
-        <div><span className="markets-label">Listed market cap</span><strong>{formatMoney(listedCap)}</strong><small>Combined tracked assets</small></div>
-        <div><span className="markets-label">24h spot volume</span><strong>{formatMoney(listedVolume)}</strong><small>Across tracked assets</small></div>
-        <div><span className="markets-label">Market breadth</span><strong>{advancing}<span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> / {assets.length}</span></strong><small>Assets advancing today</small></div>
+        <div><span className="markets-label">Listed market cap</span><strong>{<AnimatedText text={formatMoney(listedCap)}/>}</strong><small>Combined tracked assets</small></div>
+        <div><span className="markets-label">24h spot volume</span><strong>{<AnimatedText text={formatMoney(listedVolume)}/>}</strong><small>Across tracked assets</small></div>
+        <div><span className="markets-label">Market breadth</span><strong><AnimatedText text={advancing}/><span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> / <AnimatedText text={assets.length}/></span></strong><small>Assets advancing today</small></div>
       </section>
 
       <div className="markets-tools">
@@ -226,12 +227,12 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
               <span className="markets-asset-copy"><strong>{ticker} <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>/ USD</span></strong><span>{pair.rank ? `#${pair.rank} · ` : ''}{pair.name}</span></span>
             </button>
             <div className="markets-quote">
-              <span className="markets-price">{price == null ? '—' : `$${formatPrice(price)}`}</span>
-              <span className={`markets-change markets-mobile-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
+              <span className="markets-price">{<AnimatedText text={price == null ? '—' : `$${formatPrice(price)}`}/>}</span>
+              <span className={`markets-change markets-mobile-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{<AnimatedText text={hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}/>}</span>
             </div>
-            <span className={`markets-change markets-col-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}</span>
-            <span className="markets-volume markets-col-volume">{formatMoney(pair.volume)}</span>
-            <span className={`markets-change markets-col-spark ${pair.change7d != null ? (pair.change7d >= 0 ? 'positive' : 'negative') : ''}`}>{pair.change7d != null ? `${pair.change7d >= 0 ? '+' : ''}${pair.change7d.toFixed(2)}%` : '—'}</span>
+            <span className={`markets-change markets-col-change ${hasChange ? (change >= 0 ? 'positive' : 'negative') : ''}`}>{<AnimatedText text={hasChange ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—'}/>}</span>
+            <span className="markets-volume markets-col-volume">{<AnimatedText text={formatMoney(pair.volume)}/>}</span>
+            <span className={`markets-change markets-col-spark ${pair.change7d != null ? (pair.change7d >= 0 ? 'positive' : 'negative') : ''}`}>{<AnimatedText text={pair.change7d != null ? `${pair.change7d >= 0 ? '+' : ''}${pair.change7d.toFixed(2)}%` : '—'}/>}</span>
             {tradable ? <button className="markets-trade" onClick={event => { event.stopPropagation(); onNavigateToTrade(tradable); }}>Trade<ChevronRight size={13} /></button> : <span className="markets-soon" title="Market information only. Perpetual trading is not available for this asset.">Info only</span>}
           </div>;
         })}

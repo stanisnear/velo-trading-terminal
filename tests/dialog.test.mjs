@@ -133,6 +133,24 @@ test('reactions require authentication, support removal and recover after failur
   } finally { await f.close(); }
 });
 
+test('reaction picker blocks duplicate writes while pending and Escape restores its trigger', async()=>{
+  const f=setup();let writes=0,finish;
+  try{
+    await act(async()=>f.root.render(React.createElement(ReactionContext.Provider,{value:{userId:'me',requireAuth(){},react:()=>{writes++;return new Promise(resolve=>finish=resolve);}}},React.createElement(PostReactions,{post:{id:'local',reactions:[]}}))));
+    const trigger=document.querySelector('[aria-label="React to this post"]');
+    await act(async()=>trigger.click());
+    const choice=document.querySelector('[title="Insightful"]');
+    await act(async()=>{choice.click();choice.click();});assert.equal(writes,1);assert.equal(choice.disabled,true);
+    await act(async()=>finish());assert.equal(trigger.getAttribute('aria-expanded'),'false');
+    await act(async()=>trigger.click());
+    const first=document.querySelector('[title="Insightful"]');first.focus();
+    await act(async()=>first.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true})));
+    assert.equal(document.activeElement.title,'Celebrate');
+    await act(async()=>document.activeElement.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));
+    assert.equal(trigger.getAttribute('aria-expanded'),'false');assert.equal(document.activeElement,trigger);
+  }finally{await f.close();}
+});
+
 test('navigation drawer is inert when closed, traps focus when open and restores focus on close', async () => {
   const f = setup(); let closes = 0;
   const render = isOpen => f.root.render(React.createElement(MobileSidebar, {
@@ -162,3 +180,11 @@ test('navigation drawer is inert when closed, traps focus when open and restores
 });
 
 test.after(async () => { await rm(folder, { recursive: true, force: true }); });
+test('Tab wraps between dialog controls and skips inert collapsed controls',async()=>{
+ const f=setup();try {
+  await act(async()=>f.root.render(React.createElement(Dialog,{open:true,title:'Details',onClose:()=>{}},React.createElement('div',null,React.createElement('div',{inert:true},React.createElement('button',null,'Collapsed')),React.createElement('button',{id:'last'},'Done')))));
+  const first=document.querySelector('.velo-dialog-close'),last=document.querySelector('#last');
+  last.focus();await act(async()=>last.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true})));assert.equal(document.activeElement,first);
+  await act(async()=>first.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true})));assert.equal(document.activeElement,last);
+ }finally{await f.close();}
+});

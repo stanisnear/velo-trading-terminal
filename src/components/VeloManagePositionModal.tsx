@@ -1,9 +1,13 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import React, { useEffect, useRef, useState } from 'react';
 import { positionSettlement, liquidationEstimate, triggerPriceForRoe } from '@/services/positionValuation.mjs';
-import { CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
-import { Dialog } from './ui/Dialog';
+import { Share2, CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { TradingDialog } from './ui/TradingDialog';
+import { MeasuredPanel,ActionContent,supportsProductMotion } from './ui/ProductMotion';
+import { motion,useReducedMotion } from 'motion/react';
 import { formatMoney, formatPrice } from './ui/shared';
 import { baseScanTxUrl } from '@/services/veloPerpsService';
+import type { TradeShare } from '../utils/tradeShare';
 import type { Position } from '@/utils/types';
 import './VeloManagePositionModal.css';
 
@@ -16,11 +20,12 @@ interface Actions {
 }
 interface Props {
   isOpen: boolean; onClose: () => void; position: Position | null; currentPrice: number;
-  userBalance?: number; actions: Actions; initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS';
+  settled?: TradeShare; onShareClosed?: () => void; userBalance?: number; actions: Actions; initialTab?: 'ADD' | 'REDUCE' | 'PARTIAL' | 'TRIGGERS';
 }
 const signedMoney = (value: number) => `${value >= 0 ? '+' : '-'}$${formatMoney(Math.abs(value))}`;
 
-export function VeloManagePositionModal({ isOpen, onClose, position, currentPrice, actions, initialTab }: Props) {
+export function VeloManagePositionModal({ isOpen, onClose, position, currentPrice, actions, initialTab, onShareClosed, settled }: Props) {
+  const reduced=useReducedMotion();
   const [tab, setTab] = useState<'CLOSE' | 'TRIGGERS'>('CLOSE');
   const [tp, setTp] = useState(''), [sl, setSl] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -36,7 +41,8 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
   if (!position) return null;
   const p = position, now = Date.now();
   const estimate = positionSettlement(p, currentPrice, now);
-  const margin = estimate.collateral + estimate.openFee;
+  if (success && tab === 'CLOSE' && settled) estimate.pnl = settled.pnl;
+  const margin = success && tab === 'CLOSE' && settled ? settled.collateral : estimate.collateral + estimate.openFee;
   const roe = margin > 0 ? estimate.pnl / margin * 100 : 0;
   const liquidation = liquidationEstimate(p, now);
   const direction = p.side === 'LONG' ? 1 : -1;
@@ -80,7 +86,7 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
         aria-invalid={!!triggerError(value, kind)} aria-describedby={`manage-${kind}-preview`} onChange={e => setValue(e.target.value)} placeholder="Not set" /></div>
       <div id={`manage-${kind}-preview`} className="velo-trigger-preview">
         <span>{p.v4 ? 'Est. net PnL' : 'Est. PnL before fees'}</span>
-        <strong style={{ color: projected === null ? 'var(--fg-muted)' : projected >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{projected === null ? 'Not set' : `${signedMoney(projected)} (${percent > 0 ? '+' : ''}${percent.toFixed(1)}%)`}</strong>
+        <strong style={{ color: projected === null ? 'var(--fg-muted)' : projected >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{<AnimatedText text={projected === null ? 'Not set' : `${signedMoney(projected)} (${percent > 0 ? '+' : ''}${percent.toFixed(1)}%)`}/>}</strong>
       </div>
       <input aria-label={`${label} return slider`} type="range" min="0" max={max} step="1" disabled={disabled}
         value={Math.min(max, Math.max(0, profit ? percent : -percent))} onChange={e => {
@@ -94,42 +100,43 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
         ? <p className="velo-manage-note">Mark has crossed this price. Saving can make it eligible for immediate keeper execution.</p> : null}
     </div>;
   };
-  return <Dialog open={isOpen} onClose={onClose} title={`Manage ${p.pair}`} busy={busy}>
-    <div className="velo-manage">
-      <div className="velo-manage-overview">
-        <div className="velo-manage-direction"><span style={{ color: p.side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{p.side}</span><span>{p.leverage}x</span><span>Isolated</span></div>
-        <div className="velo-manage-pnl"><span>{p.v4 ? 'Estimated net PnL' : 'PnL before fees'}</span><strong style={{ color: estimate.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{signedMoney(estimate.pnl)}</strong><small>{roe >= 0 ? '+' : ''}{roe.toFixed(2)}% return on margin</small></div>
-        <dl className="velo-manage-quotes"><div><dt>Entry</dt><dd>${formatPrice(p.entryPrice)}</dd></div><div><dt>Mark</dt><dd>${formatPrice(currentPrice)}</dd></div><div><dt>Margin</dt><dd>${formatMoney(margin)}</dd></div></dl>
-      </div>
-      {success ? <div role="status" className="velo-manage-success"><CheckCircle2 size={40} /><h3>{tab === 'CLOSE' ? 'Position closed' : 'Protection updated'}</h3><p>{tab === 'CLOSE' ? 'Settlement confirmed on Base Sepolia.' : 'Your TP and SL settings are confirmed on-chain.'}</p></div> : <>
-        <div role="tablist" aria-label="Position action" className="velo-manage-tabs">
-          {(['CLOSE', 'TRIGGERS'] as const).map(mode => <button key={mode} role="tab" aria-selected={tab === mode} aria-controls="velo-manage-panel" disabled={disabled}
-            onClick={() => { setTab(mode); setError(''); }}>{mode === 'CLOSE' ? <XCircle size={16} /> : <SlidersHorizontal size={16} />}{mode === 'CLOSE' ? 'Close position' : 'Take profit / Stop loss'}</button>)}
-        </div>
-        <div key={tab} id="velo-manage-panel" role="tabpanel" aria-label={tab === 'CLOSE' ? 'Close position' : 'Take profit / Stop loss'} className="velo-manage-panel">
-          {tab === 'CLOSE' ? <>
-            <div className="velo-manage-close-label"><span>Closing in full</span><strong>100%</strong></div>
-            <div className="velo-manage-close-track"><span /></div>
-            <dl className="velo-manage-breakdown">
-              <div><dt>Position size</dt><dd>${formatMoney(p.size)}</dd></div>
-              <div><dt>Liquidation estimate</dt><dd>${formatPrice(liquidation)}</dd></div>
-              {p.v4 && <><div><dt>Closing fee</dt><dd>${formatMoney(estimate.closeFee)}</dd></div><div><dt>Accrued borrow fee</dt><dd>${formatMoney(estimate.borrowFee)}</dd></div></>}
-              <div className="is-total"><dt>Est. returned to wallet</dt><dd>${formatMoney(estimate.payout)}</dd></div>
-            </dl>
-            <p className="velo-manage-note">The entire position settles at the execution price. Its take-profit and stop-loss settings are removed when it closes.</p>
-          </> : <><div className="velo-trigger-fields">{renderTrigger('TP', tp, setTp)}{renderTrigger('SL', sl, setSl)}</div>
-            <p className="velo-manage-note"><ShieldCheck size={15} />Triggers follow the oracle mark. Estimates include current spread, accrued fees and the keeper fee; the fill can differ. Clear a field to remove that trigger.</p></>}
-        </div>
-      </>}
-      <footer className="velo-manage-footer">
+  const footer = (<div className="velo-manage-footer">
         {busy && <div role="status" className="velo-manage-progress"><Loader2 size={15} className="velo-pending-spinner" />Confirming on-chain<span /></div>}
         {error && <p role="alert" className="velo-manage-error">{error}</p>}
         {hash && <a href={baseScanTxUrl(hash)} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{success ? 'View confirmed transaction' : 'Check pending transaction'}</a>}
         {success ? <button className="velo-manage-action" onClick={onClose}>Done</button> : <button className={`velo-manage-action ${tab === 'CLOSE' ? 'is-close' : ''}`} disabled={disabled || (tab === 'TRIGGERS' && !!validation)} onClick={() => void submit()}>
-          {busy ? <Loader2 size={17} className="velo-pending-spinner" /> : tab === 'CLOSE' ? <XCircle size={17} /> : <ShieldCheck size={17} />}
-          {busy ? 'Waiting for confirmation' : tab === 'CLOSE' ? 'Close entire position' : 'Save TP/SL'}
+          <ActionContent pending={busy} pendingLabel="Waiting for confirmation">{tab === 'CLOSE' ? <XCircle size={17} /> : <ShieldCheck size={17} />}{tab === 'CLOSE' ? 'Close entire position' : 'Save TP/SL'}</ActionContent>
         </button>}
-      </footer>
+      </div>);
+  return <TradingDialog open={isOpen} onClose={onClose} title={p.pair} busy={busy} className="manage-position-dialog" footer={footer} identity={<><span className="trade-details-side" data-up={p.side==='LONG'}>{p.side}</span><span>{p.leverage}× · Isolated</span><span className="trade-details-network"><ShieldCheck size={12}/> Base Sepolia</span></>}>
+    <div className="velo-manage">
+      <div className="velo-manage-overview">
+
+        <div className="velo-manage-pnl trade-dialog-hero"><span>{success && tab === 'CLOSE' ? 'Realized PnL' : p.v4 ? 'Estimated net PnL' : 'PnL before fees'}</span><strong style={{ color: estimate.pnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{<AnimatedText text={signedMoney(estimate.pnl)}/>}</strong><small>{roe >= 0 ? '+' : ''}{<AnimatedText text={roe.toFixed(2)}/>}% return on margin</small></div>
+        <dl className="velo-manage-quotes"><div><dt>Entry</dt><dd>${<AnimatedText text={formatPrice(p.entryPrice)}/>}</dd></div><div><dt>Mark</dt><dd>${<AnimatedText text={formatPrice(currentPrice)}/>}</dd></div><div><dt>Margin</dt><dd>${<AnimatedText text={formatMoney(margin)}/>}</dd></div></dl>
+      </div>
+      {success ? <div role="status" className="velo-manage-success"><CheckCircle2 size={40} /><h3>{tab === 'CLOSE' ? 'Position closed' : 'Protection updated'}</h3><p>{tab === 'CLOSE' ? 'Settlement confirmed on Base Sepolia.' : 'Your TP and SL settings are confirmed on-chain.'}</p>{tab === 'CLOSE' && onShareClosed && <button className="close-receipt-share" type="button" onClick={onShareClosed}><Share2 size={14}/>Share</button>}</div> : <>
+        <div role="tablist" aria-label="Position action" className="velo-manage-tabs" data-motion={!reduced&&supportsProductMotion()}>
+          {!reduced&&supportsProductMotion()&&<motion.span className="manage-tab-lens" aria-hidden="true" initial={false} animate={{x:tab==='CLOSE'?0:'calc(100% + 4px)'}} transition={{type:'spring',stiffness:400,damping:34}}/>}
+          {(['CLOSE', 'TRIGGERS'] as const).map(mode => <button key={mode} role="tab" tabIndex={tab===mode?0:-1} aria-selected={tab === mode} aria-controls="velo-manage-panel" disabled={disabled}
+            onKeyDown={event=>{if(disabled||!['ArrowRight','ArrowLeft','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?'CLOSE':event.key==='End'?'TRIGGERS':tab==='CLOSE'?'TRIGGERS':'CLOSE';setTab(next);setError('');const buttons=event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]');buttons?.[next==='CLOSE'?0:1]?.focus();}} onClick={() => { setTab(mode); setError(''); }}>{mode === 'CLOSE' ? <XCircle size={16} /> : <SlidersHorizontal size={16} />}{mode === 'CLOSE' ? 'Close position' : 'Take profit / Stop loss'}</button>)}
+        </div>
+        <MeasuredPanel><div key={tab} id="velo-manage-panel" role="tabpanel" aria-label={tab === 'CLOSE' ? 'Close position' : 'Take profit / Stop loss'} className="velo-manage-panel">
+          {tab === 'CLOSE' ? <>
+            <div className="velo-manage-close-label"><span>Closing in full</span><strong>100%</strong></div>
+            <div className="velo-manage-close-track"><span /></div>
+            <dl className="velo-manage-breakdown">
+              <div><dt>Position size</dt><dd>${<AnimatedText text={formatMoney(p.size)}/>}</dd></div>
+              <div><dt>Liquidation estimate</dt><dd>${<AnimatedText text={formatPrice(liquidation)}/>}</dd></div>
+              {p.v4 && <><div><dt>Closing fee</dt><dd>${<AnimatedText text={formatMoney(estimate.closeFee)}/>}</dd></div><div><dt>Accrued borrow fee</dt><dd>${<AnimatedText text={formatMoney(estimate.borrowFee)}/>}</dd></div></>}
+              <div className="is-total"><dt>Est. returned to wallet</dt><dd>${<AnimatedText text={formatMoney(estimate.payout)}/>}</dd></div>
+            </dl>
+            <p className="velo-manage-note">The entire position settles at the execution price. Its take-profit and stop-loss settings are removed when it closes.</p>
+          </> : <><div className="velo-trigger-fields">{renderTrigger('TP', tp, setTp)}{renderTrigger('SL', sl, setSl)}</div>
+            <p className="velo-manage-note"><ShieldCheck size={15} />Triggers follow the oracle mark. Estimates include current spread, accrued fees and the keeper fee; the fill can differ. Clear a field to remove that trigger.</p></>}
+        </div></MeasuredPanel>
+      </>}
+
     </div>
-  </Dialog>;
+  </TradingDialog>;
 }

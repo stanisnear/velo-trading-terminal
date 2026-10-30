@@ -1,4 +1,5 @@
 import { MARKETS, TRADING_MARKETS } from '../../shared/markets.mjs';
+import type { TradeShare } from './tradeShare';
 export interface Candle {
   time: number; 
   open: number;
@@ -55,10 +56,12 @@ export interface OpenOrder {
   leverage: number;
   timestamp: number;
   relatedPositionId?: string; // Links TP/SL orders to a position
+  onChainTradeId?: string;
   copyTraderId?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;            // true if placed on Orderly matching engine
   onChainContract?: string;
+  openTxHash?: string;
   orderlyOrderId?: number;      // Orderly order id for cancel / lookup
   orderlyOrderUrl?: string;
 }
@@ -143,6 +146,7 @@ export interface Post {
   isTradeSignal?: boolean;
   targetProfileId?: string;  // wall post: posted on another user's profile
   mentions?: string[];        // user ids mentioned via @handle
+  tradeSnapshot?: TradeShare;
   tradeDetails?: {
     pair: string;
     side: 'LONG' | 'SHORT';

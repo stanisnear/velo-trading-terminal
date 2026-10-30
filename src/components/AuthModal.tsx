@@ -60,8 +60,8 @@ const TypeReveal = ({ text, delay = 0, size = 28, color = 'var(--fg)', italic = 
 
   return (
     <p style={{
-      fontFamily: 'var(--font-display, Georgia, serif)',
-      fontSize: size, fontStyle: italic ? 'italic' : 'normal',
+      fontFamily: 'var(--font-sans, sans-serif)',
+      fontSize: size, fontStyle: 'normal',
       fontWeight: 700, color, margin: 0, lineHeight: 1.25,
       letterSpacing: '-0.01em',
     }}>
@@ -445,7 +445,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                 <VLogo size={36} />
                 <div>
-                  <p style={{ fontFamily: 'var(--font-display, Georgia, serif)', fontSize: 16, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.15 }}>
+                  <p style={{ fontFamily: 'var(--font-sans, sans-serif)', fontSize: 16, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: 0, lineHeight: 1.15 }}>
                     {step === 'connect' && 'Sign In'}
                     {step === 'checking' && 'Verifying…'}
                     {step === 'wrong_wallet' && 'Wallet mismatch'}
@@ -514,7 +514,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </svg>
                 </div>
                 <div>
-                  <p style={{ fontFamily: 'var(--font-display, Georgia, serif)', fontSize: 18, fontStyle: 'italic', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px' }}>Wrong network</p>
+                  <p style={{ fontFamily: 'var(--font-sans, sans-serif)', fontSize: 18, fontStyle: 'normal', fontWeight: 700, color: 'var(--fg)', margin: '0 0 6px' }}>Wrong network</p>
                   <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--fg-muted)', margin: 0, lineHeight: 1.6 }}>
                     Velo runs on <strong style={{ color: 'var(--fg)' }}>Base Sepolia</strong>. Please switch your wallet network to continue.
                   </p>
@@ -856,7 +856,7 @@ const SuccessScreen = ({ variant, username }: {
 
       {/* ── Headline ── */}
       <p style={{
-        fontFamily: 'var(--font-display, Georgia, serif)',
+        fontFamily: 'var(--font-sans, sans-serif)',
         fontSize: 21, fontStyle: 'italic', fontWeight: 700,
         color: '#F4F4F7', margin: '0 0 6px', letterSpacing: '-0.02em',
         animation: 'authSlideUp 0.42s ease 0.84s both',

@@ -1,7 +1,10 @@
+import { readChartPalette, chartPaletteFallback } from './chartPalette';
+import { AnimatedText } from './ui/AnimatedValue';
+import { formatPrice } from './ui/shared';
 import { pythPriceStream } from '../services/pythPriceService';
 import { subscribeKlines } from '../services/priceService';
 import { mergeLiveCandle, oracleCandle, localChartTime } from '../services/chartLive.mjs';
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
   BarSeries,
@@ -16,7 +19,10 @@ import {
   createChart,
   type Time,
 } from 'lightweight-charts';
-import { RefreshCw } from 'lucide-react';
+import { ArrowRightToLine, RefreshCw } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { latestCandleVisible, latestCandleRange } from '../services/chartViewport.mjs';
+import './TradingViewChart.css';
 import { Position } from '../utils/types';
 
 // The Trade chart uses Lightweight Charts with Velo's own data feed. Unlike
@@ -585,21 +591,35 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   const canLoadOlderRef = useRef(true);
   const lastOlderCursorRef = useRef<number | null>(null);
   const chartDataRef = useRef<{ key: string; firstTime: number; length: number } | null>(null);
+  const followLatestRef = useRef(true);
+  const settingRangeRef = useRef(false);
+  const [browsingHistory, setBrowsingHistory] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [hasLiveCandles, setHasLiveCandles] = useState(false);
   const liveCandleRef = useRef<Candle | null>(null);
   const pricePrecisionRef = useRef<number | null>(null);
   const indicatorKey = useMemo(() => [...externalIndicators].sort().join('|'), [externalIndicators]);
   const isDark = theme === 'dark';
-  // Canvas colors mirror the surrounding --bg-2 and --fg-muted surfaces.
-  const background = isDark ? '#171a19' : '#dfe8e0';
-  const foreground = isDark ? '#b0b8b3' : '#516257';
-  const grid = isDark ? 'rgba(240,243,241,0.06)' : 'rgba(38,69,47,0.07)';
+  const [palette, setPalette] = useState(chartPaletteFallback);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const refresh = () => {
+      const next = readChartPalette(root);
+      setPalette(previous => Object.keys(next).every(key => previous[key as keyof typeof previous] === next[key as keyof typeof next]) ? previous : next);
+    };
+    refresh();
+    // The theme class is committed in the app's effect; observe that commit too.
+    const observer = new MutationObserver(refresh);
+    observer.observe(root, { attributes:true, attributeFilter:['class','style'] });
+    return () => observer.disconnect();
+  }, [theme]);
+  const {background,foreground,grid} = palette;
   const crosshair = isDark ? 'rgba(208,215,211,0.30)' : 'rgba(81,98,87,0.30)';
-  const crosshairLabel = isDark ? '#303634' : '#d5e1d7';
-  const candleUp = isDark ? COLORS.up : '#638a6d';
-  const candleUpStrong = isDark ? COLORS.upStrong : '#52765f';
-  const candleDown = isDark ? COLORS.down : '#b96863';
+  const crosshairLabel = isDark ? '#303634' : '#e3eae5';
+  const candleUp = palette.up;
+  const candleUpStrong = palette.up;
+  const candleDown = palette.down;
   const averageColor = isDark ? COLORS.average : '#8a6c3d';
   const bandColor = isDark ? COLORS.band : '#607f8c';
   const timeframeSeconds = TF_SECONDS[externalTimeframe] ?? 900;
@@ -610,13 +630,22 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
-    const chartFont = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'ui-monospace, SFMono-Regular, monospace';
+    let disposed = false;
+    chartDataRef.current = null;
+    candlesRef.current = [];
+    loadingOlderRef.current = false;
+    canLoadOlderRef.current = true;
+    lastOlderCursorRef.current = null;
+    followLatestRef.current = true;
+    setBrowsingHistory(false);
+    setIsLoadingOlder(false);
+    const chartFont = getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim() || 'Switzer, sans-serif';
 
     const chart = createChart(element, {
       width: element.clientWidth || 600,
       height: element.clientHeight || 360,
       layout: {
-        background: { type: ColorType.Solid, color: background },
+        background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' },
         textColor: foreground,
         fontFamily: chartFont,
         fontSize: 11,
@@ -745,7 +774,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     const resizeObserver = new ResizeObserver(entries => {
       const rect = entries[0]?.contentRect;
       if (rect && rect.width > 0 && rect.height > 0) {
-        requestAnimationFrame(() => chart.applyOptions({ width: rect.width, height: rect.height }));
+        requestAnimationFrame(() => { if (!disposed) chart.applyOptions({ width: rect.width, height: rect.height }); });
       }
     });
     resizeObserver.observe(element);
@@ -753,6 +782,12 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     const timeScale = chart.timeScale();
     const onVisibleRangeChange = (range: { from: number; to: number } | null) => {
       const history = chartDataRef.current;
+      if (disposed || settingRangeRef.current) return;
+      if (range && history?.length) {
+        const atLatest = latestCandleVisible(range, history.length);
+        followLatestRef.current = atLatest;
+        setBrowsingHistory(!atLatest);
+      }
       const loadOlder = loadOlderHistoryRef.current;
       if (!range || !history || history.length < 100 || range.from > 24 || !loadOlder || !canLoadOlderRef.current || loadingOlderRef.current) return;
       if (lastOlderCursorRef.current === history.firstTime) return;
@@ -761,9 +796,10 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       setIsLoadingOlder(true);
       const source = candlesRef.current[0]?.source === 'exchange' ? 'exchange' : 'pyth';
       loadOlder({ pairId: pairName, timeframe: externalTimeframe, beforeTime: history.firstTime, source })
-        .then(hasMore => { if (!hasMore) canLoadOlderRef.current = false; })
-        .catch(() => { lastOlderCursorRef.current = null; })
+        .then(hasMore => { if (!disposed && !hasMore) canLoadOlderRef.current = false; })
+        .catch(() => { if (!disposed) lastOlderCursorRef.current = null; })
         .finally(() => {
+          if (disposed) return;
           loadingOlderRef.current = false;
           setIsLoadingOlder(false);
         });
@@ -771,6 +807,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     timeScale.subscribeVisibleLogicalRangeChange(onVisibleRangeChange);
 
     return () => {
+      disposed = true;
       timeScale.unsubscribeVisibleLogicalRangeChange(onVisibleRangeChange);
       resizeObserver.disconnect();
       watermarkRef.current?.detach();
@@ -788,7 +825,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     const series = seriesRef.current;
     if (!chart || !series) return;
     chart.applyOptions({
-      layout: { background: { type: ColorType.Solid, color: background }, textColor: foreground },
+      layout: { background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' }, textColor: foreground },
       grid: { vertLines: { color: grid }, horzLines: { color: grid } },
       rightPriceScale: { borderColor: grid },
       timeScale: { borderColor: grid },
@@ -821,7 +858,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
         fontFamily: 'Fraunces, Georgia, serif',
       }],
     });
-  }, [background, crosshair, crosshairLabel, externalChartStyle, foreground, grid, isDark]);
+  }, [background, candleDown, candleUp, candleUpStrong, crosshair, crosshairLabel, externalChartStyle, foreground, grid, isDark]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -851,6 +888,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     setHasLiveCandles(false);
     indicatorRefreshRef.current = () => {};
 
+    settingRangeRef.current = true;
     if (externalChartStyle === '2' || externalChartStyle === '3') {
       series.setData(toLineData(rendered));
     } else {
@@ -859,13 +897,16 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
     if (source.length) {
       if (isPrepend && visibleRange && addedBars > 0) {
         chart.timeScale().setVisibleLogicalRange({ from: visibleRange.from + addedBars, to: visibleRange.to + addedBars });
-      } else if (!sameDataKey || !visibleRange) {
-        const visibleBars = Math.min(INITIAL_VISIBLE_CANDLES, source.length);
-        chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, source.length - visibleBars), to: source.length + 4 });
+      } else if (!sameDataKey || !previousData?.length || !previousData.firstTime || !visibleRange) {
+        chart.timeScale().setVisibleLogicalRange(latestCandleRange(source.length, INITIAL_VISIBLE_CANDLES));
+        followLatestRef.current = true;
+        setBrowsingHistory(false);
       } else {
-        chart.timeScale().setVisibleLogicalRange(visibleRange);
+        const appended = followLatestRef.current ? Math.max(0, source.length - previousData.length) : 0;
+        chart.timeScale().setVisibleLogicalRange({from:visibleRange.from + appended,to:visibleRange.to + appended});
       }
     }
+    settingRangeRef.current = false;
   }, [externalChartStyle, externalTimeframe, initialData, pairName]);
 
   useEffect(() => {
@@ -1203,13 +1244,18 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
       const rows = candlesRef.current;
       const next = mergeLiveCandle(rows, candle);
       if (next === rows) return;
+      const shouldFollow = followLatestRef.current;
       candlesRef.current = next;
+      if (chartDataRef.current) chartDataRef.current.length = next.length;
+      settingRangeRef.current = true;
       liveCandleRef.current = candle;
       setHasLiveCandles(true);
       indicatorRefreshRef.current(next);
       if (externalChartStyle === '2' || externalChartStyle === '3') series.update({ time: candle.time as Time, value: candle.close });
       else if (externalChartStyle === '8') series.update(heikinAshi(next).at(-1)!);
       else series.update({ ...candle, time: candle.time as Time });
+      if (shouldFollow && next.length > rows.length) chartRef.current?.timeScale().scrollToRealTime();
+      settingRangeRef.current = false;
     };
     if (initialData[0]?.source === 'exchange') return subscribeKlines(pairName, externalTimeframe, candle => update({ ...candle, source: 'exchange' }));
     const onPrice = (prices: Record<string, number>) => {
@@ -1261,16 +1307,29 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
   }, [activePosition, candleUpStrong, externalChartStyle, isDark, liqPrice, pairName, showEntryLine, showLiqLine, showSLLine, showTPLine, theme]);
 
   return (
-    <div style={{ height: '100%', minHeight: 0, position: 'relative', background, overflow: 'hidden' }}>
+    <div style={{ height: '100%', minHeight: 0, position: 'relative', background: 'var(--chart-surface)', overflow: 'hidden' }}>
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
       {(initialData.length > 0 || hasLiveCandles) && (
-        <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: isDark ? 'rgba(10,14,12,0.82)' : 'rgba(237,242,238,0.92)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', top: 10, left: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 7, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.12)'}`, background: 'var(--surface-raised)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', pointerEvents: 'none' }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: isLivePrice ? candleUp : foreground, opacity: isLivePrice ? 1 : 0.65 }} />
           {initialData[0]?.source === 'exchange' ? 'Exchange reference' : 'Pyth mark'}
+          {currentPrice > 0 && <span className="chart-rolling-mark"><AnimatedText text={'$' + formatPrice(currentPrice)}/></span>}
         </div>
       )}
+      <AnimatePresence initial={false}>
+        {browsingHistory && <motion.button type="button" className="chart-back-to-live" aria-label="Back to live: show latest candle"
+          initial={{opacity:0,y:reduceMotion?0:6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:reduceMotion?0:4}} transition={{duration:reduceMotion?0:.18}}
+          onClick={()=>{
+            const chart=chartRef.current;
+            if(!chart)return;
+            followLatestRef.current=true;
+            chart.timeScale().scrollToRealTime();
+            seriesRef.current?.priceScale().applyOptions({autoScale:true});
+            setBrowsingHistory(false);
+          }}><ArrowRightToLine size={14} aria-hidden="true"/>Back to live</motion.button>}
+      </AnimatePresence>
       {isLoadingOlder && (
-        <div role="status" aria-live="polite" style={{ position: 'absolute', top: 10, right: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', borderRadius: 999, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.16)'}`, background: isDark ? 'rgba(10,14,12,0.86)' : 'rgba(221,232,223,0.94)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', pointerEvents: 'none' }}>
+        <div role="status" aria-live="polite" style={{ position: 'absolute', top: 10, right: 12, zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', borderRadius: 999, border: `1px solid ${isDark ? 'rgba(224,238,228,0.12)' : 'rgba(44,75,53,0.16)'}`, background: 'var(--surface-raised)', color: foreground, font: '600 9px/1 var(--font-mono)', letterSpacing: '0.06em', pointerEvents: 'none' }}>
           <span className="chart-history-spinner"><RefreshCw size={11} /></span> Loading older candles
         </div>
       )}

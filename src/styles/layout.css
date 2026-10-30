@@ -1,0 +1,12 @@
+/* Align the outer shell; each page keeps its own reading width and padding. */
+@media (min-width: 1024px) {
+  .navbar-container {
+    width: min(1600px, calc(100% - 24px)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    box-sizing: border-box;
+  }
+  .navbar-container[data-page-layout="standard"] {
+    width: min(1600px, calc(100% - 2 * clamp(16px, 3vw, 48px))) !important;
+  }
+}

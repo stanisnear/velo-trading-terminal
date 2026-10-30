@@ -1,188 +1,82 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createChart, ColorType, BaselineSeries, CrosshairMode, TickMarkType, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts';
+import { AnimatedValue } from './ui/AnimatedValue';
+import type { EquityObservation } from '../hooks/useEquityHistory';
+import './PortfolioChart.css';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, AreaSeries, Time, CrosshairMode } from 'lightweight-charts';
-
-interface PortfolioChartProps {
-  data: { time: string | number; value: number }[];
-  theme: 'light' | 'dark';
-}
-
-// Internal point shape used on the series. `customDate` carries the original
-// human-readable label so the crosshair tooltip can show it.
-type ChartPoint = { time: Time; value: number; customDate: string | number };
-
-export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, theme }) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const seriesRef = useRef<any>(null);
-  // Latest mapped points, read by the crosshair handler without re-subscribing.
-  const pointsRef = useRef<ChartPoint[]>([]);
-  const [tooltip, setTooltip] = useState<{
-    visible: boolean;
-    left: number;
-    top: number;
-    value: string;
-    date: string;
-  } | null>(null);
-
-  // ── Effect 1: create the chart exactly once per theme ────────────────────
-  // WHY split this out: `data` is recomputed into a fresh array on every App
-  // render, and marketPrices ticks several times per second. The previous
-  // single-effect implementation listed `data` as a dependency, so the whole
-  // chart was destroyed and recreated (createChart + ResizeObserver + crosshair
-  // subscription) on every price tick — multiple full chart rebuilds per
-  // second. On the Dashboard that pegged the main thread and froze the tab.
-  // Now the chart is built once; data updates flow through Effect 2 below via
-  // series.setData(), which is cheap and never tears anything down.
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const palette = getComputedStyle(document.documentElement);
-    const accent = palette.getPropertyValue('--accent').trim() || (theme === 'dark' ? '#91b99f' : '#557a62');
-    const textColor = palette.getPropertyValue('--fg-2').trim() || (theme === 'dark' ? '#a2afa6' : '#516257');
-    const colors = { text: textColor, accent };
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      window.requestAnimationFrame(() => {
-        if (!entries || entries.length === 0 || !entries[0].contentRect) return;
-        if (chartRef.current) {
-          const { width, height } = entries[0].contentRect;
-          if (width > 0 && height > 0) {
-            chartRef.current.applyOptions({ width, height });
-          }
-        }
+type Point = { time:UTCTimestamp; value:number };
+export function PortfolioChart({ data, theme, loading=false, label='Account equity', baseline, dateOnly=false, rangeKey='', emptyLabel='No equity observations in this period.' }:{data:EquityObservation[];theme:'light'|'dark';loading?:boolean;baseline?:number;dateOnly?:boolean;rangeKey?:string;label?:string;emptyLabel?:string}) {
+  const container = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi|null>(null);
+  const seriesRef = useRef<ISeriesApi<'Baseline'>|null>(null);
+  const pointsRef = useRef<Point[]>([]);
+  const [inspected,setInspected] = useState<Point|null>(null);
+  const points = useMemo<Point[]>(()=>[...new Map(data.filter(p=>Number.isFinite(p.timestamp)&&Number.isFinite(p.value)).map(p=>[Math.floor(p.timestamp/1000),p])).values()].sort((a,b)=>a.timestamp-b.timestamp).map(p=>({time:Math.floor(p.timestamp/1000) as UTCTimestamp,value:p.value})),[data]);
+  useEffect(()=>{
+    if (!container.current) return;
+    let disposed=false;
+    const css=getComputedStyle(document.documentElement);
+    const accent=css.getPropertyValue('--pnl-up').trim()||(theme==='dark'?'#91b99f':'#557a62');
+    const loss=css.getPropertyValue('--pnl-down').trim()||'#cf7773';
+    const chart=createChart(container.current,{
+      width:container.current.clientWidth||300,height:container.current.clientHeight||200,
+      layout:{background:{type:ColorType.Solid,color:'transparent'},textColor:css.getPropertyValue('--fg-muted').trim()||'#8b9c91',fontFamily:css.getPropertyValue('--font-sans').trim()||'Switzer, sans-serif',fontSize:10},
+      grid:{vertLines:{visible:false},horzLines:{visible:false}},
+      timeScale:{visible:true,timeVisible:!dateOnly,secondsVisible:false,borderVisible:false,rightOffset:1,tickMarkFormatter:(time,type,locale)=>new Date(Number(time)*1000).toLocaleString(locale,type===TickMarkType.Year?{year:'numeric'}:type===TickMarkType.Month?{month:'short'}:type===TickMarkType.DayOfMonth?{month:'short',day:'numeric'}:{hour:'2-digit',minute:'2-digit'})},
+      localization:{timeFormatter:time=>new Date(Number(time)*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})},
+      rightPriceScale:{visible:false,borderVisible:false,scaleMargins:{top:.18,bottom:.10}},
+      crosshair:{mode:CrosshairMode.Magnet,vertLine:{color:accent,style:2,labelVisible:false},horzLine:{visible:false,labelVisible:false}},
+      handleScale:false,handleScroll:false,
+    });
+    const series=chart.addSeries(BaselineSeries,{baseValue:{type:'price',price:0},topLineColor:accent,bottomLineColor:loss,topFillColor1:'rgba(145,185,159,.14)',topFillColor2:'rgba(145,185,159,0)',bottomFillColor1:'rgba(207,119,115,0)',bottomFillColor2:'rgba(207,119,115,.12)',lineWidth:2,lastValueVisible:false,priceLineVisible:false,baseLineVisible:false,crosshairMarkerRadius:4});
+    chart.subscribeCrosshairMove(param=>{
+      const value=param.seriesData.get(series);
+      setInspected(param.time && value && 'value' in value ? {time:param.time as UTCTimestamp,value:value.value} : null);
+    });
+    chartRef.current=chart;seriesRef.current=series;pointsRef.current=[];
+    const resize=new ResizeObserver(entries=>{
+      const rect=entries[0]?.contentRect;
+      if(rect?.width>0 && rect?.height>0) requestAnimationFrame(()=>{
+        if(!disposed){chart.applyOptions({width:rect.width,height:rect.height});chart.timeScale().fitContent();}
       });
     });
-    resizeObserver.observe(chartContainerRef.current);
-
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: 'rgba(0, 0, 0, 0)' },
-        textColor: colors.text,
-        fontFamily: "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
-      },
-      width: chartContainerRef.current.clientWidth || 300,
-      height: chartContainerRef.current.clientHeight || 200,
-      grid: {
-        vertLines: { visible: false },
-        horzLines: { visible: false },
-      },
-      timeScale: { visible: false, borderVisible: false },
-      rightPriceScale: { visible: false, borderVisible: false },
-      crosshair: {
-        vertLine: { visible: true, labelVisible: false, style: 2, color: theme === 'dark' ? 'rgba(226, 238, 229, 0.2)' : 'rgba(44, 75, 53, 0.2)' },
-        horzLine: { visible: false, labelVisible: false },
-        mode: CrosshairMode.Magnet,
-      },
-      handleScale: false,
-      handleScroll: false,
-    });
-
-    // lightweight-charts expects concrete color strings rather than CSS vars.
-    const series = chart.addSeries(AreaSeries, {
-      lineColor: colors.accent,
-      topColor: theme === 'dark' ? 'rgba(145, 185, 159, 0.28)' : 'rgba(85, 122, 98, 0.2)',
-      bottomColor: theme === 'dark' ? 'rgba(145, 185, 159, 0)' : 'rgba(85, 122, 98, 0)',
-      lineWidth: 2,
-    });
-
-    chart.subscribeCrosshairMove((param) => {
-      const el = chartContainerRef.current;
-      if (
-        !el ||
-        param.point === undefined ||
-        !param.time ||
-        param.point.x < 0 ||
-        param.point.x > el.clientWidth ||
-        param.point.y < 0 ||
-        param.point.y > el.clientHeight
-      ) {
-        setTooltip(null);
-        return;
-      }
-      const price = param.seriesData.get(series);
-      if (!price) return;
-      const priceValue = (price as any).value;
-      const pts = pointsRef.current;
-      const idx = pts.findIndex((x) => x.time === param.time);
-      const dateStr = idx !== -1 ? pts[idx].customDate : new Date().toLocaleDateString();
-      setTooltip({
-        visible: true,
-        left: param.point.x,
-        top: 20,
-        value: `$${priceValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-        date: String(dateStr),
-      });
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = series;
-
-    // Seed the series with whatever data is present at creation time so the
-    // chart isn't briefly empty before Effect 2 runs.
-    if (data && data.length > 0) {
-      const pts: ChartPoint[] = data.map((d, i) => ({
-        time: (Math.floor(Date.now() / 1000) - (data.length - i) * 86400) as Time,
-        value: d.value,
-        customDate: d.time,
-      }));
-      pointsRef.current = pts;
-      series.setData(pts);
-      chart.timeScale().fitContent();
-    }
-
-    return () => {
-      resizeObserver.disconnect();
-      try { chart.remove(); } catch { /* already disposed */ }
-      chartRef.current = null;
-      seriesRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme]);
-
-  // ── Effect 2: push data updates without rebuilding the chart ─────────────
-  // Runs on every `data` change but only calls series.setData() — O(n) and
-  // cheap, no DOM teardown. This is what makes frequent (sub-second) equity
-  // updates safe on the Dashboard.
-  useEffect(() => {
-    const series = seriesRef.current;
-    const chart = chartRef.current;
-    if (!series || !chart) return;
-    if (!data || data.length === 0) {
-      pointsRef.current = [];
-      try { series.setData([]); } catch { /* ignore */ }
-      return;
-    }
-    const pts: ChartPoint[] = data.map((d, i) => ({
-      time: (Math.floor(Date.now() / 1000) - (data.length - i) * 86400) as Time,
-      value: d.value,
-      customDate: d.time,
-    }));
-    pointsRef.current = pts;
-    try {
-      series.setData(pts);
-      chart.timeScale().fitContent();
-    } catch { /* chart disposed mid-update */ }
-  }, [data]);
-
-  return (
-    <div ref={chartContainerRef} className="w-full h-full relative cursor-crosshair">
-      {tooltip && (
-        <div
-          style={{
-            position: 'absolute', zIndex: 50, pointerEvents: 'none',
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            background: 'var(--glass-bg-strong)', border: '1px solid var(--hairline-strong)',
-            padding: '6px 10px', borderRadius: 8, backdropFilter: 'blur(16px)',
-            boxShadow: 'var(--glass-shadow)',
-            left: Math.min(Math.max(tooltip.left - 60, 0), (chartContainerRef.current?.clientWidth || 300) - 120),
-            top: tooltip.top,
-          }}
-        >
-          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, color: 'var(--fg)' }}>{tooltip.value}</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>{tooltip.date}</div>
-        </div>
-      )}
+    resize.observe(container.current);
+    return()=>{disposed=true;resize.disconnect();chart.remove();chartRef.current=null;seriesRef.current=null;pointsRef.current=[];};
+  },[theme,dateOnly]);
+  useEffect(()=>{
+    const chart=chartRef.current,series=seriesRef.current;
+    if(!chart||!series)return;
+    const previous=pointsRef.current;
+    // Quotes update the last minute in place. Only a range/history change replaces the series.
+    const tailOnly=previous.length>0 && points.length>=previous.length && points.length<=previous.length+1 && previous.slice(0,-1).every((p,i)=>p.time===points[i]?.time&&p.value===points[i]?.value) && previous.at(-1)!.time===points[previous.length-1]?.time;
+    if(tailOnly){for(const point of points.slice(previous.length-1))series.update(point);}
+    else series.setData(points);
+    series.applyOptions({pointMarkersVisible:points.length===1,baseValue:{type:'price',price:baseline ?? points[0]?.value ?? 0}});
+    pointsRef.current=points;
+    if(!tailOnly||points.length!==previous.length)chart.timeScale().fitContent();
+    setInspected(previous=>previous ? points.find(point=>point.time===previous.time)??null : null);
+  },[points,theme,baseline,dateOnly]);
+  useEffect(()=>{
+    chartRef.current?.clearCrosshairPosition();
+    chartRef.current?.timeScale().fitContent();
+    setInspected(null);
+  },[rangeKey,theme,dateOnly]);
+  const inspect=(event:React.KeyboardEvent)=>{
+    if(!points.length)return;
+    if(event.key==='Escape'){setInspected(null);chartRef.current?.clearCrosshairPosition();return;}
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    event.preventDefault();
+    const current=inspected?points.findIndex(p=>p.time===inspected.time):points.length-1;
+    const index=event.key==='Home'?0:event.key==='End'?points.length-1:Math.max(0,Math.min(points.length-1,current+(event.key==='ArrowLeft'?-1:1)));
+    const point=points[index];setInspected(point);
+    if(seriesRef.current)chartRef.current?.setCrosshairPosition(point.value,point.time,seriesRef.current);
+  };
+  return <div className="portfolio-chart" tabIndex={points.length?0:undefined} role="group" aria-label={`${label} chart. Use left and right arrow keys to inspect observations.`} onKeyDown={inspect}>
+    <div className="portfolio-chart__summary">
+      {inspected ? <div className="portfolio-chart__readout" aria-live="polite"><AnimatedValue value={inspected.value}/><time dateTime={new Date(inspected.time*1000).toISOString()}>{new Date(inspected.time*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time></div>
+        : points.length > 0 ? <div className="portfolio-chart__range" aria-label="Displayed dates">{[points[0],...(points.length>1?[points.at(-1)!]:[])].map((point,index)=><React.Fragment key={index}>{index>0&&<span aria-hidden="true">–</span>}<time dateTime={new Date(point.time*1000).toISOString()} title={new Date(point.time*1000).toLocaleString()}>{new Date(point.time*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time></React.Fragment>)}</div> : null}
     </div>
-  );
-};
+    <div ref={container} className="portfolio-chart__canvas"/>
+    {points.length<2&&!inspected&&<div className="portfolio-chart__status" role="status">{loading?'Loading account history…':points.length?'History starts with this observation.':emptyLabel}</div>}
+  </div>;
+}

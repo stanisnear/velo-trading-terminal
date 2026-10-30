@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 /**
  * VeloBridgeModal — cross-chain mUSDC transfer via LayerZero V2 OFT.
  *
@@ -30,7 +31,7 @@ import {
 import { VELO_USDC_ABI } from '@/services/veloUsdcService';
 
 const S = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.02em' },
   mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
   sans:    { fontFamily: 'var(--font-sans)' },
   label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
@@ -218,7 +219,7 @@ export const VeloBridgeModal: React.FC<Props> = ({ isOpen, onClose }) => {
           </select>
           {!onWrongChain && (
             <div style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
-              Balance: ${sourceBalance.toFixed(2)} mUSDC
+              Balance: ${<AnimatedText text={sourceBalance.toFixed(2)}/>} mUSDC
             </div>
           )}
           {onWrongChain && (
@@ -311,7 +312,7 @@ export const VeloBridgeModal: React.FC<Props> = ({ isOpen, onClose }) => {
         }}>
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)' }}>LayerZero fee</span>
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg)' }}>
-            {Number(formatUnits(feeQuote, 18)).toFixed(6)} ETH
+            {<AnimatedText text={Number(formatUnits(feeQuote, 18)).toFixed(6)}/>} ETH
           </span>
         </div>
       )}

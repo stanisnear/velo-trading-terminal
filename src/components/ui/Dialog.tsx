@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export function Dialog({ open, onClose, title, busy = false, children }: {
-  open: boolean; onClose: () => void; title: string; busy?: boolean; children: React.ReactNode;
+export function Dialog({ open, onClose, title, busy = false, children, className = '', minimal = false }: {
+  open: boolean; onClose: () => void; title: string; busy?: boolean; children: React.ReactNode; className?: string; minimal?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -18,7 +18,15 @@ export function Dialog({ open, onClose, title, busy = false, children }: {
     };
   }, [open]);
   if (!open) return null;
-  return createPortal(<dialog ref={ref} className="velo-native-dialog" aria-labelledby={titleId} aria-busy={busy}
+  return createPortal(<dialog ref={ref} className={`velo-native-dialog ${className}`} aria-labelledby={titleId} aria-busy={busy}
+    onKeyDown={event => {
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]'))
+        .filter(element => !element.closest('[inert],[hidden]'));
+      const first=controls[0],last=controls[controls.length-1];
+      if(event.shiftKey && document.activeElement===first){event.preventDefault();last?.focus();}
+      else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first?.focus();}
+    }}
     onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
     onClick={event => {
       if (event.target !== event.currentTarget || busy) return;
@@ -26,11 +34,11 @@ export function Dialog({ open, onClose, title, busy = false, children }: {
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
     }}>
     <style>{`
-      .velo-native-dialog { padding:0; width:min(520px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); overflow:auto; margin:auto; color:var(--fg); border:1px solid var(--glass-border); border-radius:18px; background:var(--glass-bg-strong); box-shadow:var(--glass-shadow); backdrop-filter:blur(28px); animation:velo-dialog-in 180ms ease-out; }
-      .velo-native-dialog::backdrop { background:color-mix(in srgb,var(--bg) 78%,transparent); backdrop-filter:blur(14px); animation:velo-backdrop-in 150ms ease-out; }
+      .velo-native-dialog { padding:0; width:min(520px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); overflow:auto; margin:auto; color:var(--fg); border:1px solid var(--glass-border); border-radius:24px; background:var(--glass-sheen),var(--modal-surface); box-shadow:var(--modal-shadow); -webkit-backdrop-filter:blur(30px) saturate(1.02); backdrop-filter:blur(30px) saturate(1.02); animation:velo-dialog-in 240ms var(--material-ease); }
+      .velo-native-dialog::backdrop { background:var(--overlay); -webkit-backdrop-filter:blur(var(--overlay-blur)); backdrop-filter:blur(var(--overlay-blur)); animation:velo-backdrop-in 150ms ease-out; }
       .velo-dialog-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid var(--hairline); }
-      .velo-dialog-heading h2 { margin:0; font:500 25px/1.2 var(--font-display); }
-      .velo-dialog-close { display:grid; place-items:center; width:36px; height:36px; flex:none; border:1px solid var(--hairline); border-radius:8px; color:var(--fg); background:var(--chip-bg); cursor:pointer; transition:background 140ms,transform 140ms; }
+      .velo-dialog-heading h2 { margin:0; font:500 25px/1.2 var(--font-sans); }
+      .velo-dialog-close { display:grid; place-items:center; width:36px; height:36px; flex:none; border:1px solid var(--hairline); border-radius:50%; color:var(--fg); background:var(--chip-bg); cursor:pointer; transition:background 140ms,transform 140ms; }
       .velo-dialog-close:hover { background:var(--glass-bg); }
       .velo-dialog-close:active { transform:scale(.96); }
       .velo-native-dialog :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
@@ -38,7 +46,7 @@ export function Dialog({ open, onClose, title, busy = false, children }: {
       @keyframes velo-backdrop-in { from { opacity:0; } to { opacity:1; } }
       @media(prefers-reduced-motion:reduce) { .velo-native-dialog,.velo-native-dialog::backdrop { animation:none; } .velo-dialog-close { transition:none; } }
     `}</style>
-    <header className="velo-dialog-heading"><h2 id={titleId}>{title}</h2><button type="button" className="velo-dialog-close" aria-label={`Close ${title}`} disabled={busy} onClick={onClose}><X size={18} /></button></header>
+    <header className={`velo-dialog-heading${minimal ? ' velo-dialog-heading--minimal' : ''}`}><h2 id={titleId}>{title}</h2><button type="button" className="velo-dialog-close" aria-label={`Close ${title}`} disabled={busy} onClick={onClose}><X size={18} /></button></header>
     {children}
   </dialog>, document.body);
 }

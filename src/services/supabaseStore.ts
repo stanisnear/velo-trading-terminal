@@ -1,6 +1,9 @@
+import { readHistoryPages } from './accountPerformance.mjs';
+import { profileDisplayName } from '../utils/profileIdentity.mjs';
 import { boundedFetch } from './sessionLifecycle.mjs';
 import { createCommentWriter } from './commentPersistence.mjs';
 import { createPostWriter } from './postPersistence.mjs';
+import { parseTradeShare } from '../utils/tradeShare';
 /**
  * supabaseStore.ts
  * ─────────────────────────────────────────────────────────────────
@@ -174,8 +177,8 @@ export async function getProfile(userId: string) {
 }
 
 export async function updateProfile(userId: string, updates: Record<string, any>) {
-  const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
-  return { error };
+  const { data, error } = await supabase.from('profiles').update(updates).eq('id', userId).select('id').maybeSingle();
+  return { error: error || (data?.id !== userId ? new Error('Profile update was not confirmed. Please retry.') : null) };
 }
 
 export async function fetchAllProfiles(limit = 50) {
@@ -217,8 +220,8 @@ export async function fetchAllProfiles(limit = 50) {
 export function dbProfileToUserProfile(row: any): UserProfile {
   return {
     id:                  row.id,
-    username:            row.username || 'Trader',
-    handle:              row.handle   || `@${row.username}`,
+    username:            profileDisplayName(row),
+    handle:              `@${profileDisplayName(row)}`,
     bio:                 row.bio      || '',
     avatar:              row.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.username}`,
     banner:              row.banner_url || '',
@@ -244,25 +247,21 @@ export function dbProfileToUserProfile(row: any): UserProfile {
   };
 }
 
-export async function uploadAvatar(userId: string, file: File) {
-  const ext  = file.name.split('.').pop();
-  const path = `${userId}/avatar.${ext}`;
-  const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-  if (uploadError) return { url: null, error: uploadError.message };
+async function uploadProfileImage(userId: string, file: File, kind: 'avatar' | 'banner') {
+  const extensions: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  if (!extensions[file.type] || !file.size || file.size > 5 * 1024 * 1024) return { url: null, error: 'Choose a PNG, JPEG or WebP image under 5 MB.' };
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user.id !== userId) return { url: null, error: 'Reconnect your account before changing your profile image.' };
+  // Immutable URLs avoid a cached old avatar/banner across devices and CDNs.
+  const path = `${userId}/${kind}-${crypto.randomUUID()}.${extensions[file.type]}`;
+  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: false, contentType: file.type, cacheControl: '31536000' });
+  if (error) return { url: null, error: 'Your image could not be uploaded. Please retry.' };
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  await updateProfile(userId, { avatar_url: data.publicUrl });
+  // The profile form commits both image URLs and its text in one saved update.
   return { url: data.publicUrl, error: null };
 }
-
-export async function uploadBanner(userId: string, file: File) {
-  const ext  = file.name.split('.').pop();
-  const path = `${userId}/banner.${ext}`;
-  const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-  if (uploadError) return { url: null, error: uploadError.message };
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  await updateProfile(userId, { banner_url: data.publicUrl });
-  return { url: data.publicUrl, error: null };
-}
+export const uploadAvatar = (userId: string, file: File) => uploadProfileImage(userId, file, 'avatar');
+export const uploadBanner = (userId: string, file: File) => uploadProfileImage(userId, file, 'banner');
 
 // ══════════════════════════════════════════════════════════════════
 // FOLLOWS
@@ -355,6 +354,7 @@ async function _enrichPosts(posts: any[]): Promise<Post[]> {
     repostedBy:    repostsMap[p.id]  || [],
     comments:      commentsMap[p.id] || [],
     isTradeSignal:   p.is_trade_signal || false,
+    tradeSnapshot: parseTradeShare(p.trade_snapshot),
     targetProfileId: p.target_profile_id || undefined,
     tradeDetails:    p.is_trade_signal
       ? { pair: p.trade_pair, side: p.trade_side, leverage: p.trade_leverage, entry: p.trade_entry }
@@ -394,7 +394,7 @@ export async function createPost(
   authorId: string,
   content: string,
   imageUrl?: string,
-  tradeSignal?: { pair: string; side: string; leverage: number; entry: number },
+  tradeSignal?: { pair: string; side: string; leverage: number; entry?: number; entryPrice?: number; snapshot?: import('../utils/tradeShare').TradeShare },
   targetProfileId?: string,
 ) {
   return writePost({
@@ -403,7 +403,8 @@ export async function createPost(
     trade_pair:     tradeSignal?.pair     || null,
     trade_side:     tradeSignal?.side     || null,
     trade_leverage: tradeSignal?.leverage || null,
-    trade_entry:    tradeSignal?.entry    || null,
+    trade_entry:    tradeSignal?.entry || tradeSignal?.entryPrice || null,
+    trade_snapshot: tradeSignal?.snapshot || null,
     target_profile_id: targetProfileId || null,
   });
 }
@@ -650,43 +651,21 @@ export async function deleteOrdersForPosition(positionId: string) {
 // TRADE HISTORY
 // ══════════════════════════════════════════════════════════════════
 
-export async function fetchTradeHistory(userId: string, limit = 100): Promise<TradeHistoryItem[]> {
-  const { data, error } = await supabase
-    .from('trade_history').select('*')
-    .eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
-  if (error) {
-    console.error('[supabase] fetchTradeHistory error:', error.message, error.code);
-    // Retry once after a short delay — covers JWT-not-yet-active on page load
-    await new Promise(r => setTimeout(r, 800));
-    const retry = await supabase
-      .from('trade_history').select('*')
-      .eq('user_id', userId).order('created_at', { ascending: false }).limit(limit);
-    if (retry.error) {
-      console.error('[supabase] fetchTradeHistory retry failed:', retry.error.message);
-      throw retry.error;
+export async function fetchTradeHistory(userId: string, limit = Infinity): Promise<TradeHistoryItem[]> {
+  const rows = await readHistoryPages(async (offset: number, size: number) => {
+    const query = () => supabase.from('trade_history').select('*').eq('user_id', userId)
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
+      .range(offset, offset + size - 1);
+    let result = await query();
+    if (result.error) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      result = await query();
     }
-    return (retry.data || []).map((r: any): TradeHistoryItem => ({
-      id:               r.id,
-      pair:             r.pair,
-      side:             r.side,
-      entryPrice:       r.entry_price,
-      exitPrice:        r.exit_price,
-      size:             r.size,
-      pnl:              r.pnl,
-      timestamp:        new Date(r.created_at).getTime(),
-      action:           r.action,
-      copyTraderId:     r.copy_trader_id || undefined,
-      leverage:         r.leverage != null ? Number(r.leverage) : undefined,
-      marginMode:       r.margin_mode || undefined,
-      liquidationPrice: r.liquidation_price != null ? Number(r.liquidation_price) : undefined,
-      openedAt:         r.opened_at ? new Date(r.opened_at).getTime() : undefined,
-      onChain:          r.on_chain || false,
-      orderlyOrderId:   r.orderly_order_id != null ? Number(r.orderly_order_id) : undefined,
-      orderlyOrderUrl:  r.orderly_order_url || undefined,
-      txHash:           r.tx_hash || undefined,
-    }));
-  }
-  return (data || []).map((r: any): TradeHistoryItem => ({
+    // Never turn a failed older page into a misleading partial performance total.
+    if (result.error) throw result.error;
+    return result.data || [];
+  }, limit);
+  return rows.map((r: any): TradeHistoryItem => ({
     id:               r.id,
     pair:             r.pair,
     side:             r.side,
@@ -920,7 +899,7 @@ export async function recordTransaction(
 
 export async function fetchNotifications(userId: string): Promise<Notification[]> {
   const { data, error } = await supabase
-    .from('notifications').select('*').eq('suppressed', false)
+    .from('notifications').select('*').eq('suppressed', false).is('retracted_at', null)
     .eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
   if (error) {
     console.warn('[velo] fetchNotifications ERROR:', error.code, error.message, '— user_id queried:', userId);

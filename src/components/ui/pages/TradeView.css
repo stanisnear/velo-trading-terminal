@@ -60,7 +60,7 @@
   flex: 0 0 auto;
   padding: 8px 12px 12px;
   border-top: 1px solid var(--hairline);
-  background: var(--bg-base-2);
+  background: transparent;
 }
 
 .velo-order-ticket__footer > button {
@@ -71,9 +71,9 @@
   .velo-trade-rail {
     width: 100%;
     height: auto;
-    padding: 8px 10px;
+    padding: 0;
     box-sizing: border-box;
-    gap: 10px;
+    gap: 0;
   }
 
   .velo-order-ticket {
@@ -101,3 +101,25 @@
 @media (prefers-reduced-motion: reduce) {
   .velo-trade-feed, .velo-trade-resizer { transition: none; }
 }
+
+/* On touch layouts the terminal is one continuous surface. Inputs keep their own affordances. */
+@media(max-width:1023px){
+ .velo-trade-workspace{background:var(--trade-surface,var(--bg-base))!important;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
+ .velo-trade-main,.velo-trade-rail,.velo-order-ticket,.velo-trade-feed{border-radius:0!important;box-shadow:none!important;background:var(--trade-surface,var(--bg-base))!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+ .velo-trade-rail{padding:0!important;gap:0!important;border-top:1px solid var(--hairline)}
+ .velo-trade-feed{border:0!important;border-top:1px solid var(--hairline)!important}
+ .velo-order-ticket__body{padding:18px 16px;gap:14px}
+ .velo-order-ticket__footer{padding:12px 16px 20px}
+}
+
+/* Restore distinct locked panels; only the public feed and chart expose data. */
+@media(min-width:1024px){
+ .velo-trade-rail[data-authenticated=false]{height:100%;gap:12px;min-height:0}
+ .velo-trade-rail[data-authenticated=false] .velo-trade-feed{height:clamp(180px,30vh,300px);flex:0 1 clamp(180px,30vh,300px);min-height:96px}
+ .velo-trade-rail[data-authenticated=false] .velo-order-ticket{flex:1 1 0;min-height:200px;justify-content:center}
+ .velo-trade-rail[data-authenticated=false] .velo-order-ticket>.trade-auth-gate{flex:1;justify-content:center;padding:20px;gap:12px}
+}
+.velo-trade-workspace .velo-trade-activity .trade-activity-body{display:flex;flex-direction:column}
+.velo-trade-workspace .velo-trade-activity .trade-auth-gate--compact{min-height:0;padding:12px 18px;max-height:100%;box-sizing:border-box}
+.velo-trade-workspace .velo-trade-activity .trade-auth-gate__copy{max-width:none}
+@media(max-width:1023px){.velo-trade-workspace .velo-trade-activity .trade-auth-gate--compact{padding:16px;min-height:80px}}

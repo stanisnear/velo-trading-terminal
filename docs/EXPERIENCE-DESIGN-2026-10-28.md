@@ -1,0 +1,179 @@
+# Velo interface direction — 28 October 2026
+
+The approved landing composition was restored to commit `3755695`; the rejected split hero, replacement sharing chapter, FAQ and closing glyph are removed. The later brand-foundation stylesheet shares the app's Switzer interface font and graphite/celadon materials across the landing page, docs and blog. The laptop, captions, page structure and sequence retain their prior implementation.
+
+## Typeface comparison
+
+Compared **Satoshi, General Sans, Switzer, Supreme, Cabinet Grotesk and Clash Grotesk** using the same navigation labels, market copy, currency values, signs, percentages and ambiguous characters. The resulting specimen is kept as a local review artifact. Switzer 400/500/600/700 is the app interface family: its compact metrics and clear numerals fit dense controls and financial tables. Fraunces remains Velo’s wordmark/editorial face; Geist Mono remains available for technical identifiers and compact labels. Font files are unmodified, local and attributed in [third-party notices](../THIRD-PARTY-NOTICES.md). PNG rendering explicitly loads the interface weights before drawing.
+
+## Reference review and actual implementation
+
+| Reference | Reviewed patterns | Current Velo implementation |
+| --- | --- | --- |
+| [21st](https://21st.dev/) | Liquid glass, background paths, living gradients, glyph portal | Existing landing background traces remain in the restored design. App navigation/overlays retain a glass material with one moving active lens. The rejected replacement hero/portal is removed. |
+| [Motion Primitives](https://motion-primitives.com/docs) | Animated Background, Transition Panel, Morphing Dialog, Sliding Number | Spring-driven native selection controls; conditional price-field height animation. Native dialog accessibility/focus handling stays in place. Source registry inspected; no competing dialog framework installed. |
+| [React Bits](https://reactbits.dev/) | Animated Content, Glare Hover, Glass Surface, Glass Icons and background collections | Original low-cost sheen on interactive buttons; small card entrances. No WebGL dependency or delayed financial data. |
+| [Amicro](https://amicro.dev/) | Button slide/morph states, loaders, Mono Charts; available indexed catalogue at amicro.vercel.app | Action labels swap with short motion, mini-charts show actual nearest historical values. Direct site access returned a security checkpoint, so these are original implementations of the observed patterns, not copied Amicro source. |
+| [Bencho](https://bencho.dev/) | Price chart, resizable panels, Morph loader, Copy field, Private balance, Toast stack and Sounds | Resizable trade rail and historical chart readout; compact pending loader; reusable copy/check feedback in position receipts with explicit failure. Interface sounds are optional in Wallet & Settings, off by default, generated locally with one reused audio context and duplicate-cue suppression. No third-party sound recording is redistributed. |
+| [beUI](https://beui.dev/) | StatefulButton, RangeSlider, motion tokens, Morphing Modal | Adapted MIT spring parameters/content swaps in `ProductMotion.tsx`; native margin input with tick marks and spring fill; spring selection in navigation and segmented controls. Source and license retained. |
+| [Magic UI theme toggle](https://magicui.design/docs/components/animated-theme-toggler) | Button-origin View Transition reveal | Existing interruptible circular theme transition retained, with immediate reduced-motion/unsupported fallback. |
+| [Rune Icons](https://www.runeicons.com/) | Five icon styles and glass artwork | Original Apache-2.0 glass wallet illustration used in the compact signed-out ticket. Existing Lucide controls remain consistent. License retained. |
+| [Reicon Glass](https://reicon.dev/glass) | Translucent icon layers, highlights and controlled depth | Material reference; no additional remote icon runtime or unlicensed downloaded asset. |
+| [Rolling Number](https://rolling.kitlangton.dev/) | Direct/interruptible rolling values and locale-aware precision | Existing coverage retained across financial values, charts’ DOM readouts and social metrics. New chart hover readout uses the same engine. Native chart axes and exported PNGs remain native/static. |
+| [Fontshare](https://fontshare.com/) | Six actual font families rendered against the same product copy | Switzer across app and public site interface text; Fraunces and Geist Mono retain their existing roles. |
+
+The new runtime dependency is pinned Motion. The existing rolling-number dependency is retained. Source-based beUI adaptations and Rune artwork are listed in [third-party notices](../THIRD-PARTY-NOTICES.md).
+
+## Trading colour and proportion correction
+
+The old chart canvas hardcoded `#f1f5f2` in light mode. The current surrounding panel used a different surface. CSS now owns `--trade-surface` and chart tokens; the chart reads resolved literal colours and paints a transparent canvas over the same solid surface. A theme-class observer updates the canvas palette after the root theme commits, without recreating the chart.
+
+The desktop signed-out rail gives the market feed the available height and keeps a compact sign-in ticket at its foot, replacing the stretched empty sign-in card. Authenticated order entry keeps the adjustable feed/ticket split and persistent submit action. Market/Limit/Stop and Long/Short are native keyboard-accessible buttons with spring indicators. Conditional fields reveal inside the existing ticket; changing type does not replace the submit element. Collapsed fields are inert and hidden from assistive technology. The margin slider retains native pointer, touch and keyboard behavior; its decorative fill animates separately.
+
+The new market-watch sparkline uses actual returned history, unique gradient IDs and a nearest-point quote readout. It makes no extra network requests and introduces no simulated market ticks.
+
+## Sharing and accessibility
+
+Feed PNG previews remain bounded at 420 px, preserve 3:2 proportions, and open beside the same post/actions/comments. Exports remain 2400 × 1600. Tagging and live-position settlement behavior are unchanged.
+
+Motion is presentation-only. Native inputs, handlers, disabled/busy gates and calculation precision remain intact. Unsupported animation engines and reduced-motion settings get immediate state changes. New decorative loaders have no role in transaction confirmation. Keyboard focus remains on selected controls.
+
+## Verification
+
+All 230 app regression tests, TypeScript and the production build passed. The suite covers persistent trade-ticket/keyboard navigation and chart token resolution. Landing restoration passed 17 tests and was confirmed live. Browser control was subsequently restored: visual checks covered the trading page in light/dark, social density and 420 px image previews, and the native order-type/slider controls in an authenticated UI fixture. Chart and panel computed colours match in light mode (`rgb(248, 250, 242)`) and share the dark surface. A 390 px browser frame measured equal client/scroll width; this is responsive browser evidence, not a physical-phone test. No transaction or social post was submitted by these checks.
+
+## Material and alignment follow-up
+
+Light mode uses `#eff3eb` for the canvas and `#f5f7f0` for solid surfaces. Social's discovery modules, market watch and feed share the same container treatment. Market statistics gain a matching surface; leaderboard podiums and table use the same quiet edges and reduced shadows. Desktop navigation and trading panels share 12 px outer gutters, a 64 px header and a 12 px content gap. On phones and tablets the header spans the viewport with safe-area padding, matching the edge-to-edge trading layout. Account-number line height allows rolling digits to remain fully visible.
+
+The six requested component catalogues were revisited, including beUI's free/Pro separation and Bencho's sound collection. Velo uses original implementations of the reviewed patterns or already credited open-source adaptations. The follow-up adds no paid source or unverified sound asset. New copy-failure and sound-preference tests bring the app suite to 232 passing tests; all 17 landing tests still pass.
+
+
+## Mobile persistence, notification undo and detail dialogs
+
+Mobile wallet transports can report `connecting` during reload. This is no longer interpreted as a click. Only account-choice buttons arm the sign-in continuation (for five minutes); the normal path reuses an unexpired session whose server-verified wallet matches. The Supabase refresh mechanism and existing inactivity/absolute limits remain enabled.
+
+Notifications now carry a server-assigned actor and nullable `retracted_at`. Private delete triggers retract likes, comment likes, reposts and follows. Event validation and shared advisory locks prevent a late client retry from recreating an undone event. Re-liking creates a new active event. Recipient RLS is unchanged. The client removes retracted rows on Realtime UPDATE and remembers their IDs so a stale in-flight snapshot cannot reinsert them. Post/reply deletion also prompts a debounced notification refresh to cover PK-only Realtime DELETE delivery. Nine existing stale social alerts were retracted; no financial alerts were retracted.
+
+The mobile market watch presents all four assets in a two-by-two grid. Desktop Social uses a wider 760 px reading column with 230/260 px discovery rails. Feed PnL images keep their 420 px limit. Light celadon is slightly greener (`#eaf1e8` canvas, `#f1f6ee` solid surface), shared with the public site. A fixed top veil masks the strip above the translucent header during scrolling.
+
+Trade/order/history/transfer details now use the same native glass dialog as sharing. A compact hero and paired facts precede an animated execution-details disclosure; explanations expand in place, so they work on touch and remain inside the modal top layer. The footer remains available during scrolling. V4 position return uses collateral plus the opening fee, matching the other position summaries. Like/repost icons get a short spring response without remounting the focused control. These use the existing Motion runtime and the previously reviewed Motion Primitives/beUI/Amicro interaction patterns; there are no new dependencies, paid components or sound assets.
+
+The landing laptop's entry placement now starts shortly after the ticker before smoothly joining its existing pinned camera path. The closed-first zoom/open/tour/close sequence, device geometry and captions remain intact. On the 390 × 844 browser check the visible closed lid begins about 81 px after the ticker, instead of over 400 px later.
+
+Validation: 238 app checks, 18 landing checks, TypeScript and production packaging; live Supabase rollback-only SQL tests cover canonical event validation, deduplication, undo/relike, late retry, anonymous denial, recipient RLS and deletion cascades. Browser checks cover four visible phone markets, no horizontal page overflow, both detail-dialog themes and keyboard containment. Responsive browser checks do not establish physical MetaMask-mobile behavior.
+
+
+## Coin workspace and continuous phone terminal
+
+The coin page is now a responsive chart-first workspace with four evenly grouped reference statistics, a quieter asset/resources card and its own conversation composer. It retains the current Switzer/celadon/graphite materials. The composer adds a single matching cashtag, supports the shared @/$ picker and publishes through the existing main-feed handler. Confirmed posts clear the draft; an unconfirmed publication leaves it editable. Related markets are native buttons, and the old 50× shortcut copy is removed.
+
+The six current catalogues were reviewed again, including the live Amicro and Motion Primitives sites (browser access succeeded this time): Motion Primitives’ disclosure and transition patterns, React Bits’ content/micro collections, Amicro’s stateful buttons/loaders/charts, Bencho’s Price Chart and sound collection, beUI’s 54 motion components and 24 blocks, and Magic UI’s component catalogue/bento/interactive-button examples. This pass applies grouped bento information, native spring selection controls, an animated price trace, keyboard/touch chart scrubbing with actual timestamps, height disclosure, bookmark feedback, stateful publication and responsive resource-link arrows. These are original adaptations using the existing Motion runtime and credited earlier primitives; no paid source, extra UI framework or sound asset was imported. Existing interface sounds remain opt-in and off by default.
+
+Phone/tablet trading sections share one flush surface with hairline separators; the chart, ticket and public feed no longer have competing rounded outer cards or gutters. Desktop rail sizing and execution handlers remain unchanged. The public laptop’s closed-shell artifact was traced to a ground-shadow plane overlapping the metal lid and an exposed hinge. Contact lighting now follows the projected deck front edge; screen/base shadows no longer cross the lid, and the hinge/keys reveal with opening. The approved camera/hinge sequence and captions are retained. Landing bento market icons now link directly to the corresponding asset workspaces with keyboard and hover feedback.
+
+Verification for this pass: 242 app checks plus TypeScript/production packaging. Coin workspace browser frames at 390 px and 820 px have no horizontal overflow. Local publishing confirms mention selection, automatic cashtag insertion and a normal post in the coin conversation; the actual app’s composer delegates to its shared feed handler. The mobile trade chart/ticket/feed resolve to the same surface with zero outer corner radius. Laptop closed-pose browser inspection confirms that the contact-shadow band no longer intersects the lid. No public post or trade was submitted.
+
+The workspace sizing reset explicitly preserves rolling-number glyph slots as `content-box`. Their measured character width excludes overhang padding; overriding that contract clips narrow digits, most visibly in the small chart captions. Live capture and computed glyph/slot widths were checked after the correction.
+
+
+## Coin content and interaction refinement
+
+The asset header now carries the reference quote and returns alongside the identity, with less top spacing. The chart, statistics and conversation flow independently of a compact About / More markets sidebar. Related-market logo wrappers have fixed square dimensions; only their explicit text column grows.
+
+`shared/assetProfiles.mjs` contains short, primary-source-linked summaries for the current 50 directory identities plus Pyth, stETH and WBTC. Canonical CoinMarketCap IDs prevent ticker collisions or a rename from substituting another project's summary. Quotes and returns remain separate from project descriptions. Unknown assets fall back to available metadata. These summaries are editorial content and need review when directory identities or project fundamentals change.
+
+New visible interactions in this release:
+
+- **Reaction dock:** a compact translucent picker with staggered entrances, selection feedback, arrow-key navigation, Escape dismissal and a synchronous duplicate-request lock. Like, repost and watchlist icons emit a brief local particle response only after a change to their selected state, never on page hydration. The existing optimistic rollback and notification rules remain authoritative.
+- **Sign-in stage rail:** Connect → Approve → Finish follows actual authentication phases. The wallet-awaiting fingerprint scans subtly; headings transition between stages. Cancel and switch-wallet actions retain their existing behavior. No simulated progress percentage or timer is used.
+- **Press bloom:** original decorative ink-bloom feedback on enabled native buttons and links, inspired by the observed Bencho Ink Bloom / Magic UI Ripple patterns. It adds no clicks, submissions, audio or delay. Native dialog controls render feedback inside the top layer. Disabled controls, editors and reduced-motion mode are excluded; effects are bounded and cleaned up.
+- **Landing order lab:** the existing Order types bento tile now offers Market, Limit, Stop, Take-profit and Stop-loss buttons, a moving trigger level and concise explanations. The sample path is explicitly illustrative. This is an educational interaction, not order entry; no wallet or price API call is made. The approved hero and laptop geometry remain intact.
+- **One PnL design:** Clean replaces the removed Velo design selector. Light/dark, amount privacy and optional live-post behavior remain available. PNGs are still rendered at 2400 × 1600; existing uploaded snapshots are not rewritten.
+
+The dock/stage transitions use the existing pinned Motion runtime and native accessibility semantics, reflecting Motion Primitives' transition-panel and React Bits' micro-interaction patterns. New effects and landing code are original Velo implementations, not redistributed third-party snippets. The existing beUI adaptation and license remain documented above. All added motion has a reduced-motion fallback. Interface sound remains opt-in and off by default.
+
+## Live sharing and useful interaction pass
+
+Live PnL uses `LivePnlCard`: persistent DOM and Rolling Text preserve element identity across quotes. No canvas/PNG work runs in the live path. Confirmed settlement first freezes that layout, then replaces it with the decoded static Clean PNG. The verified result stays settled when offscreen visibility resumes; subsequent marks cannot redraw its result. Export remains a 2400 × 1600 snapshot at action time. The optional captured-result outcome labels its original price **Captured mark**, never as an executed exit.
+
+The six reference collections were reviewed by catalogue/category and selected component examples. They are references, not a claim that every component was installed or individually tested. This pass adds original Velo implementations with the existing Motion/Rolling runtime:
+
+| Reference reviewed | Implemented product interaction |
+| --- | --- |
+| [Motion Primitives morphing popover](https://motion-primitives.com/docs/morphing-popover) and transition patterns | Public trader peek with anchored glass surface, short entrance, pointer/focus continuity and Escape restoration; animated result selection in quick search. |
+| [React Bits micro interactions](https://reactbits.dev/c/micro) | Fluid native switch for live post updates and opt-in sounds: thumb compression, check-path reveal and reduced-motion fallback. |
+| [Amicro](https://amicro.dev/) buttons, morphing, loaders and [Mono Charts](https://amicro.dev/mono-charts) examples | Persistent animated PnL/price glyphs; retained price trace in an interactive landing sharing example, with short format/state transitions. |
+| [Bencho command bar](https://bencho.dev/blocks/command), [profile card](https://bencho.dev/blocks/profile-card), [sounds](https://bencho.dev/sounds) | Header/mobile-menu quick search (⌘/Ctrl K), market/trader/page results, keyboard navigation and public author previews. Existing opt-in click sounds reused; no external recordings copied. |
+| [beUI blocks](https://beui.dev/components/blocks), including command/search and wallet card patterns | Search categories and contextual public-profile information using existing loaded data. Supported perpetuals remain separate from informational coins. |
+| [Magic UI components](https://magicui.design/docs/components) | Documentation/article reading-progress ring with a reduced-motion-aware return-to-top control. |
+
+The landing sharing example now lets visitors switch between a compact position and the Clean PnL card, choose amounts/return, inspect illustrative details, compare open/settled states and switch the card appearance. Values are explicitly illustrative; there is no wallet, trade, public post or market API request. The approved hero and laptop animation are retained.
+
+New interaction regression checks cover keyboard search routing, informational-asset exclusion from trading, competing-modal focus, profile-preview Escape behavior, native switch changes, zero live rasterization, one-time settlement rasterization, settlement persistence, illustrative sharing privacy/details and coalesced reading-progress work.
+
+## Aligned workspace and trading dialogs
+
+Historical change, superseded by the compact-layout correction below: one centered 1600 px frame with 12 px outside gutters was applied to the header and page content. Dashboard, market, leaderboard, coin and social roots inherit this frame. The trading workspace uses the same outside edge on desktop; phone trading keeps its existing continuous, full-width surface. The translucent header retains its content-masking veil. Native dialogs now participate in the existing modal/navigation-layer observer.
+
+`TradingDialog` owns the shared title scale, identity row, scroll region and fixed actions for position inspection, history/orders, close/TP-SL management, shared-position evidence and the new account breakdown. Titles and numeric summaries use Switzer with the same weight, size and spacing. Technical IDs retain the monospace face. PnL export artwork retains the separate Clean card typography.
+
+Close/TP-SL management adds a spring selection lens, measured-height panel transitions without scaling form fields, keyboard tab navigation and pending-action label transitions. Drafts survive incoming prices and the existing transaction locks still block duplicate submission. The shared frame keeps the primary action visible while content scrolls.
+
+Dashboard additions are read-only or route to existing account actions:
+
+- Equity breakdown compares available balance and allocated position margin with an animated ring and selectable legend, while unrealized PnL stays separate. It uses existing account values; it changes no accounting or execution rules.
+- The account action dock adds consistent icons, a spring hover/focus lens, keyboard navigation and a disabled pending-faucet state.
+- Trading wallet and engine addresses have the existing copy/check/error feedback control.
+- The landing leverage tile adds a native 1–25× slider showing gross long return for a ±1% price move. It explicitly excludes fees and does not imply that every market permits 25×.
+
+References selected for these additions: [Motion Primitives animated background](https://motion-primitives.com/docs/animated-background), [disclosure](https://motion-primitives.com/docs/disclosure), [React Bits micro interactions](https://reactbits.dev/c/micro), [Amicro morphing/buttons/charts](https://amicro.dev/), [Bencho private balance](https://bencho.dev/blocks/private-balance), [copy field](https://bencho.dev/blocks/copy-field), [beUI wallet/chart and action patterns](https://beui.dev/changelog), and [Magic UI circular progress](https://magicui.design/docs/components/animated-circular-progress-bar). The catalogues and suitable examples were reviewed; this is not a claim that every item was installed. New implementations are original Velo code using existing Motion/Rolling dependencies; no paid assets or external sound samples were copied. Interface sounds remain opt-in and decorative motion has reduced-motion fallbacks.
+
+Validation: 249 app regression tests, 21 landing tests and TypeScript pass. Checks cover allocation math and live values, keyboard/action routing, pending-action exclusion, TP/SL keyboard switching, draft retention, full-close semantics and duplicate-save prevention. Final browser verification was unavailable because Browser was disabled in Work settings; automated checks do not establish pixel-perfect rendering on physical devices.
+
+
+## Compact-layout correction
+
+Removed the last release's shared page-width wrapper and padding/column overrides. Social again uses its bounded 760 px reading column with its original discovery/watch columns; Markets keeps its 1320 px outer cap and inset content. Other pages retain their own established sizing. Desktop navigation aligns to the dashboard's original clamp-based outer gutter; phone/tablet navigation uses its existing edge-to-edge treatment. Dialogs, controls and typography from that release remain.
+
+The dashboard's chart is now bounded at 250 px (180 px on phones), rather than stretching to several sidebar cards. Open exposure is prioritized, with stable keyed position rows, a notional-composition strip that highlights the focused row, direct access to position evidence, and an animated disclosure for additional positions. The strip compares position notionals only; it does not claim collateral utilization or liquidation safety. Account totals and PnL are passed through from the existing application. Performance shows its closed-position sample count. Technical addresses remain available in a separate, collapsed account disclosure.
+
+Selected references for this pass: [Motion Primitives Disclosure](https://motion-primitives.com/docs/disclosure) for height-revealed supporting content, [beUI chart patterns](https://beui.dev/changelog) for actual-data composition and contextual inspection, and [Bencho](https://bencho.dev/) for compact account/copy interactions. The [React Bits micro-interaction catalogue](https://reactbits.dev/c/micro), [Amicro](https://amicro.dev/) and [Magic UI circular progress](https://magicui.design/docs/components/animated-circular-progress-bar) were reconsidered against the existing product controls. No decorative notification demo, simulated market activity, paid component or extra runtime was introduced. These additions are original Velo implementations with the existing Motion/Rolling primitives, native keyboard controls and reduced-motion fallbacks.
+
+The landing layout is preserved in this correction. Automated checks cover current-position inspection, settlement removing a focused row, zero notional, expanded rows, stable keyboard focus through value updates and address disclosure/copy availability. Browser control remains disabled for this chat; no new visual or physical-device verification is claimed.
+
+
+## Wallet and exposure follow-up — 29 October
+
+The inline exposure list from the preceding release is replaced with a fixed-size summary. All position rows move into a scrollable breakdown dialog with focus-linked composition and direct evidence inspection. The existing active-positions table remains the dashboard's management surface. Position count therefore does not increase the overview rail or leave a tall empty area beside it.
+
+Deposit/withdraw, send, faucet and wallet/settings now use the same native glass dialog, Switzer scale, spacing, scroll region and fixed action area as trade management. New route previews show the actual sending and receiving wallets. Native network/direction controls have spring selection; conditional destinations and receiving addresses use disclosures; state glyphs transition between preparing, awaiting receipt and confirmed states. Decorative pending rings do not imply an execution percentage. Base-chain balances are pinned to Base Sepolia, and pending actions lock recipient/direction changes.
+
+Wallet settings separates Wallets, Preferences and Security, preserving email drafts and optional sound preferences. Wallet cards add a balance-privacy control and the existing honest copy/check/error feedback. Key reveal still requires its confirmation and is hidden when leaving Security. Recovery remains an explicit wallet-signature action.
+
+This pass applies patterns selected from [beUI's wallet, modal and action collections](https://beui.dev/changelog), [Motion Primitives disclosures](https://motion-primitives.com/docs/disclosure), [Bencho copy fields](https://bencho.dev/blocks/copy-field) and the previously reviewed Amicro stateful-action examples. Implementations use existing Motion/Rolling code and original Velo presentation; no additional framework, paid assets or sound files are added. The approved landing composition is unchanged.
+
+Verification is recorded in [the 29 October release](RELEASE-2026-10-29.md). Browser control remains disabled for this chat; no new visual/physical-device verification is claimed.
+
+## 29 October: chart navigation and typography completion
+
+The portfolio readout now supports pointer and keyboard inspection of actual UTC-timestamped equity observations, with rolling values in the compact glass readout. The trade chart adds a small Motion entrance/exit for Back to live, preserves the user's historical range during updates, and returns to current candles only on request or a timeframe change. The account address control opens a native dialog instead of increasing sidebar height. These are original adaptations informed by [Bencho Price Chart](https://bencho.dev/blocks/price-chart), [beUI Line Chart](https://beui.dev/charts/line-chart) inspection/loading patterns and [Motion Primitives Animated Number](https://motion-primitives.com/docs/animated-number); no new dependency or paid code is included.
+
+The typography sweep removes remaining editorial face declarations from app navigation handles, auth/onboarding, social/profile headings, trade/details/management dialogs, market/leaderboard headings, close receipts and admin controls. Reown's font option also uses Switzer. Technical mono labels/identifiers and Fraunces for actual wordmarks and PnL art retain their intended roles. The public site loads local Switzer explicitly on every reading route and all laptop interface previews use the same face. Existing landing compositions and device animation are preserved.
+
+
+## 29 October: equity and usable public trading workspace
+
+- **beUI Returns Calendar** ([reference](https://beui.dev/charts/returns-calendar)): calendar intensity and selection, adapted to a local-day settlement dollar calendar with inspectable evidence. Velo uses its own layout and existing components, not sample return data or a new UI dependency.
+- **Bencho Pill/FAQ Accordion** ([reference](https://bencho.dev/blocks/pill-accordion)): a compact native landing-page quick-answers block, one open answer at a time, with expanding height and plus/minus feedback. Native fallback and reduced motion are retained; the approved hero/laptop is untouched.
+- **Motion Primitives Disclosure/Dialog** ([reference](https://motion-primitives.com/docs/disclosure)): price/fee detail reveals and calendar selection reveals use Velo's existing spring disclosure and native dialog. Persistent inputs and native focus semantics take priority over remounting controls for animation.
+- **Magic UI Animated List** ([reference](https://magicui.design/docs/components/animated-list)): the selected day's real settlement rows have a short, reduced-motion-aware stagger. It neither creates fake activity nor delays access to real records.
+- **React Bits micro-interaction collection** ([reference](https://reactbits.dev/c/micro)): restrained press and directional hover feedback inform the preview action, scenario marker and selectable days. Velo's implementations are original; no React Bits source/assets are copied.
+- **Amicro** ([reference](https://amicro.dev/)): direct retrieval remained blocked (403/429) in this pass. No newly inspected Amicro source or copied component is claimed. Existing stateful-action patterns remain documented above.
+
+The guest order preview is a useful new tool: direction, margin, leverage and a price-movement scenario update a payoff graphic and rolling sizing/PnL values immediately, without any RPC write. Its button enters the existing sign-in flow. Account and performance curves use two-sided baseline colors, keeping account-value change separate from realized trading profit.
+
+
+### Correction after feedback
+
+The guest order preview described above was removed at the user's request. Distinct locked order/activity panels are restored, with bounded public-feed sizing and no editable visitor parameters. No additional design experiments accompany this correction. Equity controls now reflect actual available ranges and show their timestamps; chart resizing refits the data to the new width. The Performance calendar and its existing presentation remain.

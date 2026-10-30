@@ -1,3 +1,4 @@
+import { AnimatedText } from '../ui/AnimatedValue';
 /**
  * ProfileHeader — banner, avatar, bio, follower stats and action buttons for
  * own/public trader profiles. Extracted from App.tsx (stage 7): leaf component,
@@ -10,7 +11,7 @@ import { VerifiedBadge, formatMoney } from '@/components/ui/shared';
 export const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, onCopy, isCopying, showUsersModal, onViewProfile, stats, traders = [] }: any) => {
     const S = {
         mono: { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1' } as React.CSSProperties,
-        display: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } as React.CSSProperties,
+        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' } as React.CSSProperties,
         label: { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
     };
     const hasCustomBanner = Boolean(profile.banner && !profile.banner.includes('photo-1579546929518-9e396f3cc809'));
@@ -79,12 +80,12 @@ export const ProfileHeader = ({ profile, isOwn, onEdit, onFollow, isFollowing, o
                     </button>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                         <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: realizedPnl >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>
-                            {realizedPnl >= 0 ? '+' : '-'}${formatMoney(Math.abs(realizedPnl))}
+                            {realizedPnl >= 0 ? '+' : '-'}${<AnimatedText text={formatMoney(Math.abs(realizedPnl))}/>}
                         </span>
                         <span style={{ ...S.label }}>PnL</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                        <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>{winRate.toFixed(1)}%</span>
+                        <span style={{ ...S.mono, fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>{<AnimatedText text={winRate.toFixed(1)}/>}%</span>
                         <span style={{ ...S.label }}>Win Rate</span>
                     </div>
                 </div>

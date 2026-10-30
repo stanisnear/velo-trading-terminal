@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 /**
  * VeloSendModal — peer-to-peer mUSDC transfer.
@@ -6,13 +7,15 @@ import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
  * VeloRegistry. Live resolution + validation. Signs with the burner if one
  * exists (silent), else MetaMask popup.
  */
-import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useRef, useState, useId } from 'react';
+import { TradingDialog } from './ui/TradingDialog';
+import { ActionContent, MeasuredPanel } from './ui/ProductMotion';
+import { TransferRoute, WalletStatus } from './ui/WalletPresentation';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { createWalletClient, isAddress, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
-import { AtSign, ArrowRight, CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
+import { ArrowRight, ExternalLink } from 'lucide-react';
 import { resolveUsername, validateUsername } from '@/services/usernameService';
 import { loadStoredBurner } from '@/services/veloBurnerWallet';
 import { ensureBurnerGas } from '@/services/veloGasSponsor';
@@ -25,30 +28,6 @@ import { readPendingTransfer, savePendingTransfer, clearPendingTransfer } from '
 
 const BASE_SEPOLIA_RPC =
   import.meta.env.VITE_BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org';
-
-const S = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.02em' },
-  mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
-  sans:    { fontFamily: 'var(--font-sans)' },
-  label:   { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
-};
-
-const cardStyle: React.CSSProperties = {
-  width: 'min(420px, calc(100vw - 32px))',
-  background: 'var(--modal-bg, var(--modal-bg))',
-  border: '1px solid var(--hairline-strong)',
-  borderRadius: 28,
-  boxShadow: '0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.06) inset',
-  backdropFilter: 'blur(48px) saturate(1.5)',
-  WebkitBackdropFilter: 'blur(48px) saturate(1.5)',
-  position: 'relative', overflow: 'hidden',
-};
-
-const holoGradient: React.CSSProperties = {
-  position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-  background: 'var(--brand-gradient)',
-  opacity: 0.9, zIndex: 1,
-};
 
 type Step = 'IDLE' | 'SENDING' | 'DONE' | 'ERROR';
 type ResolveState = 'idle' | 'checking' | 'address' | 'username_found' | 'username_unknown' | 'invalid';
@@ -95,6 +74,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const sendLock = useRef(false);
+  const recipientId=useId(), amountId=useId();
 
   // Determine which wallet is sending (burner if exists, else main)
   const burner = address ? loadStoredBurner(address) : null;
@@ -182,7 +162,7 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
 
   if (!isOpen) return null;
 
-  const amountNum = parseFloat(amount) || 0;
+  const amountNum = Number.isFinite(Number(amount)) ? Number(amount) : 0;
   // canSend: a burner-wallet session can sign without MetaMask being connected
   // at the wagmi layer. The only hard requirement is publicClient (for reading
   // balance and waiting for receipts) and a signing path (burner OR wagmi wallet).
@@ -282,221 +262,28 @@ export const VeloSendModal: React.FC<Props> = ({ isOpen, onClose, walletAddress:
     } finally { sendLock.current = false; }
   };
 
-  // ── Render helpers ────────────────────────────────────────────────────────
-  const renderResolveHint = () => {
-    if (!recipientInput.trim()) return null;
-    if (resolveState === 'invalid') return (
-      <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 6 }}>
-        Invalid address or username.
-      </div>
-    );
-    if (resolveState === 'checking') return (
-      <div style={{ ...S.mono, fontSize: 10, color: 'var(--fg-muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Loader2 size={10} className="animate-spin" /> Looking up @{recipientInput.replace('@', '')}…
-      </div>
-    );
-    if (resolveState === 'username_unknown') return (
-      <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 6 }}>
-        Could not resolve this Velo handle. Check the handle or use a wallet address.
-      </div>
-    );
-    if (resolveState === 'username_found' && resolvedAddress) return (
-      <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-up)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <CheckCircle2 size={10} /> Resolves to {resolvedAddress.slice(0, 6)}…{resolvedAddress.slice(-4)}
-      </div>
-    );
-    if (resolveState === 'address' && resolvedAddress) return (
-      <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-up)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <CheckCircle2 size={10} /> Valid address
-      </div>
-    );
-    return null;
-  };
-
-  const renderIdle = () => (
-    <div style={{ padding: '24px 24px 24px' }}>
-      <h3 style={{ ...S.display, fontSize: 24, color: 'var(--fg)', margin: '0 0 6px' }}>Send mUSDC</h3>
-      <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.5 }}>
-        Send to a @username or 0x… address. Signed by your trading wallet — silent if a burner exists.
-      </p>
-
-      {/* Recipient */}
-      <div style={{ ...S.label, marginBottom: 6 }}>To</div>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '10px 14px', borderRadius: 12,
-        background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)',
-      }}>
-        <AtSign size={14} style={{ color: 'var(--fg-muted)' }} />
-        <input
-          type="text"
-          value={recipientInput}
-          onChange={(e) => setRecipientInput(e.target.value)}
-          placeholder="@username or 0x..."
-          style={{
-            ...S.mono, flex: 1, padding: 0, border: 'none', background: 'transparent',
-            color: 'var(--fg)', fontSize: 13, outline: 'none',
-          }}
-        />
-      </div>
-      {renderResolveHint()}
-
-      {/* Amount */}
-      <div style={{ ...S.label, marginTop: 16, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
-        <span>Amount</span>
-        <button
-          onClick={() => setAmount(available.toFixed(2))}
-          style={{
-            ...S.mono, fontSize: 10, color: 'var(--iris-violet)',
-            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            letterSpacing: '0.1em', textTransform: 'uppercase' as const,
-          }}
-        >
-          Max ${available.toFixed(2)}
-        </button>
-      </div>
-      <input
-        type="text"
-        inputMode="decimal"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-        placeholder="0.00"
-        style={{
-          ...S.mono, width: '100%', padding: '14px', borderRadius: 12,
-          background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)',
-          color: 'var(--fg)', fontSize: 16, boxSizing: 'border-box' as const, outline: 'none',
-        }}
-      />
-      {amountNum > available && (
-        <div style={{ ...S.mono, fontSize: 10, color: 'var(--pnl-down)', marginTop: 6 }}>
-          Exceeds your trading wallet balance.
+  const pending=step==='SENDING';
+  const hint=resolveState==='checking'?'Looking up this Velo handle…':resolveState==='username_found'&&resolvedAddress?`Resolves to ${resolvedAddress.slice(0,6)}…${resolvedAddress.slice(-4)}`:resolveState==='address'?'Valid wallet address':resolveState==='invalid'?'Enter a valid wallet address or Velo handle.':resolveState==='username_unknown'?'This handle could not be found. Check it or use a wallet address.':'';
+  return <TradingDialog open={isOpen} onClose={onClose} title="Send mUSDC" busy={pending} className="wallet-dialog send-dialog"
+    identity={<><span>Wallet transfer</span><span className="trade-details-network">Base Sepolia</span></>}
+    footer={step==='DONE'?<button type="button" className="wallet-button" data-primary="true" onClick={onClose}>Done</button>:step==='ERROR'?<button type="button" className="wallet-button" data-primary="true" onClick={()=>txHash?void checkConfirmation():setStep('IDLE')}>{txHash?'Check confirmation':'Try again'}</button>:
+      <button type="button" className="wallet-button" data-primary="true" disabled={pending||!canSend} onClick={()=>void handleSend()}><ActionContent pending={pending} pendingLabel="Confirming transfer…">Send mUSDC<ArrowRight size={15}/></ActionContent></button>}>
+    <MeasuredPanel><div className="wallet-stack">
+      {step==='IDLE'&&<>
+        <p className="wallet-note">Send to a Velo username or wallet address.</p>
+        <div><label className="wallet-label" htmlFor={recipientId}>Recipient</label><input id={recipientId} className="wallet-field" value={recipientInput} onChange={event=>setRecipientInput(event.target.value)} placeholder="@username or 0x…" autoComplete="off" spellCheck={false} aria-describedby={`${recipientId}-hint`} aria-invalid={resolveState==='invalid'||resolveState==='username_unknown'}/>
+          <p id={`${recipientId}-hint`} className="wallet-note" role="status" style={{marginTop:8,color:resolveState==='invalid'||resolveState==='username_unknown'?'var(--pnl-down)':'var(--fg-muted)'}}>{hint}</p>
         </div>
-      )}
-
-      {/* Submit */}
-      <button
-        onClick={handleSend}
-        disabled={!canSend}
-        style={{
-          ...S.mono, width: '100%', padding: '14px 0', marginTop: 20, borderRadius: 12, border: 'none',
-          background: canSend
-            ? 'linear-gradient(100deg, var(--accent), var(--velo-sage-bright))'
-            : 'var(--chip-bg)',
-          color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
-          textTransform: 'uppercase' as const,
-          cursor: canSend ? 'pointer' : 'not-allowed', opacity: canSend ? 1 : 0.5,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        }}
-      >
-        Send <ArrowRight size={14} />
-      </button>
-    </div>
-  );
-
-  const renderSending = () => (
-    <div style={{ padding: '40px 24px', textAlign: 'center' as const }}>
-      <Loader2 size={32} className="animate-spin" style={{ color: 'var(--iris-violet)', margin: '0 auto 20px' }} />
-      <h3 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 6px' }}>Sending…</h3>
-      <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>
-        Transferring ${amountNum.toFixed(2)} mUSDC.
-      </p>
-    </div>
-  );
-
-  const renderDone = () => (
-    <div style={{ padding: '40px 24px', textAlign: 'center' as const }}>
-      <div style={{
-        width: 64, height: 64, borderRadius: 999,
-        background: 'linear-gradient(160deg, oklch(0.82 0.20 150), oklch(0.70 0.22 160))',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        margin: '0 auto 20px',
-      }}>
-        <CheckCircle2 size={32} style={{ color: '#fff' }} strokeWidth={2.5} />
-      </div>
-      <h3 style={{ ...S.display, fontSize: 24, color: 'var(--fg)', margin: '0 0 6px' }}>Sent</h3>
-      <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 20px' }}>
-        ${amountNum.toFixed(2)} mUSDC delivered.
-      </p>
-      {errorMsg && <p role="status" style={{ ...S.sans, color: 'var(--fg-muted)', fontSize: 13 }}>{errorMsg}</p>}
-      {txHash && (
-        <a
-          href={baseScanTxUrl(txHash)} target="_blank" rel="noopener noreferrer"
-          style={{
-            ...S.mono, fontSize: 11, color: 'var(--iris-violet)',
-            display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20, textDecoration: 'none',
-          }}
-        >
-          View on BaseScan <ExternalLink size={11} />
-        </a>
-      )}
-      <button
-        onClick={onClose}
-        style={{
-          ...S.mono, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
-          background: 'var(--fg)', color: 'var(--bg-base)',
-          fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
-          textTransform: 'uppercase' as const, cursor: 'pointer',
-        }}
-      >
-        Done
-      </button>
-    </div>
-  );
-
-  const renderError = () => (
-    <div style={{ padding: '40px 24px', textAlign: 'center' as const }}>
-      <X size={32} style={{ color: 'var(--pnl-down)', margin: '0 auto 20px' }} />
-      <h3 style={{ ...S.display, fontSize: 22, color: 'var(--fg)', margin: '0 0 8px' }}>{txHash ? 'Awaiting confirmation' : 'Send failed'}</h3>
-      <p style={{ ...S.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 20px' }}>{errorMsg}</p>
-      {txHash && <a href={baseScanTxUrl(txHash)} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginBottom: 16, color: 'var(--accent)' }}>View transaction</a>}
-      <button
-        onClick={() => txHash ? void checkConfirmation() : setStep('IDLE')}
-        style={{
-          ...S.mono, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
-          background: 'var(--fg)', color: 'var(--bg-base)',
-          fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
-          textTransform: 'uppercase' as const, cursor: 'pointer',
-        }}
-      >
-        {txHash ? 'Check confirmation' : 'Try again'}
-      </button>
-    </div>
-  );
-
-  return createPortal(
-    <div
-      role="dialog" aria-modal="true"
-      className="velo-modal-enter-backdrop"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: 'rgba(0, 0, 0, 0.6)',
-        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget && step !== 'SENDING') onClose(); }}
-    >
-      <div className="velo-modal-enter-card" style={cardStyle}>
-        <div style={holoGradient} />
-        <button
-          onClick={onClose}
-          disabled={step === 'SENDING'}
-          aria-label="Close"
-          style={{
-            position: 'absolute', top: 16, right: 16, zIndex: 3,
-            width: 32, height: 32, borderRadius: 999,
-            background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hairline)',
-            color: 'var(--fg-muted)', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <X size={16} />
-        </button>
-        {step === 'IDLE' && renderIdle()}
-        {step === 'SENDING' && renderSending()}
-        {step === 'DONE' && renderDone()}
-        {step === 'ERROR' && renderError()}
-      </div>
-    </div>,
-    document.body,
-  );
+        <div><div className="wallet-split"><label className="wallet-label" htmlFor={amountId}>Amount</label><button type="button" className="wallet-link" onClick={()=>setAmount(available.toFixed(2))}>Max $<AnimatedText text={available.toFixed(2)}/></button></div>
+          <div className="wallet-amount"><input id={amountId} type="text" inputMode="decimal" value={amount} onChange={event=>setAmount(event.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00" autoComplete="off"/><span>mUSDC</span></div>
+          {amountNum>available&&<p className="wallet-note" style={{color:'var(--pnl-down)',marginTop:8}}>Amount exceeds your wallet balance.</p>}
+        </div>
+        {sendToAddress&&<TransferRoute from={burner?'Trading wallet':'Main wallet'} to={resolveState==='username_found'?recipientInput:'Recipient'} fromAddress={senderAddress} toAddress={sendToAddress}/>}
+      </>}
+      {pending&&<WalletStatus state="pending" title={txHash?'Awaiting confirmation':'Sending mUSDC'}><p>Transferring $<AnimatedText text={amountNum.toFixed(2)}/> mUSDC. {txHash?'Waiting for the transaction receipt.':'Continue in your wallet if prompted.'}</p></WalletStatus>}
+      {step==='DONE'&&<WalletStatus state="success" title="Transfer confirmed"><p>$<AnimatedText text={amountNum.toFixed(2)}/> mUSDC delivered.</p>{errorMsg&&<p>{errorMsg}</p>}</WalletStatus>}
+      {step==='ERROR'&&<WalletStatus state={txHash?'pending':'error'} title={txHash?'Awaiting confirmation':'Transfer failed'}><p>{errorMsg}</p></WalletStatus>}
+      {txHash&&<a className="wallet-link" style={{display:'inline-flex',justifyContent:'center',alignItems:'center',gap:6}} href={baseScanTxUrl(txHash)} target="_blank" rel="noopener noreferrer">View transaction<ExternalLink size={13}/></a>}
+    </div></MeasuredPanel>
+  </TradingDialog>;
 };

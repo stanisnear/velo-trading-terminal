@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 /**
  * Modals — EditProfileModal, DeletePostConfirmModal, UsersListModal.
  * Extracted from App.tsx (stage 3 of the monolith decomposition). Pure leaf
@@ -92,7 +93,7 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
                         <ImageIcon size={16} style={{ color: '#fff' }} />
                         <span style={{ ...S.label, color: '#fff', fontSize: 10 }}>Click to change banner</span>
                     </div>
-                    <input id="velo-banner-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'banner')} />
+                    <input id="velo-banner-upload" type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'banner')} />
                 </div>
 
                 {/* Avatar upload zone */}
@@ -104,7 +105,7 @@ export const EditProfileModal = ({ isOpen, onClose, user, onSave, onDeleteAccoun
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <Edit size={14} style={{ color: '#fff' }} />
                         </div>
-                        <input id="velo-avatar-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'avatar')} />
+                        <input id="velo-avatar-upload" type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={e => handleFileChange(e, 'avatar')} />
                     </div>
                 </div>
 
@@ -207,7 +208,7 @@ export const DeletePostConfirmModal = ({ isOpen, onClose, onConfirm, itemType = 
                             <Trash2 size={18} style={{ color: 'var(--pnl-down)' }} />
                         </div>
                         <div>
-                            <div style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Delete {label}?</div>
+                            <div style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 18, color: 'var(--fg)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Delete {label}?</div>
                             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>This action cannot be undone.</div>
                         </div>
                     </div>
@@ -385,11 +386,11 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
             }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--holo-linear)', backgroundSize: '220% 100%', animation: 'holoSlide 9s linear infinite' }} />
                 <div style={{ marginBottom: 20 }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 4 }}>
+                    <h3 style={{ fontFamily: 'var(--font-sans)', fontStyle: 'normal', fontSize: 20, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-0.02em', marginBottom: 4 }}>
                         Edit Position: {position.pair}
                     </h3>
                     <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>
-                        Entry: ${formatPrice(position.entryPrice)} · Size: ${formatMoney(position.size)}
+                        Entry: ${<AnimatedText text={formatPrice(position.entryPrice)}/>} · Size: ${<AnimatedText text={formatMoney(position.size)}/>}
                     </p>
                 </div>
 
@@ -402,7 +403,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
                             onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
                         {projections?.tpPnl ? (
                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--pnl-up)', textAlign: 'right' as const, marginTop: 4 }}>
-                                Est. Profit: +${formatMoney(projections.tpPnl)}
+                                Est. Profit: +${<AnimatedText text={formatMoney(projections.tpPnl)}/>}
                             </p>
                         ) : null}
                     </div>
@@ -415,7 +416,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
                             onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
                         {projections?.slPnl ? (
                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--pnl-down)', textAlign: 'right' as const, marginTop: 4 }}>
-                                Est. Loss: -${formatMoney(Math.abs(projections.slPnl))}
+                                Est. Loss: -${<AnimatedText text={formatMoney(Math.abs(projections.slPnl))}/>}
                             </p>
                         ) : null}
                     </div>

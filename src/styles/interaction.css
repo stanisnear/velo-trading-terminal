@@ -1,0 +1,46 @@
+/* One motion language. Functional data is never delayed by decoration. */
+:root {
+  --media-glass:rgba(25,28,27,.76);
+  --media-overlay:rgba(5,8,7,.34);
+  --motion-fast:150ms;
+  --motion-ui:260ms;
+}
+html.light { --media-glass:rgba(244,247,245,.76); --media-overlay:rgba(37,46,41,.20); }
+.velo-rolling-value { white-space:nowrap; font-variant-numeric:tabular-nums; letter-spacing:inherit; vertical-align:baseline; }
+.velo-glass-nav:not(.velo-glass-nav-mobile) > button { font:550 12px/1.3 var(--font-sans); letter-spacing:-.01em; text-transform:none; }
+.velo-button { position:relative; }
+.velo-button__label { display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:opacity 140ms ease,transform 200ms var(--material-ease); }
+.velo-button[aria-busy=true] .velo-button__label { opacity:0; transform:translateY(3px); }
+.velo-button__spinner { position:absolute; left:calc(50% - 8px); top:calc(50% - 8px); }
+.velo-toast { display:flex; align-items:center; gap:10px; max-width:calc(100vw - 32px); padding:11px 12px 11px 16px; border:1px solid var(--glass-border); border-radius:18px; background:var(--modal-surface); color:var(--fg); box-shadow:var(--modal-shadow); -webkit-backdrop-filter:blur(26px); backdrop-filter:blur(26px); animation:velo-attachment-in 220ms var(--material-ease); }
+.velo-toast__message { min-width:0; font:500 13px/1.5 var(--font-sans); overflow-wrap:anywhere; }
+.velo-toast__close { flex:none; display:grid; place-items:center; width:28px; height:28px; padding:0; color:var(--fg-subtle); background:transparent; border:0; border-radius:50%; cursor:pointer; }
+.velo-toast__close:hover { color:var(--fg); background:var(--chip-bg); }
+.velo-segments { position:relative; isolation:isolate; display:grid; grid-template-columns:repeat(var(--segment-count),minmax(0,1fr)); gap:0; padding:4px; border:1px solid var(--hairline); border-radius:14px; background:var(--chip-bg); }
+.velo-segment-lens { position:absolute; z-index:-1; top:4px; left:4px; bottom:4px; width:calc((100% - 8px)/var(--segment-count)); border:1px solid var(--lens-edge); border-radius:10px; background:var(--lens-tint); box-shadow:0 1px 0 var(--glass-ring) inset,0 3px 8px -6px rgba(0,0,0,.2); transform:translateX(calc(var(--segment-index)*100%)); transition:transform 300ms var(--material-ease); pointer-events:none; }
+.velo-segments > button { min-width:0; min-height:36px; padding:7px 12px; color:var(--fg-subtle); background:none; border:0; border-radius:10px; cursor:pointer; font:550 12px/1.2 var(--font-sans); letter-spacing:-.01em; transition:color var(--motion-fast),transform var(--motion-fast); touch-action:manipulation; }
+.velo-segments > button[aria-pressed=true] { color:var(--fg); }
+.velo-segments > button:disabled { opacity:.35;cursor:not-allowed;transform:none; }
+.velo-segments > button:not(:disabled):active { transform:scale(.97); }
+.velo-segments > button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.velo-segments--compact { border-radius:10px; padding:3px; }
+.velo-segments--compact .velo-segment-lens { top:3px; bottom:3px; left:3px; width:calc((100% - 6px)/var(--segment-count)); border-radius:7px; }
+.velo-segments--compact > button { min-height:28px; padding:4px 9px; font-size:11px; }
+.navbar-theme-toggle svg { transition:transform 360ms var(--material-ease); }
+.navbar-theme-toggle:active svg { transform:rotate(30deg) scale(.85); }
+.social-post-card { transition:border-color 180ms ease,box-shadow 220ms ease!important; }
+.social-post-card button svg { transition:transform 200ms var(--material-ease),fill 180ms ease; }
+.social-post-card button:active svg { transform:scale(.84); }
+.social-post-card button[aria-label=Like]:hover svg { transform:scale(1.12); }
+.social-post-card [role=checkbox][aria-checked=true] { animation:velo-reaction-pop 260ms var(--material-ease); }
+.social-page .social-feed-sidebar { position:sticky; top:90px; }
+.social-page .social-feed-grid { grid-template-columns:260px minmax(0,1fr); gap:24px; }
+@keyframes velo-reaction-pop { 50% { transform:scale(1.08); } }
+/* Only the new theme layer reveals. No second cross-fade or frozen trading input. */
+::view-transition { pointer-events:none; }
+::view-transition-old(root),::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
+::view-transition-group(root) { animation-duration:420ms; }
+@media(max-width:900px) { .social-page .social-feed-grid { grid-template-columns:1fr; gap:16px; } .social-page .social-feed-sidebar { position:static; } }
+@media(prefers-reduced-motion:reduce) { .velo-segment-lens,.velo-segments > button,.navbar-theme-toggle svg,.social-post-card,.social-post-card button svg,.velo-button__label { transition:none!important; } .social-post-card [role=checkbox],.velo-toast { animation:none!important; } }
+@media(prefers-reduced-transparency:reduce) { :root,html.light { --media-glass:var(--bg-2); } }
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) { :root,html.light { --media-glass:var(--bg-2); } }

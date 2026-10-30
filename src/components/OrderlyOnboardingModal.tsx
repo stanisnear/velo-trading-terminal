@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 // ═══════════════════════════════════════════════════════════════════════════════
 // VELO ONBOARDING — three steps, Apple-class.
@@ -68,7 +69,7 @@ interface Props {
 }
 
 const F = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.025em', lineHeight: 1.05 },
+  display: { fontFamily: 'var(--font-sans)', fontStyle: 'normal' as const, letterSpacing: '-0.025em', lineHeight: 1.05 },
   sans:    { fontFamily: 'var(--font-sans)',    letterSpacing: '-0.005em' },
   mono:    { fontFamily: 'var(--font-mono)' },
 };
@@ -626,7 +627,7 @@ const ScreenReady: React.FC<{ balance: number }> = ({ balance }) => (
       <div style={{ textAlign: 'center' }}>
         <div style={{ ...F.mono, fontSize: 10, color: 'var(--fg-subtle)', letterSpacing: '0.18em', fontWeight: 700, marginBottom: 12 }}>READY TO TRADE</div>
         <div style={{ ...F.display, fontSize: 56, color: 'var(--fg)', lineHeight: 1, fontFeatureSettings: '"tnum" 1' }}>
-          ${balance.toFixed(2)}
+          ${<AnimatedText text={balance.toFixed(2)}/>}
         </div>
         <div style={{ ...F.sans, fontSize: 13, color: 'var(--fg-muted)', margin: '12px 0 0', maxWidth: 280, lineHeight: 1.5 }}>
           Live on your Orderly trading account. Closing automatically.

@@ -1,3 +1,5 @@
+import { InterfaceSounds } from './ui/InterfaceSounds';
+import { AnimatedText } from './ui/AnimatedValue';
 import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 // ═══════════════════════════════════════════════════════════════════════════════
 // VELO SETTINGS MODAL — Wallet & Settings
@@ -7,10 +9,14 @@ import { builderAttribution } from '../services/baseBuilderAttribution.mjs';
 import React, { useState, useEffect } from 'react';
 import { useAccount, useBalance, useChainId, usePublicClient, useReadContract, useSignMessage, useWalletClient } from 'wagmi';
 import { formatUnits, parseUnits } from 'viem';
-import { createPortal } from 'react-dom';
+import { TradingDialog } from './ui/TradingDialog';
+import { SegmentedControl } from './ui/SegmentedControl';
+import { ActionContent, MeasuredPanel } from './ui/ProductMotion';
+import { CopyButton } from './ui/CopyButton';
+import './ui/WalletPresentation.css';
 import {
-  X, Copy, Check, Eye, EyeOff, AlertTriangle, KeyRound, RefreshCw,
-  ShieldCheck, Wallet, Network, ExternalLink, Send, AtSign, LogOut,
+  Check, Eye, EyeOff, KeyRound, RefreshCw,
+  Wallet, Network, ExternalLink, Send, AtSign, LogOut,
 } from 'lucide-react';
 import {
   loadStoredBurner, exportPrivateKey, rederiveVeloBurner,
@@ -24,18 +30,10 @@ const ERC20_BAL_ABI = [
   { name: 'transfer', type: 'function', stateMutability: 'nonpayable', inputs: [{ name: 'to', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ type: 'bool' }] },
 ] as const;
 
-const F = {
-  display: { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const, letterSpacing: '-0.025em' } as React.CSSProperties,
-  mono:    { fontFamily: 'var(--font-mono)' } as React.CSSProperties,
-  sans:    { fontFamily: 'var(--font-sans)', letterSpacing: '-0.005em' } as React.CSSProperties,
-  label:   { fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' } as React.CSSProperties,
-};
-
 const NETWORK_NAMES: Record<number, string> = {
   84532: 'Base Sepolia', 8453: 'Base', 1: 'Ethereum', 11155111: 'Sepolia', 10: 'Optimism', 42161: 'Arbitrum',
 };
 
-const VELO_STRIPE = 'var(--brand-gradient)';
 
 interface Props {
   isOpen: boolean; onClose: () => void;
@@ -52,13 +50,14 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
   const { address: ownerAddress, connector } = useAccount();
   const chainId = useChainId();
   const { signMessageAsync } = useSignMessage();
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: 84532 });
   const { data: walletClient } = useWalletClient();
 
   const [burner, setBurner] = useState<VeloBurnerWallet | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [copiedField, setCopiedField] = useState('');
+  const [view, setView] = useState<'wallets'|'preferences'|'security'>('wallets');
+  const [hideBalances, setHideBalances] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [movingFunds, setMovingFunds] = useState(false);
@@ -71,7 +70,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
 
   useEffect(() => {
     if (!isOpen) return;
-    setError(''); setRevealed(false); setConfirming(false);
+    setError(''); setRevealed(false); setConfirming(false); setView('wallets'); setHideBalances(false);
     setEmailSaved(false); setEmailError('');
     setEmailInput(profile?.email || '');
     if (ownerAddress) setBurner(loadStoredBurner(ownerAddress));
@@ -86,10 +85,10 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
     return () => { cancelled = true; };
   }, [isOpen, supabaseReady, profile?.id]);
 
-  const { data: ownerEthData }  = useBalance({ address: ownerAddress, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });
-  const { data: ownerUsdcData } = useReadContract({ address: USDC_BASE_SEPOLIA as `0x${string}`, abi: ERC20_BAL_ABI, functionName: 'balanceOf', args: ownerAddress ? [ownerAddress as `0x${string}`] : undefined, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });
-  const { data: veloEthData }   = useBalance({ address: burner?.veloAddress as `0x${string}` | undefined, query: { enabled: !!burner && isOpen, refetchInterval: 8000 } });
-  const { data: veloUsdcData }  = useReadContract({ address: USDC_BASE_SEPOLIA as `0x${string}`, abi: ERC20_BAL_ABI, functionName: 'balanceOf', args: burner ? [burner.veloAddress as `0x${string}`] : undefined, query: { enabled: !!burner && isOpen, refetchInterval: 8000 } });
+  const { data: ownerEthData }  = useBalance({ chainId: 84532, address: ownerAddress, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });
+  const { data: ownerUsdcData } = useReadContract({ chainId: 84532, address: USDC_BASE_SEPOLIA as `0x${string}`, abi: ERC20_BAL_ABI, functionName: 'balanceOf', args: ownerAddress ? [ownerAddress as `0x${string}`] : undefined, query: { enabled: !!ownerAddress && isOpen, refetchInterval: 8000 } });
+  const { data: veloEthData }   = useBalance({ chainId: 84532, address: burner?.veloAddress as `0x${string}` | undefined, query: { enabled: !!burner && isOpen, refetchInterval: 8000 } });
+  const { data: veloUsdcData }  = useReadContract({ chainId: 84532, address: USDC_BASE_SEPOLIA as `0x${string}`, abi: ERC20_BAL_ABI, functionName: 'balanceOf', args: burner ? [burner.veloAddress as `0x${string}`] : undefined, query: { enabled: !!burner && isOpen, refetchInterval: 8000 } });
 
   if (!isOpen || !ownerAddress) return null;
 
@@ -99,10 +98,6 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
   const veloUsdc  = veloUsdcData  ? parseFloat(formatUnits(veloUsdcData as bigint, 6)) : 0;
   const networkName = NETWORK_NAMES[chainId] || `Chain ${chainId}`;
   const networkOk   = chainId === 84532;
-
-  const copy = async (text: string, key: string) => {
-    try { await navigator.clipboard.writeText(text); setCopiedField(key); setTimeout(() => setCopiedField(''), 1400); } catch {}
-  };
 
   const moveToTradingWallet = async () => {
     if (!burner || !walletClient || !publicClient || !ownerAddress) return;
@@ -141,275 +136,89 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose, onOpenBridge, 
     }
   };
 
-  const privateKey = revealed ? exportPrivateKey(ownerAddress) : null;
-
-  return createPortal(
-    <>
-      <style>{`
-        .sm-ghost:hover { background: var(--chip-bg-hover) !important; border-color: color-mix(in oklab, var(--accent) 35%, transparent) !important; }
-      `}</style>
-      <div onClick={onClose} className="velo-modal-enter-backdrop" style={{ position:'fixed', inset:0, zIndex:9999, background:'oklch(0 0 0 / 0.62)', backdropFilter:'blur(20px) saturate(1.4)', WebkitBackdropFilter:'blur(20px) saturate(1.4)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, overflowY:'auto' }}>
-        <div onClick={e => e.stopPropagation()} className="velo-modal-enter-card" style={{ position:'relative', width:'100%', maxWidth:500, maxHeight:'min(92dvh, 92vh)', display:'flex', flexDirection:'column', background:'var(--modal-bg, var(--modal-bg))', borderRadius:28, border:'1px solid var(--hairline-strong)', boxShadow:'0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent), 0 40px 100px -20px rgba(0,0,0,0.65), 0 1px 0 oklch(1 0 0 / 0.07) inset', backdropFilter:'blur(48px) saturate(1.6)', WebkitBackdropFilter:'blur(48px) saturate(1.6)', overflow:'hidden', color:'var(--fg)' }}>
-
-          {/* Restrained Velo accent stripe */}
-          <div style={{ position:'absolute', top:0, left:0, right:0, height:2.5, zIndex:3, background:VELO_STRIPE }} />
-
-          {/* Ambient depth glow */}
-          <div style={{ position:'absolute', top:-80, right:-80, width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, color-mix(in oklab, var(--accent) 5%, transparent) 0%, transparent 70%)', pointerEvents:'none', zIndex:0 }} />
-
-          {/* Header */}
-          <div style={{ padding:'24px 24px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative', zIndex:1, flexShrink:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:13 }}>
-              <span style={{ ...F.display, fontSize:30, fontWeight:400, color:'var(--fg)', letterSpacing:'-0.03em', lineHeight:1, fontStyle:'italic' as const }}>Velo</span>
-              <div style={{ width:1, height:30, background:'var(--hairline-strong)', flexShrink:0 }} />
-              <div>
-                <h1 style={{ ...F.mono, fontSize:13, fontWeight:700, color:'var(--fg)', margin:0, lineHeight:1.1, letterSpacing:'0.04em' }}>Wallet &amp; Settings</h1>
-                <p style={{ ...F.mono, fontSize:9, color:'var(--fg-subtle)', margin:'3px 0 0', letterSpacing:'0.1em', textTransform:'uppercase' as const }}>Balances · Recovery · Preferences</p>
-              </div>
-            </div>
-            <button onClick={onClose} style={{ width:32, height:32, borderRadius:10, flexShrink:0, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)', color:'var(--fg-muted)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.background='var(--chip-bg-hover)')} onMouseLeave={e => (e.currentTarget.style.background='var(--chip-bg)')}>
-              <X size={14} strokeWidth={2.5} />
+  const privateKey = revealed && view==='security' ? exportPrivateKey(ownerAddress) : null;
+  const working = busy || movingFunds || emailSaving;
+  const close = () => {setRevealed(false);setConfirming(false);onClose();};
+  const saveEmail = async () => {
+    if (emailSaving) return;
+    const email = emailInput.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {setEmailError('Enter a valid email address.');return;}
+    setEmailSaving(true);setEmailError('');
+    try {
+      const {error} = await supabase!.rpc('set_my_contact_email',{contact_email:email});
+      if (error) throw error;
+      setEmailSaved(true);onEmailSaved?.(email);
+    } catch {setEmailError('Could not save your email. Please try again.');}
+    finally {setEmailSaving(false);}
+  };
+  const recovery = <section className="wallet-section">
+    <h3>Recover on this device</h3>
+    <p className="wallet-note">Use the same owner wallet to attempt recovery. Keep a private-key backup: another wallet app may produce a different signature.</p>
+    <button type="button" className="wallet-button" style={{width:'100%',marginTop:14}} disabled={working} onClick={() => void handleRederive()}>
+      <ActionContent pending={busy} pendingLabel="Waiting for signature…"><RefreshCw size={15}/>Recover trading wallet</ActionContent>
+    </button>
+    {error&&<p role="alert" className="wallet-error" style={{marginTop:12}}>{error}</p>}
+  </section>;
+  return <TradingDialog open={isOpen} onClose={close} busy={working} title="Wallet & settings" className="wallet-dialog settings-dialog"
+    identity={<><span>{connector?.name || 'Connected wallet'}</span><span className="trade-details-network" style={{color:networkOk?'var(--fg-muted)':'var(--pnl-down)'}}><Network size={12}/>{networkName}</span></>}
+    footer={<>{onLogout&&<button type="button" className="wallet-button" data-danger="true" disabled={working} onClick={()=>{close();onLogout();}}><LogOut size={15}/>Sign out</button>}<button type="button" className="wallet-button" data-primary="true" disabled={working} onClick={close}>Done</button></>}>
+    <div className="wallet-tabs"><SegmentedControl label="Wallet settings section" value={view} disabled={working}
+      options={[{value:'wallets',label:'Wallets'},{value:'preferences',label:'Preferences'},{value:'security',label:'Security'}]}
+      onChange={value=>{setView(value as typeof view);setRevealed(false);setConfirming(false);}}/></div>
+    <MeasuredPanel><div className="wallet-stack">
+      {!networkOk&&<div className="wallet-info">Your wallet is on {networkName}. Funding and trading use Base Sepolia.</div>}
+      {view==='wallets'&&<>
+        <div className="wallet-split"><span className="wallet-label">Your accounts</span><button type="button" className="wallet-link settings-balance-privacy" aria-label={hideBalances?'Show wallet balances':'Hide wallet balances'} aria-pressed={hideBalances} onClick={()=>setHideBalances(value=>!value)}>{hideBalances?<Eye size={15}/>:<EyeOff size={15}/>}</button></div>
+        <WalletCard title="Main wallet" subtitle={connector?.name||'Connected wallet'} address={ownerAddress} eth={ownerEth} usdc={ownerUsdc} hidden={hideBalances}/>
+        {burner ? <>
+          <WalletCard title="Trading wallet" subtitle="Signs Velo transactions on this device" address={burner.veloAddress} eth={veloEth} usdc={veloUsdc} hidden={hideBalances}/>
+          <div className="wallet-controls">
+            {onOpenSend&&<button type="button" className="wallet-button" disabled={veloUsdc<=0||working} title={veloUsdc<=0?'Deposit mUSDC to your trading wallet first':undefined} onClick={onOpenSend}><Send size={15}/>Send</button>}
+            {onOpenBridge&&<button type="button" className="wallet-button" disabled={working} onClick={onOpenBridge}><ExternalLink size={15}/>Bridge</button>}
+            {onOpenUsername&&<button type="button" className="wallet-button" disabled={working} onClick={onOpenUsername}><AtSign size={15}/>Username</button>}
+          </div>
+          {ownerUsdc>0&&<section className="wallet-section"><h3>Move funds to trading</h3><p className="wallet-note">Transfer your main wallet's mUSDC on Base Sepolia.</p>
+            <button type="button" className="wallet-button" style={{width:'100%',marginTop:14}} data-primary="true" disabled={working||ownerEth<.0005||!networkOk} onClick={()=>void moveToTradingWallet()}>
+              <ActionContent pending={movingFunds} pendingLabel="Confirming transfer…">Move {hideBalances?'mUSDC':`$${ownerUsdc.toFixed(2)}`}</ActionContent>
             </button>
-          </div>
-
-          {/* Network pill */}
-          <div style={{ margin:'0 20px 14px', padding:'9px 14px', borderRadius:12, position:'relative', zIndex:1, flexShrink:0, background: networkOk ? 'color-mix(in oklab, var(--pnl-up) 9%, transparent)' : 'color-mix(in oklab, var(--iris-amber) 10%, transparent)', border:`1px solid ${networkOk ? 'color-mix(in oklab, var(--pnl-up) 28%, transparent)' : 'color-mix(in oklab, var(--iris-amber) 30%, transparent)'}`, display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:7, height:7, borderRadius:'50%', background: networkOk ? 'var(--pnl-up)' : 'var(--iris-amber)', boxShadow:`0 0 8px ${networkOk ? 'color-mix(in oklab, var(--pnl-up) 65%, transparent)' : 'color-mix(in oklab, var(--iris-amber) 65%, transparent)'}`, flexShrink:0 }} />
-            <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', flex:1 }}>
-              <span style={{ color:'var(--fg-subtle)', marginRight:8, letterSpacing:'0.08em' }}>NETWORK</span>
-              {networkName}
-              {!networkOk && <span style={{ color:'var(--iris-amber)', marginLeft:8 }}>· Switch to Base Sepolia</span>}
-            </span>
-          </div>
-
-          {/* Body */}
-          <div className="custom-scrollbar" style={{ padding:'0 20px', paddingBottom:'max(22px, env(safe-area-inset-bottom))', display:'flex', flexDirection:'column', gap:10, flex:1, minHeight:0, overflowY:'auto', position:'relative', zIndex:1 }}>
-
-            <WalletCard kind="main" title="Main Wallet" subtitle={connector?.name || 'Connected wallet'} address={ownerAddress} eth={ownerEth} usdc={ownerUsdc} copied={copiedField === 'main'} onCopy={() => copy(ownerAddress, 'main')} />
-
-            {burner ? (<>
-              <WalletCard kind="velo" title="Velo Trading Wallet" subtitle="Derived from main · signs locally" address={burner.veloAddress} eth={veloEth} usdc={veloUsdc} copied={copiedField === 'velo'} onCopy={() => copy(burner.veloAddress, 'velo')} />
-
-              {ownerUsdc > 0 && (
-                <Sect>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                    <div>
-                      <div style={{ ...F.mono, fontSize:11, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, color:'var(--fg)' }}>Move to trading wallet</div>
-                      <div style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', marginTop:3 }}>${ownerUsdc.toFixed(2)} mUSDC from main wallet</div>
-                    </div>
-                      <div style={{ ...F.display, fontSize:22, color:'var(--pnl-up)', fontWeight:700 }}>${ownerUsdc.toFixed(0)}</div>
-                  </div>
-                  <VeloBtn onClick={moveToTradingWallet} disabled={movingFunds || ownerEth < 0.0005} variant="green">
-                    {movingFunds ? 'Moving…' : `Move $${ownerUsdc.toFixed(2)} →`}
-                  </VeloBtn>
-                  {ownerEth < 0.0005 && <Note>Main wallet needs a small ETH balance for gas.</Note>}
-                  {moveError && <ErrNote>{moveError}</ErrNote>}
-                </Sect>
-              )}
-
-              <div style={{ display:'grid', gridTemplateColumns:`repeat(${[!!onOpenSend, onOpenBridge, onOpenUsername].filter(Boolean).length}, 1fr)`, gap:8 }}>
-                {/* Send is ALWAYS rendered when the host wires it — disabling
-                    (rather than hiding) on zero balance matches Binance /
-                    Hyperliquid UX. Users always see the action exists; the
-                    disabled state + tooltip tells them why it's currently
-                    unavailable. Hiding it created confusion across browser
-                    profiles where one account had balance and the other
-                    didn't, making it look like Velo was broken. */}
-                {onOpenSend && (
-                  <ActBtn
-                    onClick={() => { if (veloUsdc > 0) onOpenSend(); }}
-                    icon={<Send size={13}/>}
-                    label="Send"
-                    accent
-                    disabled={veloUsdc <= 0}
-                    title={veloUsdc <= 0 ? 'Deposit mUSDC to your trading wallet first' : undefined}
-                  />
-                )}
-                {onOpenBridge && <ActBtn onClick={onOpenBridge} icon={<ExternalLink size={13}/>} label="Bridge" />}
-                {onOpenUsername && <ActBtn onClick={onOpenUsername} icon={<AtSign size={13}/>} label="Handle" />}
-              </div>
-
-              {supabaseReady && profile !== undefined && (
-                <Sect>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
-                    <span style={F.label}>Notification Email</span>
-                    <span style={{ marginLeft:'auto', ...F.mono, fontSize:9, color: profile?.email ? 'oklch(0.82 0.16 150)' : 'oklch(0.74 0.18 30)' }}>{profile?.email ? '● Saved' : '○ Not set'}</span>
-                  </div>
-                  <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>
-                    {profile?.email ? 'Contact email saved. Automated email alerts are not available yet.' : 'Add an optional contact email. Automated alerts are planned.'}
-                  </p>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <input type="email" value={emailInput} onChange={e => { setEmailInput(e.target.value); setEmailError(''); setEmailSaved(false); }} placeholder={profile?.email || 'your@email.com'}
-                      style={{ flex:1, padding:'10px 12px', background:'var(--chip-bg)', border:`1px solid ${emailError ? 'oklch(0.62 0.22 25)' : 'var(--hairline-strong)'}`, borderRadius:10, ...F.mono, fontSize:12, color:'var(--fg)', outline:'none' }} />
-                    <button disabled={emailSaving || !emailInput.trim() || emailInput.trim() === profile?.email}
-                      onClick={async () => {
-                        const em = emailInput.trim().toLowerCase();
-                        if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { setEmailError('Enter a valid email address'); return; }
-                        setEmailSaving(true); setEmailError('');
-                        try {
-                          const { error } = await supabase!.rpc('set_my_contact_email', { contact_email: em });
-                          if (error) throw error;
-                          setEmailSaved(true); onEmailSaved?.(em);
-                        } catch { setEmailError('Failed to save — try again.'); }
-                        finally { setEmailSaving(false); }
-                      }}
-                      style={{ padding:'10px 14px', borderRadius:10, background: emailSaved ? 'oklch(0.78 0.18 150 / 0.15)' : 'var(--chip-bg)', border:`1px solid ${emailSaved ? 'oklch(0.78 0.18 150 / 0.3)' : 'var(--hairline-strong)'}`, ...F.mono, fontSize:11, fontWeight:700, color: emailSaved ? 'oklch(0.82 0.16 150)' : 'var(--fg)', cursor:'pointer', letterSpacing:'0.06em', opacity:(emailSaving || !emailInput.trim() || emailInput.trim() === profile?.email) ? 0.4 : 1 }}>
-                      {emailSaving ? '…' : emailSaved ? '✓ Saved' : 'Save'}
-                    </button>
-                  </div>
-                  {emailError && <ErrNote>{emailError}</ErrNote>}
-                </Sect>
-              )}
-
-              <Sect>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-                  <KeyRound size={13} style={{ color:'var(--fg-muted)' }} />
-                  <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const }}>Private Key</span>
-                </div>
-                {!revealed && !confirming && (
-                  <>
-                    <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>Export to import into MetaMask or Rabby. Anyone with this key controls your trading funds.</p>
-                    <GhostBtn onClick={() => setConfirming(true)}><Eye size={11}/> Reveal Private Key</GhostBtn>
-                  </>
-                )}
-                {confirming && !revealed && (
-                  <>
-                    <div style={{ padding:12, borderRadius:10, background:'oklch(0.66 0.22 25 / 0.07)', border:'1px solid oklch(0.66 0.22 25 / 0.22)', display:'flex', gap:10, marginBottom:10 }}>
-                      <AlertTriangle size={14} style={{ color:'oklch(0.78 0.20 25)', flexShrink:0, marginTop:1 }} />
-                      <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:0, lineHeight:1.55 }}>Your private key gives full control of funds. Never share it.</p>
-                    </div>
-                    <div style={{ display:'flex', gap:8 }}>
-                      <button onClick={() => { setRevealed(true); setConfirming(false); }} style={{ flex:1, padding:'11px 14px', borderRadius:10, background:'oklch(0.66 0.22 25 / 0.12)', border:'1px solid oklch(0.66 0.22 25 / 0.4)', color:'oklch(0.85 0.18 25)', cursor:'pointer', ...F.mono, fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
-                        <Eye size={11}/> I understand — show me
-                      </button>
-                      <GhostBtn onClick={() => setConfirming(false)} style={{ flex:'0 0 90px' as any }}>Cancel</GhostBtn>
-                    </div>
-                  </>
-                )}
-                {revealed && privateKey && (
-                  <>
-                    <div style={{ padding:'10px 12px', borderRadius:10, background:'oklch(0.66 0.22 25 / 0.06)', border:'1px solid oklch(0.66 0.22 25 / 0.22)', display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
-                      <span style={{ ...F.mono, fontSize:10.5, color:'var(--fg)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' as const }}>{privateKey}</span>
-                      <button onClick={() => copy(privateKey, 'pk')} style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 10px', borderRadius:8, background: copiedField==='pk' ? 'oklch(0.78 0.18 150 / 0.15)' : 'var(--chip-bg)', border:`1px solid ${copiedField==='pk' ? 'oklch(0.78 0.18 150 / 0.4)' : 'var(--hairline-strong)'}`, color: copiedField==='pk' ? 'oklch(0.85 0.16 150)' : 'var(--fg-muted)', cursor:'pointer', ...F.mono, fontSize:10, fontWeight:600 }}>
-                        {copiedField==='pk' ? <><Check size={11}/> Copied</> : <><Copy size={11}/> Copy</>}
-                      </button>
-                    </div>
-                    <GhostBtn onClick={() => { setRevealed(false); setConfirming(false); }}><EyeOff size={11}/> Hide Key</GhostBtn>
-                  </>
-                )}
-              </Sect>
-
-              <Sect>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                  <RefreshCw size={13} style={{ color:'var(--fg-muted)' }} />
-                  <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const }}>Recover on this device</span>
-                </div>
-                <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>Use the same owner wallet to attempt recovery. Keep a private-key backup: another wallet implementation may produce a different signature.</p>
-                <GhostBtn onClick={handleRederive} disabled={busy} style={{ opacity:busy?0.5:1, cursor:busy?'wait':'pointer' }}>
-                  <RefreshCw size={11}/> {busy ? 'Waiting for signature…' : 'Re-derive from Main Wallet'}
-                </GhostBtn>
-                {error && <ErrNote style={{ marginTop:8 }}>{error}</ErrNote>}
-              </Sect>
-            </>) : (
-              <>
-                <div style={{ padding:24, borderRadius:16, background:'var(--chip-bg)', border:'1px dashed var(--hairline-strong)', ...F.sans, fontSize:13, color:'var(--fg-muted)', textAlign:'center' as const, lineHeight:1.6 }}>
-                  No Velo trading wallet on this device.<br/>If you've used Velo before, <strong style={{ color:'var(--fg)' }}>recover</strong> it below — otherwise click <strong style={{ color:'var(--fg)' }}>Deposit</strong> on the dashboard to set one up.
-                </div>
-
-                {/* Recovery — available WITHOUT an existing burner. The Velo wallet is
-                    derived deterministically from a main-wallet signature, so signing
-                    again on a new device or after clearing browser data regenerates the
-                    exact same trading wallet (and funds). This block must render in the
-                    no-burner state — that's precisely when recovery is needed. */}
-                <Sect>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                    <RefreshCw size={13} style={{ color:'var(--fg-muted)' }} />
-                    <span style={{ ...F.mono, fontSize:11, color:'var(--fg)', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const }}>Recover trading wallet</span>
-                  </div>
-                  <p style={{ ...F.sans, fontSize:12, color:'var(--fg-muted)', margin:'0 0 10px', lineHeight:1.55 }}>Already have a Velo trading wallet? Sign once with your main wallet to re-derive it on this device — useful on a new browser or after clearing data. Always returns the same wallet.</p>
-                  <GhostBtn onClick={handleRederive} disabled={busy} style={{ opacity:busy?0.5:1, cursor:busy?'wait':'pointer' }}>
-                    <RefreshCw size={11}/> {busy ? 'Waiting for signature…' : 'Re-derive from Main Wallet'}
-                  </GhostBtn>
-                  {error && <ErrNote style={{ marginTop:8 }}>{error}</ErrNote>}
-                </Sect>
-              </>
-            )}
-          </div>
-
-          {/* Logout */}
-          {onLogout && (
-            <div style={{ padding:'0 20px 20px', position:'relative', zIndex:1 }}>
-              <button
-                onClick={() => { onClose(); onLogout(); }}
-                style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'11px 0', borderRadius:14, border:'1px solid oklch(0.66 0.22 25 / 0.32)', background:'oklch(0.66 0.22 25 / 0.08)', cursor:'pointer', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700, color:'oklch(0.72 0.18 25)', letterSpacing:'0.1em', transition:'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'oklch(0.66 0.22 25 / 0.16)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'oklch(0.66 0.22 25 / 0.08)')}>
-                <LogOut size={13} /> SIGN OUT
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </>,
-    document.body
-  );
+            {!networkOk&&<p className="wallet-note" style={{marginTop:10}}>Switch your connected wallet to Base Sepolia to move funds.</p>}
+            {ownerEth<.0005&&<p className="wallet-note" style={{marginTop:10}}>Your main wallet needs ETH for gas.</p>}
+            {moveError&&<p role="alert" className="wallet-error" style={{marginTop:10}}>{moveError}</p>}
+          </section>}
+        </> : <><div className="wallet-info">No trading wallet was found on this device. Recover an existing wallet below, or use the dashboard faucet to set one up.</div>{recovery}</>}
+      </>}
+      {view==='preferences'&&<>
+        <section className="wallet-section"><InterfaceSounds/></section>
+        {supabaseReady&&profile!==undefined&&<section className="wallet-section"><h3>Contact email</h3><p className="wallet-note">Optional account contact. Automated email alerts are not available yet.</p>
+          <label className="wallet-label" htmlFor="settings-contact-email" style={{marginTop:14}}>Email address</label>
+          <input id="settings-contact-email" type="email" className="wallet-field" value={emailInput} disabled={emailSaving} autoComplete="email" onChange={event=>{setEmailInput(event.target.value);setEmailError('');setEmailSaved(false);}} placeholder="you@example.com" aria-invalid={!!emailError}/>
+          <button type="button" className="wallet-button" style={{width:'100%',marginTop:12}} disabled={emailSaving||!emailInput.trim()||emailInput.trim()===profile?.email} onClick={()=>void saveEmail()}>
+            <ActionContent pending={emailSaving} pendingLabel="Saving…">{emailSaved?<><Check size={15}/>Saved</>:'Save email'}</ActionContent>
+          </button>
+          {emailError&&<p role="alert" className="wallet-error" style={{marginTop:10}}>{emailError}</p>}
+        </section>}
+      </>}
+      {view==='security'&&<>
+        {recovery}
+        {burner&&<section className="wallet-section"><h3>Private-key backup</h3><p className="wallet-note">Anyone with this key controls your trading wallet. Keep it private.</p>
+          {!revealed&&!confirming&&<button type="button" className="wallet-button" style={{width:'100%',marginTop:14}} onClick={()=>setConfirming(true)}><KeyRound size={15}/>Reveal private key</button>}
+          {confirming&&!revealed&&<div style={{marginTop:14}}><div className="wallet-error">Only reveal your key when you are ready to store it securely. Never send it to anyone.</div>
+            <div className="wallet-controls" style={{marginTop:12}}><button type="button" className="wallet-button" onClick={()=>setConfirming(false)}>Cancel</button><button type="button" className="wallet-button" data-danger="true" onClick={()=>{setRevealed(true);setConfirming(false);}}><Eye size={15}/>Reveal key</button></div>
+          </div>}
+          {revealed&&privateKey&&<><div className="wallet-address-row"><code>{privateKey}</code><CopyButton value={privateKey} label="Copy private key"/></div><button type="button" className="wallet-button" style={{width:'100%',marginTop:14}} onClick={()=>{setRevealed(false);setConfirming(false);}}><EyeOff size={15}/>Hide key</button></>}
+        </section>}
+      </>}
+    </div></MeasuredPanel>
+  </TradingDialog>;
 };
 
-const Sect: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={{ flexShrink:0, padding:'14px 16px', borderRadius:16, background:'oklch(1 0 0 / 0.025)', border:'1px solid var(--hairline-strong)' }}>{children}</div>
-);
-const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--fg-muted)', margin:'8px 0 0', lineHeight:1.5 }}>{children}</p>
-);
-const ErrNote: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({ children, style }) => (
-  <p style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--pnl-down)', margin:'8px 0 0', lineHeight:1.5, ...style }}>{children}</p>
-);
-const VeloBtn: React.FC<{ onClick:()=>void; disabled?:boolean; variant?:'green'|'violet'; children:React.ReactNode }> = ({ onClick, disabled, variant='violet', children }) => (
-  <button onClick={onClick} disabled={disabled} style={{ width:'100%', padding:'12px 16px', borderRadius:12, border:'1px solid var(--control-border)', background: disabled?'var(--control-bg)':variant==='green'?'var(--secondary-bg)':'var(--primary-bg)', color:disabled?'var(--fg-subtle)':variant==='green'?'var(--secondary-fg)':'var(--primary-fg)', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' as const, cursor:disabled?'not-allowed':'pointer', opacity:disabled?0.58:1, boxShadow:disabled?'none':'0 1px 0 rgba(255,255,255,.12) inset, 0 8px 22px -16px rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', gap:6, transition:'transform 160ms ease, background 160ms ease, box-shadow 160ms ease' }}>{children}</button>
-);
-const GhostBtn: React.FC<{ onClick:()=>void; disabled?:boolean; children:React.ReactNode; style?: React.CSSProperties }> = ({ onClick, disabled, children, style }) => (
-  <button onClick={onClick} disabled={disabled} className="sm-ghost" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, width:'100%', padding:'11px 14px', borderRadius:10, background:'var(--chip-bg)', border:'1px solid var(--hairline-strong)', color:'var(--fg)', cursor:disabled?'not-allowed':'pointer', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:600, letterSpacing:'0.06em', transition:'background 0.14s, border-color 0.14s', ...style }}>{children}</button>
-);
-const ActBtn: React.FC<{ onClick:()=>void; icon:React.ReactNode; label:string; accent?:boolean; disabled?:boolean; title?:string }> = ({ onClick, icon, label, accent, disabled, title }) => (
-  <button onClick={onClick} disabled={disabled} title={title} style={{ padding:'12px 8px', borderRadius:12, border:'1px solid var(--hairline-strong)', background: disabled ? 'var(--chip-bg)' : accent?'var(--brand-gradient)':'var(--chip-bg)', color: disabled ? 'var(--fg-subtle)' : 'var(--fg)', fontFamily:'var(--font-mono)', fontSize:10, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' as const, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow: !disabled && accent ?'0 4px 14px -4px rgba(62, 100, 76, 0.5)':'none', transition:'opacity 0.14s' }}
-    onMouseEnter={e=>{ if (!disabled) e.currentTarget.style.opacity='0.85'; }} onMouseLeave={e=>{ if (!disabled) e.currentTarget.style.opacity='1'; }}>
-    {icon} {label}
-  </button>
-);
-
-const WalletCard: React.FC<{ kind:'main'|'velo'; title:string; subtitle:string; address:string; eth:number; usdc:number; copied:boolean; onCopy:()=>void; }> = ({ kind, title, subtitle, address, eth, usdc, copied, onCopy }) => {
-  const isVelo = kind === 'velo';
-  const aL = isVelo ? 'var(--accent)' : 'oklch(0.52 0.04 155)';
-  const aR = isVelo ? 'var(--velo-sage)' : 'var(--velo-sage-bright)';
-  return (
-    <div style={{ flexShrink:0, padding:16, borderRadius:20, background:`linear-gradient(145deg, ${aL.replace(')','/ 0.08)')}, ${aR.replace(')','/ 0.03)')})`, border:`1px solid ${aL.replace(')','/ 0.22)')}`, boxShadow:`0 2px 16px -8px ${aL.replace(')','/ 0.18)')}`, position:'relative', overflow:'hidden' }}>
-      <div style={{ position:'absolute', top:-30, right:-30, width:140, height:140, borderRadius:'50%', background:`radial-gradient(circle, ${aL.replace(')','/ 0.07)')}, transparent 65%)`, pointerEvents:'none' }} />
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
-        <div style={{ width:40, height:40, borderRadius:13, flexShrink:0, background:`linear-gradient(135deg,${aL},${aR})`, boxShadow:`0 4px 16px -4px ${aL.replace(')','/ 0.4)')}`, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>
-          <div style={{ position:'absolute', inset:0, background:'radial-gradient(120% 80% at 25% 10%, rgba(255,255,255,0.28), transparent 55%)' }} />
-          {isVelo ? <ShieldCheck size={18} color="#fff" style={{ position:'relative', zIndex:1 }}/> : <Wallet size={18} color="#fff" style={{ position:'relative', zIndex:1 }}/>}
-        </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:'var(--font-display)', fontStyle:'italic', fontSize:16, letterSpacing:'-0.02em', color:'var(--fg)' }}>{title}</div>
-          <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--fg-subtle)', letterSpacing:'0.04em', marginTop:1 }}>{subtitle}</div>
-        </div>
-      </div>
-      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 12px', borderRadius:11, background:'oklch(0 0 0 / 0.06)', border:'1px solid var(--hairline)', marginBottom:10 }}>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--fg)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' as const }}>{address}</span>
-        <button onClick={onCopy} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 9px', borderRadius:7, background: copied?'oklch(0.78 0.18 150 / 0.15)':'var(--chip-bg)', border:`1px solid ${copied?'oklch(0.78 0.18 150 / 0.4)':'var(--hairline-strong)'}`, color:copied?'oklch(0.85 0.16 150)':'var(--fg-muted)', cursor:'pointer', fontFamily:'var(--font-mono)', fontSize:10, fontWeight:600 }}>
-          {copied ? <><Check size={10}/> Copied</> : <><Copy size={10}/> Copy</>}
-        </button>
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-        {[{label:'ETH',value:eth.toFixed(5),hi:false},{label:'USDC',value:usdc.toFixed(2),hi:usdc>0}].map(({label,value,hi})=>(
-          <div key={label} style={{ padding:'10px 12px', borderRadius:11, background:'oklch(0 0 0 / 0.05)', border:'1px solid var(--hairline)' }}>
-            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, fontWeight:700, textTransform:'uppercase' as const, letterSpacing:'0.12em', color:'var(--fg-subtle)' }}>{label}</div>
-            <div style={{ fontFamily:'var(--font-mono)', fontSize:15, fontWeight:700, marginTop:3, color:hi?'oklch(0.82 0.16 150)':parseFloat(value)===0?'var(--fg-subtle)':'var(--fg)' }}>{value}</div>
-          </div>
-        ))}
-      </div>
+function WalletCard({title,subtitle,address,eth,usdc,hidden}:{title:string;subtitle:string;address:string;eth:number;usdc:number;hidden:boolean}) {
+  return <section className="wallet-section settings-wallet-card">
+    <header><span className="settings-wallet-icon"><Wallet size={18}/></span><div><h3>{title}</h3><p className="wallet-note">{subtitle}</p></div></header>
+    <div className="wallet-address-row"><code title={address}>{address.slice(0,8)}…{address.slice(-6)}</code><a className="wallet-link" href={`https://sepolia.basescan.org/address/${address}`} target="_blank" rel="noopener noreferrer" aria-label={`View ${title.toLowerCase()} on BaseScan`}><ExternalLink size={14}/></a><CopyButton value={address} label={`Copy ${title.toLowerCase()} address`}/></div>
+    <div className="wallet-balance-grid" style={{marginTop:14}}>
+      <div><small>mUSDC</small><strong>{hidden?'••••':<>$<AnimatedText text={usdc.toFixed(2)}/></>}</strong></div>
+      <div><small>ETH</small><strong>{hidden?'••••':<AnimatedText text={eth.toFixed(5)}/>}</strong></div>
     </div>
-  );
-};
+  </section>;
+}

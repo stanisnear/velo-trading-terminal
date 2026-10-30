@@ -1,3 +1,4 @@
+import { AnimatedText } from './ui/AnimatedValue';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { supabase, publicSupabase } from '@/services/supabaseStore';
 import { pythPriceStream } from '@/services/pythPriceService';
@@ -14,7 +15,7 @@ import { pythPriceStream } from '@/services/pythPriceService';
  * is genuine platform activity, with honest empty states until trades arrive.
  */
 
-interface OrderBookProps { price: number; pair: string; rows?: number; openOrders?: any[]; }
+interface OrderBookProps { price: number; pair: string; rows?: number; openOrders?: any[]; compact?: boolean; }
 
 interface Fill {
   id: string; pair: string; side: 'LONG' | 'SHORT';
@@ -59,7 +60,7 @@ function rowToFill(r: any, flash = false): Fill | null {
   };
 }
 
-export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, openOrders: liveOpenOrders }) => {
+export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, openOrders: liveOpenOrders, compact = false }) => {
   const [view, setView] = useState<'trades' | 'depth' | 'book'>('trades');
   const [showAllFills, setShowAllFills] = useState(false);
   const [fills, setFills] = useState<Fill[]>([]);
@@ -198,21 +199,21 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
     rowsArr.map((r, i) => (
       <div key={`${kind}${i}`} style={{ display: 'flex', alignItems: 'center', position: 'relative', padding: '0 12px', height: 24, fontSize: 11 }}>
         <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(r.total / maxTotal) * 100}%`, background: kind === 'ask' ? 'rgba(255,80,80,0.10)' : 'rgba(62,207,142,0.10)' }} />
-        <span style={{ flex: 1, color: kind === 'ask' ? 'var(--pnl-down)' : 'var(--pnl-up)', fontWeight: 600, zIndex: 1 }}>{fmtPrice(r.price)}</span>
-        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)', zIndex: 1 }}>{fmtSize(r.size)}</span>
-        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-subtle)', fontSize: 10, zIndex: 1 }}>{fmtSize(r.total)}</span>
+        <span style={{ flex: 1, color: kind === 'ask' ? 'var(--pnl-down)' : 'var(--pnl-up)', fontWeight: 600, zIndex: 1 }}>{<AnimatedText text={fmtPrice(r.price)}/>}</span>
+        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)', zIndex: 1 }}>{<AnimatedText text={fmtSize(r.size)}/>}</span>
+        <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-subtle)', fontSize: 10, zIndex: 1 }}>{<AnimatedText text={fmtSize(r.total)}/>}</span>
       </div>
     ))
   );
 
   const MidBand = (
     <div style={{ padding: '6px 12px', borderTop: '1px solid var(--hairline)', borderBottom: '1px solid var(--hairline)', background: 'var(--chip-bg)', textAlign: 'center', flexShrink: 0 }}>
-      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>${fmtPrice(price)}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', fontFamily: 'var(--font-sans)', fontStyle: 'normal' }}>${<AnimatedText text={fmtPrice(price)}/>}</span>
     </div>
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', fontFamily: 'var(--font-mono)', userSelect: 'none', overflow: 'hidden', background: 'var(--bg-base-2)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: compact ? 'auto' : '100%', width: '100%', fontFamily: 'var(--font-mono)', userSelect: 'none', overflow: 'hidden', background: 'var(--bg-base-2)' }}>
       <style>{`@keyframes veloFillFlashBuy{0%{background:rgba(62,207,142,0.28)}100%{background:transparent}}@keyframes veloFillFlashSell{0%{background:rgba(255,80,80,0.28)}100%{background:transparent}}`}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
@@ -238,7 +239,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
       </div>
 
       {loadError && <div role="status" style={{ padding: '8px 12px', fontSize: 11, color: 'var(--fg-muted)' }}>{loadError} <button onClick={() => setReload(x => x + 1)}>Retry</button></div>}
-      <div style={{ flex: 1, minHeight: 0, overflowY: view === 'trades' && showAllFills ? 'auto' : 'hidden', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
+      <div style={{ flex: compact ? '0 1 auto' : 1, minHeight: compact ? 56 : 0, maxHeight: compact ? 240 : undefined, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
         {view === 'trades' ? (
           loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 11 }}>Loading fills…</div>
@@ -252,9 +253,9 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
             return (
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', padding: '0 12px', height: 24, fontSize: 11, animation: f.flash ? `${buy ? 'veloFillFlashBuy' : 'veloFillFlashSell'} 0.7s ease-out` : undefined }}>
                 <span style={{ flex: 1, color: buy ? 'var(--pnl-up)' : 'var(--pnl-down)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  {f.action === 'LIQUIDATION' && <span title="Liquidation" style={{ fontSize: 8, opacity: 0.85 }}>⚡</span>}{fmtPrice(f.price)}
+                  {f.action === 'LIQUIDATION' && <span title="Liquidation" style={{ fontSize: 8, opacity: 0.85 }}>⚡</span>}{<AnimatedText text={fmtPrice(f.price)}/>}
                 </span>
-                <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)' }}>{fmtSize(f.size)}</span>
+                <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)' }}>{<AnimatedText text={fmtSize(f.size)}/>}</span>
                 <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-subtle)', fontSize: 10 }}>{ago(f.ts, now)}</span>
               </div>
             );

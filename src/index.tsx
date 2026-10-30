@@ -10,13 +10,21 @@ import { wagmiConfig } from './services/web3Config';
 import { initAnalytics } from './services/analytics';
 import { initSessionManager } from './services/supabaseStore';
 import App from './App';
+import './styles/materials.css';
+import './styles/interaction.css';
+import './styles/product.css';
+import './styles/layout.css';
+import { mountPressFeedback } from './services/pressFeedback.mjs';
+
+const removePressFeedback=mountPressFeedback(document);
+if(import.meta.hot)import.meta.hot.dispose(removePressFeedback);
 
 // ── Build stamp ──────────────────────────────────────────────────────────
 // Lets anyone verify WHICH build is actually live: open the browser console
 // on the deployed site and type  __VELO_BUILD__  (or just read the banner).
 // Bump the tag whenever a delta batch ships, so "did my deploy go out?" is a
 // two-second check instead of a guessing game.
-export const VELO_BUILD = 'rebrand-v1';
+export const VELO_BUILD = 'account-equity-history-20261030';
 (window as any).__VELO_BUILD__ = VELO_BUILD;
 document.documentElement.setAttribute('data-velo-build', VELO_BUILD); // visible in DevTools → Elements on <html>
 console.info(`%c VELO %c build ${VELO_BUILD} `, 'background:#557a64;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px;font-weight:700', 'background:#161a17;color:#a2afa6;border-radius:0 3px 3px 0;padding:2px 6px');
@@ -54,7 +62,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {error:
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 40, textAlign: 'center', color: '#ef4444', fontFamily: '-apple-system, sans-serif' }}>
+        <div style={{ padding: 40, textAlign: 'center', color: '#ef4444', fontFamily: 'var(--font-sans)' }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 16 }}>Something went wrong</h1>
           <p style={{ color: '#888', marginBottom: 16 }}>The application encountered a critical error.</p>
           <pre style={{ background: '#1a1a1a', padding: 16, borderRadius: 8, textAlign: 'left', overflow: 'auto', fontSize: 12, color: '#e5e5e5', maxWidth: 600, margin: '0 auto' }}>
