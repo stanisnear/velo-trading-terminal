@@ -1,12 +1,15 @@
 # Velo documentation
 
-Reviewed 30 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
+Reviewed 31 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
 
 ## Start here
 
 | Document | Purpose |
 | --- | --- |
 | [Product README](../README.md) | Current product, features and local development |
+| [Feature guide](../FEATURES.md) | Complete current page and workflow inventory |
+| [Execution and accounting](EXECUTION.md) | Receipt lifecycle, conditional orders, fee example and pool ledgers |
+| [Future engine decisions](../FUTURES.md) | Funding, order books, capital policy and release dependencies |
 | [Vision](../VISION.md) | Audience, long-term direction, roadmap and business hypotheses |
 | [Sharing guide](SHARING.md) | Position attachments, PnL images, amount display, live/snapshot behavior and receipt details |
 | [Wallet/dashboard release](RELEASE-2026-10-29.md) | Compact exposure, unified funding/settings dialogs and interaction checks |
@@ -28,7 +31,7 @@ The landing repository is [stanisnear/Velo-Landing](https://github.com/stanisnea
 | Deployed addresses | [Base Sepolia manifest](../contracts/deployments/base_sepolia.json), verified against the chain |
 | Active engine configuration | [Public configuration](../supabase/functions/_shared/public-config.js) and the actual Pages/Edge Function runtime settings; environment overrides must agree |
 | Markets and leverage | [Shared market registry](../shared/markets.mjs) and deployed V4 market configuration |
-| Fees and settlement | [VeloPerpsV4.sol](../contracts/src/VeloPerpsV4.sol) and [PerpsMath.sol](../contracts/src/libraries/PerpsMath.sol), not a screenshot estimate |
+| Fees and settlement | [VeloPerpsV4.sol](../contracts/src/VeloPerpsV4.sol) including its entry/settlement math, not a screenshot estimate |
 | Active positions and protection | Confirmed V4 state and transaction events, not database snapshots |
 | SQL changes | [Incremental migrations](../supabase/migrations) and hosted migration history; differences are documented in Operations |
 | Product ambition | [VISION.md](../VISION.md); plans must not be presented as live features |

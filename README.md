@@ -45,6 +45,12 @@ Velo is built around one idea: **trading is better when it is social, and social
 
 Copy trading, bots and traditional instruments are **planned and not yet available**.
 
+## Product and engine reference
+
+[Complete feature guide](FEATURES.md) · [Order execution and accounting](docs/EXECUTION.md) · [Architecture](docs/ARCHITECTURE.md) · [Future engine decisions](FUTURES.md) · [Product vision](VISION.md)
+
+The feature guide maps each page and user flow. The execution reference traces market/conditional orders, TP/SL, confirmations, fees and pool reserves. Future funding rates, order-book execution and expanded position operations are design decisions, not current V4 capabilities.
+
 ## What you can do today
 
 ### Trade

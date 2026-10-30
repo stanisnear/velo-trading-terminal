@@ -1,6 +1,6 @@
 # Velo architecture
 
-Reviewed 27 October 2026. Read [VISION](../VISION.md) for the product thesis and [Operations](OPERATIONS.md) for release procedures. This describes the deployed testnet design, not a claim of mainnet readiness.
+Reviewed 31 October 2026. Read [VISION](../VISION.md) for the product thesis and [Operations](OPERATIONS.md) for release procedures. This describes the deployed testnet design, not a claim of mainnet readiness.
 
 ## Product and interface
 
@@ -144,3 +144,7 @@ Signed-out Trade retains distinct public-feed, locked order and locked account-a
 The account chart reserves a separate summary row for the displayed dates and inspected value. It does not overlay readouts on the plotted line. Dashboard ranges up to seven days retain intraday ticks; longer ranges use calendar ticks. Tick labels follow the chart library’s tick type and the user’s locale, while full inspection timestamps use the device time zone. Equity range availability and calculations are unchanged. The dashboard omits the explanatory paragraph; account composition remains available in its equity breakdown.
 
 The landing bento uses content-sized rows so the leverage control, example returns and note remain visible. Public onboarding and wallet guidance live in the product documentation.
+
+## Companion references
+
+[FEATURES](../FEATURES.md) maps the full current product; [execution and accounting](EXECUTION.md) traces contract operations and ledger ownership. [FUTURES](../FUTURES.md) records the next engine decisions separately from deployed behavior.
