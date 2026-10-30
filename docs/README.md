@@ -1,6 +1,6 @@
 # Velo documentation
 
-Reviewed 29 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
+Reviewed 30 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
 
 ## Start here
 

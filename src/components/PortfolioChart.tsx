@@ -22,7 +22,7 @@ export function PortfolioChart({ data, theme, loading=false, label='Account equi
       width:container.current.clientWidth||300,height:container.current.clientHeight||200,
       layout:{background:{type:ColorType.Solid,color:'transparent'},textColor:css.getPropertyValue('--fg-muted').trim()||'#8b9c91',fontFamily:css.getPropertyValue('--font-sans').trim()||'Switzer, sans-serif',fontSize:10},
       grid:{vertLines:{visible:false},horzLines:{visible:false}},
-      timeScale:{visible:true,timeVisible:!dateOnly,secondsVisible:false,borderVisible:false,rightOffset:1,tickMarkFormatter:(time,type)=>new Date(Number(time)*1000).toLocaleString([],type===TickMarkType.Year?{year:'numeric'}:type===TickMarkType.Month?{month:'short',year:'numeric'}:dateOnly||type===TickMarkType.DayOfMonth?{month:'short',day:'numeric'}:{hour:'2-digit',minute:'2-digit'})},
+      timeScale:{visible:true,timeVisible:!dateOnly,secondsVisible:false,borderVisible:false,rightOffset:1,tickMarkFormatter:(time,type,locale)=>new Date(Number(time)*1000).toLocaleString(locale,type===TickMarkType.Year?{year:'numeric'}:type===TickMarkType.Month?{month:'short'}:type===TickMarkType.DayOfMonth?{month:'short',day:'numeric'}:{hour:'2-digit',minute:'2-digit'})},
       localization:{timeFormatter:time=>new Date(Number(time)*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})},
       rightPriceScale:{visible:false,borderVisible:false,scaleMargins:{top:.18,bottom:.10}},
       crosshair:{mode:CrosshairMode.Magnet,vertLine:{color:accent,style:2,labelVisible:false},horzLine:{visible:false,labelVisible:false}},
@@ -72,8 +72,11 @@ export function PortfolioChart({ data, theme, loading=false, label='Account equi
     if(seriesRef.current)chartRef.current?.setCrosshairPosition(point.value,point.time,seriesRef.current);
   };
   return <div className="portfolio-chart" tabIndex={points.length?0:undefined} role="group" aria-label={`${label} chart. Use left and right arrow keys to inspect observations.`} onKeyDown={inspect}>
+    <div className="portfolio-chart__summary">
+      {inspected ? <div className="portfolio-chart__readout" aria-live="polite"><AnimatedValue value={inspected.value}/><time dateTime={new Date(inspected.time*1000).toISOString()}>{new Date(inspected.time*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time></div>
+        : points.length > 0 ? <div className="portfolio-chart__range" aria-label="Displayed dates">{[points[0],...(points.length>1?[points.at(-1)!]:[])].map((point,index)=><React.Fragment key={index}>{index>0&&<span aria-hidden="true">–</span>}<time dateTime={new Date(point.time*1000).toISOString()} title={new Date(point.time*1000).toLocaleString()}>{new Date(point.time*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time></React.Fragment>)}</div> : null}
+    </div>
     <div ref={container} className="portfolio-chart__canvas"/>
-    {inspected&&<div className="portfolio-chart__readout" aria-live="polite"><AnimatedValue value={inspected.value}/><time dateTime={new Date(inspected.time*1000).toISOString()}>{new Date(inspected.time*1000).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</time></div>}
     {points.length<2&&!inspected&&<div className="portfolio-chart__status" role="status">{loading?'Loading account history…':points.length?'History starts with this observation.':emptyLabel}</div>}
   </div>;
 }

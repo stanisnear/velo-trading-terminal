@@ -22,7 +22,7 @@ test('equity observations preserve genuine timestamps, finite zero, deduplicatio
 
 const chartStub=`
 export const BaselineSeries='baseline',AreaSeries='area',BarSeries='bar',CandlestickSeries='candles',HistogramSeries='hist',LineSeries='line';
-export const ColorType={Solid:'solid'},CrosshairMode={Magnet:1},LineStyle={Solid:0,Dotted:1,Dashed:2},TickMarkType={Year:0,Month:1,DayOfMonth:2,TimeWithSeconds:3};
+export const ColorType={Solid:'solid'},CrosshairMode={Magnet:1},LineStyle={Solid:0,Dotted:1,Dashed:2},TickMarkType={Year:0,Month:1,DayOfMonth:2,Time:3,TimeWithSeconds:4};
 export const createTextWatermark=()=>({detach(){},applyOptions(){}});
 export function createChart(element,options){
  const state={element,options,series:[],removed:false,range:{from:0,to:100},sets:[],realtime:0,sub:null};
@@ -99,6 +99,29 @@ test('real chart components follow first history, timeframe changes and explicit
   await act(async()=>root.render(React.createElement(PortfolioChart,{data:[{timestamp:may,value:0},{timestamp:observedNow,value:-219.22}],theme:'dark',label:'Realized trading PnL',baseline:0,rangeKey:'ALL'})));
   assert.ok(state.fits>fits,'an explicit range selection refits even if the points have not changed');
   assert.equal(globalThis.__charts.length,chartCount,'range selection preserves the chart instance');
+
+  const priorZone=process.env.TZ;
+  process.env.TZ='Europe/Rome';
+  try {
+    const start=Date.parse('2026-10-29T17:51:00Z'),finish=start+26*3600000;
+    const history=[{timestamp:start,value:100},{timestamp:finish,value:115}];
+    await act(async()=>root.render(React.createElement(PortfolioChart,{data:history,theme:'dark',dateOnly:false})));
+    const clock=state.options.timeScale;
+    assert.equal(clock.timeVisible,true,'crossing midnight must not hide intraday times');
+    assert.equal(clock.tickMarkFormatter(start/1000,3,'en-GB'),'18:51');
+    assert.equal(clock.tickMarkFormatter((start+3600000)/1000,3,'en-GB'),'19:51','intraday ticks cannot repeat a day label');
+    assert.match(clock.tickMarkFormatter(start/1000,3,'en-US'),/6:51/,'locale controls the clock format');
+    assert.match(clock.tickMarkFormatter(start/1000,2,'en-GB'),/29/,'day boundaries retain date context');
+    assert.equal(document.querySelectorAll('.portfolio-chart__range time').length,2);
+    assert.equal(document.querySelector('.portfolio-chart__range time').dateTime,new Date(start).toISOString());
+    await act(async()=>document.querySelector('.portfolio-chart').dispatchEvent(new window.KeyboardEvent('keydown',{key:'Home',bubbles:true})));
+    const readout=document.querySelector('.portfolio-chart__readout');
+    assert.equal(readout.parentElement.className,'portfolio-chart__summary','inspection stays outside the drawing canvas');
+    assert.equal(readout.querySelector('time').dateTime,new Date(start).toISOString());
+    assert.match(readout.textContent,/100/);
+    await act(async()=>root.render(React.createElement(PortfolioChart,{data:[history[0],{timestamp:finish,value:120}],theme:'dark',dateOnly:false})));
+    assert.equal(document.querySelector('.portfolio-chart__readout'),readout,'live updates preserve the inspected observation');
+  } finally { if(priorZone===undefined)delete process.env.TZ;else process.env.TZ=priorZone; }
 
   let observed;
   function History({owner,value,ready}){observed=useEquityHistory(owner,'wallet','engine',value,ready);return null;}

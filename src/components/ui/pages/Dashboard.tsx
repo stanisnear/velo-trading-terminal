@@ -86,8 +86,6 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
   const equityChange = chartView.change;
   const changePercent = chartView.percent;
   const pnlColor = equityChange === null || equityChange === 0 ? 'var(--fg-muted)' : equityChange > 0 ? 'var(--pnl-up)' : 'var(--pnl-down)';
-  const coverageLabel = chartView.firstAt !== null && chartView.lastAt !== null
-    ? `${new Date(chartView.firstAt).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})} – ${new Date(chartView.lastAt).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}` : null;
 
   // ── Pending Deposit Detail Modal ────────────────────────────────────────────
   const PendingDepositDetailModal = ({ deposit, onClose }: { deposit: any; onClose: () => void }) => {
@@ -200,12 +198,10 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
 
             )}
           </div>
-          <div className="dashboard-chart-toolbar"><span>Total account equity</span><span>{coverageLabel ? coverageLabel : 'Waiting for the first account observation'}</span></div>
           <div className="dash-portfolio-chart">
-            <PortfolioChart rangeKey={chartView.period} dateOnly={chartView.period !== '1D' && chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>86400000} data={chartData} theme={theme} loading={!equityReady}
+            <PortfolioChart rangeKey={chartView.period} dateOnly={chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>7*86400000} data={chartData} theme={theme} loading={!equityReady}
               label="Total account equity" emptyLabel="No recorded equity observations in this period."/>
           </div>
-          <p className="dashboard-history-note">Account equity includes cash movements and open PnL. Longer ranges unlock as recorded history becomes available. Realized trade history is in Performance.</p>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user
               always knows where their money is. */}
@@ -600,10 +596,7 @@ export const Dashboard = ({ equityHistory = [], equityReady = true, user, positi
         }
         .dashboard-overview-rail { display: grid; grid-template-rows: auto minmax(168px,1fr) auto; gap: 12px; min-width: 0; }
         .dashboard-portfolio-card { min-width: 0; }
-        .dashboard-chart-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 22px 0; flex-wrap:wrap; }
-        .dashboard-chart-toolbar>span { font:400 10px/1.5 var(--font-sans);color:var(--fg-subtle); }
         .dashboard-page .dash-portfolio-chart { height:220px;min-height:180px;flex:1;padding:8px 0; }
-        .dashboard-history-note { margin:0;padding:0 22px 12px;font:400 10px/1.5 var(--font-sans);color:var(--fg-subtle); }
         @media (max-width: 1023px) {
           .dashboard-page .dash-grid-main { grid-template-columns: minmax(0, 1fr); padding-inline: 0; }
           .dashboard-overview-rail { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; align-items: stretch; }

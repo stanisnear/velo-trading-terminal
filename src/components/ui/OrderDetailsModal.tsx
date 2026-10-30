@@ -229,10 +229,10 @@ export const OrderDetailsModal = ({
           {pnlUp ? '+' : ''}{<AnimatedText text={roe.toFixed(2)}/>}% ROE
         </div>
         {/* Buffer bar in hero */}
-        <div style={{ marginTop: 10, padding: '0 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div className="trade-details-buffer" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', marginTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px 16px', marginBottom: 6 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: 'var(--fg-subtle)' }}>Liq. Buffer</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: bufferColor }}>{<AnimatedText text={buffer.toFixed(1)}/>}% · {bufferLabel}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: bufferColor, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{<AnimatedText text={buffer.toFixed(1)}/>}% · {bufferLabel}</span>
           </div>
           <div style={{ height: 4, borderRadius: 3, background: 'var(--hairline-strong)', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${Math.min(100, buffer * 5)}%`, background: bufferColor, borderRadius: 3, transition: 'width 0.3s' }} />

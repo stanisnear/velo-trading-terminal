@@ -1,7 +1,7 @@
 <h1 align="center">Velo</h1>
 
 <p align="center">
-  <b>The trader hub for crypto and, next, the rest of finance.</b><br/>
+  <b>Crypto trading and conversation, in one place.</b><br/>
   Trade perpetuals, follow the people behind the trades, read the news and talk about it, all in one place.
 </p>
 
@@ -19,11 +19,11 @@
 
 ## What Velo is
 
-**Documentation reviewed: 27 October 2026.** Start with the [documentation index](docs/README.md) for the architecture, operations, release evidence and funding-readiness checklist. [VISION.md](VISION.md) owns the long-term direction; this README describes the current testnet product.
+**Documentation reviewed: 30 October 2026.** Start with the [documentation index](docs/README.md) for the architecture, operations, release evidence and funding-readiness checklist. [VISION.md](VISION.md) owns the long-term direction; this README describes the current testnet product.
 
-Most people who get into crypto end up juggling five tabs: an exchange to trade, a chart site, a news feed, a social app to see what traders are saying, and a spreadsheet to remember how they did. Velo puts those in one product.
+Velo combines perpetual trading, market research and a social feed. Traders can publish positions, follow their status through settlement and discuss markets alongside the data.
 
-It is a trading terminal with a social network built into it. You can open a position, share it, watch someone else's, argue about it in the replies, and check the market news without leaving the page. The goal is to be the place anyone with an interest in crypto and finance opens first, whether they have traded for ten years or ten minutes.
+The current product runs on Base Sepolia with mock USDC. The longer-term goal is a trader hub spanning crypto and other financial markets, with execution, discussion and verifiable trading records connected.
 
 ## Who it is for
 
@@ -43,7 +43,7 @@ Velo is built around one idea: **trading is better when it is social, and social
 | **Next** | Copy trading with allocation, slippage and risk limits. Trading bots with scoped permissions, quotas and kill switches. On-chain reconstruction of every trader's history, so profiles and the leaderboard rest on verifiable results |
 | **Later** | Classic instruments alongside crypto: stocks and commodities. Alerts, richer discovery, and a mainnet launch after independent security review |
 
-Copy trading, bots and traditional instruments are **planned and not yet available**. Nothing in the app pretends otherwise.
+Copy trading, bots and traditional instruments are **planned and not yet available**.
 
 ## What you can do today
 
@@ -123,9 +123,15 @@ Posts, replies, reactions and follows are written to Supabase under row-level se
 
 Use **Position** in the Social composer to attach an open trade, or choose **PnL image** for a branded image you can post or export. The sharing studio uses the **Clean** layout, independent light/dark cards and **$ Amounts / % Return only** controls. Click a compact attachment for status, local opening/closing times and V4-matched transaction details. PnL previews fit the feed and open into an image-and-conversation viewer; new PNG exports are 2400 × 1600. @mention and $ticker suggestions work in posts, replies and sharing notes. Live cards animate PnL and market values in persistent text instead of replacing screenshots, then become static after confirmed settlement. Live Velo posts follow the position through settlement; image snapshots remain fixed, and live images can optionally freeze the captured result when the position closes. Downloaded PNGs always remain snapshots. Closing a position offers a small optional Share action.
 
-The dashboard offers a bounded portfolio chart of actual device-local equity observations (saved per account and V4 engine), an equity breakdown with an allocation ring and separate unrealized PnL, an animated account-action dock, and a fixed-size notional-exposure summary. The full breakdown opens separately, keeping the active-positions table as the main management view. Wallet/engine addresses and copy controls open in a separate account dialog, keeping the dashboard height stable. Social and market pages retain their own reading widths. Trade inspection, close and TP/SL use the same glass dialog, typography, scrolling region and fixed actions.
+### Account and performance
 
-Use the header search or **⌘/Ctrl K** to find pages, public traders, market information and supported perpetuals. The mobile menu offers the same search. Hover or keyboard-focus an author in the feed for a public profile preview; press Arrow Down to enter it and Escape to return. These controls reuse already loaded market and profile data.
+The dashboard shows total account equity, available funds, margin and open PnL. Its equity chart uses observations saved for the account and trading engine on the device. Time-range controls enable when that history supports distinct periods; chart labels and inspection timestamps use the user's locale and time zone. Performance provides a separate realized-settlement PnL chart, a calendar and receipt inspection. Cash movements and open PnL are excluded from realized trading results.
+
+### Navigation and interface
+
+Use the header search or **⌘/Ctrl K** to find pages, public traders and markets. The mobile menu offers the same search. Author previews in the feed support keyboard navigation. Signed-out visitors can browse public charts and fills; order entry and account activity require sign-in.
+
+Trade inspection, close, TP/SL, funding and wallet settings share the same dialog structure, scrollable content and fixed actions. Financial values update in place, with reduced-motion support. Wallet key export retains its confirmation step.
 
 [The sharing guide](docs/SHARING.md) covers the exact defaults, settlement labels, display limits and evidence states. Amount hiding changes presentation, not the public on-chain record. Profile pictures, banners and PnL snapshots use immutable URLs and owner-scoped Storage writes.
 
@@ -238,7 +244,7 @@ Velo is an early-stage product running on **Base Sepolia testnet with mock USDC*
 
 Nine perpetual markets are enabled in V4. Cross margin, partial closes and margin adjustment are absent from its contract. Legacy positions are not automatically migrated. The leaderboard still ranks stored profile metrics rather than independently reconstructed on-chain results.
 
-Known release gates include independent contract review, a chain indexer, constrained trading-wallet permissions, remaining database/privacy hardening, operator-key controls and sustained recovery/mobile testing. This is a working testnet, not a certification of industry-wide or mainnet readiness. See [release evidence](docs/RELEASE-2026-10-21.md) and [funding readiness](docs/FUNDING-READINESS.md).
+Known release gates include independent contract review, a chain indexer, constrained trading-wallet permissions, remaining database/privacy hardening, operator-key controls and sustained recovery/mobile testing. The testnet is available for product testing; mainnet remains subject to these release gates. See [release evidence](docs/RELEASE-2026-10-21.md) and [funding readiness](docs/FUNDING-READINESS.md).
 
 ## Roadmap, vision and business model
 
@@ -247,12 +253,3 @@ The long-term plan, the revenue model under consideration and the ideas we want 
 ## Security
 
 Please report vulnerabilities privately to the maintainers rather than through public issues.
-
-### Experience system
-
-The current UI uses compact 420 px feed media, a focused glass image viewer, unified social tagging, rolling financial values throughout the app, a three-column desktop social workspace, warm celadon light surfaces and keyboard-accessible sliding filters. See [experience decisions and reference review](docs/EXPERIENCE-DESIGN-2026-10-28.md) for implementation scope, typography, accessibility and performance choices.
-
-Funding, send, faucet and wallet/settings use the same native glass dialog as position management, with fixed actions, scrollable content and reduced-motion-aware transitions. Wallet settings groups accounts, preferences and security; key export keeps its confirmation step. See [the wallet/dashboard release](docs/RELEASE-2026-10-29.md).
-
-
-The dashboard plots observed **total account equity**, including available funds, locked margin and open PnL. **Performance** opens the separate realized settlement-PnL chart and local-day calendar, with inspectable records. Equity snapshots begin when this device observes a ready account and include cash flows; they are not reconstructed from closed trades. Signed-out visitors see public charts/fills and locked order/activity panels. Equity period controls disable unavailable or duplicate date ranges. See [architecture](docs/ARCHITECTURE.md#equity-and-settlement-calendar).
