@@ -8,7 +8,7 @@ import { postPath } from '../shared/socialLinks.mjs';
 
 const read = name => readFile(new URL('../' + name, import.meta.url), 'utf8');
 const manifest = JSON.parse(await read('contracts/deployments/base_sepolia.json'));
-const markdown = ['README.md', 'VISION.md', 'contracts/README.md',
+const markdown = ['README.md', 'FEATURES.md', 'FUTURES.md', 'VISION.md', 'contracts/README.md',
   ...(await readdir(new URL('../docs/', import.meta.url))).filter(name => name.endsWith('.md')).map(name => 'docs/' + name)];
 
 test('current references agree with the V4 manifest, market allow-list and vision', async () => {

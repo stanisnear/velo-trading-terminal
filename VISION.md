@@ -1,106 +1,93 @@
-# Velo: vision, roadmap and business model
+# Velo: a home for traders
 
-This document is for investors and contributors. It explains where Velo is going, how it can make money, and which ideas are open. The [README](README.md) describes what exists today.
+Velo puts the venue, the conversation and the track record in one product.
 
-**Reviewed 27 October 2026.** The V4 testnet release is the current implementation, not the final mainnet risk design. Supporting evidence and the application checklist are in [docs/FUNDING-READINESS.md](docs/FUNDING-READINESS.md).
+Traders already learn from one another. They discover assets through a post, test an idea against a chart, open a position and return to the conversation to explain what happened. Those steps usually span several products. Velo connects them.
 
-**Reading guide.** Everything under "Today" is built and running on testnet. Everything else is a plan or an idea. Plans are intentions, not commitments, and none of this is financial advice or an offer of any kind.
+The goal is a trader hub where execution, research and community make each other more useful, starting with crypto perpetuals on Base and expanding across financial markets.
 
-## The thesis
+## Who we build for
 
-People trade where they get information, and they get information from each other. Today those two things live in different products: the venue that holds the money has no community, and the community has no way to act on what it discusses or to prove it was right.
+**New traders** need an understandable path from a market idea to a position: clear controls, visible risk and people to learn from.
 
-Velo puts the venue, the conversation and the track record in one product. The long-term bet is that this combination is a better front door to markets than any one of them alone, and that it can be extended from crypto to the rest of finance.
+**Active traders** need a focused workspace: charts, order management, position protection, performance analysis and a way to share their thinking.
 
-## Who we are building for
+**Followers and researchers** need context: who opened a trade, why they opened it, how it progressed and what its outcome was.
 
-1. **New entrants** who find crypto confusing. They need guidance, safe defaults and people to learn from, not a wall of order types.
-2. **Active traders** who want fast execution, real risk tools and a place to share ideas.
-3. **Followers and learners** who mostly read and discuss, and may start copying people they trust.
+These groups strengthen the same community. Traders contribute positions and analysis; readers contribute questions, research and an audience. A useful reputation grows from both the quality of the conversation and the record behind it.
 
-New entrants bring growth, traders bring volume, and followers bring the audience that makes a trader's reputation worth something. Each group makes the others more valuable.
+## The product today
 
-## Today
+The public Base Sepolia release brings together:
 
-- V4 perpetual futures terminal on Base Sepolia testnet: nine crypto markets, isolated market/limit/stop entries, atomic take-profit and stop-loss, market-specific leverage up to 25x, keeper-triggered liquidations and Pyth pricing
-- Social layer: posts, threaded replies, reactions, reposts, follows, profiles, notifications, short post/reply links, cashtags and link previews
-- [Position sharing and PnL images](docs/SHARING.md): compact live attachments, exportable image snapshots, independent image appearance, amount/percentage display and V4 transaction context. Individual linked receipts do not replace the planned full-history indexer or independently verified rankings
-- Top-50 market directory with a discussion thread per asset, a news tab and a leaderboard
-- Guided onboarding, faucet and gas sponsorship, testnet bridge routes
-- Production-style infrastructure: Cloudflare Pages and Workers, Supabase, a one-minute keeper scheduler with durable transaction handling
-- Public contracts, verified V4 source on BaseScan and Sourcify, and a Foundry test suite. Source verification is not an independent security audit
+- Nine Pyth-priced perpetual markets with isolated margin, market/limit/stop entries, atomic TP/SL and market-specific leverage up to 25×.
+- An account dashboard with equity history, exposure, realized performance and settlement analysis.
+- A top-50 market directory, asset research, news and direct coin-page discussion.
+- Posts, replies, reactions, reposts, follows, profiles and notifications.
+- Live position sharing and high-resolution PnL cards, with transaction context and visible settlement outcomes.
+- Wallet onboarding, test funds, gas sponsorship, transfers and testnet bridge routes.
+- A V4 engine with separate collateral and pool accounting, reserved profit capacity and published contract source.
 
-Active positions and orders come from V4 contract state. Legacy positions have separate exit controls and are not automatically migrated. Public market data and social records are distinct from the settlement oracle and the on-chain ledger. Copy trading, bots and non-crypto trading are not live.
+The [feature guide](FEATURES.md) walks through the experience. The testnet gives Velo a working environment for product feedback and engine development.
 
-## Roadmap
+## What makes Velo valuable
 
-### Phase 1: make the core trustworthy
-- Independent review of V4's segregated ledgers and reserved-profit model, followed by a mainnet-specific risk and liquidity design before any real funds. The testnet accounting replacement is deployed; independent review is not complete
-- An indexer that reconstructs every trader's history from on-chain events, so profiles, PnL and the leaderboard rest on verifiable results rather than stored profile metrics
-- Validate the nine-market V4 release and improve order management. Partial closes, margin adjustment and cross margin are possible future designs, not promised V4 features; they require new accounting, tests and review
-- Permission-scoped session keys instead of a browser-held trading key
+### Ideas stay connected to positions
 
-### Phase 2: social trading
-- **Copy trading** with per-follower allocation, slippage limits, loss limits and a clear pause switch
-- **Trading bots** that run under scoped permissions, spend limits and kill switches, with transparent public performance
-- Trader pages that show verified results next to their posts
-- Richer alerts and discovery, building on the existing watchlist and market directory
+A post can carry a live trade. Readers can follow its status, inspect the transaction and return to the same discussion after settlement. That continuity adds context to a market opinion and gives traders a more useful way to share their work.
 
-### Phase 3: a hub for all markets
-- Classic instruments alongside crypto, such as stocks and commodities, starting with exposure that fits the existing on-chain model
-- Richer news, research and discussion, including structured trade ideas that can be followed through to an outcome
-- Mainnet launch, gated on Phase 1
+### Research leads naturally to action
 
-## Revenue model
+An asset page connects market data, news and discussion. A trader can move from discovery to execution, then share the result without rebuilding the story elsewhere.
 
-**Today:** the V4 contract models trading fees in mock USDC only. Opening costs 0.10% of requested notional (submitted collateral times leverage); the position's fixed notional is then net collateral times leverage. Closing costs 0.10% of that fixed notional, subject to available equity. Borrowing defaults to 0.01% per hour on notional. Keeper-triggered settlement can pay up to 0.05% of notional to the keeper. None of this is real revenue on testnet. The [contract reference](contracts/README.md) and deployed parameters govern the details.
+### Reputation can travel with the trader
 
-**Streams we are considering.** These are ideas, ordered roughly by how directly they follow from the product:
+Profiles bring posts and recorded performance together. The next step is a chain-indexed history that makes results easier to inspect across the full life of an account, providing a stronger foundation for discovery, copy trading and strategy tools.
 
-| Stream | How it would work |
+## Product roadmap
+
+### Deepen the trading foundation
+
+Build a durable event indexer, expand performance analytics, improve execution monitoring and develop scoped trading permissions. Independent contract review and liquidity stress testing support the move from testnet to a staged mainnet release.
+
+The engine roadmap develops capital efficiency, funding mechanics and expanded position management. Each workstream has an explicit accounting and execution design; [FUTURES.md](FUTURES.md) describes those choices.
+
+### Connect traders through strategies
+
+Copy trading will let followers choose an allocation, set risk limits and pause a strategy. Strategy automation will add scoped permissions, spend limits and clear controls. Trader pages will connect these tools to a history of positions and the conversation behind them.
+
+### Broaden the market workspace
+
+Richer research, alerts and structured trade ideas extend the discovery experience. Stocks and commodities are the longer-term direction, bringing more of a trader's financial workflow into Velo.
+
+## Business model
+
+Trading fees form the base of the model. V4 currently uses **0.10% of requested notional** at entry and 0.10% of fixed position notional at close, with time-based borrowing. The current deployment uses test collateral; commercial revenue begins with the production business.
+
+As the product develops, potential revenue streams include:
+
+| Stream | Product connection |
 | --- | --- |
-| **Trading fees** | The base layer. Fee levels and tiers would be set against volume and market conditions before mainnet |
-| **Copy-trading revenue share** | A follower who profits pays a performance share. Part goes to the trader being copied, part to Velo. This aligns traders with the people who follow them |
-| **Bot fees** | Fees on strategies run through Velo, split with strategy creators if bots are opened to third parties |
-| **Liquidity vault fees** | If a liquidity vault exists, a share of vault profit or of the trading fees it earns |
-| **Liquidation and keeper economics** | A small protocol share of liquidation bounties, while keeping bounties high enough that liquidations stay reliable |
-| **Premium features** | Optional paid tools such as advanced analytics, alerts or profile features, kept separate from core trading |
+| Trading fees | Execution volume across supported markets |
+| Copy-trading performance share | Shared economics between the trader, followers and Velo |
+| Strategy tools | Execution or subscription fees for automation and advanced workflows |
+| Premium analytics | Deeper performance, discovery and alerting tools |
+| Liquidity services | Fees tied to a separately designed liquidity participation model |
 
-We have not published financial projections, and this document does not contain any.
+The priority is to align revenue with a useful trading experience and the value created by contributors.
 
-## Liquidity and the counterparty question
+## Liquidity and execution development
 
-Today, V4 uses protocol-owned mock-USDC liquidity, segregated from trader collateral, pending-order escrow and accrued fees. Trader losses increase pool assets and profits are paid from them. Every position reserves its fixed notional as its maximum gross profit; gross profit is capped at one notional, and trader losses are capped at collateral. The owner can withdraw only unreserved liquidity and accrued fees. There are no public LP shares, funding-rate transfers or insurance fund. This is a deliberately bounded testnet model, not an uncapped exchange or a yield product.
+V4 uses protocol-owned liquidity alongside separate trader and order escrow. Each position reserves its maximum gross-profit payout, giving the current engine a defined exposure model. The [execution reference](docs/EXECUTION.md) explains the ledgers and settlement math.
 
-Opening the pool to outside liquidity is a natural next step and an important design problem. Open questions we are working through:
+The next design phase covers open-interest and skew limits, funding, capital efficiency, withdrawal rules and liquidity participation. These decisions shape how the venue scales and how different participants share its economics.
 
-- **Vault design.** Deposit and withdrawal accounting, share pricing, and how to keep a withdrawal from leaving open positions unbacked
-- **Risk limits.** Caps on open interest, per-market exposure and skew, so a vault cannot be drained by one directional move
-- **Who bears losses.** How profit and loss are shared between vault depositors and any protocol backstop
-- **Oracle and liquidation risk.** What happens when prices gap or keepers fall behind
+## Building the next chapter
 
-An external-liquidity vault requires a separate specification and implementation, adversarial testing and independent review; V4 does not supply one. Nothing here should be read as a promise of yield.
+Velo has been built by **Stan Banchev**, a solo founder, over nearly a year. The business is bootstrapped and pre-revenue. The next phase focuses on external trader feedback, measurable usage, engine development and the team and partnerships needed for production.
 
-## Why we think it can work
+Investment and accelerator support would help fund independent security review, engineering, liquidity design and early distribution. Technical and ecosystem partners can contribute price infrastructure, wallet tooling, chain indexing and market access.
 
-- The product already spans trading, social and market data, instead of being a mockup of one of them
-- The infrastructure is built to run unattended: scheduled keepers, durable transaction recovery, row-level security, rate limits and tested failure paths
-- Verifiable track records are the missing piece for trust in social trading, and an on-chain venue is the right place to build them
+For investors, accelerators, partners and contributors: **[info@velotrading.live](mailto:info@velotrading.live)**.
 
-## Risks we take seriously
-
-- **Smart-contract risk.** V4 source is verified but unaudited. Mainnet depends on independent review, a production risk design and the Phase 1 release gates
-- **Regulation.** Leveraged derivatives, copy trading and traditional instruments are regulated differently across jurisdictions, and the design must account for that before launch in any region
-- **Counterparty and liquidity risk** as described above
-- **Oracle and keeper dependence.** Liquidation and order execution depend on price feeds and scheduled jobs
-- **Execution risk.** A broad plan is easy to write and hard to deliver; the sequence above puts trust before reach
-
-## How to get involved
-
-**Contributors.** Good starting areas are indexing and verifiable performance, order-management features, accessibility and onboarding, test coverage for the keeper and settlement paths, and the social experience. Open an issue describing what you would like to work on before starting a large change.
-
-**Investors and partners.** For questions about the business, the plan or a partnership, contact the Velo team directly.
-
-For cohort and funding applications, use the [application facts and readiness checklist](docs/FUNDING-READINESS.md). Testnet transactions are evidence of implementation, not users, revenue, TVL or product-market fit. Team details, traction, incorporation, budget and the amount being raised must be supplied and verified before submission.
-
-**Security researchers.** Please report vulnerabilities privately to the maintainers rather than through public issues.
+[Open Velo](https://app.velotrading.live) · [Product guide](https://velotrading.live/docs) · [Architecture](docs/ARCHITECTURE.md)

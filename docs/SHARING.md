@@ -1,75 +1,62 @@
-# Position sharing and PnL images
+# Share the trade behind the idea
 
-Reviewed 28 October 2026. These features run in the current Base Sepolia testnet app. They connect the conversation to a trade without making the social feed an execution or copy-trading service.
+Velo offers two formats: a compact position attachment for the conversation, and a PnL image for a visual result. Both connect a trader's post with the trade it describes.
 
-## Choose a format
+## Position attachment
 
-| Format | What appears in a Velo post | Best for |
-| --- | --- | --- |
-| **Position** | A compact attachment with market, direction, leverage, status, entry, mark/exit and PnL | Discussing an open position and following its outcome |
-| **PnL image** | A branded image with the trade's prices, return and status | Sharing a visual result on Velo or exporting a PNG |
+Choose **Position** in the Social composer and select an open trade. Add your note and choose whether to show invested amounts or return percentage. The attachment shows market, direction, leverage, prices and status in a compact section of the post.
 
-In the Social composer, write a note and choose **Position** to pick an open position. The attachment appears above the composer actions; removing it preserves the note. **PnL image** opens the sharing studio. The terminal's position/history sharing actions also open that studio. After a confirmed close, the confirmation offers a small optional **Share** action rather than opening the publisher automatically.
+The attachment follows the linked position through settlement. Readers can open **Position details** for opening/closing times, the position ID and available transaction links. Times use the viewer's locale and time zone.
 
-## Sharing studio
+Use the same flow from the terminal or trade history. A completed close offers an optional **Share** action inside the result flow.
 
-1. Choose **Position** or **PnL image** and inspect the preview.
-2. Choose **$ Amounts** or **% Return only**. The latter hides margin, position-size and monetary PnL values in the attachment and its details; market prices and the percentage return remain visible.
-3. For an image, choose **Light card** or **Dark card** independently of the app theme. **Clean** is the only image layout. For an open position, **Post updates** contains the live-post and captured-result options.
-4. Add a note and choose **Post to Velo**, or save/share the PNG. Native file sharing depends on device support; the app offers an image download when it is unavailable.
+## PnL image
 
-The amount toggle is a presentation preference, not a privacy or access-control boundary. On-chain trade data remains public, and previously exported images do not change when a later display preference changes.
+Choose **PnL image** to open the sharing studio:
 
-## Images in the feed
+1. Select amounts or **% Return only**.
+2. Choose **Light card** or **Dark card**, independently of the app theme.
+3. For an open position, choose a live post or a fixed capture under **Post updates**.
+4. Add a note, then **Post to Velo**, save the PNG or share through your device.
 
-PnL images keep their 3:2 proportions in a text-aligned preview capped at 420 CSS pixels, rather than growing to the full width of a wide post. Click or keyboard-activate an image to open the media viewer. Desktop places the image beside the original post text, reactions, actions and comment thread; smaller screens stack the image above a scrollable discussion. The viewer shares the post's current state and handlers. Closing it restores focus to the image preview.
+Every new image uses the **Clean** Velo layout. Exports use a **2400 × 1600** canvas, load the Velo fonts before rendering and fit long values without stretching the typography.
 
-New saved, shared and uploaded PNGs use a **2400 × 1600** backing canvas. The renderer explicitly loads the Velo display, interface and monospaced fonts and fits unusually long values by reducing type size rather than horizontally stretching letters. Live cards use persistent HTML and animated numeric glyphs, keeping the same layout and elements mounted between quotes. They do not generate or swap PNGs on each price update. After confirmed settlement, the frozen layout stays visible until its static PNG has decoded; returning to the feed or changing marks does not restart that settled card. Static feed previews use a smaller backing canvas and the expanded view requests full resolution. Existing immutable snapshots retain their original files; changing rendering quality does not rewrite an author's previous snapshot. Live animation pauses offscreen; settlement image work is visibility-aware. A captured-result card labels its original price as **Captured mark**, not as an executed exit price.
-
-The coin page also has an inline composer. It adds that asset’s cashtag once (unless already present), publishes through the same feed handler and shows the confirmed post in the asset conversation and main feed. @people and $asset suggestions work there, including keyboard selection. Failed or unconfirmed publication keeps the draft for retry; concurrent submissions are blocked. Replies use the same threaded post component as Social.
-
-Every post/comment/reply composer and the sharing note use `SocialTextField`. Type **@** for people or **$** for assets, refine the query and choose with pointer/touch, arrows plus Enter, or Tab. Escape dismisses suggestions without closing the parent dialog. Selection preserves text around the caret; IME composition and ordinary email text are not treated as tag submissions. The picker is rendered within a native dialog when necessary so focus trapping and the browser top layer do not hide or block it. Tag suggestions use the loaded public profile and market directory.
-
-## Live posts and snapshots
+## Live posts and captured moments
 
 | Choice | While the position is open | After settlement |
 | --- | --- | --- |
-| **Position attachment** | Follows the linked position on Velo | Shows its confirmed closed/liquidated status and result |
-| **PnL image, default snapshot** | Keeps the captured image and timestamp | Remains the captured image |
-| **PnL image, Keep this post live** | Animates current PnL and marks within Velo | Shows the confirmed settled result |
-| **Live image, Keep the captured PnL when the position closes** | Follows the open position | Freezes the originally captured result with an explicit closed-snapshot label |
+| Position attachment | Follows current position state | Shows confirmed status and result |
+| PnL snapshot | Preserves the captured image and time | Keeps the same capture |
+| Keep this post live | Animates current marks and PnL within Velo | Shows the settled result as a static card |
+| Keep the captured PnL when the position closes | Follows the open position | Retains the selected capture with a closed-snapshot label |
 
-Downloaded and externally shared PNG files are always fixed snapshots. A live Velo post does not turn a downloaded image into a remotely updating file.
+Live cards update persistent text and rolling numbers in place. Visible shares check chain state approximately every ten seconds and use current marks between those reads. Offscreen cards pause updates. At settlement, the card retains its layout while the static image loads.
 
-Visible live shares check chain state approximately every ten seconds and use available current marks between reads. Hidden/offscreen shares pause refreshes; connectivity and RPC failures can delay updates. Open-position PnL is an estimate, not a confirmed realized return. Settlement requires matching chain evidence rather than simply assuming that a position which disappeared was liquidated.
+Downloaded PNGs preserve the moment they were exported. Amount controls change the presentation of the post; transaction details remain publicly inspectable on-chain.
 
-## Inspect a position
+## Images and conversation
 
-Click or keyboard-activate a compact position attachment to open **Position details**. It shows:
+The feed uses a bounded 3:2 preview aligned with the post text. Open the image to view its original post, actions, reactions and comments beside it on desktop or below it on mobile. Closing the viewer returns focus to the preview.
 
-- Market, side, leverage, status and the selected amount/percentage presentation.
-- Opening and closing times in the viewer's locale and time zone, plus the shared capture time.
-- The position ID, fixed V4 engine link, and opening/settlement transaction links and copy actions when recovered.
-- Explicit checking, delayed/unavailable receipt and retry states. Missing evidence is not silently labelled verified.
+Posts use short links at `/p/<post>`, with replies at `/p/<post>/r/<reply>`. Link previews lead readers back to the same conversation.
 
-Receipt matching checks the Base Sepolia V4 engine, trader and position ID. Snapshot details may check the current chain position while the original post remains fixed; the dialog labels this distinction. This verifies the linked trade context, not the author's entire performance history or leaderboard rank. It is not a recommendation to follow or copy the trade.
+## Tag people and assets
 
-## Implementation and release checks
+Type **@** for people or **$** for assets in any post, reply, comment or sharing note. Select a suggestion with touch/mouse, arrow keys and Enter, or Tab. Escape closes suggestions while preserving the draft.
 
-| Concern | Source |
+Coin pages use the same composer and reply components. A post started there receives the coin's $tag and appears in both its discussion and the main feed.
+
+## Implementation map
+
+| Component | Responsibility |
 | --- | --- |
-| Studio, export and publish actions | [`VeloShareCard.tsx`](../src/components/VeloShareCard.tsx) |
-| Composer picker and amount preference | [`PositionComposerTools.tsx`](../src/components/PositionComposerTools.tsx), [`ShareValueControl.tsx`](../src/components/ShareValueControl.tsx) |
-| Social tagging and expanded media | [`SocialTextField.tsx`](../src/components/social/SocialTextField.tsx), [`socialTagging.mjs`](../src/utils/socialTagging.mjs), [`PostCard.tsx`](../src/components/social/PostCard.tsx) |
-| Compact attachment and details | [`SharedPositionCard.tsx`](../src/components/SharedPositionCard.tsx), [`PositionDetailsDialog.tsx`](../src/components/PositionDetailsDialog.tsx) |
-| Visibility-aware live refresh and receipt reads | [`useSharedTrade.ts`](../src/components/useSharedTrade.ts), [`sharedPosition.ts`](../src/services/sharedPosition.ts) |
-| Public attachment validation and update semantics | [`tradeShare.ts`](../src/utils/tradeShare.ts), [`shareBehavior.mjs`](../src/utils/shareBehavior.mjs) |
-| Image generation and feed rendering | [`tradeImage.ts`](../src/utils/tradeImage.ts), [`PnlImage.tsx`](../src/components/PnlImage.tsx), [`LivePnlCard.tsx`](../src/components/LivePnlCard.tsx) |
+| [`VeloShareCard.tsx`](../src/components/VeloShareCard.tsx) | Studio, export and publication |
+| [`PositionComposerTools.tsx`](../src/components/PositionComposerTools.tsx) | Position selection in the composer |
+| [`ShareValueControl.tsx`](../src/components/ShareValueControl.tsx) | Amount/percentage preference |
+| [`SocialTextField.tsx`](../src/components/social/SocialTextField.tsx) | Shared mention and asset completion |
+| [`PostCard.tsx`](../src/components/social/PostCard.tsx) | Feed and expanded conversation viewer |
+| [`SharedPositionCard.tsx`](../src/components/SharedPositionCard.tsx) | Compact attachment |
+| [`PositionDetailsDialog.tsx`](../src/components/PositionDetailsDialog.tsx) | Position context and receipt links |
+| [`useSharedTrade.ts`](../src/components/useSharedTrade.ts) | Live state and settlement reads |
 
-Posts carry validated share metadata. Snapshot PNGs use owner-scoped Storage writes and immutable URLs; live image posts render from updated share data. Social metadata never authorizes a trade or overrides V4 balances, protection or settlement.
-
-Before releasing a sharing change, check both formats, preserved drafts, removal, independent image appearance, amount hiding in preview/export/details, live settlement/freeze labels, missing-receipt states and keyboard/modal focus. Use disposable fixtures for publishing or Storage writes; viewing a public position requires no new trade. See [Operations](OPERATIONS.md) and the [27 October release record](RELEASE-2026-10-27.md).
-
-## Media presentation
-
-Feed images use a compact, text-aligned 420 px maximum preview within the social reading column. Clicking opens a smaller translucent viewer: image on the left and the same post, actions and comments on the right; mobile stacks these areas. The visible title bar is removed while its accessible dialog name remains. Exported and uploaded PNGs remain 2400 × 1600 regardless of preview size. See [experience decisions](EXPERIENCE-DESIGN-2026-10-28.md).
+[Feature guide](../FEATURES.md) · [Execution](EXECUTION.md) · [Architecture](ARCHITECTURE.md)

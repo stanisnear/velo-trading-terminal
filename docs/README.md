@@ -1,48 +1,33 @@
 # Velo documentation
 
-Reviewed 31 October 2026. Velo is a trader hub combining execution, market discovery, news and conversation. The live product uses **Base Sepolia, chain 84532, and mock USDC only**. It is not independently audited or approved for real funds.
+Velo brings perpetual trading, market discovery and a trader community into one workspace. The public release runs on Base Sepolia with mUSDC test collateral.
 
-## Start here
+## Product
 
-| Document | Purpose |
+| Guide | What you will find |
 | --- | --- |
-| [Product README](../README.md) | Current product, features and local development |
-| [Feature guide](../FEATURES.md) | Complete current page and workflow inventory |
-| [Execution and accounting](EXECUTION.md) | Receipt lifecycle, conditional orders, fee example and pool ledgers |
-| [Future engine decisions](../FUTURES.md) | Funding, order books, capital policy and release dependencies |
-| [Vision](../VISION.md) | Audience, long-term direction, roadmap and business hypotheses |
-| [Sharing guide](SHARING.md) | Position attachments, PnL images, amount display, live/snapshot behavior and receipt details |
-| [Wallet/dashboard release](RELEASE-2026-10-29.md) | Compact exposure, unified funding/settings dialogs and interaction checks |
-| [Experience decisions](EXPERIENCE-DESIGN-2026-10-28.md) | Current interface components, motion references and interaction checks |
-| [Architecture](ARCHITECTURE.md) | Frontend, V4, API, oracle, database and keeper boundaries |
-| [Contract reference](../contracts/README.md) | Implemented accounting, risk limits and contract tests |
-| [Operations](OPERATIONS.md) | Configuration, deployment, verification, recovery and outstanding operational risks |
-| [Release evidence](RELEASE-2026-10-21.md) | Dated test and transaction evidence, with its limits |
-| [Profile and sharing release](RELEASE-2026-10-27.md) | Image permissions, session recovery, sharing and the current interface release |
-| [Funding readiness](FUNDING-READINESS.md) | Application-ready product facts and information still needed from the team |
-| [Public product docs](https://velotrading.live/docs) | User-facing behavior and limitations |
+| [Overview](../README.md) | The product, how it works and how to run it |
+| [Features](../FEATURES.md) | Trading, dashboard, research, social and wallet workflows |
+| [Public guide](https://velotrading.live/docs) | Getting started and using Velo |
+| [Trade sharing](SHARING.md) | Live positions, PnL cards, image exports and conversation |
+| [Vision](../VISION.md) | Audience, product direction and business model |
+| [Engine roadmap](../FUTURES.md) | Funding, execution models, liquidity and position management |
 
-The landing repository is [stanisnear/Velo-Landing](https://github.com/stanisnear/Velo-Landing/tree/codex/cloudflare-migration). Its README and `CLOUDFLARE.md` describe that separate static site. The terminal's deployment runbook is [OPERATIONS.md](OPERATIONS.md), not an untracked root `CLOUDFLARE.md` or an old audit attachment.
+## Engineering
 
-## Sources of truth
-
-| Topic | Authoritative source |
+| Reference | What you will find |
 | --- | --- |
-| Deployed addresses | [Base Sepolia manifest](../contracts/deployments/base_sepolia.json), verified against the chain |
-| Active engine configuration | [Public configuration](../supabase/functions/_shared/public-config.js) and the actual Pages/Edge Function runtime settings; environment overrides must agree |
-| Markets and leverage | [Shared market registry](../shared/markets.mjs) and deployed V4 market configuration |
-| Fees and settlement | [VeloPerpsV4.sol](../contracts/src/VeloPerpsV4.sol) including its entry/settlement math, not a screenshot estimate |
-| Active positions and protection | Confirmed V4 state and transaction events, not database snapshots |
-| SQL changes | [Incremental migrations](../supabase/migrations) and hosted migration history; differences are documented in Operations |
-| Product ambition | [VISION.md](../VISION.md); plans must not be presented as live features |
+| [Architecture](ARCHITECTURE.md) | Frontend, services, data flow and on-chain execution |
+| [Execution and accounting](EXECUTION.md) | Order lifecycle, settlement, fee example and pool ledgers |
+| [Contracts](../contracts/README.md) | Solidity implementation, deployed markets and Foundry tests |
+| [Security](SECURITY.md) | Key handling, review status and deployment considerations |
+| [Operations](OPERATIONS.md) | Configuration, deployment, monitoring and recovery |
+| [Design system](EXPERIENCE-DESIGN-2026-10-28.md) | Components, typography, motion and accessibility decisions |
 
-## Maintenance rules
+The [landing repository](https://github.com/stanisnear/Velo-Landing) contains the website, public guide and product previews. Both repositories publish their current documentation on `main`.
 
-- Update README, VISION, contract docs and public docs together when behavior changes. Market changes also require checking homepage previews and both launch-article paths.
-- Date verification evidence. A passing build, source verification, a successful scan and a confirmed execution prove different things.
-- Keep mock activity separate from genuine adoption, revenue and chain-reconstructed performance.
-- Keep old contracts and migrations for decoding and legacy exits. Old design exports, private acceptance fixtures, keys and generated bundles do not belong in tracked source.
-- Keep screenshots and illustrative product mockups labeled as samples; they are not evidence of customers, balances or returns.
-- Do not publish credentials, private keys, contact exports or application secrets in documentation or cohort attachments.
+## Maintainer references
 
-The Git history preserves earlier descriptions. Current documents supersede the old Vercel deployment, four-market release and V3 fee/accounting descriptions; they do not retroactively repair the legacy contracts.
+Contract addresses live in the [deployment manifest](../contracts/deployments/base_sepolia.json). The [market registry](../shared/markets.mjs) defines supported pairs and leverage limits; [public configuration](../supabase/functions/_shared/public-config.js) supplies the app's deployment defaults. Fee and settlement calculations are implemented in [VeloPerpsV4.sol](../contracts/src/VeloPerpsV4.sol).
+
+Dated release records preserve the checks and transactions for each release. [Application preparation](FUNDING-READINESS.md) brings together founder information, product facts and the investment workstreams.
