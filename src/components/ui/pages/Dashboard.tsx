@@ -198,11 +198,11 @@ export const Dashboard = ({ accountBalance: balanceProp, pendingOrderCollateral=
 
             )}
           </div>
-          <div className="dash-portfolio-chart">
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,padding:'12px 22px 0',fontSize:12,color:'var(--fg-muted)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,padding:'12px 22px 0',fontSize:12,color:'var(--fg-muted)'}}>
               <span title="Cash and reserved collateral, excluding open PnL.">Account balance</span>
               {balanceProp != null && <AnimatedValue value={balanceProp}/>}
-            </div>
+          </div>
+          <div className="dash-portfolio-chart">
             <PortfolioChart rangeKey={chartView.period} dateOnly={chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>7*86400000} data={chartData} theme={theme} loading={!equityReady}
               label="Account balance · excludes open PnL" emptyLabel="No balance history in this period."/>
           </div>
