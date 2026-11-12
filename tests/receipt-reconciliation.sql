@@ -21,6 +21,14 @@ begin
  exception when check_violation then null; end;
  if exists(select 1 from public.trade_history where id='aaaaaaaa-bbbb-5ccc-8ddd-eeeeeeeeeeee') then raise exception 'Partial history committed'; end if;
  if exists(select 1 from velo_internal.receipt_jobs where engine=e and hash=h and completed_at is not null) then raise exception 'Failed receipt acknowledged'; end if;
+ insert into public.trade_history(id,user_id,pair,side,entry_price,exit_price,size,pnl,action,tx_hash)
+  values('bbbbbbbb-bbbb-5ccc-8ddd-eeeeeeeeeeee',u,'BTC/USD','LONG',100,110,100,999,'CLOSE',h);
+ perform public.velo_reconcile('apply',jsonb_set(payload,'{accounts,0,balance,value}','110'::jsonb));
+ if exists(select 1 from public.trade_history where id='bbbbbbbb-bbbb-5ccc-8ddd-eeeeeeeeeeee') then raise exception 'Duplicate estimate retained'; end if;
+ if not exists(select 1 from velo_internal.receipt_jobs where engine=e and hash=h and jsonb_array_length(superseded_history)=1)
+  then raise exception 'Superseded estimate not archived'; end if;
+ if not exists(select 1 from public.trade_history where id='aaaaaaaa-bbbb-5ccc-8ddd-eeeeeeeeeeee' and pnl=10)
+  then raise exception 'Verified result missing'; end if;
  perform public.velo_reconcile('apply',jsonb_build_object('engine',e,'hash',h,'accounts','[]'::jsonb));
  if not exists(select 1 from velo_internal.receipt_jobs where engine=e and hash=h and completed_at is not null) then raise exception 'Successful receipt not acknowledged'; end if;
 end $$;

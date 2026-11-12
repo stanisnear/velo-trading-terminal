@@ -12,6 +12,8 @@ The scheduled V4 liquidation job also indexes engine events and collateral trans
 
 A receipt transaction commits trade history, live-post outcomes, settlement notifications, its balance checkpoint and the queue acknowledgement together. Replayed logs keep the same event IDs. Conditional entries filled while a browser is closed create their opening history through the same path. A failed archive read or database transaction leaves the receipt eligible for retry.
 
+When a verified settlement supersedes an older client estimate for the same transaction, account, market and direction, the estimate is preserved in the private receipt journal and removed from the active history total. This prevents counting a settlement twice while retaining its correction trail.
+
 `velo_internal.receipt_jobs` exposes pending work, attempts and the last fixed error code to service operators. `receipt_cursors` records scan coverage. These tables and the ingestion RPC are inaccessible to browser roles.
 
 ## Balance and performance
