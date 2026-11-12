@@ -102,6 +102,18 @@ test('dry run scans and persists progress but never signs or simulates a transac
  assert.equal(r.ok,true);assert.equal(r.triggered,1);assert.equal(r.executed.length,0);assert.equal(f.writes.length,0);
  assert.equal(f.calls.find(c=>c.action==='save_scan').p.cursor,2);
 });
+test('V4 pending orders use the mapping getter tuple for scanning and execution',async()=>{
+ const f=engineFixture(),read=f.deps.clients.publicClient.readContract;
+ f.deps.clients.publicClient.readContract=async p=>{
+  if(p.functionName==='VERSION')return 4;
+  if(p.functionName==='conditionalOrders')return [P,0,true,2,0,0,false,0,10000000n,100n*10n**18n,1n,true];
+  if(p.functionName==='orderTerms')return [0,false,0n,0,0n,0n,0n,BigInt(NOW/1000+100)];
+  return read(p);
+ };
+ const result=await runEngine(job,{...input,dryRun:false},getEnv,f.deps);
+ assert.equal(result.ok,true);assert.equal(result.active,1);assert.equal(result.executed.length,1);
+ assert.equal(f.writes.find(w=>w.functionName==='executeConditionalOrder').args[0],1n);
+});
 test('live V3.1 version 31 supports every keeper with V3 position decoding',async()=>{
  for (const name of ['cron-conditional-orders','cron-tp-sl','cron-liquidate']) {
   const f=engineFixture();const original=f.deps.clients.publicClient.readContract;

@@ -1,4 +1,5 @@
 import { builderAttribution } from './baseBuilderAttribution.mjs';
+import { normalizeConditionalOrder } from '../../shared/conditional-order.mjs';
 import { VELO_PERPS_V4_ABI } from './veloPerpsV4Abi';
 import { decodeConfirmedClose, waitForSuccessfulReceipt, tradeEventId, type ConfirmedClose } from './tradeReceipts';
 /**
@@ -608,12 +609,12 @@ export async function fetchConditionalOrders(
 
   const orders = await Promise.all(
     orderIds.map(async (id) => {
-      const raw: any = await publicClient.readContract({
+      const raw: any = normalizeConditionalOrder(await publicClient.readContract({
         address: engineAddress(engine),
         abi: IS_V4 && engine === 'active' ? VELO_PERPS_V4_ABI : VELO_PERPS_V3_ABI,
         functionName: 'conditionalOrders',
         args: [id], blockNumber,
-      });
+      }));
       const pairIndex = Number(raw.pairIndex) as PairIndex;
       return {
         orderId:        id,

@@ -5,8 +5,8 @@ import { chainClients, withSigner } from '../_shared/signer.js';
 import { normalisePrice, triggerFor, scanIds } from './math.js';
 import { ORDER_ABI, CORE_ABI, POSITION_V3_ABI, POSITION_V2_ABI, PYTH_FEE_ABI, VELO_PERPS_V4_ABI } from './generated/abi.js';
 import { builderAttribution } from '../../../src/services/baseBuilderAttribution.mjs';
-import { persistKeeperSettlement } from './settlement.js';
-import { reconcileEngine } from './reconciliation.js';
+import { reconcileEngine, reconcileReceipt, receiptStore } from './reconciliation.js';
+import { normalizeConditionalOrder } from '../../../shared/conditional-order.mjs';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const PYTH_VIEW = [{ type: 'function', name: 'PYTH', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }];
@@ -17,7 +17,10 @@ export async function runKeeper(job, input, getEnv, deps = {}) {
     if(!v4||!isAddress(v4))throw new RuntimeError('V4_NOT_CONFIGURED');
     const current=await runEngine(job,input,getEnv,deps,v4);
     if(job==='cron-liquidate' && input.dryRun!==true){
-      try{current.reconciliation=await (deps.reconcile||reconcileEngine)(getEnv);}
+      try{
+        current.reconciliation=await (deps.reconcile||reconcileEngine)(getEnv);
+        if(current.reconciliation.failed){current.ok=false;current.errors.push({code:'RECEIPT_SYNC_PENDING'});}
+      }
       catch{current.ok=false;current.errors.push({code:'RECEIPT_RECONCILIATION_FAILED'});}
     }
     const legacy=getEnv('VITE_VELO_PERPS_V3_ADDRESS');
@@ -72,7 +75,8 @@ export async function runEngine(job, input, getEnv, deps = {}, contract) {
       if (now() - started > 25000) { result.errors.push({ code: 'SCAN_BUDGET_EXHAUSTED' }); break; }
       await Promise.all(plan.ids.slice(i, i + 8).map(async id => {
         try {
-          const p = await publicClient.readContract({ address: perps, abi: itemAbi, functionName: itemName, args: [BigInt(id)] });
+          const raw = await publicClient.readContract({ address: perps, abi: itemAbi, functionName: itemName, args: [BigInt(id)] });
+          const p = orderJob ? normalizeConditionalOrder(raw) : raw;
           const active = !!p && p.owner.toLowerCase() !== ZERO && (!orderJob || p.active);
           observed.set(id, { id, active }); if (active) open.push({ id, position: p });
         } catch { result.errors.push({ id, code: 'ITEM_READ_FAILED' }); }
@@ -137,7 +141,8 @@ export async function runEngine(job, input, getEnv, deps = {}, contract) {
         result.executed.push({ id, trigger, hash: receipt.hash });
         if (v4 && !orderJob) {
           try {
-            await (deps.persistSettlement || persistKeeperSettlement)({ publicClient,perps,tradeId:id,position,hash:receipt.hash,getEnv });
+            if(deps.persistSettlement)await deps.persistSettlement({ publicClient,perps,tradeId:id,position,hash:receipt.hash,getEnv });
+            else await reconcileReceipt({client:publicClient,perps,hash:receipt.hash,store:receiptStore(getEnv)});
           } catch {
             result.errors.push({ id,code:'SETTLEMENT_SYNC_FAILED' });
           }

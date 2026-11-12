@@ -6,6 +6,7 @@ This release addresses the failure paths behind missing offline settlements and 
 | --- | --- |
 | Market entries and attached protection | Existing atomic V4 entry/TP/SL tests pass |
 | Background TP/SL, liquidation and conditional entries | Scheduled keepers retain independent contract checks and durable signing journals |
+| V4 conditional-order decoding | Shared mapping-getter decoder preserves tuple fields for both order display and keeper execution |
 | Lost database write after confirmation | Receipt queue retries; history, social status, notification and acknowledgement commit together |
 | Disconnected browser | Submissions are rejected; reconnect and foreground events refresh account data |
 | Stale or failed account refresh | Previous values remain visible; writes require a successful recent read |

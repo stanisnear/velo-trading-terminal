@@ -4,6 +4,7 @@ import { boundedJson } from '../_shared/runtime.js';
 import { VELO_PERPS_V4_ABI as abi } from './generated/abi.js';
 import { decodeConfirmedClose, tradeEventId } from '../../../src/services/tradeReceipts.ts';
 import { V4_TRADING_MARKETS } from '../../../shared/markets.mjs';
+import { normalizeConditionalOrder } from '../../../shared/conditional-order.mjs';
 
 const ENGINE = '0xe9aecfbc5814ce3b2db0107594d80f054e6db52f';
 const TOKEN = '0x5efaf3f69b09bc2abf3439bdc0c93bf611026699';
@@ -37,10 +38,9 @@ export async function balanceCheckpoint(client, perps, trader, block, token=TOKE
     amount+=p.collateralUSDC_6;
   }
   for(const id of orders){
-    const o=await read('conditionalOrders',[id]);
-    // Multiple ABI outputs decode as a tuple; getPosition returns one struct.
-    if(!same(o.owner??o[0],trader)||!(o.active??o[11]))throw Error('Invalid escrow ownership');
-    amount+=o.collateralUSDC_6??o[8];
+    const o=normalizeConditionalOrder(await read('conditionalOrders',[id]));
+    if(!same(o.owner,trader)||!o.active)throw Error('Invalid escrow ownership');
+    amount+=o.collateralUSDC_6;
   }
   return {timestamp:Number(block.timestamp)*1000,value:Number(amount)/1e6,
     blockNumber:String(block.number),blockHash:block.hash};
