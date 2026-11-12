@@ -20,14 +20,19 @@ test('malformed public attachments cannot crash a feed or inject transaction lin
   assert.equal(safe.txHash,undefined);assert.equal(safe.traderHandle,'@trader');
 });
 test('a live post reads actual position fields and fee-aware quotes from V4',async()=>{
-  const rpc={readContract:async({functionName})=>({getPosition:{owner:trader,pairIndex:2,isLong:true,leverage:5,collateralUSDC_6:9900000n,entryPrice_E18:100000000000000000000n,openedAt:100n,originalNotional_6:49500000n},marketRisk:[0,0,0,0,50,0,1],positionOpenFee:100000n,quoteClose:{price:101000000000000000000n,pnl:2000000n}}[functionName])};
+  const reads=[];
+  const rpc={getBlockNumber:async()=>1000n,readContract:async(request)=>{reads.push(request);return ({getPosition:{owner:trader,pairIndex:2,isLong:true,leverage:5,collateralUSDC_6:9900000n,entryPrice_E18:100000000000000000000n,openedAt:100n,originalNotional_6:49500000n},marketRisk:[0,0,0,0,50,0,1],positionOpenFee:100000n,quoteClose:{price:101000000000000000000n,pnl:2000000n,payout:12000000n}}[request.functionName]);}};
   const result=await readSharedPosition(share,101,rpc);
-  assert.equal(result.pair,'SOL/USD');assert.equal(result.leverage,5);assert.equal(result.pnl,1.9);assert.equal(result.collateral,10);assert.equal(result.pnlPct,19);assert.equal(result.status,'OPEN');
+  assert.equal(result.pair,'SOL/USD');assert.equal(result.leverage,5);assert.equal(result.pnl,2);assert.equal(result.collateral,10);assert.equal(result.pnlPct,20);assert.equal(result.status,'OPEN');
+  assert.equal(result.pnl,12-result.collateral,'net result is payout minus gross invested margin, with entry fee counted once');
+  assert.equal(reads.length,4);assert(reads.every(r=>r.blockNumber===1000n),'all shared-position terms and quote use one block');
+  rpc.readContract=async()=>{throw Error('block unavailable');};
+  await assert.rejects(readSharedPosition(share,101,rpc),/block unavailable/);
 });
 test('missing position or provider failure never fabricates a close',async()=>{
   const rpc={readContract:async()=>({owner:'0x0000000000000000000000000000000000000000'}),getBlockNumber:async()=>50000n,getLogs:async()=>[]};
   await assert.rejects(readSharedPosition(share,101,rpc),/Refreshing settlement/);
-  await assert.rejects(readSharedPosition(share,101,{readContract:async()=>{throw Error('RPC offline');}}),/RPC offline/);
+  await assert.rejects(readSharedPosition(share,101,{getBlockNumber:async()=>1000n,readContract:async()=>{throw Error('RPC offline');}}),/RPC offline/);
 });
 test('settlement changes a previously open share to the receipt PnL and exit',async()=>{
   const abi=parseAbi(['event PositionClosed(uint256 indexed tradeId,address indexed trader,uint16 indexed pairIndex,uint128 exitPrice_E18,int256 pnlUSDC_6,uint64 payoutUSDC_6,uint64 feeUSDC_6)']);
@@ -46,7 +51,7 @@ test('posts cannot redirect reads to an arbitrary contract, chain or owner',asyn
   assert.equal(hasPositionReference({...share,chainId:1}),false);
   assert.equal(hasPositionReference({...share,contract:trader}),false);
   assert.equal(hasPositionReference({...share,tradeId:'-1'}),false);
-  await assert.rejects(readSharedPosition(share,101,{readContract:async()=>({owner:'0x0000000000000000000000000000000000000002'})}),/owner/);
+  await assert.rejects(readSharedPosition(share,101,{getBlockNumber:async()=>1000n,readContract:async()=>({owner:'0x0000000000000000000000000000000000000002'})}),/owner/);
 });
 
 test('public card settings survive persistence while unknown modes are discarded',()=>{

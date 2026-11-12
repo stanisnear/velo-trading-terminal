@@ -13,6 +13,10 @@ This release addresses the failure paths behind missing offline settlements and 
 | Account valuation during execution | Cash, positions and escrow are read at one block |
 | Balance history | Separate verified basis; unrealized PnL cannot enter the balance chart |
 | Social and account identity | Session restoration, media authorization, notification retraction and position-state regression suites pass |
+| Shared-position PnL | V4's net quote is used directly; entry fees are counted once and all terms use the same block |
+| Receipt identity | Multiple entries in one transaction stay distinct; same-block opens and closes recover verified opening terms |
+| Notification access | Recipient-only reads, read-state updates and validated social events replace historical permissive policies |
+| Verified history | Browser clients cannot insert, change or delete server-verified receipt records |
 
 Read-only archive recovery rebuilt the existing account's balance checkpoints; the HYPE liquidation remains linked to its actual receipt. No trading balances or contract state were changed by this recovery.
 

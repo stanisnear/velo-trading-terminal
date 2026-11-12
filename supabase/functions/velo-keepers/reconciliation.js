@@ -81,6 +81,16 @@ export async function reconcileReceipt({client,perps=ENGINE,hash,store}) {
           originalNotional_6:terms.collateralUSDC_6*BigInt(terms.leverage)};
       }else{
         p=await client.readContract({address:perps,abi,functionName:'getPosition',args:[a.tradeId],blockNumber:block.number-1n});
+        // A separate transaction can open and close a position in one block.
+        // In that case it does not exist at the preceding block boundary.
+        if(same(p.owner,ZERO)){
+          const candidates=await client.getLogs({address:perps,event:abi.find(e=>e.type==='event'&&e.name==='PositionOpened'),
+            args:{tradeId:a.tradeId,trader},fromBlock:block.number,toBlock:block.number,strict:true});
+          const opening=candidates.find(l=>!l.removed&&same(l.blockHash,block.hash)&&l.logIndex<event.log.logIndex&&
+            l.args.tradeId===a.tradeId&&same(l.args.trader,trader)&&l.args.pairIndex===a.pairIndex);
+          if(opening)p={...opening.args,owner:trader,openedAt:block.timestamp,
+            originalNotional_6:opening.args.collateralUSDC_6*BigInt(opening.args.leverage)};
+        }
         if(!same(p.owner,trader))throw Error('Settlement opening state unavailable');
       }
       const close=event.eventName==='PositionClosed'?decodeConfirmedClose(receipt,perps,a.tradeId,trader):null;

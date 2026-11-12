@@ -105,7 +105,8 @@ async function readPosition(data: TradeShare, mark?: number, rpc: any = client):
     tradeId = closed[0].tradeId;
     data = {...data,tradeId:tradeId.toString()};
   }
-  const raw = await rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'getPosition', args: [tradeId] });
+  const blockNumber = await rpc.getBlockNumber();
+  const raw = await rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'getPosition', args: [tradeId], blockNumber });
   if (raw.owner !== '0x0000000000000000000000000000000000000000') {
     if (raw.owner.toLowerCase() !== trader.toLowerCase()) throw new Error('Position owner does not match this share.');
     const market = V4_TRADING_MARKETS.find(m => m.contractIndex === Number(raw.pairIndex));
@@ -113,12 +114,13 @@ async function readPosition(data: TradeShare, mark?: number, rpc: any = client):
     const price = Number(raw.entryPrice_E18) / 1e18;
     const current = mark && Number.isFinite(mark) && mark > 0 ? mark : data.markPrice || price;
     const [risk, openFee, quote] = await Promise.all([
-      rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'marketRisk', args: [Number(raw.pairIndex)] }),
-      rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'positionOpenFee', args: [tradeId] }),
-      rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'quoteClose', args: [tradeId, BigInt(Math.round(current * 1e18)), false] }),
+      rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'marketRisk', args: [Number(raw.pairIndex)], blockNumber }),
+      rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'positionOpenFee', args: [tradeId], blockNumber }),
+      rpc.readContract({ address, abi: VELO_PERPS_V4_ABI, functionName: 'quoteClose', args: [tradeId, BigInt(Math.round(current * 1e18)), false], blockNumber }),
     ]);
     const collateral = Number(raw.collateralUSDC_6) / 1e6, fee = Number(openFee) / 1e6;
-    const pnl = Number(quote.pnl) / 1e6 - fee;
+    // V4 quoteClose already includes the entry fee, just like PositionClosed.
+    const pnl = Number(quote.pnl) / 1e6;
     return { ...data, pair: market.id, side: raw.isLong ? 'LONG' : 'SHORT', leverage: Number(raw.leverage),
       entryPrice: price, markPrice: current, size: Number(raw.originalNotional_6) / 1e6, collateral: collateral + fee,
       openedAt: Number(raw.openedAt) * 1000, pnl, pnlPct: pnl / (collateral + fee) * 100, status: 'OPEN', updatedAt: Date.now(),

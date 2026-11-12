@@ -54,6 +54,22 @@ test('book checkpoints fail closed on inconsistent ownership',async()=>{
  f.client.readContract=async({functionName})=>functionName==='balanceOf'?100n:functionName==='getTraderTrades'?[1n]:functionName==='getTraderOrders'?[]:{...position,owner:engine};
  await assert.rejects(balanceCheckpoint(f.client,engine,owner,block),/ownership/);
 });
+test('an entry and close in separate transactions of one block recover the opening terms',async()=>{
+ const close=log('PositionClosed',{tradeId:16n,trader:owner,pairIndex:20},[80n*10n**18n,-1000000n,99000000n,1000000n],30);
+ const f=fixture([close]),read=f.client.readContract;
+ f.client.readContract=async(a)=>a.functionName==='getPosition'?{owner:'0x'+'00'.repeat(20)}:read(a);
+ const opening={removed:false,blockHash,logIndex:10,args:{tradeId:16n,trader:owner,pairIndex:20,
+  isLong:true,leverage:10,entryPrice_E18:80n*10n**18n,collateralUSDC_6:99000000n}};
+ f.client.getLogs=async(q)=>{assert.equal(q.fromBlock,block.number);assert.equal(q.toBlock,block.number);return [opening];};
+ await reconcileReceipt({...f,perps:engine,hash});
+ assert.equal(f.applied[0].accounts[0].history[0].size,990);
+ assert.equal(f.applied[0].accounts[0].history[0].pnl,-1);
+ for(const invalid of [{...opening,logIndex:40},{...opening,blockHash:hash},{...opening,removed:true}]){
+  f.client.getLogs=async()=>[invalid];
+  await assert.rejects(reconcileReceipt({...f,perps:engine,hash}),/opening state unavailable/);
+ }
+ assert.equal(f.applied.length,1,'unverified opening terms never acknowledge a settlement');
+});
 test('indexer never skips failed ingestion and retains failed jobs for retry',async()=>{
  let failIngest=true;const calls=[];
  const client={getBlockNumber:async()=>56500000n,getLogs:async()=>[],getTransactionReceipt:async()=>{throw Error('RPC unavailable');}};

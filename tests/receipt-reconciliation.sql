@@ -31,5 +31,15 @@ begin
   then raise exception 'Verified result missing'; end if;
  perform public.velo_reconcile('apply',jsonb_build_object('engine',e,'hash',h,'accounts','[]'::jsonb));
  if not exists(select 1 from velo_internal.receipt_jobs where engine=e and hash=h and completed_at is not null) then raise exception 'Successful receipt not acknowledged'; end if;
+ -- Two same-market entries in a single transaction must remain separate rows.
+ perform public.velo_reconcile('apply',jsonb_build_object('engine',e,'hash',h,'accounts',jsonb_build_array(jsonb_build_object('trader',w,
+  'history',jsonb_build_array(
+   jsonb_build_object('id','cccccccc-bbbb-5ccc-8ddd-eeeeeeeeeeee','action','OPEN','pair','BTC/USD','side','LONG',
+    'entry_price',100,'size',100,'leverage',1,'created_at',now(),'opened_at',now(),'velo_trade_id',999999997,'open_tx_hash',h,'log_index',2),
+   jsonb_build_object('id','dddddddd-bbbb-5ccc-8ddd-eeeeeeeeeeee','action','OPEN','pair','BTC/USD','side','LONG',
+    'entry_price',100,'size',200,'leverage',2,'created_at',now(),'opened_at',now(),'velo_trade_id',999999998,'open_tx_hash',h,'log_index',3)),
+  'closes','[]'::jsonb))));
+ if (select count(*) from public.trade_history where engine_address=e and action='OPEN' and open_tx_hash=h)<>2 then
+  raise exception 'Batched entries merged'; end if;
 end $$;
 rollback;

@@ -937,9 +937,7 @@ export async function createNotification(userId: string, type: string, message: 
  * Create a notification for ANOTHER user (e.g. the recipient of a transfer).
  * RLS on the notifications table only allows a user to insert rows where
  * user_id = auth.uid(), so cross-user inserts go through a SECURITY DEFINER
- * RPC that bypasses the policy after server-side validation. If the RPC
- * isn't deployed yet, we silently fall back to the direct insert (works in
- * environments with permissive RLS during early dev).
+ * RPC that validates the underlying social event before creating the alert.
  */
 export async function createNotificationForUser(
   targetUserId: string,
@@ -960,14 +958,6 @@ export async function createNotificationForUser(
     p_comment_id: commentId || null,
   });
   if (!error) return;
-  // Best-effort fallback for environments where the RPC isn't deployed yet.
-  if ((error as any).code === '42883' || /function .* does not exist/i.test(error.message)) {
-    const { error: insertErr } = await supabase
-      .from('notifications')
-      .insert({ user_id: targetUserId, type, message, related_id: relatedId || null });
-    if (insertErr) throw new Error(`fallback notifications insert failed: ${insertErr.message}`);
-    return;
-  }
   // Throw so the caller (App.tsx VeloSendModal onSuccess) can surface a toast
   // — silently logging here meant the sender never saw why the receiver got
   // nothing.
