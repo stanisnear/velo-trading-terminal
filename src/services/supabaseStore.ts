@@ -686,6 +686,9 @@ export async function fetchTradeHistory(userId: string, limit = Infinity): Promi
     orderlyOrderId:   r.orderly_order_id != null ? Number(r.orderly_order_id) : undefined,
     orderlyOrderUrl:  r.orderly_order_url || undefined,
     txHash:           r.tx_hash || undefined,
+    positionId:       r.velo_trade_id != null ? `velo_${r.velo_trade_id}` : undefined,
+    openTxHash:       r.open_tx_hash || undefined,
+    closeTxHash:      r.close_tx_hash || undefined,
   }));
 }
 
@@ -706,6 +709,7 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
     size:           trade.size,
     pnl:            trade.pnl,
     action:         trade.action || 'OPEN',
+    created_at:     new Date(trade.timestamp).toISOString(),
     copy_trader_id: trade.copyTraderId || null,
   };
   const enrichedPayload = {
@@ -721,6 +725,9 @@ export async function insertTradeHistory(userId: string, trade: TradeHistoryItem
     orderly_order_id:  trade.orderlyOrderId || null,
     orderly_order_url: trade.orderlyOrderUrl || null,
     tx_hash:           trade.txHash || null,
+    velo_trade_id:     /^velo_\d+$/.test(trade.positionId || '') ? trade.positionId!.slice(5) : null,
+    open_tx_hash:      trade.openTxHash || (trade.action === 'OPEN' ? trade.txHash : null) || null,
+    close_tx_hash:     trade.closeTxHash || (trade.action !== 'OPEN' ? trade.txHash : null) || null,
   };
 
   let { error } = await supabase.from('trade_history').upsert(onChainPayload, { onConflict: 'id', ignoreDuplicates: true });

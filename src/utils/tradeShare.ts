@@ -24,6 +24,7 @@ export type TradeShare = {
   trader?: string;
   txHash?: string;
   openTxHash?: string;
+  closeTxHash?: string;
   openedAt?: number;
   closedAt?: number;
   updatedAt?: number;
@@ -48,6 +49,6 @@ export function parseTradeShare(value: unknown): TradeShare | undefined {
   if (v.chainId === 84532) result.chainId = 84532;
   if (typeof v.tradeId === 'string' && /^[0-9]{1,20}$/.test(v.tradeId)) result.tradeId = v.tradeId;
   for (const name of ['contract','trader'] as const) if (typeof v[name] === 'string' && /^0x[0-9a-f]{40}$/i.test(v[name])) result[name] = v[name];
-  for (const name of ['txHash','openTxHash'] as const) if (typeof v[name] === 'string' && /^0x[0-9a-f]{64}$/i.test(v[name])) result[name] = v[name];
+  for (const name of ['txHash','openTxHash','closeTxHash'] as const) if (typeof v[name] === 'string' && /^0x[0-9a-f]{64}$/i.test(v[name])) result[name] = v[name];
   return result;
 }

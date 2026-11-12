@@ -81,6 +81,22 @@ function engineFixture(overrides={}) {
  return {calls,writes,deps:{db,clients:{publicClient,account:{address:P}},now:()=>NOW,fetch,
   withSigner:async(_clients,action)=>action(async x=>{writes.push(x);return{hash:'0xabc',status:'success'}})}};
 }
+test('V4 keeper confirms the transaction and persists its settlement before reporting success',async()=>{
+ for(const failure of [false,true]) {
+  const f=engineFixture(),read=f.deps.clients.publicClient.readContract;
+  f.deps.clients.publicClient.readContract=async p=>{
+   if(p.functionName==='VERSION')return 4;
+   if(p.functionName==='nextTradeId')return 2n;
+   if(p.functionName==='getPosition')return {...order,openedAt:1n};
+   if(p.functionName==='liquidationCheck')return true;
+   return read(p);
+  };
+  let saved=0;f.deps.persistSettlement=async p=>{assert.equal(p.hash,'0xabc');assert.equal(p.tradeId,1);saved++;if(failure)throw Error('Database unavailable');};
+  const result=await runEngine('cron-liquidate',{...input,dryRun:false},getEnv,f.deps);
+  assert.equal(saved,1);assert.equal(result.executed.length,1);assert.equal(result.ok,!failure);
+  if(failure)assert.equal(result.errors[0].code,'SETTLEMENT_SYNC_FAILED');
+ }
+});
 test('dry run scans and persists progress but never signs or simulates a transaction',async()=>{
  const f=engineFixture();const r=await runKeeper(job,input,getEnv,f.deps);
  assert.equal(r.ok,true);assert.equal(r.triggered,1);assert.equal(r.executed.length,0);assert.equal(f.writes.length,0);

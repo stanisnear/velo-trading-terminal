@@ -1975,10 +1975,10 @@ const App = () => {
       const historyItem: TradeHistoryItem = {
         id: result.id, pair: pos.pair, side: pos.side, entryPrice: pos.entryPrice,
         exitPrice: result.exitPrice, size: pos.size * fraction, pnl: result.pnlUSDC,
-        timestamp: Date.now(), openedAt: pos.timestamp || pos.openedAt,
+        timestamp: result.timestamp || Date.now(), openedAt: pos.timestamp || pos.openedAt,
         leverage: pos.leverage, marginMode: pos.marginMode,
         liquidationPrice: pos.liquidationPrice, action: result.action,
-        onChain: true, txHash: result.txHash,
+        onChain: true, txHash: result.txHash, closeTxHash: result.txHash, openTxHash: pos.openTxHash,
         positionId: `velo_${result.tradeId}`,
         orderlyOrderUrl: `https://sepolia.basescan.org/tx/${result.txHash}`,
       };
@@ -1996,7 +1996,7 @@ const App = () => {
         traderHandle: user.handle, status: result.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED',
         contract: VELO_PERPS_ADDRESS, chainId: 84532, tradeId: result.tradeId.toString(),
         trader: veloPerpsTrading.traderAddress, txHash: result.txHash,
-        ...positionShareMetadata(pos,user.tradeHistory),closedAt:Date.now(),
+        ...positionShareMetadata(pos,user.tradeHistory),closeTxHash:result.txHash,closedAt:result.timestamp || Date.now(),
       } as ShareCardData;
     };
 
@@ -2011,6 +2011,17 @@ const App = () => {
       if (!user || !isWalletConnected || !veloPerpsTrading.traderAddress) { previous.clear(); return; }
       if (veloPerpsTrading.isInitialLoading || veloPerpsTrading.readError || !publicClient) return;
       const currentIds = new Set(veloPerpsTrading.openPositions.map(p => p.tradeId.toString()));
+      // Seed recovery from durable history too: a keeper may have settled the
+      // position while this device was offline, before any local poll saw it.
+      for (const h of user.tradeHistory) {
+        const id = h.positionId?.match(/^velo_(\d+)$/)?.[1];
+        const settlements = user.tradeHistory.filter(s => s.positionId === h.positionId && (s.action === 'CLOSE' || s.action === 'LIQUIDATION'));
+        const fullySettled = settlements.some(s => s.action === 'LIQUIDATION') || settlements.reduce((sum,s) => sum+s.size,0) >= h.size * 0.999999;
+        if (h.action === 'OPEN' && id && !fullySettled && !previous.has(id)) previous.set(id, {
+          pair:h.pair,side:h.side,entryPrice:h.entryPrice,size:h.size,leverage:h.leverage || 1,
+          openedAt:h.openedAt || h.timestamp,marginMode:h.marginMode,openTxHash:h.openTxHash || h.txHash,
+        });
+      }
       for (const [id, pos] of previous) {
         if (currentIds.has(id) || closureLookups.current.has(id)) continue;
         if (closedVeloTradeIdsRef.current.has(id)) { previous.delete(id); continue; }
@@ -4907,6 +4918,9 @@ const App = () => {
                       : result.entryPrice * (1 + 0.9 / leverage),
                     action: 'OPEN',
                     onChain: true,
+                    positionId: `velo_${result.tradeId}`,
+                    txHash: result.txHash,
+                    openTxHash: result.txHash,
                     orderlyOrderId: undefined,
                     orderlyOrderUrl: result.explorerUrl,
                 } as any;

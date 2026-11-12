@@ -1,4 +1,5 @@
-import { decodeEventLog, parseAbi, type Address, type PublicClient, type Hex, type TransactionReceipt } from 'viem';
+import { createPublicClient, http, decodeEventLog, parseAbi, type Address, type PublicClient, type Hex, type TransactionReceipt } from 'viem';
+import { baseSepolia } from 'viem/chains';
 import { v5 as uuidv5 } from 'uuid';
 
 export const CLOSE_EVENTS = parseAbi([
@@ -14,6 +15,7 @@ export interface ConfirmedClose {
   tradeId: bigint;
   logIndex: number;
   blockNumber: bigint;
+  timestamp?: number;
   action: 'CLOSE' | 'LIQUIDATION';
   reason: 'CLOSE' | 'TAKE_PROFIT' | 'STOP_LOSS' | 'LIQUIDATION';
   fractionBps: number;
@@ -82,15 +84,41 @@ export async function waitForSuccessfulReceipt(client: PublicClient, hash: Hex):
   return receipt;
 }
 
+const historyClient = createPublicClient({ chain: baseSepolia, transport: http('https://base-sepolia-rpc.publicnode.com', { timeout: 6000, retryCount: 0 }) });
+const closeScanCursor = new Map<string, bigint>();
+export async function findPositionCloseReceipt(client: PublicClient, contract: Address, tradeId: bigint,
+  trader: Address, history: Pick<PublicClient, 'getLogs'> = historyClient): Promise<TransactionReceipt | null> {
+  const latest = await client.getBlockNumber();
+  const floor = contract.toLowerCase() === '0xe9aecfbc5814ce3b2db0107594d80f054e6db52f' ? 48312993n : 0n;
+  const key = `${contract.toLowerCase()}:${trader.toLowerCase()}:${tradeId}`;
+  let to = closeScanCursor.get(key) ?? latest;
+  // Bounded work per refresh, with progress retained until receipt recovery.
+  // The trading RPC's 200-block log limit must not constrain historical reads.
+  for (let page = 0; page < 8 && to >= floor; page++) {
+    const from = to - floor >= 49999n ? to - 49999n : floor;
+    const logs: Array<{ removed:boolean; transactionHash:Hex; args:{tradeId:bigint;trader:Address} }> = await history.getLogs({ address: contract, event: CLOSE_EVENTS[0],
+      args: { tradeId, trader }, fromBlock: from, toBlock: to, strict: true });
+    if (floor === 0n) logs.push(...await history.getLogs({ address:contract,event:CLOSE_EVENTS[2],fromBlock:from,toBlock:to,strict:true }));
+    const log = logs.find(l => !l.removed && l.args.tradeId === tradeId && l.args.trader?.toLowerCase() === trader.toLowerCase());
+    if (log) {
+      const receipt = await client.getTransactionReceipt({ hash: log.transactionHash });
+      closeScanCursor.delete(key);
+      return receipt;
+    }
+    if (from === floor) { closeScanCursor.delete(key); return null; }
+    to = from - 1n;
+    closeScanCursor.set(key, to);
+  }
+  return null;
+}
+
 export async function findRecentPositionClose(client: PublicClient, contract: Address, tradeId: bigint,
   trader: Address, collateralUSDC: number, marginMode: string): Promise<ConfirmedClose | null> {
-  const latest = await client.getBlockNumber();
-  const logs = await client.getLogs({ address: contract, events: [CLOSE_EVENTS[0], CLOSE_EVENTS[2]],
-    fromBlock: latest > 10000n ? latest - 10000n : 0n, toBlock: latest, strict: true });
-  const log = logs.find(l => l.args.tradeId === tradeId && l.args.trader?.toLowerCase() === trader.toLowerCase() && !l.removed);
-  if (!log) return null; // Missing evidence is never a liquidation.
-  const receipt = await client.getTransactionReceipt({ hash: log.transactionHash });
-  return decodeConfirmedClose(receipt, contract, tradeId, trader, collateralUSDC, marginMode);
+  const receipt = await findPositionCloseReceipt(client, contract, tradeId, trader);
+  if (!receipt) return null;
+  const result = decodeConfirmedClose(receipt, contract, tradeId, trader, collateralUSDC, marginMode);
+  if (result) result.timestamp = Number((await client.getBlock({ blockNumber: receipt.blockNumber })).timestamp) * 1000;
+  return result;
 }
 
 const ORDER_EVENTS = parseAbi([

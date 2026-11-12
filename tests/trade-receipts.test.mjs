@@ -10,7 +10,7 @@ await mkdir('audit', { recursive: true });
 const folder = await mkdtemp(path.resolve('audit/receipt-tests-'));
 const file = path.join(folder, 'service.mjs');
 await build({stdin:{contents:"export * from './src/services/tradeReceipts'; export {fetchOpenPositions,fetchConditionalOrders,partialClose} from './src/services/veloPerpsService';",resolveDir:process.cwd(),loader:'ts'},outfile:file,bundle:true,platform:'node',format:'esm',define:{'import.meta.env':'{}'},plugins:[{name:'oracle-fixture',setup(b){b.onResolve({filter:/pythConnection$/},()=>({path:'oracle',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const fetchPyth=()=>{throw Error("Not used")};',loader:'js'}));}}]});
-const {decodeConfirmedClose,decodeOrderOutcome,waitForSuccessfulReceipt,fetchOpenPositions,fetchConditionalOrders,partialClose}=await import(pathToFileURL(file));
+const {decodeConfirmedClose,decodeOrderOutcome,waitForSuccessfulReceipt,fetchOpenPositions,fetchConditionalOrders,partialClose,findPositionCloseReceipt}=await import(pathToFileURL(file));
 const contract='0x41fDb544D7247a5ddc6B4C06F29D09f2b20de907';
 const trader='0x0000000000000000000000000000000000000001';
 const hash='0x'+'ab'.repeat(32);
@@ -81,3 +81,22 @@ test('conditional fill uses linked trade ID and actual opening event',()=>{
  assert.equal(result.kind,'opened');assert.equal(result.tradeId,108n);assert.equal(result.entryPrice,105.14079832);assert.equal(result.size,1000);
 });
 test.after(()=>rm(folder,{recursive:true,force:true}));
+
+test('offline settlement recovery pages beyond the old 10,000-block window and keeps progress',async()=>{
+ const ranges=[];let pages=0;
+ const rpc={getBlockNumber:async()=>56445514n,getTransactionReceipt:async()=>receipt([closed()])};
+ const history={getLogs:async q=>{ranges.push(q);pages++;return pages===10?[{transactionHash:hash,args:{tradeId:108n,trader},removed:false}]:[];}};
+ const engine='0xe9aecfbc5814ce3b2db0107594d80f054e6db52f';
+ assert.equal(await findPositionCloseReceipt(rpc,engine,108n,trader,history),null);
+ const recovered=await findPositionCloseReceipt(rpc,engine,108n,trader,history);
+ assert.equal(recovered.transactionHash,hash);assert.equal(pages,10);
+ assert.ok(ranges.every(q=>q.toBlock-q.fromBlock<=49999n&&q.args.tradeId===108n&&q.args.trader===trader));
+ assert.equal(ranges[8].toBlock,ranges[7].fromBlock-1n,'retry resumes without skipping or rescanning pages');
+});
+
+test('V4 liquidation preserves the PositionClosed net amounts and deterministic event identity',()=>{
+ const liquidated=event('PositionLiquidated',{tradeId:108n,trader,liquidator:zeroAddress,exitPrice_E18:96000000000000000000n,bountyUSDC_6:1000000n});
+ const result=decodeConfirmedClose(receipt([closed(),liquidated]),contract,108n,trader,1000);
+ assert.equal(result.action,'LIQUIDATION');assert.equal(result.pnlUSDC,-63.745528);assert.equal(result.payoutUSDC,997.876912);
+ assert.equal(result.id,decodeConfirmedClose(receipt([closed()]),contract,108n,trader).id);
+});

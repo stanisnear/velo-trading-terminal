@@ -3,7 +3,7 @@ import { baseSepolia } from 'viem/chains';
 import { baseSepoliaTransport } from './baseTransport.mjs';
 import { VELO_PERPS_V4_ABI } from './veloPerpsV4Abi';
 import { V4_TRADING_MARKETS } from '../../shared/markets.mjs';
-import { decodeConfirmedClose } from './tradeReceipts';
+import { decodeConfirmedClose, findPositionCloseReceipt } from './tradeReceipts';
 import type { TradeShare } from '../utils/tradeShare';
 
 export const SHARED_ENGINE = '0xe9aecfbc5814ce3b2db0107594d80f054e6db52f';
@@ -13,14 +13,13 @@ const client = createPublicClient({ chain: baseSepolia, transport: baseSepoliaTr
 // the existing public backup as a read-only history source; trading is unchanged.
 const historyClient = createPublicClient({ chain: baseSepolia, transport: http('https://base-sepolia-rpc.publicnode.com',{timeout:6000,retryCount:0}) });
 const positionLogs = (query: any, rpc: any) => rpc === client && query.toBlock - query.fromBlock > 180n ? historyClient.getLogs(query) : rpc.getLogs(query);
-const scanCursor = new Map<string, bigint>();
 const openEvent = VELO_PERPS_V4_ABI.find(event => event.type === 'event' && event.name === 'PositionOpened')!;
 export type PositionEvidence = { openTxHash?: string; closeTxHash?: string; openedAt?: number; closedAt?: number; opening?: Pick<TradeShare,'pair'|'side'|'leverage'|'entryPrice'|'size'> };
 const evidenceCache = new Map<string, { at: number; promise: Promise<PositionEvidence> }>();
 // Receipt lookups run on demand in the details dialog, never for every feed tick.
 export async function readPositionEvidence(data: TradeShare, rpc: any = client): Promise<PositionEvidence> {
   if (!hasPositionReference(data) || !data.tradeId) return {};
-  const key = `${data.tradeId}:${data.trader}:${data.openTxHash || ''}:${data.txHash || ''}:${data.openedAt || ''}`;
+  const key = `${data.tradeId}:${data.trader}:${data.openTxHash || ''}:${data.closeTxHash || data.txHash || ''}:${data.openedAt || ''}`;
   if (rpc === client) {
     const cached = evidenceCache.get(key);
     if (cached && Date.now() - cached.at < 60_000) return cached.promise;
@@ -53,7 +52,7 @@ async function positionEvidence(data: TradeShare, rpc: any): Promise<PositionEvi
     if(rpc.getBlock)try{const block=await rpc.getBlock({blockNumber:receipt.blockNumber});result[kind==='open'?'openedAt':'closedAt']=Number(block.timestamp)*1000;}catch{/* The verified hash is still useful. */}
     return true;
   };
-  await Promise.allSettled([inspect(data.openTxHash,'PositionOpened'),data.status!=='OPEN'?inspect(data.txHash,'PositionClosed'):Promise.resolve(false)]);
+  await Promise.allSettled([inspect(data.openTxHash,'PositionOpened'),inspect(data.closeTxHash || (data.status!=='OPEN' ? data.txHash : undefined),'PositionClosed')]);
   if(!result.openTxHash && data.openedAt && rpc.getBlock && rpc.getLogs)try{
     // Estimate a small log window from observed block timestamps. Matching the
     // engine, owner and trade ID still requires receipt verification below.
@@ -81,7 +80,7 @@ export function hasPositionReference(data: Partial<TradeShare>) {
 const recentReads = new Map<string, {at:number;promise:Promise<TradeShare>}>();
 export async function readSharedPosition(data: TradeShare, mark?: number, rpc: any = client): Promise<TradeShare> {
   if (rpc !== client) return readPosition(data, mark, rpc);
-  const key = `${data.contract}:${data.tradeId}:${data.trader}:${data.txHash || ''}`;
+  const key = `${data.contract}:${data.tradeId}:${data.trader}:${data.closeTxHash || data.txHash || ''}`;
   let entry = recentReads.get(key);
   if (!entry || Date.now() - entry.at > 8500) {
     const promise = readPosition(data, mark, rpc);
@@ -126,20 +125,17 @@ async function readPosition(data: TradeShare, mark?: number, rpc: any = client):
       v4: { collateral, openFee: fee, spreadRatio: Math.abs(Number(quote.price) / 1e18 - current) / current,
         borrowBpsPerHour: Number(risk[6]), maintenanceBps: Number(risk[4]) } };
   }
-  let hash = data.txHash;
-  const key = `${address}:${tradeId}`;
-  if (!hash) {
-    const latest = await rpc.getBlockNumber();
-    const to = scanCursor.get(key) ?? latest;
-    const from = to > 9999n ? to - 9999n : 0n;
-    const logs = await positionLogs({ address, event: closeEvent, args: { tradeId, trader }, fromBlock: from, toBlock: to, strict: true },rpc);
-    hash = logs.find((log: any) => !log.removed)?.transactionHash;
-    if (!hash) { scanCursor.set(key, from > 0n ? from - 1n : latest); throw new Error('Refreshing settlement from the chain.'); }
+  const hash = data.closeTxHash || (data.status !== 'OPEN' ? data.txHash : undefined);
+  let receipt = knownReceipt || (hash ? await rpc.getTransactionReceipt({ hash: hash as Hex }) : undefined);
+  let closed = receipt && decodeConfirmedClose(receipt, address, tradeId, trader, data.collateral);
+  // Older shares sometimes saved the opening hash as txHash. That receipt is
+  // not a settlement; continue searching instead of retrying it forever.
+  if (!closed) {
+    receipt = await findPositionCloseReceipt(rpc, address, tradeId, trader, rpc === client ? historyClient : rpc);
+    closed = receipt && decodeConfirmedClose(receipt, address, tradeId, trader, data.collateral);
   }
-  const receipt = knownReceipt || await rpc.getTransactionReceipt({ hash: hash as Hex });
-  const closed = decodeConfirmedClose(receipt, address, tradeId, trader, data.collateral);
   if (!closed) throw new Error('Refreshing settlement from the chain.');
-  scanCursor.delete(key);
+  const closedAt = rpc.getBlock ? Number((await rpc.getBlock({blockNumber:receipt.blockNumber})).timestamp) * 1000 : data.closedAt;
   // V4 emits net PnL including the opening fee: payout - net PnL is the
   // original gross margin, so a post cannot supply its own return denominator.
   const collateral = closed.payoutUSDC - closed.pnlUSDC;
@@ -147,5 +143,5 @@ async function readPosition(data: TradeShare, mark?: number, rpc: any = client):
   const market = V4_TRADING_MARKETS.find(m=>m.contractIndex===Number(settlement?.pairIndex));
   return { ...data, pair: market?.id || data.pair, status: closed.action === 'LIQUIDATION' ? 'LIQUIDATED' : 'CLOSED', closePrice: closed.exitPrice,
     collateral, pnl: closed.pnlUSDC, pnlPct: collateral > 0 ? closed.pnlUSDC / collateral * 100 : 0,
-    txHash: closed.txHash, updatedAt: Date.now() };
+    txHash: closed.txHash, closeTxHash: closed.txHash, closedAt, updatedAt: Date.now() };
 }

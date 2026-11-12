@@ -26,6 +26,8 @@ export interface TradeHistoryItem {
   copyTraderId?: string;
   action?: 'OPEN' | 'CLOSE' | 'LIQUIDATION';
   positionId?: string;
+  openTxHash?: string;
+  closeTxHash?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
   onChain?: boolean;            // true if routed through Orderly on Base Sepolia
   orderlyOrderId?: number;      // Orderly matching-engine order id

@@ -5,6 +5,7 @@ import { chainClients, withSigner } from '../_shared/signer.js';
 import { normalisePrice, triggerFor, scanIds } from './math.js';
 import { ORDER_ABI, CORE_ABI, POSITION_V3_ABI, POSITION_V2_ABI, PYTH_FEE_ABI, VELO_PERPS_V4_ABI } from './generated/abi.js';
 import { builderAttribution } from '../../../src/services/baseBuilderAttribution.mjs';
+import { persistKeeperSettlement } from './settlement.js';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const PYTH_VIEW = [{ type: 'function', name: 'PYTH', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }];
@@ -129,6 +130,13 @@ export async function runEngine(job, input, getEnv, deps = {}, contract) {
         });
         if (receipt.status !== 'success') throw new RuntimeError('TRANSACTION_REVERTED');
         result.executed.push({ id, trigger, hash: receipt.hash });
+        if (v4 && !orderJob) {
+          try {
+            await (deps.persistSettlement || persistKeeperSettlement)({ publicClient,perps,tradeId:id,position,hash:receipt.hash,getEnv });
+          } catch {
+            result.errors.push({ id,code:'SETTLEMENT_SYNC_FAILED' });
+          }
+        }
       } catch (error) {
         result.errors.push({ id, code: error instanceof RuntimeError ? error.code : 'EXECUTION_CHECK_FAILED' });
         // A pending transaction must be resolved before any new one is signed.

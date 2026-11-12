@@ -33,10 +33,14 @@ test('settlement changes a previously open share to the receipt PnL and exit',as
   const abi=parseAbi(['event PositionClosed(uint256 indexed tradeId,address indexed trader,uint16 indexed pairIndex,uint128 exitPrice_E18,int256 pnlUSDC_6,uint64 payoutUSDC_6,uint64 feeUSDC_6)']);
   const inputs=abi[0].inputs.filter(x=>!x.indexed);
   const log={address:SHARED_ENGINE,logIndex:2,topics:encodeEventTopics({abi,eventName:'PositionClosed',args:{tradeId:1n,trader,pairIndex:0}}),data:encodeAbiParameters(inputs,[110000000000000000000n,1900000n,11900000n,100000n])};
-  const rpc={readContract:async()=>({owner:'0x0000000000000000000000000000000000000000'}),getBlockNumber:async()=>50000n,getLogs:async()=>[{transactionHash:hash}],getTransactionReceipt:async()=>({status:'success',transactionHash:hash,blockNumber:49999n,logs:[log]})};
+  const rpc={readContract:async()=>({owner:'0x0000000000000000000000000000000000000000'}),getBlockNumber:async()=>56445514n,getLogs:async()=>[{transactionHash:hash,args:{tradeId:1n,trader}}],getTransactionReceipt:async()=>({status:'success',transactionHash:hash,blockNumber:56445514n,logs:[log]})};
   const result=await readSharedPosition({...share,collateral:5000},101,rpc);
   assert.equal(result.status,'CLOSED');assert.equal(result.pnl,1.9);assert.equal(result.closePrice,110);assert.equal(result.txHash,hash);
   assert.equal(result.collateral,10);assert.equal(result.pnlPct,19,'return denominator comes from the settlement, not the post');
+  const stored=await readSharedPosition({...share,status:'CLOSED',closeTxHash:hash},101,{...rpc,getLogs:async()=>{throw Error('Known settlement must not scan');}});
+  assert.equal(stored.closeTxHash,hash);
+  const stale=await readSharedPosition({...share,txHash:'0x'+'cd'.repeat(32)},101,rpc);
+  assert.equal(stale.status,'CLOSED','an opening hash on an OPEN post cannot block settlement recovery');
 });
 test('posts cannot redirect reads to an arbitrary contract, chain or owner',async()=>{
   assert.equal(hasPositionReference({...share,chainId:1}),false);
