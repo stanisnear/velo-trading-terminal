@@ -144,7 +144,7 @@ test('real chart components follow first history, timeframe changes and explicit
   await act(async()=>root.render(React.createElement(History,{owner:'remote-b',value:201,ready:true,remote})));
   assert.equal(observed.at(-1).value,201);assert.equal(observed[0].value,100);
   assert.equal(writes.length,1,'live ticks produce at most one shared write in a five-minute bucket');
-  assert.equal(writes[0][0],'remote-b');assert.equal(writes[0][3][0].valuationVersion,2);
+  assert.equal(writes[0][0],'remote-b');assert.equal(writes[0][3][0].valuationVersion,3);
 
  }finally{await act(async()=>root.unmount());dom.window.close();await rm(dir,{recursive:true,force:true});}
 });

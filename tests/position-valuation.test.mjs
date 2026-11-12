@@ -1,9 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { positionPnl, positionSettlement, triggerPriceForRoe, liquidationEstimate } from '../src/services/positionValuation.mjs';
+import { positionPnl, positionSettlement, triggerPriceForRoe, liquidationEstimate, accountBalance } from '../src/services/positionValuation.mjs';
 const now = 100000000;
 const position = { side:'LONG',entryPrice:100,size:998,leverage:10,timestamp:now,
   v4:{collateral:99.8,openFee:1,spreadRatio:.0002,borrowBpsPerHour:1,maintenanceBps:50} };
+test('book balance excludes unrealized gains and reserves escrow without inventing profit',()=>{
+ assert.equal(accountBalance(899.2,[position]),999);
+ assert.equal(accountBalance(899.2,[{...position,entryPrice:1}]),999,'entry changes do not revalue balance');
+ assert.equal(accountBalance(969,[],[{active:true,collateralUSDC:30}]),999);
+ assert.equal(accountBalance(999,[]),999,'cancel returns the same balance');
+ const settled=positionSettlement(position,120,now).payout;
+ assert.equal(accountBalance(899.2+settled,[]),899.2+settled,'only a settlement realizes the gain');
+ assert.equal(accountBalance(NaN,[]),null);assert.equal(accountBalance(1,[{...position,v4:{}}]),null);
+});
 test('V4 display clamps profit and losses and includes entry, exit and borrowing fees', () => {
   assert.equal(positionPnl(position,0,now),-100.8);
   assert(Math.abs(positionPnl(position,1000,now)-(998-1-.998))<1e-8);

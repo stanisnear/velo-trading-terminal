@@ -33,7 +33,7 @@ export function useEquityHistory(owner:string|undefined,wallet:string|undefined,
     const timestamp=Date.now(),bucket=Math.floor(timestamp/300000);
     if(remoteAttempt.current.key===key&&remoteAttempt.current.bucket===bucket)return;
     remoteAttempt.current={key,bucket};
-    void remote.save(owner,wallet,engine,[{timestamp,value:equity,valuationVersion:2}]).catch(()=>{
+    void remote.save(owner,wallet,engine,[{timestamp,value:equity,valuationVersion:3}]).catch(()=>{
       if(remoteAttempt.current.key===key&&remoteAttempt.current.bucket===bucket)remoteAttempt.current={key,bucket:0};
     });
   },[key,ready,equity,remote]);

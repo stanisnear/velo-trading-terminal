@@ -57,7 +57,7 @@ import { VeloManagePositionModal } from './components/VeloManagePositionModal';
 import { VeloCrossAccountModal } from './components/VeloCrossAccountModal';
 import { VeloAdminPanel } from './components/VeloAdminPanel';
 import { VeloLegacyPositions } from './components/VeloLegacyPositions';
-import { positionPnl, accountPositionPnl, accountEquity, liquidationEstimate } from './services/positionValuation.mjs';
+import { positionPnl, accountPositionPnl, accountEquity, accountBalance, liquidationEstimate } from './services/positionValuation.mjs';
 import { useVeloPerpsTrading } from './services/useVeloPerpsTrading';
 import { uiPairToVeloPair, VELO_PERPS_ADDRESS, VELO_PERPS_ABI, VELO_USDC_BASE, IS_V4 } from './services/veloPerpsService';
 import { SettingsModal } from './components/SettingsModal';
@@ -2514,14 +2514,11 @@ const App = () => {
     const equityReady = !!user && !!walletAddress && (
       veloPerpsTrading.hasAccountSnapshot && !veloPerpsTrading.readError &&
       positions.length === veloPerpsTrading.openPositions.length &&
-      positions.every(p => {
-        const quote=pythPriceStream.getMeta(p.pair);
-        return quote && Math.abs(Date.now()/1000-quote.publishTime)<=60 && quote.price===marketPrices[p.pair];
-      }) &&
       veloPerpsTrading.openPositions.every(p => positions.some(row => row.id === `velo_${p.tradeId}` && row.size === p.notionalUSDC))
     );
+    const balanceForChart = accountBalance(veloPerpsTrading.usdcBalance, positions, veloPerpsTrading.conditionalOrders);
     const equityHistory = useEquityHistory(user?.id, veloPerpsTrading.traderAddress || user?.id,
-      VELO_PERPS_ADDRESS, totalEquity, equityReady, equityStore);
+      VELO_PERPS_ADDRESS, balanceForChart ?? 0, equityReady && balanceForChart !== null, equityStore);
 
     // Cross-margin unrealized — only cross positions lend their gains as
     // additional buying power; isolated positions don't.
@@ -6647,7 +6644,7 @@ const App = () => {
                   onClosePosition={(p, result) => recordConfirmedClose({ pair:p.pair.replace('-', '/'), side:p.isLong?'LONG':'SHORT',
                     size:p.notionalUSDC, entryPrice:p.entryPrice, leverage:p.leverage, marginMode:p.marginMode,
                     timestamp:p.openedAt*1000 }, result, false)}/>}
-                {activeTab === TabView.DASHBOARD && user && <Dashboard pendingOrderCollateral={pendingOrderCollateral} equityHistory={equityHistory} equityReady={equityReady} user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
+                {activeTab === TabView.DASHBOARD && user && <Dashboard accountBalance={balanceForChart} pendingOrderCollateral={pendingOrderCollateral} equityHistory={equityHistory} equityReady={equityReady} user={user} positions={positions} marketPrices={marketPrices} handleClosePosition={handleClosePosition} traders={traders} handleDeposit={handleDeposit} handleWithdraw={handleWithdraw} onEditPosition={handleEditPosition} onViewProfile={handleViewProfile} handleCopyTrade={handleCopyTrade} totalEquity={totalEquity} totalLockedMargin={totalLockedMargin} totalUnrealizedPnl={totalUnrealizedPnl} buyingPower={buyingPower} theme={theme} tradingWalletAddress={burnerAddress}
                   pendingDeposits={pendingDeposits}
                   onResumeOnboarding={() => {
                     if (veloPerpsTrading.usingBurner) setVeloDepositOpen(true);

@@ -6,7 +6,7 @@ export const equityStore: EquityHistoryStore = {
   async load(_owner,wallet,engine) {
     const points:Awaited<ReturnType<EquityHistoryStore['load']>>=[];
     for(let offset=0;;offset+=500){
-      const {data,error}=await supabase.rpc('get_account_equity_history',{
+      const {data,error}=await supabase.rpc('get_account_balance_history',{
         p_trader_address:wallet.toLowerCase(),p_engine_address:engine.toLowerCase(),
       }).range(offset,offset+499);
       if(error)throw error;
@@ -23,10 +23,10 @@ export const equityStore: EquityHistoryStore = {
     const rows=[...buckets].map(([bucket,point])=>({
       user_id:owner,chain_id:84532,trader_address:wallet.toLowerCase(),engine_address:engine.toLowerCase(),
       bucket_at:new Date(bucket).toISOString(),observed_at:new Date(point.timestamp).toISOString(),equity:point.value,
-      source:'observed',valuation_version:point.valuationVersion??1,
+      source:'observed',valuation_version:3,
     }));
     for(let offset=0;offset<rows.length;offset+=250){
-      const {error}=await supabase.from('account_equity_snapshots').upsert(rows.slice(offset,offset+250),{
+      const {error}=await supabase.from('account_balance_snapshots').upsert(rows.slice(offset,offset+250),{
         onConflict:'user_id,chain_id,engine_address,trader_address,bucket_at',ignoreDuplicates:true,
       });
       if(error)throw error;

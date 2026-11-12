@@ -6,7 +6,7 @@ Velo connects market discovery, trading and conversation. This guide follows the
 
 | Page | What you can do |
 | --- | --- |
-| Dashboard | Track account equity and buying power, inspect exposure, explore realized performance and manage funds |
+| Dashboard | Follow live equity, chart account balance without open PnL, inspect exposure, explore realized performance and manage funds |
 | Trade | Read live charts and fills, place market/limit/stop entries and manage positions and TP/SL |
 | Markets | Search, filter, sort and watch the top 50 crypto assets |
 | Coin pages | Explore prices, asset background, official links, statistics, news and the coin's conversation |

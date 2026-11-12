@@ -45,10 +45,11 @@ const deferred = () => { let resolve, reject; const promise = new Promise((a,b) 
 async function setup() {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://fixture.invalid' });
   globalThis.window=dom.window; globalThis.document=dom.window.document; globalThis.localStorage=dom.window.localStorage;
+  Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
   globalThis.IS_REACT_ACT_ENVIRONMENT=true;
   const reads = deferred(); const calls = [];
   const f = globalThis.__tradingFixture = {
-    account: { address, isConnected: true }, client: { getBalance: async()=>1n }, wallet: {},
+    account: { address, isConnected: true }, client: { getBlockNumber:async()=>100n,getBalance: async()=>1n,readContract:async()=>0n }, wallet: {},
     read: ()=>reads.promise,
     write: async name => { calls.push(name); return {txHash:'0x11'}; },
   };

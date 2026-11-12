@@ -1,4 +1,5 @@
 import type { ConfirmedClose } from './tradeReceipts';
+import { assertAccountFresh } from './accountReadGuard.mjs';
 import { requireSafeTestnetAction } from './testnetReleaseGate';
 /**
  * useVeloPerpsTrading
@@ -174,6 +175,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
   const [readError, setReadError] = useState<string | null>(null);
   // Write callbacks outlive loading renders; readiness must belong to the current account.
   const loadedAccountRef = useRef<Address | null>(null);
+  const confirmedRead = useRef({ confirmedAt: 0, failed: false });
   const readyRef = useRef(isReady);
   readyRef.current = isReady;
   const writeLock = useRef(false);
@@ -195,6 +197,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
   const beginWrite = () => {
     if (!readyRef.current || identityRef.current !== traderAddress) throw new Error('Trading wallet changed. Reconnect before submitting.');
     if (loadedAccountRef.current !== traderAddress) throw new Error('Account data is still loading. Please wait before submitting.');
+    assertAccountFresh({ online: navigator.onLine, ...confirmedRead.current });
     const journal = pendingTransaction(traderAddress);
     if (journal) rememberPending(journal.hash);
     if (pendingTxRef.current) throw new Error('A submitted transaction is still awaiting confirmation. Check the transaction link before sending another.');
@@ -242,19 +245,30 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
     const identity = traderAddress;
     const run = (async () => {
       try {
+        // One block for cash, positions and order escrow. Mixing replicas or
+        // blocks across a fill/close can double count or omit collateral.
+        const blockNumber = await publicClient.getBlockNumber();
+        const snapshotClient = { ...publicClient,
+          getBlockNumber: async () => blockNumber,
+          readContract: (args: any) => publicClient.readContract({ ...args, blockNumber }),
+          getBalance: (args: any) => publicClient.getBalance({ ...args, blockNumber }),
+        } as typeof publicClient;
         const [positions, orders, balance, pool, cross, ethBal] = await Promise.all([
-          fetchOpenPositions(publicClient, identity, 'active', marksRef.current), fetchConditionalOrders(publicClient, identity),
-          fetchUsdcBalance(publicClient, VELO_USDC_BASE, identity), fetchPoolBalance(publicClient),
-          fetchCrossTotalBalance(publicClient, identity), publicClient.getBalance({ address: identity }),
+          fetchOpenPositions(snapshotClient, identity, 'active', marksRef.current), fetchConditionalOrders(snapshotClient, identity),
+          fetchUsdcBalance(snapshotClient, VELO_USDC_BASE, identity), fetchPoolBalance(snapshotClient),
+          fetchCrossTotalBalance(snapshotClient, identity), snapshotClient.getBalance({ address: identity }),
         ]);
         if (!mountedRef.current || identityRef.current !== identity) return;
         loadedAccountRef.current = identity;
+        confirmedRead.current = { confirmedAt: Date.now(), failed: false };
         setOpenPositions(positions); setConditionalOrders(orders); setUsdcBalance(balance);
         setPoolBalance(pool); setCrossFreeBalance(cross.free); setCrossTotalBalance(cross.total);
         setCrossLockedBalance(cross.locked); setTraderEthBalance(ethBal); setReadError(null);
       } catch {
-        if (mountedRef.current && identityRef.current === identity)
+        if (mountedRef.current && identityRef.current === identity) {
+          confirmedRead.current.failed = true;
           setReadError('Account data could not refresh. Last confirmed values are shown; retry before trading.');
+        }
       } finally {
         if (mountedRef.current && identityRef.current === identity) setInitialLoading(false);
         if (refreshInFlight.current?.identity === identity) refreshInFlight.current = null;
@@ -300,7 +314,10 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
     setInitialLoading(true);
     refresh();
     const handle = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(handle);
+    const resume = () => { if (document.visibilityState === 'visible' && navigator.onLine) void refresh(); };
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => { clearInterval(handle); window.removeEventListener('online', resume); document.removeEventListener('visibilitychange', resume); };
   }, [isReady, refresh]);
 
   useEffect(() => {

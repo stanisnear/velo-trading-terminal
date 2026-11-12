@@ -56,7 +56,7 @@ Velo's V4 engine settles positions on Base Sepolia using signed Pyth prices and 
 - **Position management** includes protection edits, full closes and automatic TP/SL and liquidation checks.
 - **Confirmation** connects the position, trade history and account activity to the successful transaction receipt.
 
-The dashboard charts account equity, including available funds and open exposure. Performance charts realized trading results separately, so funding your account and earning a trading profit remain distinct.
+The dashboard shows live total equity alongside a balance chart: cash, position collateral and refundable order escrow, excluding unrealized PnL. Performance charts realized trading results separately, so funding your account and earning a trading profit remain distinct. Scheduled receipt reconciliation keeps settlements, notifications and shared positions synchronized while you are away.
 
 ### Fees and liquidity
 

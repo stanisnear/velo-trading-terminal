@@ -6,6 +6,7 @@ import { normalisePrice, triggerFor, scanIds } from './math.js';
 import { ORDER_ABI, CORE_ABI, POSITION_V3_ABI, POSITION_V2_ABI, PYTH_FEE_ABI, VELO_PERPS_V4_ABI } from './generated/abi.js';
 import { builderAttribution } from '../../../src/services/baseBuilderAttribution.mjs';
 import { persistKeeperSettlement } from './settlement.js';
+import { reconcileEngine } from './reconciliation.js';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const PYTH_VIEW = [{ type: 'function', name: 'PYTH', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }];
@@ -15,6 +16,10 @@ export async function runKeeper(job, input, getEnv, deps = {}) {
   if(getEnv('VITE_VELO_PERPS_V4_ACTIVE')==='true'){
     if(!v4||!isAddress(v4))throw new RuntimeError('V4_NOT_CONFIGURED');
     const current=await runEngine(job,input,getEnv,deps,v4);
+    if(job==='cron-liquidate' && input.dryRun!==true){
+      try{current.reconciliation=await (deps.reconcile||reconcileEngine)(getEnv);}
+      catch{current.ok=false;current.errors.push({code:'RECEIPT_RECONCILIATION_FAILED'});}
+    }
     const legacy=getEnv('VITE_VELO_PERPS_V3_ADDRESS');
     if(!legacy||legacy.toLowerCase()===v4.toLowerCase())return current;
     const previous=await runEngine(job,input,getEnv,deps,legacy);

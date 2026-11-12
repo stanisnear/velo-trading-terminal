@@ -1,7 +1,7 @@
-// Observations of confirmed account equity, never a curve inferred from closed trades.
+// Account balance observations. The old unrealized-equity cache is a different basis.
 export const EQUITY_RETENTION_MS = 90 * 86400000;
 export function equityHistoryKey(owner, wallet, engine) {
-  return owner && wallet && engine ? `velo_equity_v1_84532_${owner}_${wallet}_${engine}`.toLowerCase() : null;
+  return owner && wallet && engine ? `velo_balance_v1_84532_${owner}_${wallet}_${engine}`.toLowerCase() : null;
 }
 export function normalizeEquityHistory(input, now = Date.now()) {
   const buckets = new Map();

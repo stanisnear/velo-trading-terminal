@@ -25,6 +25,15 @@ export function accountEquity(cash,positions,marks,orders=[],now=Date.now()) {
   return Number.isFinite(equity)&&equity>=0?equity:null;
 }
 
+// Book balance includes owned cash and reserved collateral, never open PnL.
+// Opening/closing fees affect it only when charged by the contract.
+export function accountBalance(cash, positions, orders = []) {
+  const amounts = [cash, ...positions.map(p => p.v4 ? p.v4.collateral : p.size / p.leverage),
+    ...orders.filter(o => o.active).map(o => o.collateralUSDC)];
+  if (amounts.some(v => !Number.isFinite(v) || v < 0)) return null;
+  return amounts.reduce((sum, value) => sum + value, 0);
+}
+
 export function positionSettlement(p, mark, now = Date.now(), keeper = false) {
   if (!p.v4) {
     const pnl = positionPnl(p, mark, now), collateral = p.size / p.leverage;

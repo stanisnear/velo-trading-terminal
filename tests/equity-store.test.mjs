@@ -12,8 +12,8 @@ test('shared equity loads beyond the API page cap and never returns an incomplet
  let failAt=-1;
  const ranges=[],writes=[];
  globalThis.__equityClient={
-  rpc(name,args){assert.equal(name,'get_account_equity_history');assert.equal(args.p_trader_address,'wallet');return {async range(from,to){ranges.push([from,to]);return from===failAt?{error:new Error('Network unavailable')}:{data:rows.slice(from,to+1)};}};},
-  from(name){assert.equal(name,'account_equity_snapshots');return {async upsert(data,options){writes.push({data,options});return {error:null};}};},
+  rpc(name,args){assert.equal(name,'get_account_balance_history');assert.equal(args.p_trader_address,'wallet');return {async range(from,to){ranges.push([from,to]);return from===failAt?{error:new Error('Network unavailable')}:{data:rows.slice(from,to+1)};}};},
+  from(name){assert.equal(name,'account_balance_snapshots');return {async upsert(data,options){writes.push({data,options});return {error:null};}};},
  };
  try{
   await build({entryPoints:['src/services/equityStore.ts'],outfile:file,bundle:true,platform:'node',format:'esm',plugins:[{name:'account-store-fixture',setup(b){b.onResolve({filter:/supabaseStore$/},()=>({path:'client',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export const supabase=globalThis.__equityClient;',loader:'js'}));}}]});
@@ -24,7 +24,7 @@ test('shared equity loads beyond the API page cap and never returns an incomplet
   failAt=500;await assert.rejects(equityStore.load('owner','wallet','engine'),/Network unavailable/);
   await equityStore.save('owner','WALLET','ENGINE',[...points,{...points[0],value:150,valuationVersion:2},{timestamp:NaN,value:1}]);
   assert.deepEqual(writes.map(w=>w.data.length),[250,250,250,250,201]);
-  const first=writes[0];assert.equal(first.data[0].user_id,'owner');assert.equal(first.data[0].trader_address,'wallet');assert.equal(first.data[0].valuation_version,2);
+  const first=writes[0];assert.equal(first.data[0].user_id,'owner');assert.equal(first.data[0].trader_address,'wallet');assert.equal(first.data[0].valuation_version,3);
   assert.equal(first.data[0].equity,150);assert.equal(first.data[0].source,'observed');
   assert.equal(Date.parse(first.data[0].bucket_at)%300000,0);
   assert.equal(first.options.ignoreDuplicates,true,'browser writes cannot overwrite a verified checkpoint');

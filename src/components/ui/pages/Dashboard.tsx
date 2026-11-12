@@ -59,7 +59,7 @@ const BtnSecondary = ({ onClick, children, style }: any) => (
 
 // Funding actions use the shared wallet dialogs.
 
-export const Dashboard = ({ pendingOrderCollateral=0, equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
+export const Dashboard = ({ accountBalance: balanceProp, pendingOrderCollateral=0, equityHistory = [], equityReady = true, user, positions, marketPrices, handleClosePosition, traders, handleDeposit, handleWithdraw, onEditPosition, onViewProfile, handleCopyTrade, totalEquity: equityProp, totalLockedMargin: lockedMarginProp, totalUnrealizedPnl: unrealizedProp, buyingPower: buyingPowerProp, onOpenOrderlyOnboarding, onOpenDeposit, onOpenWithdraw, onOpenSend, onOpenBridge, pendingDeposits, onResumeOnboarding, onClaimTestnetUsdc, claimingFaucet, theme = 'dark', tradingWalletAddress }: any) => {
   const [chartPeriod, setChartPeriod] = useState('ALL');
   const [detailsItem, setDetailsItem] = useState<any>(null);
   const [pendingDepositDetail, setPendingDepositDetail] = useState<any>(null);
@@ -186,7 +186,7 @@ export const Dashboard = ({ pendingOrderCollateral=0, equityHistory = [], equity
               <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 8px' }}><AnimatedValue value={equity}/></p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
-                  {equityChange !== null ? <>{equityChange >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}<AnimatedValue value={equityChange}/>{changePercent !== null && <> (<AnimatedValue value={changePercent} currency={false}/>%)</>}<span style={{fontFamily:'var(--font-sans)',fontWeight:400,color:'var(--fg-subtle)'}}> equity change</span></> : 'Current account value'}
+                  {equityChange !== null ? <>{equityChange >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}<AnimatedValue value={equityChange}/>{changePercent !== null && <> (<AnimatedValue value={changePercent} currency={false}/>%)</>}<span style={{fontFamily:'var(--font-sans)',fontWeight:400,color:'var(--fg-subtle)'}}> balance change</span></> : 'Current account value'}
                 </span>
                 <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
                   Buying Power <span style={{ color: 'var(--fg-muted)' }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></span>
@@ -199,8 +199,12 @@ export const Dashboard = ({ pendingOrderCollateral=0, equityHistory = [], equity
             )}
           </div>
           <div className="dash-portfolio-chart">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,padding:'12px 22px 0',fontSize:12,color:'var(--fg-muted)'}}>
+              <span title="Cash and reserved collateral, excluding open PnL.">Account balance</span>
+              {balanceProp != null && <AnimatedValue value={balanceProp}/>}
+            </div>
             <PortfolioChart rangeKey={chartView.period} dateOnly={chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>7*86400000} data={chartData} theme={theme} loading={!equityReady}
-              label="Total account equity" emptyLabel="No recorded equity observations in this period."/>
+              label="Account balance · excludes open PnL" emptyLabel="No balance history in this period."/>
           </div>
           {/* Pending deposit pill — visible whenever there's a deposit settling.
               Persistent across reloads (state lives in localStorage), so the user
