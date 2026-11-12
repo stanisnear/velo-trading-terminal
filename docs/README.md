@@ -1,33 +1,21 @@
 # Velo documentation
 
-Velo brings perpetual trading, market discovery and a trader community into one workspace. The public release runs on Base Sepolia with mUSDC test collateral.
-
-## Product
-
-| Guide | What you will find |
+| Start here | Contents |
 | --- | --- |
-| [Overview](../README.md) | The product, how it works and how to run it |
-| [Features](../FEATURES.md) | Trading, dashboard, research, social and wallet workflows |
-| [Public guide](https://velotrading.live/docs) | Getting started and using Velo |
-| [Trade sharing](SHARING.md) | Live positions, PnL cards, image exports and conversation |
-| [Vision](../VISION.md) | Audience, product direction and business model |
-| [Engine roadmap](../FUTURES.md) | Funding, execution models, liquidity and position management |
+| [Product and technical reference](../FEATURES.md) | How each part of the live product works and where its data comes from. |
+| [Current status and pitch brief](FUNDING-READINESS.md) | What is live, founder and stage, commercial direction and next milestones. |
+| [Vision](../VISION.md) | The trading venue, social network and long-term plan for decentralized finance. |
+| [Public guide](https://velotrading.live/docs) | Getting started and using the app. |
 
-## Engineering
-
-| Reference | What you will find |
+| Engineering reference | Contents |
 | --- | --- |
-| [Architecture](ARCHITECTURE.md) | Frontend, services, data flow and on-chain execution |
-| [Execution and accounting](EXECUTION.md) | Order lifecycle, settlement, fee example and pool ledgers |
-| [Contracts](../contracts/README.md) | Solidity implementation, deployed markets and Foundry tests |
-| [Security](SECURITY.md) | Key handling, review status and deployment considerations |
-| [Operations](OPERATIONS.md) | Configuration, deployment, monitoring and recovery |
-| [Design system](EXPERIENCE-DESIGN-2026-10-28.md) | Components, typography, motion and accessibility decisions |
+| [Architecture](ARCHITECTURE.md) | Service boundaries, identity, data and execution. |
+| [Execution](EXECUTION.md) | Order lifecycle, PnL and liquidity accounting. |
+| [Contracts](../contracts/README.md) | Deployments, dependencies and Foundry tests. |
+| [Operations](OPERATIONS.md) | Local setup, releases, monitoring and recovery. |
+| [Security](SECURITY.md) | Key handling, permissions and review status. |
+| [Sharing](SHARING.md) | Position attachments, PNGs, live updates and post interactions. |
+| [Settlement reconciliation](settlement-reconciliation.md) | Receipt recovery and history consistency. |
+| [Engine roadmap](../FUTURES.md) | Funding, execution models, liquidity and position management. |
 
-The [landing repository](https://github.com/stanisnear/Velo-Landing) contains the website, public guide and product previews. Both repositories publish their current documentation on `main`.
-
-## Maintainer references
-
-Contract addresses live in the [deployment manifest](../contracts/deployments/base_sepolia.json). The [market registry](../shared/markets.mjs) defines supported pairs and leverage limits; [public configuration](../supabase/functions/_shared/public-config.js) supplies the app's deployment defaults. Fee and settlement calculations are implemented in [VeloPerpsV4.sol](../contracts/src/VeloPerpsV4.sol).
-
-Dated release records preserve the checks and transactions for each release. [Application preparation](FUNDING-READINESS.md) brings together founder information, product facts and the investment workstreams.
+The [market registry](../shared/markets.mjs) defines the app’s pairs and leverage limits. The [deployment manifest](../contracts/deployments/base_sepolia.json) lists contract addresses. The [website repository](https://github.com/stanisnear/Velo-Landing) contains the landing page, public guide and product previews.

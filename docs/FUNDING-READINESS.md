@@ -1,60 +1,53 @@
-# Velo: founder and investment overview
+# Velo current status and pitch brief
 
-## The opportunity
+**Velo is a trading venue and social network for decentralized finance.** It connects the idea behind a trade to an outcome people can inspect on-chain.
 
-Traders move between exchanges, charts, news and social feeds to complete one workflow. Velo brings that workflow together: discover an asset, discuss an idea, trade it and share the position with its context attached.
+[Website](https://velotrading.live) · [Live testnet](https://app.velotrading.live) · [Product guide](https://velotrading.live/docs) · [Contact](mailto:info@velotrading.live)
 
-The product combines a perpetual venue with market discovery and a trader community. Live positions connect a market opinion to its outcome, giving followers a way to inspect the trade and continue the conversation after settlement.
+## Pitch copy
 
-## Product in market
+Traders discover ideas in a social feed, research them in separate tools and execute somewhere else. Followers rarely get to see what happened after a trade idea was posted. Velo brings those steps together. Traders can research an asset, discuss it, open a position and share a live attachment that follows the position through settlement. The discussion carries the reasoning, and the blockchain carries the execution record. Velo starts with crypto perpetuals on Base and is building toward a broader DeFi venue for tokenized markets, copy trading and automated strategies.
 
-The public Base Sepolia release includes:
+## What exists today
 
-- Nine perpetual markets: **BTC, ETH, SOL, DOGE, PYTH, BNB, XRP, HYPE and STETH**.
-- Isolated market/limit/stop entries, atomic TP/SL and market-specific leverage up to 25×.
-- A dashboard with equity history, open exposure and realized-performance analysis.
-- A top-50 asset directory, coin-page discussion and news.
-- Posts, replies, reactions, reposts, follows, profiles and notifications.
-- Compact live positions and high-resolution PnL sharing with transaction context.
-- Wallet onboarding, test funds, gas sponsorship and testnet transfers.
+| Area | Shipped on public testnet |
+| --- | --- |
+| Trading venue | Nine Pyth-priced perpetuals on Base Sepolia with mUSDC, isolated margin, market/limit/stop entries, position protection and up to 25× leverage by market. |
+| Research | Top-50 crypto directory, watchlists, charts, asset profiles, news and coin discussions. |
+| Community | Posts, threaded replies, reactions, reposts, follows, notifications and public profiles. Traders can attach live positions and share PnL cards. |
+| Account tools | Live equity, balance history without unrealized PnL, realized performance, exposure, activity and wallet funding and transfers. |
+| Execution and evidence | Published V4 contract source, signed Pyth prices, contract-held liquidity with separate escrow, and receipt-backed settlements. Scheduled keepers process eligible orders and exits while traders are away. |
 
-[Open Velo](https://app.velotrading.live) · [Website](https://velotrading.live) · [Product guide](https://velotrading.live/docs)
+Velo’s nine perpetuals are BTC, ETH, SOL, DOGE, PYTH, BNB, XRP, HYPE and STETH. The [deployed V4 engine](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code), [product reference](../FEATURES.md) and [execution guide](EXECUTION.md) provide the technical evidence. Base Builder Code `bc_s0k82w2v` attributes supported transactions.
 
 ## Founder and stage
 
 | Topic | Current position |
 | --- | --- |
-| Founder | Stan Banchev, solo founder |
-| Background | [LinkedIn](https://www.linkedin.com/in/stanbanchev/) · [GitHub](https://github.com/stanisnear) |
-| Development | Nearly a year of founder-led product development |
-| Funding | Bootstrapped |
-| Commercial stage | Pre-revenue, public testnet |
-| Entity | Founder project; incorporation to be established |
-| Availability | Full-time commitment available for the next phase |
+| Founder | Stan Banchev, solo founder. [LinkedIn](https://www.linkedin.com/in/stanbanchev/) · [GitHub](https://github.com/stanisnear) |
+| Build history | Founder-built over roughly a year at the time of application preparation. |
+| Stage | Public testnet, bootstrapped and pre-revenue. |
+| Outside funding | None raised, as reported by the founder. |
+| Company | Incorporation pending, as reported by the founder. |
+| User metrics | External testers, retention and conversion have yet to be measured. Use measured cohort results when available. |
+| Commitment | The founder has confirmed availability to commit full-time. |
 | Contact | [info@velotrading.live](mailto:info@velotrading.live) |
 
-## Technical foundation
+## Who it serves
 
-Velo uses React/TypeScript, Cloudflare Pages and Workers, Supabase and signed Pyth execution prices. V4 separates trader collateral, pending-order escrow, protocol liquidity and fees. Each position reserves its maximum gross-profit capacity at entry.
+**Active traders** get a focused venue and a way to share their reasoning and execution history. **Market researchers and creators** get an audience and a place for structured discussions around an asset. **Followers and new traders** can inspect a position and its outcome alongside the original thesis. **Strategy builders** are a future audience for scoped bot execution and distribution.
 
-The active Base Sepolia engine is [`0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f`](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code). Published source, tests and dated execution records support technical due diligence. [Architecture](ARCHITECTURE.md), [execution](EXECUTION.md) and [review status](SECURITY.md) provide the detail.
+## Next milestones
 
-Base Builder Code `bc_s0k82w2v` attributes supported Velo transactions.
+1. **Measure repeat usage.** Bring an external trader cohort through discovery, first trade and first share. Measure activation, return sessions and how often viewers inspect shared positions.
+2. **Prepare the venue for production.** Advance independent contract review, liquidity design, execution monitoring and staged market limits. Improve chain indexing coverage so performance can be traced over a trader’s history.
+3. **Turn reputation into tools.** Add copy trading with allocation, slippage and loss limits, and bots with revocable permissions. Settle executions on-chain and connect strategy results to the trader’s profile.
+4. **Expand the network and markets.** Design portable, verifiable records for selected social interactions. Extend coverage toward tokenized assets, equity exposure and commodities as market access, oracle quality and liquidity support them.
 
-## What investment accelerates
+Today’s trading execution and settlements are on-chain. The current social layer uses Supabase. Copy trading, bot execution, tokenized markets and on-chain social records are the next product direction. [Vision](../VISION.md) · [Engine roadmap](../FUTURES.md)
 
-| Workstream | Intended outcome |
-| --- | --- |
-| Engine review and liquidity design | A reviewed production specification, capital stress tests and a staged launch |
-| Indexing and analytics | Complete trader histories and richer performance discovery |
-| Trading permissions and automation | Scoped execution for copy trading and strategy tools |
-| Product and distribution | External trader testing, feedback, usage measurement and early community development |
-| Infrastructure and partnerships | Reliable prices, wallet access, execution monitoring and production operations |
+## What funding accelerates
 
-The next commercial milestones are a measured external trader cohort, repeat usage and a production release supported by reviewed execution and liquidity controls.
+Capital and ecosystem support would accelerate engineering, independent security review, liquidity design and the first external trader cohort. Relevant partners include oracle and RPC providers, wallet and indexing infrastructure, liquidity operators and teams with access to tokenized markets. Trading fees are the initial commercial model. Copy-trading economics, strategy tools and advanced analytics offer expansion paths as usage grows.
 
-## Preparing an application
-
-Use a current product demo, the founder introduction and the latest usage measurements. Keep testnet activity separate from external-user, revenue and retention figures. Present upcoming copy trading, automation and market expansion as the roadmap.
-
-[Vision and business model](../VISION.md) · [Full features](../FEATURES.md) · [Engine roadmap](../FUTURES.md)
+**Demo sequence:** Open a coin page, show its discussion, place a testnet trade with protection, share the live position, then open a confirmed settlement and show the realized result in Performance. Use a settled example for the final step so the explanation can focus on the receipt and outcome.

@@ -4,7 +4,7 @@ Velo's engine roadmap supports a broader goal: a trading venue that connects pos
 
 ## Execution and records
 
-A durable chain indexer will connect order creation, fills, protection changes, closes and transfers into a complete account history. It will support richer performance analysis and keep the trading record consistent across the app, API and public profiles.
+The receipt reconciler already records confirmed V4 opens and settlements, updates live shares and notifications, and writes account balance checkpoints. Extend that foundation to a complete order and position lifecycle, richer performance analysis, and independently verifiable trader and strategy histories.
 
 Operational work includes execution-latency metrics, redundant RPC routes, keeper health, transaction recovery and settlement reconciliation. Scoped trading permissions will give automated workflows explicit method, spend and expiry boundaries.
 
@@ -51,6 +51,7 @@ A replacement engine should preserve access to existing positions while new orde
 - Trader histories that connect posts to a complete position record.
 - Copy allocation with slippage, loss and pause controls.
 - Strategy automation with scoped permissions and transparent results.
-- Richer analytics, research and market coverage.
+- Richer analytics, research and trading for tokenized assets, equity exposure and commodities.
+- Portable attestations for selected public social interactions and reputation events, with consent and moderation built into the design.
 
 [Product vision](VISION.md) · [Current feature guide](FEATURES.md) · [V4 execution and accounting](docs/EXECUTION.md)

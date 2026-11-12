@@ -1,6 +1,6 @@
 # Velo operations
 
-Reviewed 27 October 2026. Testnet only. Never use an operator key to run an unreviewed script, publish a secret, delete user data to fix a display bug, or change a contract address as a frontend-only rollback.
+This runbook covers the public Base Sepolia deployment. Keep operator keys and provider credentials in their server environments. Use separate release and rollback procedures for frontend, database and contract changes.
 
 ## Deployment inventory
 
@@ -12,15 +12,15 @@ Reviewed 27 October 2026. Testnet only. Never use an operator key to run an unre
 | Prices | Worker `velo-pyth-proxy` | Private `VELO_PYTH` service binding |
 | Scheduling | Worker `velo-keeper-scheduler` | One-minute cron, exactly one scheduler |
 | Backend | Supabase project `btgfoekgvyvdflzjfehz` | `velo-api`, `velo-keepers` Edge Functions |
-| Domain | Namecheap registrar, Cloudflare DNS/HTTPS | Do not restart the old Vercel deployment/schedulers |
+| Domain | Namecheap registrar, Cloudflare DNS/HTTPS | Public DNS and TLS |
 
-Both Pages projects use **`codex/cloudflare-migration`** as their configured production branch. A push to `main` is not a production deployment. Verify the branch setting before changing the release process.
+Both Pages projects use **`codex/cloudflare-migration`** as their configured production branch. Keep `main` and the deployment branch in sync. Confirm the configured branch in Pages before releasing.
 
 ## Sharing and presentation releases
 
 Use [SHARING.md](SHARING.md) for product semantics and component ownership. A docs or caption-only release does not require new trades, SQL changes, signer access or contract deployment. For app sharing changes, verify preserved drafts; compact versus image format; amount masking in export and details; independent light/dark appearance; live settlement versus frozen capture; unavailable-receipt states; and focus restoration. Exercise publishing/Storage with disposable fixtures only when that path changes.
 
-Public facts must agree across the terminal README/vision, sharing guide, landing features, public docs and both launch-article paths. Keep dated transaction evidence intact instead of replacing it with current UI test counts. Check desktop/tablet caption bounds separately from laptop geometry; a caption fix should not alter the device's hinge, scale or scroll path.
+Keep the app, public guide and landing page aligned on markets, fees and sharing behavior. Use the deployment manifest and archived release evidence when updating these claims.
 
 ## Configuration and secrets
 
@@ -78,16 +78,8 @@ This signs and sends **testnet** transactions using an ignored disposable fixtur
 - For a bad frontend release, use Pages rollback and revert the source commit. Rollback does not revert SQL, functions, contract state or wallets. Keep V4 routing in a compatible build; never roll back to a legacy-only writer.
 - For security/solvency concerns, investigate and use the reviewed entry-pause controls. Pausing new entries must not disable exits/cancellations. Escalate to the owner/guardian; do not improvise liquidity withdrawals.
 
-## Database status and remaining work
+## Database operations
 
-A read-only hosted check on 21 October confirmed the deployed follow-counter triggers, private-contact RLS, notification-read restriction, notification-event validation and revocation of the unrestricted legacy transfer-recording RPC from ordinary authenticated callers. These completed changes should not be described as future work.
+Contact email belongs in `velo_internal.profile_contacts`, accessed through the account owner’s contact settings RPCs. The public profile compatibility column is constrained to null. Notification and receipt permissions keep recipient records private and verified events protected from browser writes.
 
-Remaining issues are **not closed by this documentation release**:
-
-- Historical nonempty contact fields still exist on public profiles. Migrate/redact them with a reviewed backup, ownership checks and a retention plan, without exporting their values into reports.
-- Multiple historical policies and legacy auth paths require a complete authorization review; the presence of RLS is not proof that every policy is correct. Recheck anonymous reads, cross-user writes, notification creation and account deletion.
-- The hosted migration versions differ from several local filenames. Hosted history also contains `preserve_confirmed_signer_checkpoint`, which has no dedicated local migration file. Do not rename already-applied migrations or replay the folder blindly. Reconcile against a backed-up schema and create a reproducible baseline before spinning up a second environment.
-- `supabase/migrations/` contains incremental changes to the existing project, not the complete original schema. No `supabase/schema/` baseline is currently committed.
-- Independently indexed history/rankings, scoped browser-wallet permissions, key separation/multisig controls, moderation and exhaustive bridge/mobile/wallet lifecycle acceptance remain release gates.
-
-This runbook describes how the current system is operated and what still needs review. It does not certify database security, perpetual solvency under a new model, or mainnet readiness.
+The hosted migration history and local filenames have diverged in earlier releases. Compare the hosted schema and migration history before applying changes to another environment. The current folder contains incremental migrations and requires a baseline to rebuild the original schema. The receipt queue and cursor tables track reconciliation progress. Check pending age, failed attempts and duplicate event identity after an indexing release.

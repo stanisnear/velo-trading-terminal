@@ -97,7 +97,7 @@ An owner cannot withdraw trader escrow or already-reserved profit capacity. Each
 | What price executed? | Contract-validated oracle data plus V4 spread/bounds logic |
 | What is open PnL now? | An estimate from current marks and accrued costs; not realized settlement |
 | What happened in a past trade? | Recorded confirmed settlement and its receipt |
-| What was equity on a past date? | Saved observations or verified checkpoints, with their coverage limits |
+| What was the account balance on a past date? | Saved balance observations and verified block checkpoints, excluding open PnL |
 | What links a social post to a trade? | Engine address, trader, position ID and matching receipt |
 
 History records, leaderboard summaries and social content are stored in Supabase. Receipts retain their chain and engine namespace, keeping identifiers distinct across deployments.

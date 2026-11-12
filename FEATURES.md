@@ -1,118 +1,116 @@
-# The Velo experience
+# Velo product and technical reference
 
-Velo connects market discovery, trading and conversation. This guide follows the product from the first sign-in to the settled trade. The public release runs on Base Sepolia with mUSDC test collateral.
+Velo is a trading venue and social network for decentralized finance. The current public app runs on Base Sepolia (chain 84532) and uses mUSDC test collateral. Its core workflow is to discover an asset, discuss an idea, trade it and share the outcome. This document describes the shipped product and its sources of truth. See the [status brief](docs/FUNDING-READINESS.md) for the pitch and [VISION.md](VISION.md) for the long-term direction.
 
-## Your workspace
+## Navigation and account setup
 
-| Page | What you can do |
+| Area | What it is for |
 | --- | --- |
-| Dashboard | Follow live equity, chart account balance without open PnL, inspect exposure, explore realized performance and manage funds |
-| Trade | Read live charts and fills, place market/limit/stop entries and manage positions and TP/SL |
-| Markets | Search, filter, sort and watch the top 50 crypto assets |
-| Coin pages | Explore prices, asset background, official links, statistics, news and the coin's conversation |
-| Social | Publish ideas, follow traders, reply in threads, react, repost and share positions or PnL images |
-| Profile | Set a name, avatar, banner and biography; browse posts, followers and recorded activity |
-| Leaderboard | Discover traders through period-filtered performance rankings and public profiles |
-| Wallet & Settings | Manage wallets, funding, transfers, appearance and optional interaction sounds |
-| Admin | Manage authorized pool, fee, market and risk operations |
+| Dashboard | Account value, historical balance, exposure, performance, funding and activity. |
+| Trade | Price chart, public trading activity, order ticket, open positions, working orders and history. |
+| Markets | Top-50 crypto directory, watchlist and coin research. |
+| Social | Market discussion, trader discovery and shareable positions. |
+| Leaderboard and profiles | Find traders and explore their posts, connections and recorded results. |
+| Wallet & Settings | Addresses, funds, recovery, account preferences and sign-out. |
+| Admin | Authorized operations for market configuration, risk, fees and liquidity. |
 
-## Sign in and get started
+Visitors can browse public markets, the trading chart, feed and profiles. Account actions prompt for sign-in. Header search, also available with **⌘/Ctrl K**, finds pages, traders and assets and distinguishes informational coin pages from tradable pairs. The app adapts its navigation and panels for phones, tablets and desktop. Light/dark themes, keyboard controls, reduced-motion support, local timestamps, rolling numeric values and opt-in interaction sounds carry across the interface. Velo can be installed as a PWA.
 
-Connect through Reown and sign the Velo login message to verify wallet ownership. Choose a readable username, personalize your profile and set up your trading wallet. A valid session restores when you refresh; signing out gives you a fresh wallet choice next time.
+Reown connects a compatible wallet. The wallet signs an expiring challenge, which the backend verifies before issuing a Supabase session. A valid session can restore on refresh. Signing out clears the app session and returns to wallet selection. A separate signature derives the dedicated trading wallet used for local order signing. The connected wallet is the account identity, and the trading wallet is the address holding trading funds and positions. The app links the public address to the profile and offers wallet backup and recovery controls. The username registry gives traders a readable identity, with 3–16 lowercase letters, digits or underscores, beginning with a letter. Username changes are rate limited by the registry.
 
-The trading wallet signs orders locally after setup. Its public address is linked to your account, and wallet settings provide address copying, backup and export controls. The username registry supports 3–16 lowercase letters, numbers or underscores, beginning with a letter, with a 30-day interval between name changes.
+Profiles support a name, avatar, banner and biography. Media uploads are scoped to the owner. Wallet settings provide copy and explorer links for each address, wallet recovery or key export, fund movement, optional contact email and interface preferences. See [key handling and permissions](docs/SECURITY.md).
 
-Claim mUSDC and sponsored testnet gas from the faucet to begin exploring the trading flow.
+## Dashboard
 
-## Trading
-
-### Nine perpetual markets
-
-| Markets | Maximum leverage |
+| Panel | What it shows and how it works |
 | --- | --- |
+| **Total equity** | Trading-wallet mUSDC plus refundable pending-order escrow and the estimated payouts of open positions. Open PnL and accrued closing costs can move this estimate as prices change. The equity breakdown explains the components. |
+| **Buying power** | Available mUSDC for new orders. Funds already committed to open positions or pending entries are accounted for separately. Market and pool limits also apply to order size. |
+| **Account balance chart** | Available mUSDC plus net collateral in open positions and refundable order escrow. It changes with funding, transfers, charged fees and settlements. Open profit and loss are excluded. For example, an open position can raise equity from $2,000 to $8,000 while balance remains near $2,000. Its payout affects balance at settlement. |
+| **History controls** | Day, week, month and all-history views use the balance observations and verified checkpoints available for that trading wallet and engine. The chart shows date coverage and a hover/touch readout. An account’s creation date alone does not establish a historical balance. |
+| **Open exposure** | Margin in use, unrealized PnL and an allocation breakdown by position. The position table below is the management surface for reviewing positions, editing TP/SL and closing trades. |
+| **Performance** | Cumulative realized PnL, period filters, win rate, average settlement, profit factor, drawdown and market breakdown. The calendar groups settlements by day. Select a day or trade to inspect the underlying records. Deposits, withdrawals and open PnL do not enter realized performance. |
+| **On-chain account** | Trading-wallet and engine addresses, with copy controls and BaseScan links. |
+| **Funding and activity** | Deposit, withdraw, faucet and send shortcuts. The timeline combines funding, transfers and trade events. Settlement payouts are grouped with the close, and activity reports the realized result rather than treating returned margin as a deposit. Cross-chain transfers can appear as pending until delivery. |
+
+Account refreshes read wallet cash, open positions and orders at a single block. A failed read leaves the last confirmed snapshot visible. Stale account state and offline mode prevent trading writes until a successful refresh. Balance observations are scoped to account, wallet, chain and engine, and verified historical checkpoints use archive state at the block of a confirmed event. The keeper reconciles account history while the browser is closed.
+
+## Trade
+
+| Perpetual markets | Maximum leverage |
+| --- | ---: |
 | BTC, ETH | 25× |
 | SOL, BNB | 20× |
 | XRP | 15× |
 | DOGE, PYTH, HYPE, STETH | 10× |
 
-Each position uses isolated margin. The order ticket brings margin, leverage, position size, liquidation estimate and fees together before submission.
+The market selector uses the V4 registry, and the contract enforces current settings. The chart offers candles, line and area views, a one-second interval and longer timeframes, indicators, position and protection levels, and local time labels. Changing the interval takes you to the latest candle. **Back to live** returns the view to the newest data after panning. Source labels distinguish oracle marks from exchange reference history when applicable. Reference candles help with analysis. The engine accepts a signed Pyth update for execution.
 
-### Order types and protection
+The side panel shows reported fills, volume and order activity. It complements the chart and ticket. V4 executes against an oracle-priced pool, so these views do not represent executable bid/ask depth from a matching engine. Desktop users can resize the activity and order panels. Signed-out users can inspect the market and sign in from the locked account panels.
 
-- **Market:** enter using the current validated Pyth price, with an execution deadline and price bound.
-- **Limit:** choose a maximum buy price or minimum sell price. Collateral is reserved while the order waits.
-- **Stop:** enter after the market reaches a chosen trigger, within the order's price bound.
-- **Take-profit / stop-loss:** attach protection with the opening transaction or edit it afterward. Linked protection appears in Open Orders; each leg can be managed independently.
-- **Close:** settle the full position manually, or through its protection rules. Confirmation updates positions, balances and history together.
+| Action | What happens |
+| --- | --- |
+| **Market entry** | Select long/short, margin and leverage. The ticket previews size, fees and liquidation risk. The wallet submits a bounded transaction with a signed Pyth update and optional TP/SL. The engine checks freshness, price bounds, deadlines, risk and liquidity before opening. |
+| **Limit entry** | Collateral is reserved on-chain while an order waits for an eligible price. A buy requires a price at or below the limit, and a sell at or above it. |
+| **Stop entry** | The order waits for a price at or above the trigger for a buy, or at or below it for a sell. Execution also checks the adverse-price bound. |
+| **Take-profit / stop-loss** | Protection can be attached atomically at entry or edited later. The Open Orders tab shows active legs, which can be managed individually. The management dialog previews outcomes with fees and borrowing. |
+| **Cancel an entry** | Cancellation releases the pending collateral. Expired requests have an on-chain recovery path. |
+| **Review or close** | Details show position ID, entry, mark, size, leverage, margin, liquidation buffer, protection and timing. V4 supports full manual close. Confirmed close details offer an optional share action. |
+| **History** | Opens and settlements show market, direction, result and time, with explorer and sharing links where available. Keeper activity and receipt recovery fill gaps when a browser was closed or a client write failed. |
 
-The execution flow shows signing, submission and confirmation as distinct stages. Pending transactions retain their reference so the app can reconcile the original submission after a timeout.
+The trade lifecycle distinguishes signing, broadcast and confirmed execution. The app retains a submitted hash and checks its original outcome after a timeout. On-chain state and matching successful receipts determine execution. Pending, rejected and reverted actions each have their own result. Existing positions remain manageable during an entry pause.
 
-### Charts and trading tools
+### Accounting and settlement
 
-Charts offer one-second and longer intervals, indicators, display styles and local time labels. Timeframe changes begin at the latest candle; **Back to live** returns you after browsing history. Desktop traders can adjust the feed/ticket split with the resize control.
+V4 uses isolated margin and fixed notional. At entry, the fee is 0.10% of requested notional. Net collateral is gross margin minus that fee, and fixed notional is net collateral times leverage. The engine applies market spread at execution and reserves pool liquidity for the position’s gross-profit cap of one notional. Gross losses are capped at net collateral.
 
-Position details combine entry and mark prices, margin, leverage, PnL, liquidation buffer and timing. The close and protection dialogs include estimated outcomes and interactive controls.
+At close, V4 calculates capped price PnL, subtracts accrued borrowing and the 0.10% closing fee, and applies a bounty on eligible keeper settlements. Borrowing defaults to 0.01% per hour on fixed notional. The contract caps charges by the remaining position equity. Realized PnL is the payout minus the original gross margin, which counts the opening fee once. Equity and the dashboard’s exposure estimate start from the wallet after the fee was paid. The share card uses the net trade result. The contract’s integer arithmetic and confirmed receipt govern final amounts. See the [execution reference](docs/EXECUTION.md) for a worked example.
 
-## Your dashboard
+The scheduler runs conditional-entry, protection and liquidation jobs every minute. Keepers check eligibility and submit a fresh update. The contract checks the rules again at execution. The receipt reconciler records confirmed trade events, updates live shares, creates settlement notifications and saves balance checkpoints. Cursor progress and pending jobs survive outages. Retries preserve the identity of each event across engine, transaction and log. This keeps protection and record recovery independent of an open browser session.
 
-**Equity** tracks account value: available funds, pending-order collateral and estimated position payouts. Saved observations follow the account across sessions; verified historical checkpoints extend the available record. Range controls reflect the history available for that account.
+## Funding and wallet activity
 
-**Exposure** summarizes margin in use and open PnL. Open its breakdown for position-level detail, while the main positions table keeps management actions close at hand.
+- **Faucet:** claim test mUSDC and request sponsored testnet gas where eligible. A pending claim can be checked by its transaction reference.
+- **Deposit and withdraw:** move mUSDC between the connected and trading wallets, or use a supported testnet bridge route. The wallet confirms the move and the app records it after chain confirmation.
+- **Send:** select a Velo profile or enter an address. The transfer uses the trading wallet and records sender activity. Verified incoming mUSDC events can populate recipient activity independently of the sender’s session.
+- **Bridge:** LayerZero OFT routes cover Base, Ethereum, Optimism and Arbitrum Sepolia. Source confirmation and destination delivery are separate states. Trading execution takes place on Base Sepolia.
+- **Account activity:** wallet movements and trading outcomes have different classifications. Duplicate reports of a confirmed transfer are consolidated and can retain a known counterparty handle.
 
-**Performance** explores realized trading PnL over time. Use period filters, the settlement calendar and market breakdown to inspect win rate, average result, profit factor and drawdown. Select a settlement for its recorded result and transaction context.
+## Market discovery
 
-**Activity** brings confirmed transfers, funding actions and trade outcomes into one timeline. A position close shows its trading result; released margin stays part of settlement.
+The market directory uses cached CoinMarketCap reference data for prices, market caps, volumes, price changes and rankings. Search, categories, sorting and a watchlist help narrow the directory. A Trade action appears for supported perpetuals. Other assets have information and discussion pages.
 
-## Funding and transfers
+Each coin page provides chart ranges, price and market-cap views, market statistics, a project description, official links, related markets, news and discussion. A post composed there receives the coin’s `$tag` and appears in the coin discussion and main feed. Replies use the shared comment system.
 
-Deposit, withdraw, claim test funds or send to another trader from the dashboard or wallet settings. Recipient lookup accepts a profile or wallet address. Transfer records include receipt links, and incoming activity can be recovered from confirmed chain events.
+## Social, profiles and rankings
 
-LayerZero OFT routes connect Base, Ethereum, Optimism and Arbitrum Sepolia for testnet transfers. The transfer flow tracks source confirmation and destination delivery.
+- **Feed:** Latest, Trending, Following and Signals surface different slices of the conversation. Traders can post market notes, follow authors, reply in threads, like, react and repost. Author previews link to public profiles.
+- **Tagging and links:** Shared composers offer `@handle` and `$ticker` suggestions in posts, comments and sharing notes. Posts and replies have short routes such as `/p/<post>` and `/p/<post>/r/<reply>` and can carry external link previews.
+- **Profiles:** Profiles bring a bio, avatar, banner, public posts, follower connections and recorded performance into one place. Public profile URLs use `/profile/<handle>`.
+- **Leaderboard:** Period-filtered rankings summarize recorded settlement results and link to the traders behind them. A ranking is a view of available history, with realized results distinct from the value of open positions.
+- **Notifications:** Social alerts link to the underlying post, reply or profile. The database validates recipient and action for supported social events, and removes or retracts notices when the corresponding action is undone. Transfer and trade alerts have separate types. Notifications are visible to their recipient.
 
-## Discover and discuss markets
+Supabase currently stores social content, relationships and media. Velo’s [vision](VISION.md) describes publishing selected public interaction and reputation records on-chain in a future release.
 
-The market directory covers the top 50 crypto assets with prices, categories, watchlists and sortable statistics. Each asset page brings together a chart, concise project background, official links, market data, news and discussion.
+## Position sharing and PnL cards
 
-Write directly from the coin page. Velo adds the coin's $tag and publishes the post to both the asset conversation and the main feed. Replies and reactions work in the same conversation wherever you open it.
+**Position attachment.** Select an open position while composing a post. A compact attachment shows the market, direction, leverage, prices and status. Choose amounts or return percentage. The details dialog links the position ID, times and available verified opening or closing receipts. The attachment follows the trade through settlement.
 
-## The trader community
+**PnL image.** Create a Clean card in light or dark appearance with amounts or return percentage, add a caption, then post, share or download. PNG exports are 2400 × 1600 and preserve the capture. A Velo post can keep updating its live values and show the settled result, retain a captured result at close, or remain a fixed snapshot from the start. Live values animate in place and the settled state stops updating. The feed preview opens into a viewer with the caption, actions and comments alongside or below the image. Display preferences control the card. Published blockchain transactions remain inspectable. See [sharing behavior and components](docs/SHARING.md).
 
-- Posts, threaded comments and replies.
-- Likes, reactions, reposts and follows.
-- Latest, Trending, Following and Signals feed views.
-- @people and $asset suggestions across post, reply and sharing-note composers.
-- Short post and reply links, with previews for external sharing.
-- Public profiles, author previews, avatars, banners and biographies.
-- Notifications linked to social actions; removing a like or reaction also removes its associated notice.
+## Administration and service ownership
 
-Browse public markets, posts and profiles before signing in. Use header search or **⌘/Ctrl K** to jump to a page, trader or asset.
+The V4 admin view reads pool assets, available liquidity, reserves, escrow, fee balances and per-market activity. Authorized roles can manage entry pause, liquidity and fee withdrawals, market availability and risk settings. The contract validates those roles, preserves reserved profit and trader collateral, and limits edits while a market has open exposure or pending orders. The guardian can pause entries under the contract’s rules. See the [deployment manifest](contracts/deployments/base_sepolia.json) and [operator guide](docs/OPERATIONS.md).
 
-## Two ways to share a trade
+| Source of truth | Where to look |
+| --- | --- |
+| Supported markets and addresses | `shared/markets.mjs`, `contracts/deployments/base_sepolia.json`, active engine settings |
+| Fills, positions, pending escrow and settlement amounts | `contracts/src/VeloPerpsV4.sol`, matching Base Sepolia receipts |
+| Live account views and estimates | `src/services/useVeloPerpsTrading.ts`, `src/services/positionValuation.mjs`, `src/components/ui/pages/Dashboard.tsx` |
+| Realized analytics and balance history | `src/services/accountPerformance.mjs`, `src/services/equityStore.ts`, verified settlement and balance rows |
+| Offline settlement and recovery | `supabase/functions/velo-keepers/`, receipt reconciliation migrations and `cloudflare/keeper-scheduler.js` |
+| Social, identity and sharing | `src/services/supabaseStore.ts`, `src/services/walletAuth.ts`, `src/services/sharedPosition.ts`, `src/components/social/` |
+| Prices and reference data | Private Pyth Worker and `cloudflare/market-data.js` |
+| Website and public docs | [Velo-Landing](https://github.com/stanisnear/Velo-Landing) |
 
-### Position attachment
-
-Attach an open position to your post as a compact section. Choose whether to show invested amounts or focus on return percentage. Followers can inspect its market, direction, leverage, entry, current mark and status, then open details for timestamps and transaction links.
-
-The attachment follows the position through settlement, keeping the original idea and its outcome connected.
-
-### PnL image
-
-Create a Clean Velo card in light or dark mode, independently of the app theme. Choose amounts or return percentage, add a note and post, download or share it.
-
-- **Snapshot:** preserve the captured result and time.
-- **Live post:** animate current prices and PnL in place, then show the settled result.
-- **Captured finish:** follow the open trade, then retain your chosen capture when it closes.
-
-PNG exports use a **2400 × 1600** canvas. Feed previews keep the card's proportions; opening an image shows the post, actions and discussion beside it on desktop and below it on mobile. Exported files remain fixed captures. Blockchain transaction details remain publicly inspectable regardless of the card's amount-display preference.
-
-Closing a position offers a small **Share** action, so sharing remains part of your workflow rather than an interruption.
-
-## Design and access
-
-Velo uses Switzer interface type, Fraunces editorial accents and a consistent glass material across pages and dialogs. Light and dark themes, responsive navigation, keyboard controls, reduced-motion support and optional sound feedback carry through the app. Financial values animate in place as data changes.
-
-The web app is installable as a PWA on desktop and mobile.
-
-## Explore further
-
-[Product vision](VISION.md) · [Sharing guide](docs/SHARING.md) · [Execution and fees](docs/EXECUTION.md) · [Architecture](docs/ARCHITECTURE.md) · [Engine roadmap](FUTURES.md)
+The active engine is the isolated V4 release. Funding rates, matched order-book execution, cross margin, production copy trading, scoped bot execution, tokenized markets and on-chain social attestations belong to the [roadmap](FUTURES.md). For implementation details, use [Architecture](docs/ARCHITECTURE.md), [Execution](docs/EXECUTION.md) and [Operations](docs/OPERATIONS.md).

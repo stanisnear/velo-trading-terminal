@@ -1,97 +1,39 @@
-<h1 align="center">Velo</h1>
+# Velo
 
-<p align="center"><b>Trade the market. Share the thinking behind it.</b></p>
-<p align="center">Perpetual trading, market discovery and a trader community, together.</p>
-<p align="center">
-  <a href="https://app.velotrading.live">Open Velo</a> ·
-  <a href="https://velotrading.live">Website</a> ·
-  <a href="https://velotrading.live/docs">Product guide</a> ·
-  <a href="VISION.md">Vision</a>
-</p>
-<p align="center">Public testnet on Base Sepolia · Test collateral: mUSDC</p>
+**A trading venue and social network for decentralized finance.**
 
-## Why Velo
+Velo brings market research, on-chain execution and the conversation around a trade into one workspace. Discover an asset, see how other traders are thinking about it, take a position and share it with a record followers can inspect from entry to settlement.
 
-A trade starts with an idea. Today, that idea often lives in a social feed, the research in another tab and the position on a separate exchange. Following the whole story takes work.
+[Open the testnet](https://app.velotrading.live) · [Website](https://velotrading.live) · [Product guide](https://velotrading.live/docs) · [Contact](mailto:info@velotrading.live)
 
-Velo brings those steps together. Discover an asset, read what traders are saying, open a position and share it with the conversation attached. Followers can inspect the trade, follow its progress and see how it settles.
+## What you can use today
 
-The ambition is a home for traders: a place to research markets, execute, build a reputation and learn from one another. Crypto perpetuals are the starting point.
+Velo is live on **Base Sepolia** with mUSDC test collateral. The app combines:
 
-## Inside the product
-
-| Area | Experience |
+| Area | What it does |
 | --- | --- |
-| **Trade** | Nine Pyth-priced perpetual markets, isolated margin, market/limit/stop entries, take-profit and stop-loss, and leverage up to 25× |
-| **Dashboard** | Account equity, buying power, open exposure, realized performance, settlement calendar and account activity |
-| **Markets** | A top-50 crypto directory with watchlists, asset information, charts, news and a discussion for each coin |
-| **Social** | Posts, threaded replies, reactions, reposts, follows, @mentions and $asset tags |
-| **Trade sharing** | Compact live positions and high-resolution PnL images, with light/dark cards, amount controls and transaction details |
-| **Profiles & rankings** | Trader profiles, public posts, performance summaries and period-filtered leaderboards |
-| **Wallet** | Signature-based sign-in, a dedicated trading wallet, test funds, deposits, withdrawals, sends and testnet bridge routes |
+| **Trade** | Trade nine Pyth-priced crypto perpetuals using isolated margin, market/limit/stop entries and on-chain take-profit and stop-loss. Market-specific leverage reaches 25×. |
+| **Dashboard** | Track live equity, buying power, account balance history, open exposure, realized performance and wallet activity. |
+| **Markets** | Explore the top 50 crypto assets, build a watchlist and join discussions directly from coin pages. |
+| **Social** | Publish ideas, follow traders, reply in threads, react, repost and share live positions or high-resolution PnL cards. |
+| **Profiles and rankings** | Explore a trader’s posts and recorded performance, then follow the people behind the ideas. |
+| **Wallet** | Sign in with a wallet, claim test collateral, deposit, withdraw, send and track testnet bridge transfers. |
 
-[Explore the full feature guide →](FEATURES.md)
+Tradable markets: **BTC, ETH, SOL, DOGE, PYTH, BNB, XRP, HYPE and STETH**. The market directory also covers assets for research and discussion.
 
-### From idea to outcome
+## How it works
 
-1. **Discover.** Browse a market, its news and the conversation around it. Post directly from a coin page; Velo adds its $tag and publishes it to the feed.
-2. **Trade.** Choose margin and leverage, set optional TP/SL and submit. A dedicated trading wallet signs orders locally, keeping the flow quick and focused.
-3. **Share.** Attach an open position to a post, or create a 2400 × 1600 PnL image. Keep a Velo post live as the trade develops, or capture a fixed moment.
-4. **Review.** Open position details for prices, timestamps and transaction links. Use Performance to explore realized PnL, market results and individual settlements.
+[VeloPerps V4](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code) validates signed Pyth prices, applies market risk rules and settles trades against a contract-held liquidity pool on Base Sepolia. It accounts for trader collateral, pending-order escrow, pool capital and fees separately. Scheduled keepers handle eligible conditional orders, protective exits and liquidations. Confirmed receipts link executions to account history, notifications and live shares while traders are away.
 
-Live shares update their values in place and show the settled result when the position closes. Exported PNGs preserve the moment you captured. The image viewer brings the original post, reactions and comments alongside the image.
+The React and TypeScript app uses Reown, wagmi and viem for wallet and chain access. Cloudflare serves the app, price gateway and scheduler. Supabase supports sign-in, profiles, conversation, media and indexed records. CoinMarketCap supplies reference data for market discovery.
 
-### Markets
+## Where Velo is going
 
-**BTC · ETH · SOL · DOGE · PYTH · BNB · XRP · HYPE · STETH**
+Velo is building toward a home for decentralized finance: a social network for financial ideas, a venue for executing them and an inspectable record of the outcome. Crypto perpetuals are the first market. The roadmap extends to tokenized assets, equity and commodity exposure, copy trading with allocation limits, and bots with scoped trading permissions. As the social layer grows, Velo aims to make selected public interactions and reputation records portable and verifiable on-chain. [Product vision](VISION.md) · [Engine roadmap](FUTURES.md)
 
-Market-specific leverage reaches 25× for BTC/ETH, 20× for SOL/BNB, 15× for XRP and 10× for the remaining pairs. The wider market directory covers the top 50 crypto assets for research and discussion.
+## Develop
 
-## How trading works
-
-Velo's V4 engine settles positions on Base Sepolia using signed Pyth prices and a contract-held liquidity pool. Each market has its own leverage and risk settings. Trader collateral, pending-order margin, pool capital and accrued fees have separate accounting.
-
-- **Market entries** validate the price update, execution deadline, price bound, margin and available liquidity in one transaction. TP/SL can attach in that same transaction.
-- **Limit and stop entries** reserve collateral on-chain. Scheduled keepers submit eligible orders, and the engine checks their conditions at execution.
-- **Position management** includes protection edits, full closes and automatic TP/SL and liquidation checks.
-- **Confirmation** connects the position, trade history and account activity to the successful transaction receipt.
-
-The dashboard shows live total equity alongside a balance chart: cash, position collateral and refundable order escrow, excluding unrealized PnL. Performance charts realized trading results separately, so funding your account and earning a trading profit remain distinct. Scheduled receipt reconciliation keeps settlements, notifications and shared positions synchronized while you are away.
-
-### Fees and liquidity
-
-Opening fees are **0.10% of requested notional**. Closing fees are **0.10% of fixed position notional**. Borrowing defaults to **0.01% per hour** on notional; keeper-triggered settlement can include a keeper fee. The [execution guide](docs/EXECUTION.md) includes a worked example.
-
-Protocol-owned liquidity backs positions. V4 reserves each position's maximum gross-profit payout at entry; gross profit is capped at one position notional and losses at collateral. Contract permissions preserve trader escrow and reserved liquidity during operator withdrawals.
-
-## Architecture
-
-```mermaid
-flowchart LR
-  App[React app] --> Gateway[Cloudflare gateway]
-  Gateway --> Prices[Private Pyth price service]
-  Gateway --> API[Supabase API]
-  API --> Data[(Profiles, conversation and history)]
-  App --> Engine[VeloPerps V4 on Base Sepolia]
-  Keepers[Scheduled keepers] --> Engine
-  Prices --> Pyth[Pyth]
-```
-
-| Layer | Technology and role |
-| --- | --- |
-| Interface | React 19, TypeScript, Vite, TanStack Query and Zustand |
-| Wallets & chain access | Reown AppKit, wagmi and viem |
-| Hosting & API gateway | Cloudflare Pages and Workers |
-| Prices | Pyth for execution; CoinMarketCap for the wider asset directory |
-| Account & social services | Supabase APIs, Postgres, Realtime and Storage |
-| Execution | Solidity V4 engine, Foundry tests and scheduled keepers with transaction recovery |
-| Design | Switzer interface type, Fraunces wordmark/editorial type, responsive glass surfaces and accessible motion |
-
-**VeloPerps V4:** [`0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f`](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code). Source is published on BaseScan and Sourcify. The [deployment manifest](contracts/deployments/base_sepolia.json) lists the supporting contracts.
-
-## Build with Velo
-
-Use Node 22.12 or newer.
+Use Node.js 22.12 or newer.
 
 ```sh
 npm ci
@@ -101,28 +43,13 @@ npm test
 npm run build
 ```
 
-The [development and operations guide](docs/OPERATIONS.md) covers configuration, local API services and releases. Keep provider credentials and signing keys in server-side secrets; `VITE_*` settings are public build inputs.
+| Directory | Contents |
+| --- | --- |
+| `src/` | Product views, UI components and client services |
+| `contracts/` | Solidity contracts, deployment manifest and Foundry tests |
+| `api/`, `cloudflare/` | API routes, hosting gateway, price services and scheduler |
+| `supabase/` | Database migrations and Edge Functions |
+| `shared/` | Market registry, routes and shared execution definitions |
+| `scripts/`, `tests/` | Build, release, recovery and regression tooling |
 
-```text
-src/          App views, components, services and design system
-api/          Account, social and transaction API handlers
-cloudflare/   Gateway, private price service and keeper scheduler
-supabase/     Functions, database migrations, Realtime and Storage
-contracts/    V4 engine, supporting contracts and Foundry tests
-shared/       Market registry, configuration and shared routes
-scripts/      Build and release tooling
-tests/        Application and service regression checks
-docs/         Product and engineering references
-```
-
-## Product direction
-
-Velo's next chapter develops verifiable trader histories, copy trading with allocation and risk controls, strategy automation and richer research. Engine development covers funding, capital efficiency and expanded position management. Longer term, the trader hub extends to stocks and commodities.
-
-Read the [vision](VISION.md) for the product and business direction, and [engine roadmap](FUTURES.md) for the technical workstreams.
-
-## Documentation & contact
-
-[Feature guide](FEATURES.md) · [Sharing](docs/SHARING.md) · [Architecture](docs/ARCHITECTURE.md) · [Execution & accounting](docs/EXECUTION.md) · [Developer security reference](docs/SECURITY.md)
-
-For investment, accelerator and partnership conversations: **[info@velotrading.live](mailto:info@velotrading.live)**.
+Start with the [full product reference](FEATURES.md) or the [current status and pitch brief](docs/FUNDING-READINESS.md). The [documentation index](docs/README.md) links to architecture, execution, contract and operations references.

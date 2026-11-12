@@ -53,11 +53,11 @@ Active positions, orders and protection read from contract state. Confirmed rece
 
 ## Keepers
 
-The Cloudflare scheduler invokes conditional-entry, protection and liquidation jobs on a one-minute schedule. `velo-keepers` obtains price updates, evaluates candidates and submits transactions. Durable signer coordination and persisted transaction state support nonce management and recovery after delayed responses.
+The Cloudflare scheduler invokes conditional-entry, protection and liquidation jobs on a one-minute schedule. `velo-keepers` obtains price updates, evaluates candidates and submits transactions. Durable signer coordination and persisted transaction state support nonce management and recovery after delayed responses. The receipt reconciler separately scans confirmed chain events. It writes trade history, shared-position status, settlement notifications and account balance checkpoints in one transaction and retains failed jobs for retry.
 
 ## Account equity and performance
 
-Dashboard equity combines available wallet balance, refundable pending-order collateral and estimated position payouts. Private observations are scoped to account, trader, chain and engine in Supabase, with a bounded device cache. Verified historical account checkpoints extend the record where archive state and prices are available.
+Dashboard equity combines available wallet balance, refundable pending-order collateral and estimated position payouts. The historical balance chart tracks cash, net position collateral and refundable escrow, excluding unrealized PnL. Private observations are scoped to account, trader, chain and engine in Supabase, with a bounded device cache. Verified historical balance checkpoints use archive state at the confirmed block without historical price estimates.
 
 Performance uses realized settlement records for cumulative PnL, period results, market breakdowns and the settlement calendar. Cash movements and open-position PnL remain separate from realized trading results. Range availability and date labels follow the coverage and the viewer's locale/time zone.
 

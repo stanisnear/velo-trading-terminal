@@ -44,7 +44,7 @@ node scripts/generate-v4-abi.mjs
 
 Dependency commits are pinned in `foundry.lock`. The deployed runtime is 24,193 bytes. The creation-bytecode hash is `0x023dbd355bb23f18a825e77f70181f1a63608a5d1395bda51e4a21acc76b6103`; deployment transaction is recorded in the manifest.
 
-Tests cover accounting conservation, restricted withdrawals, fee/borrow settlement, caps, pauses, stale oracles, deadlines, orders and liquidation. Stateful invariants run 256 sequences of 500 calls. The 21 October disposable-wallet acceptance additionally confirmed HYPE entry with atomic TP/SL, protection editing, cancelling TP while preserving SL, full close and limit cancellation. Receipts and verification limits are in the [release record](../docs/RELEASE-2026-10-21.md). These tests are not an independent audit.
+Tests cover accounting conservation, restricted withdrawals, fee/borrow settlement, caps, pauses, stale oracles, deadlines, orders and liquidation. Stateful invariants run 256 sequences of 500 calls. The 21 October disposable-wallet acceptance additionally confirmed HYPE entry with atomic TP/SL, protection editing, cancelling TP while preserving SL, full close and limit cancellation. Receipts and verification limits are in the [release record](https://github.com/stanisnear/velo-trading-terminal/blob/archive/pre-documentation-cleanup-2026-11-12/docs/RELEASE-2026-10-21.md). These tests are not an independent audit.
 
 That runs the perpetuals suite. Deploying the token and bridge additionally requires the LayerZero dependencies referenced in `foundry.toml`. Do not run the deployment scripts with a funded signer just to run tests.
 
