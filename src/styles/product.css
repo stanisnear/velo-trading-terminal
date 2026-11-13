@@ -4,25 +4,21 @@
 @font-face { font-family:Switzer; src:url('/fonts/Switzer-600.woff2') format('woff2'); font-weight:600; font-style:normal; font-display:swap; }
 :root { --font-sans:'Switzer',-apple-system,BlinkMacSystemFont,sans-serif; }
 :root,html.dark,body.dark,.dark {
-  --surface:rgba(32,34,34,.84); --surface-solid:#202222; --surface-raised:rgba(38,40,40,.90);
-  --glass-sheen:linear-gradient(165deg,rgba(255,255,255,.055),transparent 50%);
-  --glass-ring:rgba(255,255,255,.12);
-  --attachment-glass:rgba(255,255,255,.06); --attachment-solid:#292b2b;
-  --attachment-edge:rgba(255,255,255,.13);
+  --attachment-glass:rgba(255,255,255,.032); --attachment-solid:#202322;
+  --attachment-edge:var(--hairline-strong);
 }
-/* Keep the sage canvas and give raised surfaces a neutral frost. */
+/* A muted sage canvas with soft, closely spaced glass surfaces. */
 html.light,body.light,.light {
-  --bg:#eaf1e8; --bg-2:#f7f8f5; --bg-3:#e5eee1;
-  --surface:rgba(255,255,255,.67); --surface-solid:#f7f8f5; --surface-raised:rgba(255,255,255,.86);
-  --glass-sheen:linear-gradient(165deg,rgba(255,255,255,.35),transparent 50%);
-  --attachment-glass:rgba(255,255,255,.60); --attachment-solid:#fff;
-  --attachment-edge:rgba(30,34,32,.12);
+  --bg:#ebefe8; --bg-2:#f1f3ee; --bg-3:#e7ece4;
+  --surface:rgba(243,245,240,.78); --surface-solid:#f1f3ee; --surface-raised:rgba(246,247,243,.90);
+  --attachment-glass:rgba(32,38,34,.025); --attachment-solid:#edf0ea;
+  --attachment-edge:var(--hairline);
   --fg:#203528; --fg-2:#586d5c; --fg-3:#768572;
   --hr:rgba(56,87,52,.10); --hr-2:rgba(56,87,52,.16);
   --accent:#53805c; --accent-text:#3c714b; --pnl-up:#39875a; --pnl-down:#b65d53;
-  --chip:rgba(82,120,70,.055); --chip-h:rgba(82,120,70,.09);
-  --lens-tint:rgba(255,255,248,.88); --lens-edge:rgba(84,119,75,.16);
-  --media-glass:rgba(255,255,255,.80); --glass-ring:rgba(255,255,255,.85);
+  --chip:rgba(48,61,50,.04); --chip-h:rgba(48,61,50,.07);
+  --lens-tint:rgba(247,248,244,.87); --lens-edge:rgba(48,61,50,.13);
+  --media-glass:rgba(244,246,241,.86); --glass-ring:rgba(255,255,255,.45);
   --overlay:rgba(27,49,30,.24); --media-overlay:rgba(27,49,30,.20);
 }
 body { font-family:var(--font-sans); }
@@ -96,7 +92,7 @@ main.velo-main.trade-view { padding-top:86px!important; }
 .token-page .token-header-left h1 { font-family:var(--font-sans)!important; font-weight:700!important; letter-spacing:-.04em!important; }
 .dash-equity-hero { font-family:var(--font-sans)!important; font-weight:500; letter-spacing:-.06em!important; }
 .shared-position {
-  background:var(--glass-sheen),var(--attachment-glass)!important;
+  background:var(--attachment-glass)!important;
   border-color:var(--attachment-edge);
   border-radius:14px!important;
   box-shadow:inset 0 1px 0 var(--glass-ring);
