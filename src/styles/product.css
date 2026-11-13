@@ -3,16 +3,26 @@
 @font-face { font-family:Switzer; src:url('/fonts/Switzer-700.woff2') format('woff2'); font-weight:700; font-style:normal; font-display:swap; }
 @font-face { font-family:Switzer; src:url('/fonts/Switzer-600.woff2') format('woff2'); font-weight:600; font-style:normal; font-display:swap; }
 :root { --font-sans:'Switzer',-apple-system,BlinkMacSystemFont,sans-serif; }
-/* A warm celadon canvas, ivory surfaces and one sage accent. */
+:root,html.dark,body.dark,.dark {
+  --surface:rgba(32,34,34,.84); --surface-solid:#202222; --surface-raised:rgba(38,40,40,.90);
+  --glass-sheen:linear-gradient(165deg,rgba(255,255,255,.055),transparent 50%);
+  --glass-ring:rgba(255,255,255,.12);
+  --attachment-glass:rgba(255,255,255,.06); --attachment-solid:#292b2b;
+  --attachment-edge:rgba(255,255,255,.13);
+}
+/* Keep the sage canvas and give raised surfaces a neutral frost. */
 html.light,body.light,.light {
-  --bg:#eaf1e8; --bg-2:#f1f6ee; --bg-3:#e5eee1;
-  --surface:rgba(241,246,238,.88); --surface-solid:#f1f6ee; --surface-raised:rgba(244,248,241,.94);
+  --bg:#eaf1e8; --bg-2:#f7f8f5; --bg-3:#e5eee1;
+  --surface:rgba(255,255,255,.67); --surface-solid:#f7f8f5; --surface-raised:rgba(255,255,255,.86);
+  --glass-sheen:linear-gradient(165deg,rgba(255,255,255,.35),transparent 50%);
+  --attachment-glass:rgba(255,255,255,.60); --attachment-solid:#fff;
+  --attachment-edge:rgba(30,34,32,.12);
   --fg:#203528; --fg-2:#586d5c; --fg-3:#768572;
   --hr:rgba(56,87,52,.10); --hr-2:rgba(56,87,52,.16);
   --accent:#53805c; --accent-text:#3c714b; --pnl-up:#39875a; --pnl-down:#b65d53;
   --chip:rgba(82,120,70,.055); --chip-h:rgba(82,120,70,.09);
   --lens-tint:rgba(255,255,248,.88); --lens-edge:rgba(84,119,75,.16);
-  --media-glass:rgba(249,251,242,.80); --glass-ring:rgba(255,255,255,.70);
+  --media-glass:rgba(255,255,255,.80); --glass-ring:rgba(255,255,255,.85);
   --overlay:rgba(27,49,30,.24); --media-overlay:rgba(27,49,30,.20);
 }
 body { font-family:var(--font-sans); }
@@ -38,7 +48,7 @@ main.velo-main.trade-view { padding-top:86px!important; }
 .social-page .social-feed-grid { grid-template-columns:230px minmax(0,760px) 260px; gap:20px; justify-content:center; }
 .social-page .social-feed-sidebar { grid-column:1; grid-row:1; gap:12px!important; }
 .social-page .social-feed-main { grid-column:2; grid-row:1; gap:12px!important; }
-.social-market-sidebar { grid-column:3; grid-row:1; position:sticky; top:94px; min-width:0; padding:15px; background:var(--surface); border:1px solid var(--hairline); border-radius:18px; }
+.social-market-sidebar { grid-column:3; grid-row:1; position:sticky; top:94px; min-width:0; padding:15px; background:var(--glass-sheen),var(--surface); border:1px solid var(--hairline); border-radius:18px; }
 .social-rail-heading { display:flex; align-items:center; gap:7px; font:700 13px/1.4 var(--font-sans); margin-bottom:14px; letter-spacing:-.02em; }
 .live-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 9%,transparent); }
 .social-market-sidebar .social-token-grid { grid-template-columns:1fr!important; }
@@ -56,22 +66,23 @@ main.velo-main.trade-view { padding-top:86px!important; }
 .social-feed-main textarea.velo-compose-field { min-height:46px; padding-bottom:9px!important; font-size:15px; line-height:1.55; }
 .social-feed-main .velo-composer-footer { padding-top:8px; }
 .social-feed-main .social-post-card { border-radius:18px!important; }
+.social-post-card { background:var(--glass-sheen),var(--surface)!important; }
 .social-feed-main .social-post-card > div { padding:15px!important; }
 .social-post-card p { font-size:14px!important; line-height:1.6!important; }
 .social-post-card .post-image-preview { width:min(100%,420px); max-width:420px; border-radius:13px; }
 .social-post-card [aria-label="Post reactions"] { margin-top:0; }
-.social-page .social-feed-sidebar .vp { box-shadow:none!important; background:var(--surface)!important; border:1px solid var(--hairline)!important; border-radius:18px!important; }
+.social-page .social-feed-sidebar .vp { box-shadow:none!important; border:1px solid var(--hairline)!important; border-radius:18px!important; }
 .social-page .social-feed-sidebar .vp > div { padding:14px!important; }
 .social-page .social-feed-sidebar .vp span[style*="font-display"] { font:700 14px var(--font-sans)!important; }
 .social-page .social-feed-sidebar .vp p[style*="font-display"] { font:600 12px var(--font-sans)!important; }
 .social-page .social-feed-sidebar { align-self:start; }
 .markets-page .markets-overview { padding:18px 2px; border:1px solid var(--hairline); border-radius:16px; background:var(--surface); }
 .markets-page .markets-overview>div:first-child { padding-left:18px; }
-.markets-page .markets-table { background:var(--surface)!important;box-shadow:none; }
-.lb-view .lb-podium-card { background:var(--surface)!important;border-color:var(--hairline)!important;box-shadow:0 5px 18px -16px rgba(12,30,19,.18)!important; }
+.markets-page .markets-table { box-shadow:none; }
+.lb-view .lb-podium-card { background:var(--glass-sheen),var(--surface)!important;border-color:var(--hairline)!important;box-shadow:0 5px 18px -16px rgba(12,30,19,.18)!important; }
 .lb-view .lb-podium-card[data-rank="1"] { border-color:color-mix(in srgb,var(--accent) 32%,var(--hairline))!important; }
 .lb-view .lb-podium-card>div[style*="border-radius: 50%"] { box-shadow:none!important; }
-.lb-view .vp { background:var(--surface)!important;box-shadow:none!important; }
+.lb-view .vp { box-shadow:none!important; }
 .navbar-account-copy { overflow:visible!important;gap:3px!important; }
 .navbar-account-copy>span { line-height:1.22!important; }
 .navbar-account-copy .velo-rolling-value { padding:2px 0; }
@@ -84,7 +95,12 @@ main.velo-main.trade-view { padding-top:86px!important; }
 .markets-page .markets-price { font-family:var(--font-sans); font-size:14px; letter-spacing:-.025em; }
 .token-page .token-header-left h1 { font-family:var(--font-sans)!important; font-weight:700!important; letter-spacing:-.04em!important; }
 .dash-equity-hero { font-family:var(--font-sans)!important; font-weight:500; letter-spacing:-.06em!important; }
-.shared-position { background:var(--chip-bg)!important; border-radius:14px!important; }
+.shared-position {
+  background:var(--glass-sheen),var(--attachment-glass)!important;
+  border-color:var(--attachment-edge);
+  border-radius:14px!important;
+  box-shadow:inset 0 1px 0 var(--glass-ring);
+}
 .shared-position-heading strong { font-family:var(--font-sans)!important; font-weight:700; letter-spacing:-.02em; }
 @media(max-width:1250px) {
   .social-page .social-feed-grid { grid-template-columns:190px minmax(0,660px); }
@@ -195,7 +211,22 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
 
 /* The top strip masks passing content; the bar itself keeps real translucency. */
 .velo-header-veil { position:fixed; z-index:29; pointer-events:none; top:0; left:0; right:0; height:86px; background:linear-gradient(var(--bg) 0 10px, color-mix(in srgb,var(--bg) 32%,transparent) 10px 74px,transparent); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); mask-image:linear-gradient(#000 0 74px,transparent); }
-.navbar-container { background:color-mix(in srgb,var(--surface-solid) 65%,transparent)!important; backdrop-filter:blur(28px) saturate(1.12)!important; -webkit-backdrop-filter:blur(28px) saturate(1.12)!important; }
+.navbar-container,html.light .navbar-container { background:var(--glass-sheen),var(--surface)!important; backdrop-filter:blur(var(--glass-blur))!important; -webkit-backdrop-filter:blur(var(--glass-blur))!important; }
+@media (prefers-reduced-transparency: reduce) {
+  :root,html.dark,body.dark,.dark,html.light,body.light,.light {
+    --surface:var(--surface-solid); --surface-raised:var(--surface-solid);
+    --media-glass:var(--surface-solid); --glass-sheen:none;
+    --attachment-glass:var(--attachment-solid);
+  }
+  .social-post-card { backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+  :root,html.dark,body.dark,.dark,html.light,body.light,.light {
+    --surface:var(--surface-solid); --surface-raised:var(--surface-solid);
+    --media-glass:var(--surface-solid); --glass-sheen:none;
+    --attachment-glass:var(--attachment-solid);
+  }
+}
 @media(min-width:1251px) { .social-page .social-feed-grid { width:min(100%,1290px); grid-template-columns:230px minmax(0,760px) 260px; margin-inline:auto; gap:20px; } }
 @media(min-width:761px) and (max-width:1250px) { .social-page .social-feed-grid { grid-template-columns:210px minmax(0,760px); } }
 @media(max-width:1023px) { .velo-header-veil { height:calc(60px + env(safe-area-inset-top,0px)); mask-image:none; background:color-mix(in srgb,var(--bg) 64%,transparent); } }
