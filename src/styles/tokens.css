@@ -71,12 +71,12 @@ body.dark,
   --control-bg-hover: rgba(232, 238, 234, 0.065);
   --control-border: var(--hr-2);
   --focus-ring: rgba(145, 185, 159, 0.3);
-  --primary-bg: #2e3531;
-  --primary-bg-hover: #3b443e;
-  --primary-fg: #f4f8f4;
-  --disabled-bg: #27312b;
-  --disabled-fg: #c1cbc4;
-  --secondary-bg: rgba(225, 238, 228, 0.075);
+  --primary-bg: #e4e9e5;
+  --primary-bg-hover: #f2f5f2;
+  --primary-fg: #1d2921;
+  --disabled-bg: #292e2b;
+  --disabled-fg: #919b94;
+  --secondary-bg: rgba(232, 238, 234, 0.045);
   --secondary-fg: #e2ebe4;
   --form-bg: rgba(0, 0, 0, 0.18);
   --form-border: var(--hr-2);
@@ -167,7 +167,7 @@ body.light,
   --primary-fg: #f4f8f4;
   --disabled-bg: #d8e3d9;
   --disabled-fg: #405447;
-  --secondary-bg: rgba(114, 151, 122, 0.10);
+  --secondary-bg: rgba(48, 61, 50, 0.045);
   --secondary-fg: #304c38;
   --form-bg: rgba(95, 125, 105, 0.055);
   --form-border: var(--hr-2);

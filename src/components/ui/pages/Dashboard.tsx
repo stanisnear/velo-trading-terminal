@@ -14,6 +14,7 @@ import { formatMoney, formatPrice } from '@/components/ui/shared';
 import { Position } from '@/utils/types';
 import { OrderDetailsModal } from '@/components/ui/OrderDetailsModal';
 import { baseScanAddressUrl, VELO_PERPS_ADDRESS } from '@/services/veloPerpsService';
+import './Dashboard.css';
 
 const S = {
   display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
@@ -38,23 +39,6 @@ const GlassIcon = ({ size = 30, children }: { size?: number; children: React.Rea
     <div style={{ position:'absolute',inset:0,borderRadius:'inherit',background:'linear-gradient(140deg,rgba(255,255,255,.14),transparent 55%)',pointerEvents:'none' }}/>
     <div style={{position:'relative',color:'var(--accent-text)',display:'flex'}}>{children}</div>
   </div>
-);
-
-// Solid primary action button — no animation
-const BtnPrimary = ({ onClick, children, style }: any) => (
-  <button onClick={onClick} style={{ padding: '11px 16px', borderRadius: 12, background: 'var(--fg)', border: 'none', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--bg-base)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'opacity 0.15s', ...style }}
-    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.85'}
-    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-    {children}
-  </button>
-);
-
-const BtnSecondary = ({ onClick, children, style }: any) => (
-  <button onClick={onClick} style={{ padding: '11px 16px', borderRadius: 12, background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' as const, transition: 'background 0.15s', ...style }}
-    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg-hover)'}
-    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'}>
-    {children}
-  </button>
 );
 
 // Funding actions use the shared wallet dialogs.
@@ -180,27 +164,28 @@ export const Dashboard = ({ accountBalance: balanceProp, pendingOrderCollateral=
       <div className="dash-grid-main">
         {/* Portfolio card */}
         <div className="dashboard-portfolio-card" style={{ ...panel, display: 'flex', flexDirection: 'column', minHeight: isMobile ? 0 : 320 }}>
-          <div className="dash-panel-inner" style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' as const }}>
-            <div>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}><p style={{...S.label,margin:0}}>Total equity</p><AccountOverview equity={equity} available={buyingPowerProp!==undefined?buyingPowerProp:user.balance} margin={totalMarginUsed} reserved={pendingOrderCollateral} pnl={allPositionsPnl}/></div>
-              <p className="dash-equity-hero" style={{ ...S.display, fontSize: isMobile ? 'clamp(22px, 6vw, 26px)' : 'clamp(32px, 4vw, 48px)', color: 'var(--fg)', lineHeight: 1, margin: '0 0 8px' }}><AnimatedValue value={equity}/></p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, ...S.mono, fontSize: 12, fontWeight: 700, color: pnlColor }}>
-                  {equityChange !== null ? <>{equityChange >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}<AnimatedValue value={equityChange}/>{changePercent !== null && <> (<AnimatedValue value={changePercent} currency={false}/>%)</>}<span style={{fontFamily:'var(--font-sans)',fontWeight:400,color:'var(--fg-subtle)'}}> balance change</span></> : 'Current account value'}
-                </span>
-                <span style={{ ...S.mono, fontSize: 11, color: 'var(--fg-subtle)' }}>
-                  Buying Power <span style={{ color: 'var(--fg-muted)' }}><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></span>
-                </span>
-              </div>
+          <header className="dashboard-balance-heading">
+            <div className="dashboard-equity-total">
+              <div className="dashboard-equity-label"><h2>Total equity</h2><AccountOverview equity={equity} available={buyingPowerProp!==undefined?buyingPowerProp:user.balance} margin={totalMarginUsed} reserved={pendingOrderCollateral} pnl={allPositionsPnl}/></div>
+              <p className="dash-equity-hero"><AnimatedValue value={equity}/></p>
+            </div>
+            <dl className="dashboard-balance-metrics">
+              <div><dt title="Cash and collateral, excluding open PnL.">Account balance</dt><dd>{balanceProp != null ? <AnimatedValue value={balanceProp}/> : '—'}</dd></div>
+              <div><dt>Available to trade</dt><dd><AnimatedValue value={buyingPowerProp !== undefined ? buyingPowerProp : user.balance}/></dd></div>
+            </dl>
+          </header>
+          <div className="dashboard-history-toolbar">
+            <div className="dashboard-history-label">
+              <h3>Balance history</h3>
+              {equityChange !== null && <span className="dashboard-balance-change" style={{color:pnlColor}}>
+                {equityChange >= 0 ? <TrendingUp size={13}/> : <TrendingDown size={13}/>}
+                <AnimatedValue value={equityChange}/>
+                {changePercent !== null && <span>(<AnimatedValue value={changePercent} currency={false}/>%)</span>}
+              </span>}
             </div>
             {chartView.options.length > 1 && (
               <SegmentedControl label="Portfolio period" compact options={chartView.options} value={chartView.period} onChange={setChartPeriod}/>
-
             )}
-          </div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,padding:'12px 22px 0',fontSize:12,color:'var(--fg-muted)'}}>
-              <span title="Cash and reserved collateral, excluding open PnL.">Account balance</span>
-              {balanceProp != null && <AnimatedValue value={balanceProp}/>}
           </div>
           <div className="dash-portfolio-chart">
             <PortfolioChart rangeKey={chartView.period} dateOnly={chartData.length>1 && chartData.at(-1).timestamp-chartData[0].timestamp>7*86400000} data={chartData} theme={theme} loading={!equityReady}

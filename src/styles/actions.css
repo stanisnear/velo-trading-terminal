@@ -1,0 +1,71 @@
+/* Shared action treatments. Trading direction and destructive actions keep their semantic colors. */
+:is(.velo-button, .velo-btn-primary, .velo-connect-btn, .asset-primary, .asset-secondary,
+    .trade-auth-gate__button, .account-overview-done, .velo-manage-action,
+    .wallet-dialog .wallet-button, .trade-dialog-actions > button,
+    .share-studio-actions > button, .trade-share-actions > button) {
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  box-shadow: 0 1px 0 var(--glass-ring) inset;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+:is(.velo-button--primary, .asset-primary, .account-overview-done,
+    .velo-manage-action:not(.is-close), .wallet-dialog .wallet-button[data-primary=true],
+    .share-studio-actions .share-studio-publish, .trade-share-actions .trade-share-publish) {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  border-color: color-mix(in srgb, var(--primary-bg) 65%, var(--control-border));
+}
+:is(.velo-button--primary, .asset-primary, .account-overview-done,
+    .velo-manage-action:not(.is-close), .wallet-dialog .wallet-button[data-primary=true],
+    .share-studio-actions .share-studio-publish, .trade-share-actions .trade-share-publish):hover:not(:disabled) {
+  background: var(--primary-bg-hover);
+  color: var(--primary-fg);
+}
+:is(.velo-button--secondary, .asset-secondary,
+    .wallet-dialog .wallet-button:not([data-primary=true]):not([data-danger=true]),
+    .share-studio-actions > button:not(.share-studio-publish),
+    .trade-share-actions > button:not(.trade-share-publish)) {
+  background: var(--secondary-bg);
+  color: var(--secondary-fg);
+  border-color: var(--control-border);
+}
+:is(.velo-button--secondary, .asset-secondary,
+    .wallet-dialog .wallet-button:not([data-primary=true]):not([data-danger=true]),
+    .share-studio-actions > button:not(.share-studio-publish),
+    .trade-share-actions > button:not(.trade-share-publish)):hover:not(:disabled) {
+  background: var(--control-bg-hover);
+}
+:is(.velo-button--danger, .velo-manage-action.is-close, .wallet-dialog .wallet-button[data-danger=true]) {
+  background: color-mix(in srgb, var(--pnl-down) 10%, transparent);
+  color: var(--pnl-down);
+  border-color: color-mix(in srgb, var(--pnl-down) 28%, transparent);
+}
+:is(.velo-button--danger, .velo-manage-action.is-close, .wallet-dialog .wallet-button[data-danger=true]):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pnl-down) 17%, transparent);
+  color: var(--pnl-down);
+}
+:is(.velo-button, .asset-primary, .asset-secondary, .account-overview-done,
+    .velo-manage-action, .wallet-dialog .wallet-button, .trade-dialog-actions > button,
+    .share-studio-actions > button, .trade-share-actions > button):disabled {
+  background: var(--disabled-bg);
+  color: var(--disabled-fg);
+  border-color: var(--hairline);
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
+  transform: none;
+}
+:is(.velo-button, .velo-btn-primary, .velo-connect-btn, .asset-primary, .asset-secondary,
+    .trade-auth-gate__button, .account-overview-done, .velo-manage-action,
+    .wallet-dialog .wallet-button, .trade-dialog-actions > button,
+    .share-studio-actions > button, .trade-share-actions > button):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.velo-button, .velo-btn-primary, .velo-connect-btn, .asset-primary, .asset-secondary,
+      .trade-auth-gate__button, .account-overview-done, .velo-manage-action,
+      .wallet-dialog .wallet-button, .trade-dialog-actions > button,
+      .share-studio-actions > button, .trade-share-actions > button) { transition: none; }
+}

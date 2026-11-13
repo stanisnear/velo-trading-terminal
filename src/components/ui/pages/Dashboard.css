@@ -1,0 +1,70 @@
+.dashboard-balance-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 22px 32px;
+  padding: 24px;
+}
+.dashboard-equity-total { min-width: 0; flex: 1 1 210px; }
+.dashboard-equity-label { display: flex; align-items: center; gap: 8px; }
+.dashboard-equity-label h2 {
+  margin: 0;
+  color: var(--fg-muted);
+  font: 500 12px/1.4 var(--font-sans);
+  letter-spacing: .01em;
+}
+.dashboard-portfolio-card .dash-equity-hero {
+  margin: 8px 0 0;
+  color: var(--fg);
+  font: 600 clamp(32px, 3.2vw, 46px)/1.2 var(--font-sans) !important;
+  letter-spacing: -.045em !important;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-balance-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 0;
+}
+.dashboard-balance-metrics > div + div {
+  padding-left: 24px;
+  border-left: 1px solid var(--hairline);
+}
+.dashboard-balance-metrics dt { color: var(--fg-muted); font: 400 12px/1.4 var(--font-sans); }
+.dashboard-balance-metrics dd {
+  margin: 7px 0 0;
+  color: var(--fg);
+  font: 600 18px/1.35 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em;
+}
+.dashboard-history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-inline: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+}
+.dashboard-history-label { display: flex; flex-direction: column; gap: 5px; }
+.dashboard-history-label h3 { margin: 0; color: var(--fg); font: 600 13px/1.4 var(--font-sans); }
+.dashboard-balance-change { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; font: 500 12px/1.4 var(--font-sans); font-variant-numeric: tabular-nums; }
+.dashboard-portfolio-card .dashboard-action-dock {
+  margin-inline: 24px;
+  padding: 16px 0 20px;
+  border-top: 1px solid var(--hairline);
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .dashboard-balance-heading { padding: 20px 18px; gap: 20px; }
+  .dashboard-equity-total { flex-basis: 100%; }
+  .dashboard-balance-metrics { width: 100%; gap: 18px; }
+  .dashboard-balance-metrics > div + div { padding-left: 18px; }
+  .dashboard-balance-metrics dd { font-size: 17px; }
+  .dashboard-history-toolbar { margin-inline: 18px; }
+  .dashboard-history-label { flex: 1 1 150px; }
+  .dashboard-portfolio-card .dashboard-action-dock { margin-inline: 18px; padding-bottom: 18px; }
+}
