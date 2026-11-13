@@ -1489,9 +1489,7 @@ const App = () => {
     const [isOrderlyOnboardingOpen, setOrderlyOnboardingOpen] = useState(false);
     const [onboardingDismissed, setOnboardingDismissed] = useState(false); // session flag — don't auto-reopen
     const [isVeloWelcomeOpen, setVeloWelcomeOpen] = useState(false);
-    // True only for the window between a brand-new account being created this
-    // session and the first-run faucet/welcome flow completing. Returning,
-    // already-registered accounts keep this false so the faucet never reopens.
+    // Suppress competing wallet sign-in attempts while a new profile hydrates.
     const freshSignupRef = useRef(false);
     // Tracks whether the wallet connected via a genuine user action this session
     // (AppKit connect flow), as opposed to wagmi's silent auto-reconnect on page reload.
@@ -1859,23 +1857,6 @@ const App = () => {
       }, 0);
       return () => clearTimeout(loginTimer);
     }, [isWalletConnected, walletAddress, user, isLoginOpen, authChecked, retryAuthTick]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // ── Velo Welcome onboarding (Phase 3) ─────────────────────────────────
-    // Opens ONLY AFTER a brand-new account is created this session (the
-    // AuthModal "Hello → handle → email" flow sets freshSignupRef). Returning
-    // / already-registered accounts never see the first-run faucet flow again,
-    // even if a contract address changed or local storage was cleared.
-    useEffect(() => {
-      if (!user) return;                                          // wait for account
-      if (!isWalletConnected) return;                             // and a wallet
-      if (isLoginOpen) return;                                    // auth still in progress
-      if (!freshSignupRef.current) return;                        // returning/registered → never
-      if (isVeloWelcomeOpen) return;                              // already open
-      // For brand-new accounts don’t gate on isInitialLoading — they have no
-      // balance yet so it may spin for seconds. Open the welcome modal immediately.
-      if (veloPerpsTrading.openPositions.length > 0) return;      // safety: returning trader
-      setVeloWelcomeOpen(true);
-    }, [user, isWalletConnected, isLoginOpen, veloPerpsTrading.openPositions.length, isVeloWelcomeOpen, walletAddress]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── VeloPerps → local positions sync (Phase 3) ─────────────────────────
     // The contract is the source of truth for positions. We translate VeloPosition
@@ -6019,6 +6000,9 @@ const App = () => {
                     sessionRestoredRef.current = true; // prevent SIGNED_IN handler from double-hydrating
                     setLoginReturningName('');
                     setLoginOpen(false);
+                    // Onboarding already confirmed the initial faucet claim.
+                    // Further claims are opened explicitly from account actions.
+                    setVeloWelcomeOpen(false);
                     setActiveTab(TabView.DASHBOARD);
                     try {
                         let p = passedProfile;
@@ -6092,6 +6076,8 @@ const App = () => {
                             tradeHistory: [], transactionHistory: [], pnlHistory: [],
                             joinedDate: new Date().toISOString(), likes: [], reposts: [],
                         });
+                    } finally {
+                        if (profileHydrationGate.current(hydration)) freshSignupRef.current = false;
                     }
                 }}
               onUsernameClaimed={(handle) => {

@@ -203,6 +203,9 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   const [burnerAddr, setBurnerAddr] = useState<string | null>(null);
 
   const completedRef = useRef(false);
+  const onAuthRef = useRef(onAuth);
+  onAuthRef.current = onAuth;
+  const newAccountRef = useRef<{ user: any; profile: any } | null>(null);
   const usernameCheckRef = useRef<string | null>(null);
   const flowAbortedRef = useRef(false);
 
@@ -229,6 +232,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
       setUsername(''); setEmail('');
       setFieldError(''); setGlobalError('');
       completedRef.current = false;
+      newAccountRef.current = null;
       usernameCheckRef.current = null;
       flowAbortedRef.current = false;
       setClaimTxHash(null); setBurnerAddr(null); setClaimBalance(0);
@@ -255,6 +259,19 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
     }, 2400);
     return () => clearTimeout(t);
   }, [step, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const finishNewAccount = useCallback(() => {
+    const account = newAccountRef.current;
+    if (!account || completedRef.current) return;
+    completedRef.current = true;
+    onAuthRef.current(account.user, account.profile, true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || step !== 'SUCCESS_NEW') return;
+    const timer = setTimeout(finishNewAccount, 3200);
+    return () => clearTimeout(timer);
+  }, [isOpen, step, finishNewAccount]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const advance = async () => {
@@ -335,14 +352,12 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
 
       if (flowAbortedRef.current) return;
       markDismissed(address);
+      newAccountRef.current = {
+        user: authUser,
+        profile: { ...profile, velo_wallet_address: result.burner.veloAddress.toLowerCase() },
+      };
       setStep('SUCCESS_NEW');
       onBurnerReady?.({ burnerAddress: result.burner.veloAddress, amount: bal, txHash: result.faucetTxHash ?? null });
-
-      setTimeout(() => {
-        if (completedRef.current) return;
-        completedRef.current = true;
-        onAuth(authUser, profile || { id: authUser!.id, username: uname, handle: `@${uname}`, balance: 0 }, true);
-      }, 3200);
 
     } catch (e: any) {
       const msg: string = e?.shortMessage || e?.message || 'Something went wrong.';
@@ -361,13 +376,17 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
   const isInProgress = ['CREATING', 'BURNER_SIGN', 'BURNER_SPONSOR', 'BURNER_CONFIRM'].includes(step);
   const isTerminal = step === 'SUCCESS_NEW' || step === 'SUCCESS_RETURNING';
   const showClose = (!required || isTerminal) && !isInProgress;
+  const handleClose = () => {
+    if (step === 'SUCCESS_NEW') finishNewAccount();
+    else onClose();
+  };
 
   if (!isOpen) return null;
   const progIdx = PROGRESS_IDX[step] ?? null;
 
   return createPortal(
     <div
-      onClick={e => { if (e.target === e.currentTarget && showClose) onClose(); }}
+      onClick={e => { if (e.target === e.currentTarget && showClose) handleClose(); }}
       className="velo-modal-stateful"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -405,7 +424,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
 
         {/* Close button */}
         {showClose && (
-          <button onClick={onClose} aria-label="Close" style={{
+          <button onClick={handleClose} aria-label="Close" style={{
             position: 'absolute', top: 16, right: 16, zIndex: 10,
             width: 30, height: 30, borderRadius: 999,
             background: 'var(--chip-bg)', border: '1px solid var(--hairline-strong)',
@@ -653,7 +672,7 @@ export const VeloOnboardingModal: React.FC<VeloOnboardingModalProps> = ({
                 </a>
               )}
               <div style={{ width: '100%', animation: 'vOnbSlideUp 0.35s ease 1.45s both' }}>
-                <button onClick={() => { completedRef.current = true; onClose(); }} style={{ width: '100%', padding: 14, borderRadius: 13, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
+                <button onClick={finishNewAccount} style={{ width: '100%', padding: 14, borderRadius: 13, border: 'none', background: 'var(--fg)', color: 'var(--bg)', fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, cursor: 'pointer' }}>
                   Start trading →
                 </button>
               </div>
