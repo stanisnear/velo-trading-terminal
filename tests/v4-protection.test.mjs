@@ -72,4 +72,12 @@ test('confirmed-entry TP/SL edits and explicit trigger removal retain correct co
   assert.deepEqual(f.calls[1].args,[5n,0n,0n]);
  }
 });
+test('V4 market, conditional, and edit paths reject economically unsupported TP before approval or writes',async()=>{
+ const f=fixture();const read=f.client.readContract;
+ f.client.readContract=async args=>args.functionName==='allowance'?0n:read(args);
+ await assert.rejects(openPosition(f.wallet,f.client,{...f.args,takeProfit:100000}),/profit limit/);
+ await assert.rejects(setTriggers(f.wallet,f.client,5n,100000,0),/profit limit/);
+ await assert.rejects(placeConditionalOrder(f.wallet,f.client,{...f.args,marginMode:'ISOLATED',triggerKind:'LIMIT',triggerPrice:80,takeProfit:100000}),/profit limit/);
+ assert.equal(f.calls.length,0);
+});
 test.after(()=>rm(folder,{recursive:true,force:true}));

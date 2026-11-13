@@ -1,7 +1,7 @@
 import { AnimatedText } from './ui/AnimatedValue';
 import React, { useEffect, useRef, useState } from 'react';
 import { positionSettlement, liquidationEstimate, triggerPriceForRoe } from '@/services/positionValuation.mjs';
-import { parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from '@/services/tradeFormValidation.mjs';
+import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from '@/services/tradeFormValidation.mjs';
 import { Share2, CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { TradingDialog } from './ui/TradingDialog';
 import { MeasuredPanel,ActionContent,supportsProductMotion } from './ui/ProductMotion';
@@ -48,7 +48,7 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
   const liquidation = liquidationEstimate(p, now);
   const direction = p.side === 'LONG' ? 1 : -1;
   const triggerError = (value: string, kind: 'TP' | 'SL') => {
-    return validateProtectionPrices({ side: p.side, referencePrice: p.entryPrice, referenceLabel: 'entry price',
+    return validateProtectionPrices({ side: p.side, referencePrice: p.entryPrice, referenceLabel: 'entry price', maxFavorableMove: p.v4 ? V4_MAX_TP_PRICE_MOVE : undefined,
       takeProfit: kind === 'TP' ? value : undefined, stopLoss: kind === 'SL' ? value : undefined }) || '';
   };
   const validation = triggerError(tp, 'TP') || triggerError(sl, 'SL');

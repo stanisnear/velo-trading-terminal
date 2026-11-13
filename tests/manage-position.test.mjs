@@ -52,7 +52,7 @@ test('TP/SL editor preserves malformed text, blocks submission, and submits corr
   const input=async(el,value)=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));});
   const save=()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Save TP/SL');
   assert.equal(tp.type,'text');
-  for(const raw of ['15000,','90,50','9e1','90.']){
+  for(const raw of ['15000,','90,50','9e1','90.','100000']){
    await input(tp,raw);assert.equal(tp.value,raw);assert.equal(tp.getAttribute('aria-invalid'),'true');assert(save().disabled);
    await act(async()=>save().click());assert.equal(f.calls.length,0);
   }

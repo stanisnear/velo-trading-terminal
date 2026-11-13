@@ -1,4 +1,4 @@
-import { parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from './tradeFormValidation.mjs';
+import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from './tradeFormValidation.mjs';
 import { builderAttribution } from './baseBuilderAttribution.mjs';
 import { normalizeConditionalOrder } from '../../shared/conditional-order.mjs';
 import { VELO_PERPS_V4_ABI } from './veloPerpsV4Abi';
@@ -732,7 +732,7 @@ export interface OpenPositionResult {
  * has to manually manage a separate cross account. Then calls openPosition.
  */
 function checkedProtection(isLong: boolean, takeProfit: number | undefined, stopLoss: number | undefined, referencePrice?: number, referenceLabel = 'execution price') {
-  const error = validateProtectionPrices({ side: isLong ? 'LONG' : 'SHORT', referencePrice, referenceLabel, takeProfit, stopLoss, allowZero: true });
+  const error = validateProtectionPrices({ side: isLong ? 'LONG' : 'SHORT', referencePrice, referenceLabel, takeProfit, stopLoss, allowZero: true, maxFavorableMove: IS_V4 ? V4_MAX_TP_PRICE_MOVE : undefined });
   if (error) throw new Error(error);
   return { takeProfit: isEmptyTradePrice(takeProfit) ? 0 : parseTradePrice(takeProfit), stopLoss: isEmptyTradePrice(stopLoss) ? 0 : parseTradePrice(stopLoss) };
 }

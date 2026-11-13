@@ -1,3 +1,4 @@
+import { V4_MAX_TP_PRICE_MOVE, validateProtectionPrices } from './tradeFormValidation.mjs';
 export function activeTradingOrders(conditionalOrders, positions, contract) {
   const entries = conditionalOrders.map(order => ({
     id: `velo_ord_${order.orderId}`, pair: order.pair.replace('-', '/'), side: order.isLong ? 'LONG' : 'SHORT',
@@ -7,7 +8,9 @@ export function activeTradingOrders(conditionalOrders, positions, contract) {
   const protection = positions.flatMap(position => ['takeProfit', 'stopLoss'].flatMap(field => {
     const price = position[field];
     if (!(price > 0)) return [];
-    return [{ id: `velo_trigger_${position.tradeId}_${field}`, pair: position.pair.replace('-', '/'),
+    const positionSide = position.isLong ? 'LONG' : 'SHORT';
+    const validationError = position.entryPrice > 0 ? validateProtectionPrices({ side: positionSide, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: field === 'takeProfit' ? price : undefined, stopLoss: field === 'stopLoss' ? price : undefined, maxFavorableMove: position.v4 ? V4_MAX_TP_PRICE_MOVE : undefined }) : null;
+    return [{ positionSide, validationError: validationError || undefined, id: `velo_trigger_${position.tradeId}_${field}`, pair: position.pair.replace('-', '/'),
       side: position.isLong ? 'SHORT' : 'LONG', type: field === 'takeProfit' ? 'TAKE_PROFIT' : 'STOP_LOSS', price,
       size: position.notionalUSDC, leverage: position.leverage, timestamp: position.openedAt * 1000,
       relatedPositionId: `velo_${position.tradeId}`, onChainTradeId: String(position.tradeId),

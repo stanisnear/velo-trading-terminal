@@ -6,7 +6,7 @@ import { positionPnl } from '@/services/positionValuation.mjs';
 import { IS_V4, PAIR_INDEX, VELO_PERPS_V4_ADDRESS, type VeloPairLabel } from '@/services/veloPerpsService';
 import { VELO_PERPS_V4_ABI } from '@/services/veloPerpsV4Abi';
 import { useReadContract } from 'wagmi';
-import { parseTradePrice, isEmptyTradePrice, validateProtectionPrices, validateTradeForm } from '@/services/tradeFormValidation.mjs';
+import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, isEmptyTradePrice, validateProtectionPrices, validateTradeForm } from '@/services/tradeFormValidation.mjs';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2, Plus, Check, RefreshCw, Loader2 } from 'lucide-react';
@@ -1596,7 +1596,7 @@ export const TradeView = ({
             setToast({ message:'Order exceeds this market’s leverage or position-size limit.',type:'ERROR' }); return;
         }
         const price = orderType === 'MARKET' ? currentPrice : parseTradePrice(limitPrice);
-        const error = validateTradeForm({ price, size: Number(sizeAmount), side, takeProfit, stopLoss });
+        const error = validateTradeForm({ price, size: Number(sizeAmount), side, takeProfit, stopLoss, maxFavorableMove: IS_V4 ? V4_MAX_TP_PRICE_MOVE : undefined });
         if (error) { setToast({ message: error, type: 'ERROR' }); return; }
 
         const tpVal = isEmptyTradePrice(takeProfit) ? undefined : parseTradePrice(takeProfit);
@@ -1605,7 +1605,7 @@ export const TradeView = ({
     };
 
     const executionPrice = orderType === 'MARKET' ? currentPrice : parseTradePrice(limitPrice);
-    const tpError = validateProtectionPrices({ side, referencePrice: executionPrice > 0 ? executionPrice : undefined, takeProfit, stopLoss: undefined });
+    const tpError = validateProtectionPrices({ side, referencePrice: executionPrice > 0 ? executionPrice : undefined, takeProfit, stopLoss: undefined, maxFavorableMove: IS_V4 ? V4_MAX_TP_PRICE_MOVE : undefined });
     const slError = validateProtectionPrices({ side, referencePrice: executionPrice > 0 ? executionPrice : undefined, takeProfit: undefined, stopLoss });
     const limitError = orderType !== 'MARKET' && !isEmptyTradePrice(limitPrice) && !(parseTradePrice(limitPrice) > 0)
         ? 'Enter a positive price using a period for decimals, without commas.' : undefined;

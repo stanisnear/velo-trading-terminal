@@ -1,4 +1,4 @@
-import { parseTradePrice, validateProtectionPrices } from '@/services/tradeFormValidation.mjs';
+import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, validateProtectionPrices } from '@/services/tradeFormValidation.mjs';
 import { AnimatedText } from './ui/AnimatedValue';
 /**
  * Modals — EditProfileModal, DeletePostConfirmModal, UsersListModal.
@@ -336,7 +336,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
     useEffect(() => {
         if (!position) return;
         
-        const err = validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: tp, stopLoss: sl });
+        const err = validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: tp, stopLoss: sl, maxFavorableMove: position.v4 ? V4_MAX_TP_PRICE_MOVE : undefined });
         let proj: { tpPnl: number; slPnl: number } | null = null;
         const tpVal = parseTradePrice(tp), slVal = parseTradePrice(sl);
 
@@ -354,7 +354,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
     if (!isOpen || !position) return null;
 
     const handleSave = () => {
-        const invalid = validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: tp, stopLoss: sl });
+        const invalid = validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: tp, stopLoss: sl, maxFavorableMove: position.v4 ? V4_MAX_TP_PRICE_MOVE : undefined });
         if (invalid) {
             setError(invalid);
             playSound('ERROR');
@@ -392,7 +392,7 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
                     <div>
                         <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)', display: 'block', marginBottom: 6 }}>Take Profit</label>
                         <input type="text" inputMode="decimal" autoComplete="off" placeholder="Price" value={tp} onChange={(e: any) => setTp(e.target.value)}
-                            style={inputStyle(!!validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, takeProfit: tp, stopLoss: undefined }))}
+                            style={inputStyle(!!validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, takeProfit: tp, stopLoss: undefined, maxFavorableMove: position.v4 ? V4_MAX_TP_PRICE_MOVE : undefined }))}
                             onFocus={e => (e.target.style.borderColor = 'var(--pnl-up)')}
                             onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
                         {projections?.tpPnl ? (

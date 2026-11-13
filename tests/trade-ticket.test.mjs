@@ -50,6 +50,8 @@ test('market, limit and stop share a persistent submit area outside the scrollin
     const tp=field('TP');assert.equal(tp.type,'text');
     await input(tp,'15000,');assert.equal(tp.value,'15000,');assert.equal(tp.getAttribute('aria-invalid'),'true');assert(submit.disabled);
     await act(async()=>submit.click());assert.equal(calls.length,0);
+    await input(tp,'100000');assert(submit.disabled);assert.match(ticket.textContent,/profit limit/);
+    await act(async()=>submit.click());assert.equal(calls.length,0);
     await input(tp,'90.25');assert(!submit.disabled);
     await act(async () => submit.click());
     assert.equal(calls[0][6],90.25);

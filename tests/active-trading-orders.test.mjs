@@ -19,3 +19,13 @@ test('cancelling one protection leg preserves the other and rejects a foreign en
  assert.deepEqual(protectionAfterCancellation(orders[1],position,contract),{tradeId:5n,takeProfit:81,stopLoss:0});
  assert.throws(()=>protectionAfterCancellation(orders[0],{...position,onChainContract:'0x02'},contract),/Refresh/);
 });
+
+test('existing oversized PYTH protection stays visible for review and cancellation, with the position direction',()=>{
+ const py={...p,pair:'PYTH-USD',entryPrice:.0616,takeProfit:100000,stopLoss:undefined,v4:{}};
+ const [order]=activeTradingOrders([],[py],contract);
+ assert.equal(order.side,'SHORT');assert.equal(order.positionSide,'LONG');
+ assert.equal(order.price,100000);assert.match(order.validationError,/profit limit/);
+ assert.equal(activeTradingOrders([],[{...py,takeProfit:.1}],contract)[0].validationError,undefined);
+ const position={id:'velo_5',onChainTradeId:'5',onChain:true,onChainContract:contract,takeProfit:100000};
+ assert.deepEqual(protectionAfterCancellation(order,position,contract),{tradeId:5n,takeProfit:0,stopLoss:0});
+});

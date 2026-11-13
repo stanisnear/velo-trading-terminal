@@ -119,8 +119,10 @@ export const OrderDetailsModal = ({
     && (payload.item.type === 'DEPOSIT' || payload.item.type === 'RECEIVE');
 
   const headerPair = payload.kind === 'TRANSACTION' ? txKindLabel : payload.item.pair;
-  const headerSide = payload.kind === 'TRANSACTION' ? (txIsInflow ? 'IN' : 'OUT') : payload.item.side;
-  const sideUp = payload.kind === 'TRANSACTION' ? txIsInflow : payload.item.side === 'LONG';
+  const protectionOrder = payload.kind === 'ORDER' && ['TAKE_PROFIT', 'STOP_LOSS'].includes(payload.item.type) ? payload.item : null;
+  const protectedSide = protectionOrder ? protectionOrder.positionSide || (protectionOrder.side === 'SHORT' ? 'LONG' : 'SHORT') : null;
+  const headerSide = payload.kind === 'TRANSACTION' ? (txIsInflow ? 'IN' : 'OUT') : protectedSide ? `CLOSE ${protectedSide}` : payload.item.side;
+  const sideUp = payload.kind === 'TRANSACTION' ? txIsInflow : protectedSide ? protectedSide === 'LONG' : payload.item.side === 'LONG';
   const copyId = payload.kind !== 'TRANSACTION' ? (payload.item as any).copyTraderId as string | undefined : undefined;
 
   let hero: React.ReactNode = null;
@@ -314,6 +316,7 @@ export const OrderDetailsModal = ({
         <div style={{ ...S.mono, fontSize: 11, color: 'var(--fg-muted)', marginTop: 3 }}>
           {distance >= 0 ? '+' : ''}{<AnimatedText text={distance.toFixed(3)}/>}% from mark
         </div>
+        {o.validationError && <p role="alert" style={{ fontSize: 12, color: 'var(--pnl-down)', marginTop: 12 }}>{o.validationError} Cancel this trigger and set a new target from your position.</p>}
       </div>
     );
     body = (
@@ -432,7 +435,7 @@ export const OrderDetailsModal = ({
   const summaryLabels = new Set(['Entry Price','Mark Price','Liquidation Price','Position Size','Leverage','Margin Used','Take Profit','Stop Loss','Trigger Price','Size','Margin Reserved','Amount','Type','Status','Time']);
   const isSummary = (node:React.ReactNode) => React.isValidElement<{label?:string}>(node) && node.type === Row && summaryLabels.has(node.props.label || '');
   const primary = facts.filter(isSummary), details = facts.filter(node=>!isSummary(node));
-  const status = payload.kind === 'POSITION' ? 'Open' : payload.kind === 'ORDER' ? 'Pending' : payload.kind === 'HISTORY' ? payload.item.action === 'OPEN' ? 'Opened' : payload.item.action === 'LIQUIDATION' ? 'Liquidated' : 'Closed' : payload.item.status || 'Completed';
+  const status = payload.kind === 'POSITION' ? 'Open' : payload.kind === 'ORDER' ? payload.item.validationError ? 'Review trigger' : 'Pending' : payload.kind === 'HISTORY' ? payload.item.action === 'OPEN' ? 'Opened' : payload.item.action === 'LIQUIDATION' ? 'Liquidated' : 'Closed' : payload.item.status || 'Completed';
   return <TradingDialog open={!!payload} onClose={onClose} title={headerPair} className="trade-details-dialog" footer={footer} identity={<>
     <span className="trade-details-side" data-up={sideUp}>{headerSide}</span><span className="trade-details-status"><i/>{status}</span>{copyId && <span>Copy trade</span>}<span className="trade-details-network"><ShieldCheck size={12}/> Base Sepolia</span></>}>
       {React.isValidElement(hero) ? React.cloneElement(hero as React.ReactElement<{className:string;style:React.CSSProperties}>,{className:'trade-details-hero trade-dialog-hero',style:{}}) : hero}

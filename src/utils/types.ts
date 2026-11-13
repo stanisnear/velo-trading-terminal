@@ -58,6 +58,8 @@ export interface OpenOrder {
   leverage: number;
   timestamp: number;
   relatedPositionId?: string; // Links TP/SL orders to a position
+  positionSide?: 'LONG' | 'SHORT'; // Position direction; side remains the closing execution side.
+  validationError?: string; // Existing protection that needs review under current price limits.
   onChainTradeId?: string;
   copyTraderId?: string;
   // ── On-chain (Orderly testnet) metadata ─────────────────────────────────
