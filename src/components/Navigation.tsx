@@ -1,12 +1,6 @@
 import { AnimatedText } from './ui/AnimatedValue';
 import { profileDisplayName } from '../utils/profileIdentity.mjs';
-/**
- * Navigation — desktop Navbar (with notifications dropdown + profile popup),
- * MobileSidebar, and MobileBottomNav. Extracted from App.tsx (stage 2 of the
- * monolith decomposition). All three are pure leaf components: every piece of
- * state they touch arrives via props; the only module-level dependency is the
- * shared formatMoney helper.
- */
+/** Navigation and account controls for desktop and mobile layouts. */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { transitionAppearance } from '../utils/appearanceTransition';
@@ -20,6 +14,7 @@ import { TabView } from '@/utils/types';
 import { formatMoney } from '@/components/ui/shared';
 import { WalletConnectButton } from './WalletConnectButton';
 import { GlassNav } from './ui/GlassNav';
+import './Navigation.css';
 
 export const ProfileAvatarPopup = ({ user, onClose, onViewProfile, onCreatePost, onLogout, onOpenSettings, onNavigateDashboard, totalEquity, anchorRef }: any) => {
     const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
@@ -395,7 +390,7 @@ export const Navbar = ({ activeTab, setActiveTab, toggleTheme, theme, handleLogo
       </>
     );
 }
-export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, unreadCount, totalEquity, buyingPower, isContractOwner, onSocialClick, onSearch }: any) => {
+export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, theme, setSidebarOpen, handleLogout, user, onRequireAuth, totalEquity, buyingPower, isContractOwner, onSocialClick, onSearch }: any) => {
     const drawerRef = useRef<HTMLDivElement>(null);
     const closeRef = useRef(setSidebarOpen);
     closeRef.current = setSidebarOpen;
@@ -424,130 +419,62 @@ export const MobileSidebar = ({ isOpen, activeTab, setActiveTab, toggleTheme, th
             if (previous?.isConnected) previous.focus({ preventScroll: true });
         };
     }, [isOpen]);
-    const navItems = [
+
+    const destinations = [
         { id: TabView.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard', requiresAuth: true },
-        { id: TabView.TRADE,     icon: TrendingUp,      label: 'Trade',     requiresAuth: false },
-        { id: TabView.MARKETS,   icon: BarChart2,        label: 'Markets',   requiresAuth: false },
-        { id: TabView.SOCIAL,    icon: Users,            label: 'Social',    requiresAuth: false },
-        { id: TabView.LEADERBOARD, icon: Trophy,         label: 'Leaderboard', requiresAuth: false },
-        { id: TabView.PROFILE,   icon: UserCircle,       label: 'Profile',   requiresAuth: true },
-        ...(isContractOwner ? [{ id: TabView.ADMIN, icon: Shield, label: 'Admin', requiresAuth: false }] : []),
+        { id: TabView.TRADE, icon: TrendingUp, label: 'Trade', requiresAuth: false },
+        { id: TabView.MARKETS, icon: BarChart2, label: 'Markets', requiresAuth: false },
+        { id: TabView.SOCIAL, icon: Users, label: 'Social', requiresAuth: false },
+        { id: TabView.LEADERBOARD, icon: Trophy, label: 'Leaderboard', requiresAuth: false },
     ].filter(item => !item.requiresAuth || user);
-
-    const S = {
-        mono:    { fontFamily: 'var(--font-mono)', fontFeatureSettings: '"tnum" 1', fontVariantNumeric: 'tabular-nums' as const },
-        display: { fontFamily: 'var(--font-sans)', letterSpacing: '-0.02em' },
-        label:   { fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)' },
+    const navigate = (id: TabView) => {
+        if (id === TabView.SOCIAL && onSocialClick) onSocialClick();
+        else setActiveTab(id);
+        setSidebarOpen(false);
     };
+    const name = user ? profileDisplayName(user) : '';
 
-    return (
-        <>
-            <div
-                aria-hidden="true"
-                style={{ position: 'fixed', inset: 0, background: 'rgba(5,6,8,0.45)', backdropFilter: 'blur(4px)', zIndex: 60, transition: `opacity 0.25s, visibility 0s ${isOpen ? '0s' : '0.25s'}`, opacity: isOpen ? 1 : 0, visibility: isOpen ? 'visible' : 'hidden', pointerEvents: isOpen ? 'auto' : 'none' }}
-                onClick={() => setSidebarOpen(false)}
-            />
-
-            <div ref={drawerRef} role="dialog" aria-label="Navigation" aria-modal={isOpen || undefined} aria-hidden={!isOpen} inert={!isOpen} style={{
-                position: 'fixed', inset: '0 auto 0 0', width: 'min(292px, calc(100vw - 32px))',
-                background: 'var(--glass-2)', borderRight: '1px solid var(--hr)',
-                zIndex: 70, display: 'flex', flexDirection: 'column',
-                transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
-                visibility: isOpen ? 'visible' : 'hidden',
-                transition: `transform 0.28s cubic-bezier(0.22,1,0.36,1), visibility 0s ${isOpen ? '0s' : '0.28s'}`,
-                boxShadow: isOpen ? '12px 0 40px rgba(0,0,0,0.25)' : 'none',
-                backdropFilter: 'blur(40px) saturate(1.6)',
-                WebkitBackdropFilter: 'blur(40px) saturate(1.6)',
-            }}>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(60px + env(safe-area-inset-top, 0px))', borderBottom: '1px solid var(--hr)', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 24, color: 'var(--fg)', letterSpacing: '-0.04em' }}>Velo</span>
-                    </div>
-                    <button aria-label="Close navigation" onClick={() => setSidebarOpen(false)} style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 12, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', color: 'var(--fg-2)' }}>
-                        <X size={15}/>
+    return <>
+        <div className="mobile-menu-backdrop" data-open={isOpen} aria-hidden="true" onClick={() => setSidebarOpen(false)}/>
+        <div ref={drawerRef} className="mobile-menu" data-open={isOpen} role="dialog" aria-label="Navigation"
+            aria-modal={isOpen || undefined} aria-hidden={!isOpen} inert={!isOpen}>
+            <header className="mobile-menu-header">
+                <span className="mobile-menu-wordmark">Velo</span>
+                <button type="button" className="mobile-menu-close" aria-label="Close navigation" onClick={() => setSidebarOpen(false)}><X size={20}/></button>
+            </header>
+            <div className="mobile-menu-scroll">
+                {onSearch && <button type="button" className="mobile-menu-search" onClick={onSearch}><Search size={18}/><span>Search markets & traders</span></button>}
+                <nav className="mobile-menu-links" aria-label="Browse Velo">
+                    {destinations.map(({id, icon: Icon, label}) => <button type="button" key={id}
+                        aria-current={activeTab === id ? 'page' : undefined} onClick={() => navigate(id)}>
+                        <Icon size={19} strokeWidth={activeTab === id ? 2 : 1.7}/><span>{label}</span>
+                        {activeTab === id && <span className="mobile-menu-current" aria-hidden="true"/>}
+                    </button>)}
+                </nav>
+                {user && <section className="mobile-menu-account" aria-label="Your account">
+                    <button type="button" className="mobile-menu-profile" aria-label={`View ${name} profile`}
+                        aria-current={activeTab === TabView.PROFILE ? 'page' : undefined} onClick={() => navigate(TabView.PROFILE)}>
+                        <img src={user.avatar} alt=""/>
+                        <span><strong>{name}</strong><small>View profile</small></span>
+                        <span className="mobile-menu-network">Testnet</span>
                     </button>
-                </div>
-
-                <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px 0' }}>
-                    {onSearch&&<button type="button" className="sidebar-quick-search" onClick={onSearch}><Search size={18}/>Search markets & traders</button>}
-                    {navItems.map(item => {
-                        const isActive = activeTab === item.id;
-                        return (
-                            <button key={item.id}
-                                onClick={() => { if (item.id === TabView.SOCIAL && onSocialClick) { onSocialClick(); setSidebarOpen(false); } else { setActiveTab(item.id); setSidebarOpen(false); } }}
-                                style={{
-                                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                                    padding: '12px 14px', borderRadius: 14, border: '1px solid transparent', cursor: 'pointer',
-                                    marginBottom: 2,
-                                    background: isActive ? 'var(--prism-vivid)' : 'transparent',
-                                    color: isActive ? 'var(--velo-bone)' : 'var(--fg-2)',
-                                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-                                    letterSpacing: '0.12em', textTransform: 'uppercase' as const,
-                                    transition: 'background 0.12s, color 0.12s, border-color 0.12s',
-                                    backgroundSize: isActive ? '200% 100%' : undefined,
-                                    animation: isActive ? 'prismSlide 14s linear infinite' : undefined,
-                                    borderColor: isActive ? 'transparent' : 'var(--hr)',
-                                }}
-                                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--chip)'; }}
-                                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                            >
-                                <item.icon size={15} strokeWidth={isActive ? 2.5 : 2}/>
-                                {item.label}
-                            </button>
-                        );
-                    })}
-                </div>
-                <div style={{ padding: 14, borderTop: '1px solid var(--hr)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {user ? (
-                        <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'var(--chip)', borderRadius: 16, border: '1px solid var(--hr)' }}>
-                                <img src={user.avatar} style={{ width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--hr-2)', flexShrink: 0, objectFit: 'cover' }} alt=""/>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ ...S.display, fontSize: 16, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{profileDisplayName(user)}</div>
-                                    <div style={{ ...S.label, fontSize: 9, marginTop: 2, color: 'var(--fg-2)' }}>{`@${profileDisplayName(user)}`}</div>
-                                </div>
-                                <div style={{ padding: '2px 8px', borderRadius: 6, background: 'var(--chip)', border: '1px solid var(--hr)', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-2)' }}>TESTNET</div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                <div style={{ padding: '12px', background: 'var(--chip)', borderRadius: 14, border: '1px solid var(--hr)' }}>
-                                    <div style={{ ...S.label, marginBottom: 4 }}>Total Equity</div>
-                                    <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--fg)' }}>
-                                        <AnimatedValue value={totalEquity > 0 ? totalEquity : user.balance}/>
-                                    </div>
-                                </div>
-                                <div style={{ padding: '12px', background: 'var(--chip)', borderRadius: 14, border: '1px solid var(--hr)' }}>
-                                    <div style={{ ...S.label, marginBottom: 4 }}>Buying Power</div>
-                                    <div style={{ ...S.mono, fontSize: 13, fontWeight: 700, color: 'var(--iris-violet)' }}>
-                                        ${<AnimatedText text={formatMoney(buyingPower ?? user.balance)}/>}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: 8 }}>
-                                <button onClick={event => transitionAppearance(() => flushSync(toggleTheme), event.currentTarget)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid var(--hr)', background: 'var(--chip)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--fg-2)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip-h)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'var(--chip)'}>
-                                    {theme === 'dark' ? <Sun size={13}/> : <Moon size={13}/>}
-                                    {theme === 'dark' ? 'Light' : 'Dark'}
-                                </button>
-                                <button onClick={() => handleLogout()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid color-mix(in oklab, var(--pnl-down) 30%, transparent)', background: 'color-mix(in oklab, var(--pnl-down) 12%, transparent)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, color: 'var(--pnl-down)', letterSpacing: '0.1em', transition: 'background 0.1s' }}
-                                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'oklch(0.66 0.22 25/0.16)'}
-                                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'color-mix(in oklab, var(--pnl-down) 12%, transparent)'}>
-                                    <LogOut size={13}/> Logout
-                                </button>
-                            </div>
-                        </>
-                    ) : (
-                        <button onClick={() => { onRequireAuth(); setSidebarOpen(false); }} style={{ width: '100%', padding: '12px', borderRadius: 14, border: 'none', background: 'var(--prism-vivid)', backgroundSize: '200% 100%', animation: 'prismSlide 14s linear infinite', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--velo-bone)', letterSpacing: '0.12em', textTransform: 'uppercase' as const }}>
-                            Connect
-                        </button>
-                    )}
-                </div>
+                    <dl className="mobile-menu-balances">
+                        <div><dt>Total equity</dt><dd><AnimatedValue value={totalEquity ?? user.balance}/></dd></div>
+                        <div><dt>Available to trade</dt><dd><AnimatedValue value={buyingPower ?? user.balance}/></dd></div>
+                    </dl>
+                    {isContractOwner && <button type="button" className="mobile-menu-admin" aria-current={activeTab === TabView.ADMIN ? 'page' : undefined} onClick={() => navigate(TabView.ADMIN)}><Shield size={18}/><span>Admin</span></button>}
+                </section>}
             </div>
-        </>
-    );
+            <footer className="mobile-menu-footer">
+                <button type="button" className="velo-button velo-button--secondary" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} appearance`}
+                    onClick={event => transitionAppearance(() => flushSync(toggleTheme), event.currentTarget)}>
+                    {theme === 'dark' ? <Sun size={17}/> : <Moon size={17}/>}<span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+                </button>
+                {user ? <button type="button" className="velo-button velo-button--danger" onClick={handleLogout}><LogOut size={17}/>Log out</button>
+                    : <button type="button" className="velo-button velo-button--primary" onClick={() => { setSidebarOpen(false); onRequireAuth(); }}><Wallet size={17}/>Sign in</button>}
+            </footer>
+        </div>
+    </>;
 };
 export const MobileBottomNav = ({ activeTab, setActiveTab, user, onSocialClick }: any) => {
     const items = [

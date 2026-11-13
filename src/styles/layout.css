@@ -1,3 +1,13 @@
+/* The shell owns bottom navigation clearance so nested pages never add it twice. */
+main.velo-main:not(.trade-view) { padding-bottom: 24px; }
+main.velo-main:not(.trade-view) > :is(.dashboard-page, .lb-view, .social-page, .asset-page, .markets-page, .animate-fade-in) {
+  padding-bottom: 0 !important;
+}
+@media (max-width: 1023px) {
+  main.velo-main:not(.trade-view) { padding-bottom: calc(84px + max(10px, env(safe-area-inset-bottom, 0px))); }
+  .velo-trade-workspace .trade-activity-body { padding-bottom: 0 !important; }
+}
+
 /* Align the outer shell; each page keeps its own reading width and padding. */
 @media (min-width: 1024px) {
   .navbar-container {
