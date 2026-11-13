@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateTradeForm } from '../src/services/tradeFormValidation.mjs';
+import { parseTradePrice, validateProtectionPrices, validateTradeForm } from '../src/services/tradeFormValidation.mjs';
 import { readTradingPreflight } from '../src/services/tradePreflight.mjs';
 
 test('trade form rejects invalid numeric values and inverted TP/SL without silently ignoring clicks', () => {
@@ -20,4 +20,24 @@ test('registry and gas checks start concurrently and return fresh results', asyn
   assert.deepEqual(calls, ['pairFeedId', 'pairTradable', 'gas']);
   resolvers[0]('feed'); resolvers[1](true); resolvers[2](4n);
   assert.deepEqual(await result, { feedId: 'feed', tradable: true, gasBalance: 4n });
+});
+
+test('BTC prices require complete unambiguous decimal input and correct protection direction', () => {
+  const base = { price: 69237.51, size: 1000, side: 'LONG', takeProfit: '75000.25', stopLoss: '65000.50' };
+  assert.equal(validateTradeForm(base), null);
+  for (const raw of ['15000,', '15000,00', '15,000', '69.237,51', '15 000', '75000.', '1e5', '0x10', '75000x', '+75000', 'NaN', 'Infinity', true, {}, []]) {
+    assert(Number.isNaN(parseTradePrice(raw)), String(raw));
+    assert.match(validateTradeForm({ ...base, takeProfit: raw }), /positive price/, String(raw));
+    assert.match(validateTradeForm({ ...base, stopLoss: raw }), /positive price/, String(raw));
+  }
+  assert.match(validateTradeForm({ ...base, takeProfit: '15000' }), /above/);
+  assert.equal(validateTradeForm({ ...base, side: 'SHORT', takeProfit: '15000', stopLoss: '75000' }), null);
+  assert.match(validateTradeForm({ ...base, price: '69237.51,' }), /execution price/);
+  assert.match(validateTradeForm({ ...base, size: '1000,' }), /size/);
+  assert.match(validateTradeForm({ ...base, takeProfit: '0' }), /positive/);
+  assert.equal(validateTradeForm({ ...base, takeProfit: '', stopLoss: '' }), null);
+  assert.equal(parseTradePrice(' 69237.51 '), 69237.51);
+  assert.equal(parseTradePrice('.125'), .125);
+  assert.equal(validateProtectionPrices({ side: 'LONG', referencePrice: 69237.51, takeProfit: 0, stopLoss: 0, allowZero: true }), null);
+  for (const raw of [NaN, Infinity, -1, 1e-19, 1e25]) assert.match(validateProtectionPrices({ side: 'LONG', takeProfit: raw, stopLoss: 0, allowZero: true }), /positive/);
 });

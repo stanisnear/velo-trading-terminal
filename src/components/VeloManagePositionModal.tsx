@@ -1,6 +1,7 @@
 import { AnimatedText } from './ui/AnimatedValue';
 import React, { useEffect, useRef, useState } from 'react';
 import { positionSettlement, liquidationEstimate, triggerPriceForRoe } from '@/services/positionValuation.mjs';
+import { parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from '@/services/tradeFormValidation.mjs';
 import { Share2, CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { TradingDialog } from './ui/TradingDialog';
 import { MeasuredPanel,ActionContent,supportsProductMotion } from './ui/ProductMotion';
@@ -47,12 +48,8 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
   const liquidation = liquidationEstimate(p, now);
   const direction = p.side === 'LONG' ? 1 : -1;
   const triggerError = (value: string, kind: 'TP' | 'SL') => {
-    if (!value.trim()) return '';
-    const price = Number(value);
-    if (!Number.isFinite(price) || price <= 0) return 'Enter a positive price, or clear the field.';
-    if ((price - p.entryPrice) * direction * (kind === 'TP' ? 1 : -1) <= 0)
-      return `${kind} must be ${kind === 'TP' ? (direction > 0 ? 'above' : 'below') : (direction > 0 ? 'below' : 'above')} entry.`;
-    return '';
+    return validateProtectionPrices({ side: p.side, referencePrice: p.entryPrice, referenceLabel: 'entry price',
+      takeProfit: kind === 'TP' ? value : undefined, stopLoss: kind === 'SL' ? value : undefined }) || '';
   };
   const validation = triggerError(tp, 'TP') || triggerError(sl, 'SL');
   const disabled = busy || !!hash;
@@ -64,7 +61,7 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
       if (!p.onChainTradeId) throw new Error('Position has no confirmed trade ID.');
       const id = BigInt(p.onChainTradeId);
       const result = tab === 'CLOSE' ? await actions.partialClose(id, 10000, p.pair)
-        : await actions.setTriggers(id, Number(tp) || 0, Number(sl) || 0);
+        : await actions.setTriggers(id, isEmptyTradePrice(tp) ? 0 : parseTradePrice(tp), isEmptyTradePrice(sl) ? 0 : parseTradePrice(sl));
       setHash(result.txHash); setSuccess(true);
     } catch (e: unknown) {
       const failure = e as { message?: string; txHash?: `0x${string}` };
@@ -74,15 +71,16 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
   };
   const renderTrigger = (kind: 'TP' | 'SL', value: string, setValue: (value: string) => void) => {
     const profit = kind === 'TP', label = profit ? 'Take profit' : 'Stop loss';
-    const valid = Number(value) > 0 && !triggerError(value, kind);
-    const projected = valid ? positionSettlement(p, Number(value), now, true).pnl : null;
+    const price = parseTradePrice(value);
+    const valid = price > 0 && !triggerError(value, kind);
+    const projected = valid ? positionSettlement(p, price, now, true).pnl : null;
     const percent = projected !== null && margin > 0 ? projected / margin * 100 : 0;
     const max = profit ? Math.min(300, p.leverage * 100 - 5) : 90;
-    const hit = valid && (profit ? (currentPrice - Number(value)) * direction >= 0 : (currentPrice - Number(value)) * direction <= 0);
+    const hit = valid && (profit ? (currentPrice - price) * direction >= 0 : (currentPrice - price) * direction <= 0);
     return <div className={`velo-trigger-field ${profit ? 'is-profit' : 'is-loss'}`}>
       <div className="velo-trigger-heading"><label htmlFor={`manage-${kind}`}>{profit ? <TrendingUp size={15} /> : <TrendingDown size={15} />}{label}</label>
         <button type="button" disabled={disabled || !value} onClick={() => setValue('')}>Clear</button></div>
-      <div className="velo-trigger-input"><span>$</span><input id={`manage-${kind}`} type="number" min="0" step="any" inputMode="decimal" value={value} disabled={disabled}
+      <div className="velo-trigger-input"><span>$</span><input id={`manage-${kind}`} type="text" inputMode="decimal" autoComplete="off" value={value} disabled={disabled}
         aria-invalid={!!triggerError(value, kind)} aria-describedby={`manage-${kind}-preview`} onChange={e => setValue(e.target.value)} placeholder="Not set" /></div>
       <div id={`manage-${kind}-preview`} className="velo-trigger-preview">
         <span>{p.v4 ? 'Est. net PnL' : 'Est. PnL before fees'}</span>

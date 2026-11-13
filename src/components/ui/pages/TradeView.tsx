@@ -6,7 +6,7 @@ import { positionPnl } from '@/services/positionValuation.mjs';
 import { IS_V4, PAIR_INDEX, VELO_PERPS_V4_ADDRESS, type VeloPairLabel } from '@/services/veloPerpsService';
 import { VELO_PERPS_V4_ABI } from '@/services/veloPerpsV4Abi';
 import { useReadContract } from 'wagmi';
-import { validateTradeForm } from '@/services/tradeFormValidation.mjs';
+import { parseTradePrice, isEmptyTradePrice, validateProtectionPrices, validateTradeForm } from '@/services/tradeFormValidation.mjs';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2, Plus, Check, RefreshCw, Loader2 } from 'lucide-react';
@@ -1595,16 +1595,20 @@ export const TradeView = ({
         if (IS_V4 && (leverage > maxLeverage || Number(sizeAmount) > Number(risk.data![0]) / 1e6)) {
             setToast({ message:'Order exceeds this market’s leverage or position-size limit.',type:'ERROR' }); return;
         }
-        const price = orderType === 'MARKET' ? currentPrice : parseFloat(limitPrice);
+        const price = orderType === 'MARKET' ? currentPrice : parseTradePrice(limitPrice);
         const error = validateTradeForm({ price, size: Number(sizeAmount), side, takeProfit, stopLoss });
         if (error) { setToast({ message: error, type: 'ERROR' }); return; }
 
-        // Validate TP/SL: must be valid numbers on correct side
-        const tpVal = takeProfit ? parseFloat(takeProfit) : NaN;
-        const slVal = stopLoss ? parseFloat(stopLoss) : NaN;
-
-        onOpenPosition(activePair.id, side, parseFloat(sizeAmount), leverage, orderType, price, isNaN(tpVal) ? undefined : tpVal, isNaN(slVal) ? undefined : slVal, marginMode);
+        const tpVal = isEmptyTradePrice(takeProfit) ? undefined : parseTradePrice(takeProfit);
+        const slVal = isEmptyTradePrice(stopLoss) ? undefined : parseTradePrice(stopLoss);
+        onOpenPosition(activePair.id, side, parseTradePrice(sizeAmount), leverage, orderType, price, tpVal, slVal, marginMode);
     };
+
+    const executionPrice = orderType === 'MARKET' ? currentPrice : parseTradePrice(limitPrice);
+    const tpError = validateProtectionPrices({ side, referencePrice: executionPrice > 0 ? executionPrice : undefined, takeProfit, stopLoss: undefined });
+    const slError = validateProtectionPrices({ side, referencePrice: executionPrice > 0 ? executionPrice : undefined, takeProfit: undefined, stopLoss });
+    const limitError = orderType !== 'MARKET' && !isEmptyTradePrice(limitPrice) && !(parseTradePrice(limitPrice) > 0)
+        ? 'Enter a positive price using a period for decimals, without commas.' : undefined;
 
     const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
 
@@ -1751,7 +1755,7 @@ export const TradeView = ({
 
                             {/* Limit price */}
                             <AnimatedPanel activeKey={orderType === 'MARKET' ? 'market' : 'conditional'}>
-                                <Input label="Price" placeholder={String(currentPrice)} value={limitPrice} onChange={(e: any) => setLimitPrice(e.target.value)} type="number" className="text-xs py-1" />
+                                <Input label="Price" placeholder={String(currentPrice)} value={limitPrice} onChange={(e: any) => setLimitPrice(e.target.value)} type="text" inputMode="decimal" autoComplete="off" error={limitError} className="text-xs py-1" />
                             </AnimatedPanel>
 
                             {/* Size slider */}
@@ -1814,49 +1818,12 @@ export const TradeView = ({
                                 </div>
                             </div>
 
-                            {/* TP / SL — numeric only, validated against side */}
+                            {/* Keep raw text so invalid punctuation is visible and cannot silently change a trigger. */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                                <Input
-                                    label="TP"
-                                    placeholder="Price"
-                                    type="number"
-                                    inputMode="decimal"
-                                    min={0}
-                                    step="any"
-                                    value={takeProfit}
-                                    onChange={(e: any) => {
-                                        const v = e.target.value;
-                                        // Allow empty, digits, and decimals only
-                                        if (v === '' || /^\d*\.?\d*$/.test(v)) setTakeProfit(v);
-                                    }}
-                                    error={
-                                        takeProfit && !isNaN(parseFloat(takeProfit)) && currentPrice > 0 ? (
-                                            (side === 'LONG' && parseFloat(takeProfit) <= currentPrice) ? 'TP must be above current price' :
-                                            (side === 'SHORT' && parseFloat(takeProfit) >= currentPrice) ? 'TP must be below current price' : undefined
-                                        ) : undefined
-                                    }
-                                    className="text-xs py-1"
-                                />
-                                <Input
-                                    label="SL"
-                                    placeholder="Price"
-                                    type="number"
-                                    inputMode="decimal"
-                                    min={0}
-                                    step="any"
-                                    value={stopLoss}
-                                    onChange={(e: any) => {
-                                        const v = e.target.value;
-                                        if (v === '' || /^\d*\.?\d*$/.test(v)) setStopLoss(v);
-                                    }}
-                                    error={
-                                        stopLoss && !isNaN(parseFloat(stopLoss)) && currentPrice > 0 ? (
-                                            (side === 'LONG' && parseFloat(stopLoss) >= currentPrice) ? 'SL must be below current price' :
-                                            (side === 'SHORT' && parseFloat(stopLoss) <= currentPrice) ? 'SL must be above current price' : undefined
-                                        ) : undefined
-                                    }
-                                    className="text-xs py-1"
-                                />
+                                <Input label="TP" placeholder="Price" type="text" inputMode="decimal" autoComplete="off"
+                                    value={takeProfit} onChange={(e: any) => setTakeProfit(e.target.value)} error={tpError} className="text-xs py-1" />
+                                <Input label="SL" placeholder="Price" type="text" inputMode="decimal" autoComplete="off"
+                                    value={stopLoss} onChange={(e: any) => setStopLoss(e.target.value)} error={slError} className="text-xs py-1" />
                             </div>
 
                             {/* Summary rows */}
@@ -1891,7 +1858,7 @@ export const TradeView = ({
 
                             {/* Submit button */}
                         <div className="velo-order-ticket__footer">
-                            <button onClick={handleSubmit} aria-busy={tradingPending} disabled={tradingPending || (IS_V4 && (!risk.data || risk.isError)) || !Number.isFinite(Number(sizeAmount)) || Number(sizeAmount) <= 0} style={{
+                            <button onClick={handleSubmit} aria-busy={tradingPending} disabled={tradingPending || !!tpError || !!slError || !!limitError || (IS_V4 && (!risk.data || risk.isError)) || !Number.isFinite(Number(sizeAmount)) || Number(sizeAmount) <= 0} style={{
                                 width: '100%', padding: isMobile ? '15px 0' : '11px 0', borderRadius: 14, cursor: parseFloat(sizeAmount) <= 0 ? 'not-allowed' : 'pointer', ...S.sans, fontSize: isMobile ? 14 : 12, transition: 'all 0.15s',
                                 opacity: 1,
                                 background: parseFloat(sizeAmount) <= 0 ? 'var(--disabled-bg)' : side === 'LONG' ? 'var(--pnl-up)' : 'var(--pnl-down)',

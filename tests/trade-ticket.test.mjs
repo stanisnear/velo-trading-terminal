@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
-import { createRoot } from 'react-dom/client';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -18,6 +17,7 @@ const { TradeView } = await import(pathToFileURL(file));
 test('market, limit and stop share a persistent submit area outside the scrolling fields', async () => {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://fixture.invalid' });
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const { createRoot } = await import('react-dom/client');
   const root = createRoot(document.querySelector('#root'));
   const calls = [];
   const props = { ...tradeProps, onOpenPosition: (...args) => calls.push(args) };
@@ -45,7 +45,14 @@ test('market, limit and stop share a persistent submit area outside the scrollin
     const leverage = ticket.querySelector('[aria-label="Leverage"]');
     await act(async () => { leverage.value = '5'; leverage.dispatchEvent(new window.Event('change', { bubbles: true })); });
     assert.match(submit.textContent, /5x LONG/);
+    const input=async(el,value)=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));});
+    const field=label=>{const el=[...ticket.querySelectorAll('label')].find(e=>e.textContent===label);return document.getElementById(el.htmlFor);};
+    const tp=field('TP');assert.equal(tp.type,'text');
+    await input(tp,'15000,');assert.equal(tp.value,'15000,');assert.equal(tp.getAttribute('aria-invalid'),'true');assert(submit.disabled);
+    await act(async()=>submit.click());assert.equal(calls.length,0);
+    await input(tp,'90.25');assert(!submit.disabled);
     await act(async () => submit.click());
+    assert.equal(calls[0][6],90.25);
     assert.equal(calls.length, 1); assert.equal(calls[0][3], 5);
     await render(true);
     assert.equal(submit.disabled, true); assert.equal(submit.getAttribute('aria-busy'), 'true');
@@ -60,6 +67,7 @@ test('signed-out workspace restores locked order and activity panels without edi
  const dom=new JSDOM('<div id="root"></div>',{url:'https://fixture.invalid'});
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.Element=dom.window.Element;globalThis.IS_REACT_ACT_ENVIRONMENT=true;
  dom.window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
+ const {createRoot}=await import('react-dom/client');
  const root=createRoot(document.querySelector('#root'));let signIns=0;
  try{
   await act(async()=>root.render(React.createElement(TradeView,{...tradeProps,user:null,onRequireAuth:()=>signIns++})));

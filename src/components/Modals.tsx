@@ -1,3 +1,4 @@
+import { parseTradePrice, validateProtectionPrices } from '@/services/tradeFormValidation.mjs';
 import { AnimatedText } from './ui/AnimatedValue';
 /**
  * Modals — EditProfileModal, DeletePostConfirmModal, UsersListModal.
@@ -324,8 +325,8 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
     
     useEffect(() => {
         if(position) {
-            setTp(position.takeProfit || '');
-            setSl(position.stopLoss || '');
+            setTp(position.takeProfit ? String(position.takeProfit) : '');
+            setSl(position.stopLoss ? String(position.stopLoss) : '');
             setError(null);
             setProjections(null);
         }
@@ -335,18 +336,9 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
     useEffect(() => {
         if (!position) return;
         
-        let err: string | null = null;
+        const err = validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: tp, stopLoss: sl });
         let proj: { tpPnl: number; slPnl: number } | null = null;
-        const tpVal = parseFloat(tp);
-        const slVal = parseFloat(sl);
-
-        if (position.side === 'LONG') {
-            if (tp && tpVal <= position.entryPrice) err = "Take Profit must be above Entry Price for Longs";
-            if (sl && slVal >= position.entryPrice) err = "Stop Loss must be below Entry Price for Longs";
-        } else {
-            if (tp && tpVal >= position.entryPrice) err = "Take Profit must be below Entry Price for Shorts";
-            if (sl && slVal <= position.entryPrice) err = "Stop Loss must be above Entry Price for Shorts";
-        }
+        const tpVal = parseTradePrice(tp), slVal = parseTradePrice(sl);
 
         if (!err) {
             const tpPnl = tp ? (Math.abs(tpVal - position.entryPrice) / position.entryPrice) * position.size : 0;
@@ -362,7 +354,9 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
     if (!isOpen || !position) return null;
 
     const handleSave = () => {
-        if (error) {
+        const invalid = validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: tp, stopLoss: sl });
+        if (invalid) {
+            setError(invalid);
             playSound('ERROR');
             return;
         }
@@ -397,8 +391,8 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
                     <div>
                         <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)', display: 'block', marginBottom: 6 }}>Take Profit</label>
-                        <input type="number" placeholder="Price" value={tp} onChange={(e: any) => setTp(e.target.value)}
-                            style={inputStyle(position.side === 'LONG' && !!tp && parseFloat(tp) <= position.entryPrice || position.side === 'SHORT' && !!tp && parseFloat(tp) >= position.entryPrice)}
+                        <input type="text" inputMode="decimal" autoComplete="off" placeholder="Price" value={tp} onChange={(e: any) => setTp(e.target.value)}
+                            style={inputStyle(!!validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, takeProfit: tp, stopLoss: undefined }))}
                             onFocus={e => (e.target.style.borderColor = 'var(--pnl-up)')}
                             onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
                         {projections?.tpPnl ? (
@@ -410,8 +404,8 @@ export const EditPositionModal = ({ isOpen, position, onClose, onSave }: any) =>
 
                     <div>
                         <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: 'var(--fg-subtle)', display: 'block', marginBottom: 6 }}>Stop Loss</label>
-                        <input type="number" placeholder="Price" value={sl} onChange={(e: any) => setSl(e.target.value)}
-                            style={inputStyle(position.side === 'LONG' && !!sl && parseFloat(sl) >= position.entryPrice || position.side === 'SHORT' && !!sl && parseFloat(sl) <= position.entryPrice)}
+                        <input type="text" inputMode="decimal" autoComplete="off" placeholder="Price" value={sl} onChange={(e: any) => setSl(e.target.value)}
+                            style={inputStyle(!!validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, takeProfit: undefined, stopLoss: sl }))}
                             onFocus={e => (e.target.style.borderColor = 'var(--pnl-down)')}
                             onBlur={e => (e.target.style.borderColor = 'var(--hairline-strong)')} />
                         {projections?.slPnl ? (

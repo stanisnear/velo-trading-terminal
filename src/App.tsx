@@ -1,3 +1,4 @@
+import { parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from './services/tradeFormValidation.mjs';
 import { useEquityHistory } from './hooks/useEquityHistory';
 import { equityStore } from './services/equityStore';
 import { QuickSearch } from './components/QuickSearch';
@@ -3755,8 +3756,12 @@ const App = () => {
     }, [marketPrices, openOrders, positions, user]);
 
     const handleUpdatePosition = (id: string, tp: string, sl: string) => {
-        const tpPrice = parseFloat(tp) || undefined;
-        const slPrice = parseFloat(sl) || undefined;
+        const position = positions.find(p => p.id === id);
+        if (!position) return;
+        const invalid = validateProtectionPrices({ side: position.side, referencePrice: position.entryPrice, referenceLabel: 'entry price', takeProfit: tp, stopLoss: sl });
+        if (invalid) { setToast({ message: invalid, type: 'ERROR' }); return; }
+        const tpPrice = isEmptyTradePrice(tp) ? undefined : parseTradePrice(tp);
+        const slPrice = isEmptyTradePrice(sl) ? undefined : parseTradePrice(sl);
 
         setPositions(prevPositions => {
             const posIndex = prevPositions.findIndex(p => p.id === id);

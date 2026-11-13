@@ -46,4 +46,19 @@ test('close action retains full-position settlement and invalid triggers never s
    assert.deepEqual(f.calls,[[5n,10000,'HYPE/USD']]);assert.match(document.body.textContent,/Position closed/);
  }finally{await f.close();}
 });
+test('TP/SL editor preserves malformed text, blocks submission, and submits corrected decimals exactly', async()=>{
+ const f=await setup();try{
+  const tp=document.querySelector('#manage-TP'), sl=document.querySelector('#manage-SL');
+  const input=async(el,value)=>act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  const save=()=>[...document.querySelectorAll('button')].find(e=>e.textContent==='Save TP/SL');
+  assert.equal(tp.type,'text');
+  for(const raw of ['15000,','90,50','9e1','90.']){
+   await input(tp,raw);assert.equal(tp.value,raw);assert.equal(tp.getAttribute('aria-invalid'),'true');assert(save().disabled);
+   await act(async()=>save().click());assert.equal(f.calls.length,0);
+  }
+  await input(tp,'90.50');await input(sl,'');assert.equal(tp.getAttribute('aria-invalid'),'false');assert(!save().disabled);
+  await act(async()=>save().click());assert.deepEqual(f.calls,[[5n,90.5,0]]);
+  await act(async()=>f.finish({txHash:'0x01'}));
+ }finally{await f.close();}
+});
 test.after(()=>rm(folder,{recursive:true,force:true}));
