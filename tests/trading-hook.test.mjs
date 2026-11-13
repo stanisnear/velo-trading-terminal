@@ -11,7 +11,7 @@ import path from 'node:path';
 const folder = await mkdtemp(path.resolve('audit/trading-hook-'));
 const file = path.join(folder, 'hook.mjs');
 const fixture = 'globalThis.__tradingFixture';
-const writes = ['openPosition', 'closePosition', 'addMargin', 'reduceMargin', 'partialClose', 'setTriggers', 'depositCross', 'withdrawCross', 'placeConditionalOrder', 'cancelConditionalOrder'];
+const writes = ['openPosition', 'closePosition', 'addMargin', 'reduceMargin', 'partialClose', 'setTriggers', 'cancelProtection', 'depositCross', 'withdrawCross', 'placeConditionalOrder', 'cancelConditionalOrder'];
 const stubs = {
   wagmi: `export const useAccount=()=>(${fixture}.account); export const useChainId=()=>84532; export const usePublicClient=()=>(${fixture}.client); export const useWalletClient=()=>({data:${fixture}.wallet});`,
   veloPerpsService: `export const IS_V3=false, IS_V4=true, VELO_PERPS_ADDRESS='0x01', VELO_USDC_BASE='0x02', VELO_PERPS_V3_ABI=[], VELO_PERPS_ABI=[], PAIR_INDEX={'SOL-USD':2};
@@ -119,5 +119,58 @@ test('rapid duplicate submissions are locked until the first completes', async()
       write.resolve({txHash:'0x11'}); await first;
     });
   } finally { await f.close(); }
+});
+test('write stays locked through a post-confirmation snapshot, including an older in-flight poll',async()=>{
+ const f=await setup();
+ try {
+  await act(async()=>{f.reads.resolve([]);await f.reads.promise;});
+  const oldPoll=deferred(),fresh=deferred(),write=deferred();let reads=0;
+  f.f.read=()=>++reads===1?oldPoll.promise:fresh.promise;
+  f.f.write=()=>write.promise;
+  let poll,action;
+  await act(async()=>{poll=f.state().refresh();action=f.state().cancelConditionalOrder(5n);write.resolve({txHash:'0x11'});await Promise.resolve();});
+  assert.equal(f.state().isPending,true);
+  await assert.rejects(f.state().setTriggers(5n,100,0),/in progress/);
+  await act(async()=>{oldPoll.resolve([]);await poll;await new Promise(r=>setTimeout(r,0));});
+  assert.equal(reads,2);assert.equal(f.state().isPending,true);
+  await assert.rejects(f.state().openPosition(order),/Refreshing account data/);
+  await act(async()=>{fresh.resolve([]);await action;});
+  assert.equal(f.state().isPending,false);
+ }finally{await f.close();}
+});
+test('a failed post-confirmation read blocks another write until successful refresh',async()=>{
+ const f=await setup();
+ try {
+  await act(async()=>{f.reads.resolve([]);await f.reads.promise;});
+  f.f.read=async()=>{throw new Error('RPC unavailable');};
+  await act(async()=>f.state().setTriggers(5n,100,0));
+  await assert.rejects(f.state().openPosition(order),/Refreshing account data/);
+  f.f.read=async()=>[];await act(async()=>f.state().refresh());
+  await act(async()=>f.state().openPosition(order));
+  assert.deepEqual(f.calls,['setTriggers','openPosition']);
+ }finally{await f.close();}
+});
+test('offline writes never submit, even with a previously valid account snapshot',async()=>{
+ const f=await setup();
+ try {
+  await act(async()=>{f.reads.resolve([]);await f.reads.promise;});
+  Object.defineProperty(navigator,'onLine',{value:false,configurable:true});
+  for(const action of [()=>f.state().openPosition(order),()=>f.state().setTriggers(5n,100,0),()=>f.state().cancelProtection(5n,'TAKE_PROFIT'),()=>f.state().cancelConditionalOrder(5n)])
+   await assert.rejects(action(),/offline/);
+  assert.deepEqual(f.calls,[]);
+ }finally{await f.close();}
+});
+test('switching wallets while a transaction confirms cannot return success into the new account',async()=>{
+ const f=await setup();
+ try {
+  await act(async()=>{f.reads.resolve([]);await f.reads.promise;});
+  const write=deferred();f.f.write=()=>write.promise;
+  let action;await act(async()=>{action=f.state().openPosition(order);await new Promise(r=>setTimeout(r,0));});
+  const rejection=assert.rejects(action,/previous wallet/);
+  f.f.account={address:'0x0000000000000000000000000000000000000002',isConnected:true};f.f.read=async()=>[];
+  await f.render();
+  await act(async()=>{write.resolve({txHash:'0x11'});await rejection;});
+  assert.equal(f.state().pendingTxHash,null);
+ }finally{await f.close();}
 });
 test.after(()=>rm(folder,{recursive:true,force:true}));

@@ -2,24 +2,8 @@ import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, isEmptyTradePrice, validateProte
 import { builderAttribution } from './baseBuilderAttribution.mjs';
 import { normalizeConditionalOrder } from '../../shared/conditional-order.mjs';
 import { VELO_PERPS_V4_ABI } from './veloPerpsV4Abi';
-import { decodeConfirmedClose, waitForSuccessfulReceipt, tradeEventId, type ConfirmedClose } from './tradeReceipts';
-/**
- * veloPerpsService — wrapper around the VeloPerps contract (V3-primary).
- *
- * V3 is the active contract. V2 / V1 fallbacks exist only so positions opened
- * on legacy versions still surface in the UI (read-only). All new writes go
- * through V3.
- *
- * V3 adds (over V2):
- *   - dual margin modes (ISOLATED, CROSS)
- *   - on-chain cross-margin account (depositCross / withdrawCross)
- *   - on-chain LIMIT/STOP conditional orders (reduce-only supported)
- *   - editable TP/SL still on-chain via setTriggers
- *
- * Routing precedence (highest to lowest):
- *   VITE_VELO_PERPS_V3_ADDRESS → VITE_VELO_PERPS_V2_ADDRESS →
- *   VITE_VELO_PERPS_ADDRESS    → hardcoded V1 fallback (read-only).
- */
+import { decodeConfirmedClose, decodeOrderOutcome, waitForSuccessfulReceipt, tradeEventId, type ConfirmedClose } from './tradeReceipts';
+/** Transaction and receipt handling for the active trading engine and legacy exits. */
 import {
   type Address,
   type PublicClient,
@@ -737,12 +721,22 @@ function checkedProtection(isLong: boolean, takeProfit: number | undefined, stop
   return { takeProfit: isEmptyTradePrice(takeProfit) ? 0 : parseTradePrice(takeProfit), stopLoss: isEmptyTradePrice(stopLoss) ? 0 : parseTradePrice(stopLoss) };
 }
 
+function validateEntry(args: Pick<OpenPositionArgs, 'isLong' | 'leverage' | 'collateralUSDC' | 'marginMode'>) {
+  if (typeof args.isLong !== 'boolean') throw new Error('Choose a valid position direction.');
+  if (!Number.isInteger(args.leverage) || args.leverage < 1 || args.leverage > 25) throw new Error('Leverage must be a whole number between 1 and 25.');
+  if (args.marginMode !== undefined && !['ISOLATED', 'CROSS'].includes(args.marginMode)) throw new Error('Invalid margin mode.');
+  if (!Number.isFinite(args.collateralUSDC) || args.collateralUSDC <= 0 || args.collateralUSDC >= 2 ** 64 / 1e6) throw new Error('Enter a valid collateral amount.');
+  const amount = toUsdc6(args.collateralUSDC);
+  if (IS_V4 && amount - amount * BigInt(args.leverage) * 10n / 10000n < 1000000n) throw new Error('Minimum collateral after entry fee is $1');
+}
+
 export async function openPosition(
   walletClient: WalletClient,
   publicClient: PublicClient,
   args: OpenPositionArgs,
 ): Promise<OpenPositionResult> {
   if (!isEnabledTradingMarket(args.pair)) throw new Error('This market is not available for new trades under the current oracle subscription.');
+  validateEntry(args);
   const protection = checkedProtection(args.isLong, args.takeProfit, args.stopLoss);
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
@@ -778,7 +772,9 @@ export async function openPosition(
         chain: walletClient.chain,
       });
       await waitForSuccessfulReceipt(publicClient, approveTx);
+      return true;
     }
+    return false;
   }
 
   let txHash: `0x${string}`;
@@ -787,12 +783,15 @@ export async function openPosition(
     if (args.marginMode === 'CROSS') throw new Error('V4 supports isolated positions only');
     const entryFee = collateral_6 * BigInt(args.leverage) * 10n / 10000n;
     if (collateral_6 - entryFee < 1000000n) throw new Error('Minimum collateral after entry fee is $1');
-    const { updateData, parsedPrice } = await fetchPriceUpdate([feedId]);
-    checkedProtection(args.isLong, protection.takeProfit, protection.stopLoss, parsedPrice);
-    await ensureApproval(collateral_6);
-    const feeWei = await getExactPythFee(publicClient, updateData);
     const slippage = args.slippageBps ?? 50;
     if (!Number.isInteger(slippage) || slippage < 1 || slippage > 1000) throw new Error('Invalid slippage tolerance');
+    let quote = await fetchPriceUpdate([feedId]);
+    checkedProtection(args.isLong, protection.takeProfit, protection.stopLoss, quote.parsedPrice);
+    // Approval can outlive the oracle's freshness window. Quote again only when it was needed.
+    if (await ensureApproval(collateral_6)) quote = await fetchPriceUpdate([feedId]);
+    const { updateData, parsedPrice } = quote;
+    checkedProtection(args.isLong, protection.takeProfit, protection.stopLoss, parsedPrice);
+    const feeWei = await getExactPythFee(publicClient, updateData);
     txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
       address:VELO_PERPS_ADDRESS, abi:VELO_PERPS_V4_ABI, functionName:'openPosition',
       args:[{ pairIndex,isLong:args.isLong,collateralUSDC_6:collateral_6,leverage:args.leverage,
@@ -888,7 +887,8 @@ export async function openPosition(
         const values = decoded.args as any;
         confirmedTriggers = { tradeId: values.tradeId, takeProfit: values.takeProfit_E18, stopLoss: values.stopLoss_E18 };
       }
-      if (decoded.eventName === 'PositionOpened' && decoded.args.trader.toLowerCase() === account.address.toLowerCase()) {
+      if (decoded.eventName === 'PositionOpened' && decoded.args.trader.toLowerCase() === account.address.toLowerCase()
+        && decoded.args.pairIndex === pairIndex && decoded.args.isLong === args.isLong && decoded.args.leverage === args.leverage) {
         logIndex = log.logIndex;
         tradeId = (decoded.args as any).tradeId;
         entryPrice = fromE18((decoded.args as any).entryPrice_E18);
@@ -897,7 +897,7 @@ export async function openPosition(
     } catch { /* not our event */ }
   }
   if (tradeId == null) {
-    throw new Error('Transaction confirmed but PositionOpened event not found');
+    throw Object.assign(new Error('Transaction confirmed but the matching position event was not found. Check the transaction before retrying.'), { txHash });
   }
   if (IS_V4 && (!confirmedTriggers || confirmedTriggers.tradeId !== tradeId
     || confirmedTriggers.takeProfit !== toE18(protection.takeProfit) || confirmedTriggers.stopLoss !== toE18(protection.stopLoss))) {
@@ -1060,31 +1060,47 @@ export async function partialClose(
   return result;
 }
 
-export async function setTriggers(
-  walletClient: WalletClient,
-  publicClient: PublicClient,
-  tradeId: bigint,
-  takeProfit: number,
-  stopLoss: number,
-): Promise<{ txHash: `0x${string}` }> {
+async function ownedPosition(walletClient: WalletClient, publicClient: PublicClient, tradeId: bigint) {
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
-  // Validate syntax before RPC, then direction against the confirmed entry.
-  checkedProtection(true, takeProfit, stopLoss);
-  const position = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'getPosition', args: [tradeId] }) as { isLong: boolean; entryPrice_E18: bigint };
-  const protection = checkedProtection(position.isLong, takeProfit, stopLoss, fromE18(position.entryPrice_E18), 'entry price');
-  const tp_E18 = toE18(protection.takeProfit);
-  const sl_E18 = toE18(protection.stopLoss);
+  if (typeof tradeId !== 'bigint' || tradeId <= 0n) throw new Error('Invalid position ID.');
+  const position = await publicClient.readContract({ address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'getPosition', args: [tradeId] });
+  if (position.owner.toLowerCase() !== account.address.toLowerCase() || position.entryPrice_E18 <= 0n)
+    throw new Error('This position is closed or belongs to another wallet. Refresh before changing protection.');
+  return position;
+}
 
+async function writeProtection(walletClient: WalletClient, publicClient: PublicClient, tradeId: bigint, tp: bigint, sl: bigint) {
   const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
-    address: VELO_PERPS_ADDRESS,
-    abi: VELO_PERPS_ABI,
-    functionName: 'setTriggers',
-    args: [tradeId, tp_E18, sl_E18],
-    account, chain: walletClient.chain,
+    address: VELO_PERPS_ADDRESS, abi: VELO_PERPS_ABI, functionName: 'setTriggers',
+    args: [tradeId, tp, sl], account: walletClient.account!, chain: walletClient.chain });
+  const receipt = await waitForSuccessfulReceipt(publicClient, txHash);
+  const confirmed = receipt.logs.some(log => {
+    if (log.address.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) return false;
+    try {
+      const event = decodeEventLog({ abi: VELO_PERPS_ABI, data: log.data, topics: log.topics });
+      return event.eventName === 'TriggersSet' && event.args.tradeId === tradeId
+        && event.args.takeProfit_E18 === tp && event.args.stopLoss_E18 === sl;
+    } catch { return false; }
   });
-  await waitForSuccessfulReceipt(publicClient, txHash);
-  return { txHash };
+  if (!confirmed) throw Object.assign(new Error('Protection change could not be verified. Check the transaction before retrying.'), { txHash });
+  return { txHash, takeProfit: fromE18(tp), stopLoss: fromE18(sl) };
+}
+
+export async function setTriggers(walletClient: WalletClient, publicClient: PublicClient, tradeId: bigint, takeProfit: number, stopLoss: number) {
+  checkedProtection(true, takeProfit, stopLoss);
+  const position = await ownedPosition(walletClient, publicClient, tradeId);
+  const protection = checkedProtection(position.isLong, takeProfit, stopLoss, fromE18(position.entryPrice_E18), 'entry price');
+  return writeProtection(walletClient, publicClient, tradeId, toE18(protection.takeProfit), toE18(protection.stopLoss));
+}
+
+export async function cancelProtection(walletClient: WalletClient, publicClient: PublicClient, tradeId: bigint, leg: 'TAKE_PROFIT' | 'STOP_LOSS') {
+  if (!['TAKE_PROFIT', 'STOP_LOSS'].includes(leg)) throw new Error('Invalid protection leg.');
+  const position = await ownedPosition(walletClient, publicClient, tradeId);
+  // Keep the other leg's exact confirmed value, including an older trigger that needs review.
+  return writeProtection(walletClient, publicClient, tradeId,
+    leg === 'TAKE_PROFIT' ? 0n : position.takeProfit_E18,
+    leg === 'STOP_LOSS' ? 0n : position.stopLoss_E18);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1192,6 +1208,9 @@ export async function placeConditionalOrder(
 ): Promise<PlaceConditionalOrderResult> {
   if (!isEnabledTradingMarket(args.pair)) throw new Error('This market is not available for new orders under the current oracle subscription.');
   if (!IS_V3) throw new Error('placeConditionalOrder requires V3');
+  validateEntry(args);
+  if (!['LIMIT', 'STOP'].includes(args.triggerKind)) throw new Error('Choose a limit or stop order.');
+  if (typeof args.reduceOnly !== 'boolean') throw new Error('Invalid reduce-only setting.');
   if (IS_V4 && (args.reduceOnly || args.marginMode !== 'ISOLATED')) throw new Error('V4 supports isolated entry orders only');
   const triggerPrice = parseTradePrice(args.triggerPrice);
   if (!(triggerPrice >= 1e-18 && triggerPrice < 2 ** 128 / 1e18)) throw new Error('Enter a valid positive order price, without commas or separators.');
@@ -1259,13 +1278,19 @@ export async function placeConditionalOrder(
     try {
       const decoded = decodeEventLog({ abi: VELO_PERPS_V3_ABI, data: log.data, topics: log.topics });
       if (decoded.eventName === 'ConditionalOrderPlaced') {
-        orderId = (decoded.args as any).orderId;
+        const values = decoded.args;
+        if (values.trader.toLowerCase() !== account.address.toLowerCase() || values.pairIndex !== pairIndex
+          || values.isLong !== args.isLong || values.leverage !== args.leverage
+          || values.triggerKind !== TRIGGER_KIND_TO_U8[args.triggerKind] || values.marginMode !== MARGIN_MODE_TO_U8[args.marginMode]
+          || values.triggerPrice_E18 !== toE18(triggerPrice) || values.collateralUSDC_6 !== collateral_6
+          || values.reduceOnly !== args.reduceOnly || values.reduceBps !== reduceBps) continue;
+        orderId = values.orderId;
         break;
       }
     } catch { /* not our event */ }
   }
   if (orderId == null) {
-    throw new Error('Transaction confirmed but ConditionalOrderPlaced event not found');
+    throw Object.assign(new Error('Order placement could not be verified. Check the transaction before retrying.'), { txHash });
   }
   return { txHash, orderId };
 }
@@ -1279,6 +1304,11 @@ export async function cancelConditionalOrder(
   if (!IS_V3) throw new Error('cancelConditionalOrder requires V3');
   const account = walletClient.account;
   if (!account) throw new Error('Wallet not connected');
+  if (typeof orderId !== 'bigint' || orderId <= 0n) throw new Error('Invalid order ID.');
+  const order = normalizeConditionalOrder(await publicClient.readContract({ address: engineAddress(engine),
+    abi: IS_V4 && engine === 'active' ? VELO_PERPS_V4_ABI : VELO_PERPS_V3_ABI, functionName: 'conditionalOrders', args: [orderId] }));
+  if (!order.active) throw new Error('This order has already filled or been cancelled. Refresh to see its current state.');
+  if (order.owner.toLowerCase() !== account.address.toLowerCase()) throw new Error('This order belongs to another wallet.');
 
   const txHash = await walletClient.writeContract({ ...builderAttribution(walletClient.chain?.id),
     address: engineAddress(engine),
@@ -1287,6 +1317,8 @@ export async function cancelConditionalOrder(
     args: [orderId],
     account, chain: walletClient.chain,
   });
-  await waitForSuccessfulReceipt(publicClient, txHash);
+  const receipt = await waitForSuccessfulReceipt(publicClient, txHash);
+  if (decodeOrderOutcome(receipt, engineAddress(engine), orderId, account.address)?.kind !== 'cancelled')
+    throw Object.assign(new Error('Order cancellation could not be verified. Check the transaction before retrying.'), { txHash });
   return { txHash };
 }

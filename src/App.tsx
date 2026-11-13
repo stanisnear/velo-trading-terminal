@@ -15,7 +15,7 @@ import { validateUsername as validateRegistryUsername } from './services/usernam
 import { canRestoreCachedProfile, hasWalletSignInIntent, createDeferredAuthListener, sessionTimeLeft, SESSION_WARNING_MS, SESSION_MAX_MS } from './services/sessionLifecycle.mjs';
 import { publicSupabase } from './services/supabaseStore';
 import { signInWithWallet, cancelWalletSignIn, walletSignInError } from './services/walletAuth';
-import { activeTradingOrders, protectionAfterCancellation } from './services/activeTradingOrders.mjs';
+import { activeTradingOrders, protectionCancellation, requiresLiveEntry } from './services/activeTradingOrders.mjs';
 import { WalletSignInDialog } from './components/WalletSignInDialog';
 import type { WalletSignInPhase } from './services/walletAuth';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -4784,7 +4784,11 @@ const App = () => {
 
     const handleOpenPosition = (pairId: string, side: any, size: number, leverage: number, type: OrderType, price: number, tp?: number, sl?: number, marginMode: MarginMode = 'ISOLATED') => {
         if(!user) return handleRequireAuth();
+        if (!['MARKET', 'LIMIT', 'STOP'].includes(type) || !['LONG', 'SHORT'].includes(side)) {
+            setToast({message:'Choose a valid order type and direction.',type:'ERROR'}); return;
+        }
 
+        const liveOrder = requiresLiveEntry(walletAddress, user.walletAddress);
         const existingPosition = positions.find(p => p.pair === pairId && !p.isCopyTrade);
 
         if (type === 'MARKET') {
@@ -4795,7 +4799,7 @@ const App = () => {
             // — leverage is fixed at openPosition time. A local-only update would
             // diverge from on-chain state on the next 5s poll. If the user wants
             // a different leverage they should open a new position at it.
-            if (!isLiveMode && size === 0 && existingPosition && existingPosition.side === side) {
+            if (!liveOrder && size === 0 && existingPosition && existingPosition.side === side) {
                 if (existingPosition.leverage === leverage) return; // already at this lever — no-op
                 executeLeverageUpdate(pairId, side, leverage, currentPrice, marginMode, existingPosition);
                 return;
@@ -4807,7 +4811,7 @@ const App = () => {
             // second position — there's nothing to confirm. The legacy modal
             // existed for Orderly's netting model where changing leverage
             // re-priced and reallocated the single net position.
-            if (!isLiveMode && existingPosition && existingPosition.side === side && existingPosition.leverage !== leverage) {
+            if (!liveOrder && existingPosition && existingPosition.side === side && existingPosition.leverage !== leverage) {
                 setPendingTrade({ pairId, side, size, leverage, type, price, tp, sl, marginMode });
                 setLeverageModalOpen(true);
                 return;
@@ -4828,7 +4832,7 @@ const App = () => {
             // In live mode (wallet user), trades go through the VeloPerps contract.
             // No simulation fallback — that would create phantom positions that
             // vanish on next poll and corrupt the equity display.
-            if (isLiveMode) {
+            if (liveOrder) {
               // Resolve UI pair (e.g. "BTC/USD") to Velo pair label ("BTC-USD")
               const veloPair = uiPairToVeloPair(pairId);
               if (!veloPair) {
@@ -5057,7 +5061,11 @@ const App = () => {
             // Off-chain (demo / non-V3): persist locally so the simulator can
             // fire it when the local price stream crosses the trigger.
 
-            if (isWalletConnected && veloPerpsTrading.isReady && veloPerpsTrading.isV3) {
+            if (liveOrder) {
+              if (!isWalletConnected || !veloPerpsTrading.isReady || !veloPerpsTrading.isV3) {
+                setToast({ message: 'Trading wallet is not ready. Reconnect before placing an order.', type: 'ERROR' });
+                return;
+              }
               const veloPair = uiPairToVeloPair(pairId);
               if (!veloPair) {
                 setToast({ message: `${pairId} is not yet listed on Velo Perps.`, type: 'INFO' });
@@ -5086,27 +5094,8 @@ const App = () => {
                 reduceOnly: false,
                 takeProfit:tp, stopLoss:sl,
               }).then((r) => {
-                // Optimistic local echo: the sync effect mirrors veloPerpsTrading.conditionalOrders
-                // into openOrders, but that runs on the next refresh tick. Insert the order
-                // locally now so the Open Orders tab updates the instant the tx mines.
-                // The sync effect uses the same `velo_ord_<id>` key, so it will dedupe.
-                const optimistic: OpenOrder = {
-                  id: `velo_ord_${r.orderId.toString()}`,
-                  pair: pairId,
-                  side,
-                  type,
-                  price,
-                  size,
-                  leverage,
-                  timestamp: Date.now(),
-                  onChain: true,
-                  onChainContract: VELO_PERPS_ADDRESS,
-                  orderlyOrderUrl: r.explorerUrl,
-                } as OpenOrder;
-                setOpenOrders((prev) => {
-                  if (prev.some((o) => o.id === optimistic.id)) return prev;
-                  return [...prev, optimistic];
-                });
+                // The hook refreshes confirmed orders and positions before resolving.
+                // A keeper may already have filled it; never insert a stale local echo.
                 setToast({ message: `${type} order placed on-chain (#${r.orderId.toString()})`, type: 'SUCCESS' });
                 playSound('CLICK');
               }).catch((e) => {
@@ -5255,10 +5244,9 @@ const App = () => {
         const protection = openOrders.find(order => order.id === id);
         if (protection?.onChain && ['TAKE_PROFIT', 'STOP_LOSS'].includes(protection.type)) {
             try {
-                const position = positionsRef.current.find(p => p.id === protection.relatedPositionId);
-                const next = protectionAfterCancellation(protection, position, VELO_PERPS_ADDRESS);
-                void veloPerpsTrading.setTriggers(next.tradeId, next.takeProfit, next.stopLoss).then(() => {
-                    setPositions(prev => prev.map(p => p.id === position!.id ? { ...p, takeProfit: next.takeProfit || undefined, stopLoss: next.stopLoss || undefined } : p));
+                const next = protectionCancellation(protection, VELO_PERPS_ADDRESS);
+                void veloPerpsTrading.cancelProtection(next.tradeId, next.leg).then(result => {
+                    setPositions(prev => prev.map(p => p.id === protection.relatedPositionId ? { ...p, takeProfit: result.takeProfit || undefined, stopLoss: result.stopLoss || undefined } : p));
                     setOpenOrders(prev => prev.filter(order => order.id !== id));
                     setToast({ message: 'Protection cancelled on-chain', type: 'SUCCESS' });
                 }).catch(error => setToast({ message: error.shortMessage || error.message || 'Cancellation not confirmed', type: 'ERROR' }));
@@ -5270,10 +5258,11 @@ const App = () => {
             if (IS_V4 && openOrders.find(o => o.id === id)?.onChainContract?.toLowerCase() !== VELO_PERPS_ADDRESS.toLowerCase()) {
                 setToast({message:'Refresh this order before cancelling. Legacy orders have separate exit controls.',type:'INFO'}); return;
             }
-            const orderId = BigInt(id.slice('velo_ord_'.length));
-            // Optimistically remove from UI; the 5s poll will reconcile.
-            setOpenOrders(prev => prev.filter(o => o.id !== id));
+            const suffix = id.slice('velo_ord_'.length);
+            if (!/^[1-9]\d*$/.test(suffix)) { setToast({message:'Invalid order. Refresh before cancelling.',type:'ERROR'}); return; }
+            const orderId = BigInt(suffix);
             veloPerpsTrading.cancelConditionalOrder(orderId).then(() => {
+                setOpenOrders(prev => prev.filter(o => o.id !== id));
                 setToast({ message: 'Order cancelled on-chain', type: 'SUCCESS' });
                 playSound('CLICK');
             }).catch((e) => {
@@ -5283,6 +5272,10 @@ const App = () => {
                 veloPerpsTrading.refresh().catch(() => {});
             });
             return;
+        }
+
+        if (requiresLiveEntry(walletAddress, user?.walletAddress)) {
+            setToast({message:'Refresh this order before cancelling. Live orders require on-chain confirmation.',type:'ERROR'}); return;
         }
 
         setOpenOrders(prevOrders => {
@@ -5296,10 +5289,7 @@ const App = () => {
 
             const isTpSl = order.type === 'TAKE_PROFIT' || order.type === 'STOP_LOSS';
 
-            // TP/SL orders don't lock margin — only regular limit/stop orders do
-            if (!isTpSl) {
-                setUser(prevUser => prevUser ? {...prevUser, balance: prevUser.balance + (order.size/order.leverage)} : null);
-            }
+            // Demo entry orders do not debit margin until execution, so cancellation has no cash movement.
 
             // If cancelling a TP/SL order, clear the corresponding field on the linked position
             if (isTpSl && order.relatedPositionId) {

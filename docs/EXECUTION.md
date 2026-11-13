@@ -1,6 +1,6 @@
 # V4 execution and accounting
 
-Reviewed 2 November 2026 against [VeloPerpsV4.sol](../contracts/src/VeloPerpsV4.sol). Active deployment: [0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code), Base Sepolia 84532. All collateral is test mUSDC. Runtime market settings remain authoritative.
+Reviewed 13 November 2026 against [VeloPerpsV4.sol](../contracts/src/VeloPerpsV4.sol). Active deployment: [0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f](https://sepolia.basescan.org/address/0xE9AEcFbc5814ce3b2dB0107594d80F054e6dB52f#code), Base Sepolia 84532. All collateral is test mUSDC. Runtime market settings remain authoritative.
 
 ## The trading model
 
@@ -105,3 +105,13 @@ History records, leaderboard summaries and social content are stored in Supabase
 ## Engineering references
 
 [Security](SECURITY.md) records key handling and review status. [Operations](OPERATIONS.md) covers deployment and recovery. [FUTURES.md](../FUTURES.md) describes funding, capital efficiency and the next execution workstreams.
+
+## Order changes and confirmation
+
+Velo validates complete decimal prices, position direction, collateral, leverage and TP/SL before signing. Protection is checked against the execution quote for a market entry and the requested entry price for a conditional order. If token approval requires a transaction, the app obtains a new oracle quote before submitting the market entry.
+
+An order placement, cancellation or protection edit is confirmed from matching events emitted by the active engine. The app keeps a pending cancellation visible until confirmation; a timeout retains the transaction hash and blocks duplicate submissions while its outcome is resolved. Account reads use a single block, and another write waits for a fresh snapshot after confirmation. Wallet accounts retain live routing during reconnects.
+
+TP and SL are stored on the position and replaced together in one `setTriggers` transaction. Cancelling one leg reads the current on-chain position and preserves the other leg’s exact value. Closing or liquidating the position removes its remaining protection with the position.
+
+To replace a pending limit or stop entry, cancel the existing order, wait for confirmation, then submit the new terms. The current engine does not expose an atomic entry-amend method. If a fill wins the race with cancellation, the cancellation reverts; the refreshed position and history reflect the fill. A failed cancellation never reports success or credits a local refund.

@@ -44,6 +44,7 @@ import {
   reduceMargin as reduceMarginTx,
   partialClose as partialCloseTx,
   setTriggers as setTriggersTx,
+  cancelProtection as cancelProtectionTx,
   depositCross as depositCrossTx,
   withdrawCross as withdrawCrossTx,
   placeConditionalOrder as placeConditionalOrderTx,
@@ -127,6 +128,7 @@ export interface UseVeloPerpsTradingActions {
   reduceMargin: (tradeId: bigint, amountUSDC: number, pair: VeloPairLabel) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
   partialClose: (tradeId: bigint, fractionBps: number, pair: VeloPairLabel) => Promise<ConfirmedClose & { explorerUrl: string }>;
   setTriggers: (tradeId: bigint, takeProfit: number, stopLoss: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
+  cancelProtection: (tradeId: bigint, leg: 'TAKE_PROFIT' | 'STOP_LOSS') => Promise<{ txHash: Hex; takeProfit: number; stopLoss: number; explorerUrl: string }>;
   depositCross: (amountUSDC: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
   withdrawCross: (amountUSDC: number) => Promise<{ txHash: `0x${string}`; explorerUrl: string }>;
   placeConditionalOrder: (args: PlaceConditionalOrderArgs) => Promise<{ txHash: `0x${string}`; orderId: bigint; explorerUrl: string }>;
@@ -182,7 +184,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
   const pendingTxRef = useRef<Hex | null>(null);
   const [pendingTxHash, setPendingTxHash] = useState<Hex | null>(null);
   const rememberPending = (hash: Hex | null) => {
-    pendingTxRef.current = hash; setPendingTxHash(hash);
+    if (identityRef.current === traderAddress) { pendingTxRef.current = hash; setPendingTxHash(hash); }
     if (traderAddress) try {
       const key = `velo_pending_tx_84532_${traderAddress.toLowerCase()}`;
       if (hash) localStorage.setItem(key, hash); else localStorage.removeItem(key);
@@ -247,7 +249,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         // One block for cash, positions and order escrow. Mixing replicas or
         // blocks across a fill/close can double count or omit collateral.
-        const blockNumber = await publicClient.getBlockNumber();
+        const blockNumber = await publicClient.getBlockNumber({ cacheTime: 0 });
         const snapshotClient = { ...publicClient,
           getBlockNumber: async () => blockNumber,
           readContract: (args: any) => publicClient.readContract({ ...args, blockNumber }),
@@ -328,6 +330,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         const receipt = await recoverPendingTransaction(publicClient, traderAddress, pendingTxHash);
         if (!active || !receipt) return;
+        confirmedRead.current.failed = true;
         rememberPending(null);
         if (receipt.status === 'reverted') setLastError('The pending transaction reverted on-chain. You can retry.');
         if (receipt.status === 'replaced') setLastError('Another transaction used this nonce. Account data has been refreshed; check the action before retrying.');
@@ -348,6 +351,21 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
     await refresh();
   };
 
+  const finishWrite = async () => {
+    const checkIdentity = () => {
+      if (!mountedRef.current || identityRef.current !== traderAddress || !readyRef.current)
+        throw new Error('Transaction confirmed for the previous wallet. Reconnect that account to view the result.');
+    };
+    checkIdentity();
+    // A poll already in flight may be pinned to a block from before confirmation.
+    const inFlight = refreshInFlight.current;
+    if (inFlight && inFlight.identity === traderAddress) await inFlight.promise;
+    checkIdentity();
+    confirmedRead.current.failed = true;
+    await refresh();
+    checkIdentity();
+  };
+
   // ── Writes ─────────────────────────────────────────────────────────────────
 
   const mintTestUsdc = useCallback(async () => {
@@ -361,7 +379,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       rememberPending(txHash);
       await waitForSuccessfulReceipt(publicClient, txHash);
       rememberPending(null);
-      void refresh();
+      await finishWrite();
       return { txHash };
     } catch (e: any) {
         e = transactionError(e);
@@ -396,7 +414,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
         await ensureBurnerGas(publicClient, traderAddress, { checkedBalance: gasBalance });
 
         const result = await openPositionTx(tradingClient as any, publicClient, args);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -419,7 +437,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const result = await closePositionTx(tradingClient as any, publicClient, tradeId, pair);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -443,7 +461,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
         await ensureBurnerGas(publicClient, traderAddress);
         await approveUsdcIfNeeded(tradingClient as any, publicClient, VELO_USDC_BASE, VELO_PERPS_ADDRESS, traderAddress, amountUSDC);
         const result = await addMarginTx(tradingClient as any, publicClient, tradeId, amountUSDC);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -466,7 +484,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
         const { updateData } = await fetchPriceUpdate([feedId]);
         const feeWei = await publicClient.readContract({ address: '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729' as `0x${string}`, abi: [{ type: 'function', name: 'getUpdateFee', stateMutability: 'view', inputs: [{ name: 'updateData', type: 'bytes[]' }], outputs: [{ name: 'feeAmount', type: 'uint256' }] }] as const, functionName: 'getUpdateFee', args: [updateData] }) as bigint;
         const result = await reduceMarginTx(tradingClient as any, publicClient, tradeId, amountUSDC, updateData, feeWei);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -488,7 +506,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
         const { updateData } = await fetchPriceUpdate([feedId]);
         const feeWei = await publicClient.readContract({ address: '0xA2aa501b19aff244D90cc15a4Cf739D2725B5729' as `0x${string}`, abi: [{ type: 'function', name: 'getUpdateFee', stateMutability: 'view', inputs: [{ name: 'updateData', type: 'bytes[]' }], outputs: [{ name: 'feeAmount', type: 'uint256' }] }] as const, functionName: 'getUpdateFee', args: [updateData] }) as bigint;
         const result = await partialCloseTx(tradingClient as any, publicClient, tradeId, fractionBps, updateData, feeWei);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -507,7 +525,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         if (traderAddress) await ensureBurnerGas(publicClient, traderAddress);
         const result = await setTriggersTx(tradingClient as any, publicClient, tradeId, takeProfit, stopLoss);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -519,6 +537,22 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
     [tradingClient, publicClient, refresh, traderAddress],
   );
 
+  const cancelProtection = useCallback(async (tradeId: bigint, leg: 'TAKE_PROFIT' | 'STOP_LOSS') => {
+    if (!tradingClient || !publicClient || !traderAddress) throw new Error('Trading wallet not ready');
+    beginWrite(); setLastError(null);
+    try {
+      await ensureBurnerGas(publicClient, traderAddress);
+      const result = await cancelProtectionTx(tradingClient as any, publicClient, tradeId, leg);
+      await finishWrite();
+      return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
+    } catch (error: any) {
+      const e = transactionError(error);
+      if (e?.txHash) rememberPending(e.txHash);
+      setLastError(e?.shortMessage || e?.message || 'Cancellation not confirmed');
+      throw e;
+    } finally { writeLock.current = false; setPending(false); }
+  }, [tradingClient, publicClient, traderAddress, refresh]);
+
   // ── V3 cross-account writes ───────────────────────────────────────────────
 
   const depositCross = useCallback(
@@ -529,7 +563,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await depositCrossTx(tradingClient as any, publicClient, amountUSDC);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -548,7 +582,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await withdrawCrossTx(tradingClient as any, publicClient, amountUSDC);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -571,7 +605,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await placeConditionalOrderTx(tradingClient as any, publicClient, args);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -590,7 +624,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
       try {
         await ensureBurnerGas(publicClient, traderAddress);
         const result = await cancelConditionalOrderTx(tradingClient as any, publicClient, orderId);
-        void refresh();
+        await finishWrite();
         return { ...result, explorerUrl: baseScanTxUrl(result.txHash) };
       } catch (e: any) {
         e = transactionError(e);
@@ -618,7 +652,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
         if (cross.free <= 0) throw new Error('No free legacy collateral to withdraw');
         result = await withdrawCrossTx(tradingClient as any, publicClient, cross.free, 'legacy');
       } else throw new Error('Invalid legacy exit action');
-      await refreshLegacy(); void refresh();
+      await refreshLegacy(); await finishWrite();
       return result;
     } catch (error: any) {
       const e = transactionError(error);
@@ -657,6 +691,7 @@ export function useVeloPerpsTrading(marks: Record<string, number> = {}): UseVelo
     reduceMargin,
     partialClose,
     setTriggers,
+    cancelProtection,
     depositCross,
     withdrawCross,
     placeConditionalOrder,

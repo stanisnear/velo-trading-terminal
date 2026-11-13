@@ -722,7 +722,7 @@ const TradeAuthGate = ({ onRequireAuth, title, description, compact = false }: a
     </div>
 );
 
-const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
+const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, tradingPending = false, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
     const PER = 5;
     const page = (items: any[], k: string) => {
         const pg = pageState[k];
@@ -983,7 +983,7 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
                                         return `${o.type} ${o.side} @ $${formatPrice(o.price)} · ${formatTime(o.timestamp)}`;
                                     })()}</span>
                                 </div>
-                                <Button variant="danger" onClick={(e: any) => { e.stopPropagation(); handleCancelOrder(o.id); }} className="h-6 px-2 text-[9px]" disabled={!!o.copyTraderId}>Cancel</Button>
+                                <Button variant="danger" onClick={(e: any) => { e.stopPropagation(); handleCancelOrder(o.id); }} className="h-6 px-2 text-[9px]" disabled={tradingPending || !!o.copyTraderId}>Cancel</Button>
                             </div>
                         ))}
                         <Pager k="ORDERS" pages={ord.pages} pg={ord.pg} />
@@ -1610,7 +1610,7 @@ export const TradeView = ({
     const limitError = orderType !== 'MARKET' && !isEmptyTradePrice(limitPrice) && !(parseTradePrice(limitPrice) > 0)
         ? 'Enter a positive price using a period for decimals, without commas.' : undefined;
 
-    const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
+    const panelProps = { user, positions: mergedPositions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, tradingPending, isMobile, onOpenDetails: setDetailsItem, highlightHistoryId, onNavigatePair: (pairId: string) => { const pair = PAIRS.find(pr => pr.id === pairId); if (pair) setActivePair(pair); }, orderlyIsReady, orderlyBalance };
 
     // ── Render ────────────────────────────────────────────────────────────────
     const activePairChange = marketChanges[activePair.id];

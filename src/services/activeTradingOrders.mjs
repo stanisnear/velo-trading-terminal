@@ -19,12 +19,16 @@ export function activeTradingOrders(conditionalOrders, positions, contract) {
   return [...entries, ...protection];
 }
 
-export function protectionAfterCancellation(order, position, contract) {
-  if (!order.onChain || !position?.onChain || !position.onChainTradeId
-    || order.onChainContract?.toLowerCase() !== contract.toLowerCase()
-    || position.onChainContract?.toLowerCase() !== contract.toLowerCase()
-    || order.relatedPositionId !== position.id) throw new Error('Refresh this position before changing its protection.');
+export function protectionCancellation(order, contract) {
+  if (!order?.onChain || order.onChainContract?.toLowerCase() !== contract.toLowerCase()
+    || !/^[1-9]\d*$/.test(String(order.onChainTradeId))
+    || order.relatedPositionId !== `velo_${order.onChainTradeId}`)
+    throw new Error('Refresh this position before changing its protection.');
   if (!['TAKE_PROFIT', 'STOP_LOSS'].includes(order.type)) throw new Error('Not a position protection order.');
-  return { tradeId: BigInt(position.onChainTradeId), takeProfit: order.type === 'TAKE_PROFIT' ? 0 : position.takeProfit || 0,
-    stopLoss: order.type === 'STOP_LOSS' ? 0 : position.stopLoss || 0 };
+  return { tradeId: BigInt(order.onChainTradeId), leg: order.type };
+}
+
+// A temporarily disconnected wallet account must never become a simulated account.
+export function requiresLiveEntry(connectedWallet, profileWallet) {
+  return !!(connectedWallet || profileWallet);
 }
