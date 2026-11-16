@@ -1,4 +1,5 @@
 import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from './services/tradeFormValidation.mjs';
+import { useViewMotion } from './hooks/useViewMotion';
 import { useEquityHistory } from './hooks/useEquityHistory';
 import { equityStore } from './services/equityStore';
 import { QuickSearch } from './components/QuickSearch';
@@ -1320,6 +1321,7 @@ const LeverageChangeModal = ({ isOpen, onClose, onConfirm, pendingTrade, existin
 const chartCandleKey = (pairId: string, timeframe: string) => `${pairId}::${timeframe}`;
 
 const App = () => {
+    const workspaceMotionRef = useRef<HTMLElement>(null);
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('velo_theme') as 'light' | 'dark') || 'dark');
     // Initialize from localStorage cache immediately — eliminates the "Log In" flash
     // on every page load while Supabase session restore runs in the background.
@@ -1344,6 +1346,7 @@ const App = () => {
     const publicLoadRef = useRef<Promise<void> | null>(null);
 
     const [activeTab, setActiveTab] = useState<TabView>(TabView.TRADE);
+    useViewMotion(workspaceMotionRef, activeTab);
     const [quickSearchOpen,setQuickSearchOpen]=useState(false);
 
     // ── Analytics: virtual page_view on tab change (SPA navigation) ──────────
@@ -6606,7 +6609,7 @@ const App = () => {
                     }
                 }} onMarkAllRead={() => void markNotificationIdsRead(notifications.filter(n => !n.read).map(n => n.id))} totalEquity={totalEquity}/>
             {/* Main content — top offset for fixed navbar (64px mobile / 60px+4px desktop) */}
-            <main className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
+            <main ref={workspaceMotionRef} className={`w-full velo-main ${activeTab === TabView.TRADE ? 'trade-view' : 'pb-24 lg:pb-8'}`} style={{ position: 'relative', zIndex: 1, paddingLeft: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)', paddingRight: activeTab === TabView.TRADE ? 0 : 'clamp(16px, 3vw, 48px)' }}>
                 {user && veloPerpsTrading.pendingTxHash && <TransactionRecoveryNotice key={veloPerpsTrading.pendingTxHash} hash={veloPerpsTrading.pendingTxHash} onReset={veloPerpsTrading.resetLegacyTracking}/>}
                 {user && veloPerpsTrading.readError && <div role="alert" style={{ padding: '10px 16px', color: 'var(--pnl-down)' }}>
                   {veloPerpsTrading.readError} <button onClick={() => void veloPerpsTrading.refresh()}>Retry account data</button>

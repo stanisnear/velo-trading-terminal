@@ -1,3 +1,5 @@
+import { MotionTabs } from '../MotionTabs';
+import { useViewMotion } from '@/hooks/useViewMotion';
 import { ActionContent, AnimatedPanel, MarginSlider } from '../ProductMotion';
 import { SegmentedControl } from '../SegmentedControl';
 import { AnimatedText } from '../AnimatedValue';
@@ -7,7 +9,7 @@ import { IS_V4, PAIR_INDEX, VELO_PERPS_V4_ADDRESS, type VeloPairLabel } from '@/
 import { VELO_PERPS_V4_ABI } from '@/services/veloPerpsV4Abi';
 import { useReadContract } from 'wagmi';
 import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, isEmptyTradePrice, validateProtectionPrices, validateTradeForm } from '@/services/tradeFormValidation.mjs';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, Copy, Edit, Lock, User, Bot, Search, X, Zap, Activity, Share2, Plus, Check, RefreshCw, Loader2 } from 'lucide-react';
 import { TradingViewChart, TV_INTERVALS, TV_INTERVALS_QUICK, CHART_STYLES, INDICATORS, ChartStyleCode } from '@/components/TradingViewChart';
@@ -723,6 +725,9 @@ const TradeAuthGate = ({ onRequireAuth, title, description, compact = false }: a
 );
 
 const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab, pageState, setPageState, onRequireAuth, onClosePosition, onEditPosition, onSharePosition, onShareHistory, handleCancelOrder, tradingPending = false, isMobile, onOpenDetails, highlightHistoryId, onNavigatePair, orderlyIsReady = false, orderlyBalance = 0 }: any) => {
+    const activityMotionRef = useRef<HTMLDivElement>(null);
+    const activityPanelId = useId();
+    useViewMotion(activityMotionRef, `${tab}-${pageState[tab === 'OPEN ORDERS' ? 'ORDERS' : tab]}`);
     const PER = 5;
     const page = (items: any[], k: string) => {
         const pg = pageState[k];
@@ -761,21 +766,14 @@ const PositionsPanel = ({ user, positions, openOrders, marketPrices, tab, setTab
             {/* Tabs */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', flex: 1 }}>
-                    {TABS.map(({ k, label, n }) => (
-                        <button key={k} onClick={() => user ? setTab(k) : onRequireAuth?.()} style={{ ...S.label,
-                            padding: '7px 14px', border: 'none', background: 'none', cursor: 'pointer', whiteSpace: 'nowrap' as const,
-                            borderBottom: `2px solid ${tab === k ? 'var(--iris-violet)' : 'transparent'}`,
-                            color: tab === k ? 'var(--fg)' : 'var(--fg-subtle)',
-                            fontSize: 10, transition: 'all 0.12s',
-                        }}>
-                            {label} {user && <span style={{ opacity: 0.4, marginLeft: 2 }}>· {n}</span>}
-                        </button>
-                    ))}
+                    <MotionTabs panelId={activityPanelId} label="Trading activity" value={tab} onChange={value => user ? setTab(value) : onRequireAuth?.()}
+                        options={TABS.map(({k,label,n}) => ({value:k,label:<>{label}{user && <small>{n}</small>}</>}))}/>
+
                 </div>
             </div>
 
             {/* Body */}
-            <div className="trade-activity-body custom-scrollbar" style={{ flex: 1, minHeight: 0, overflowY: user ? 'auto' : 'hidden', paddingBottom: user && isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
+            <div ref={activityMotionRef} id={activityPanelId} role="tabpanel" aria-label={tab} className="trade-activity-body custom-scrollbar" style={{ flex: 1, minHeight: 0, overflowY: user ? 'auto' : 'hidden', paddingBottom: user && isMobile ? 'max(100px, calc(env(safe-area-inset-bottom, 0px) + 100px))' : 0 }}>
 
                 {!user ? (
                         <TradeAuthGate

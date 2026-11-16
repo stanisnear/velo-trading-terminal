@@ -1,5 +1,7 @@
+import { MotionTabs } from './ui/MotionTabs';
+import { useViewMotion } from '../hooks/useViewMotion';
 import { AnimatedText } from './ui/AnimatedValue';
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useId } from 'react';
 import { supabase, publicSupabase } from '@/services/supabaseStore';
 import { pythPriceStream } from '@/services/pythPriceService';
 
@@ -61,7 +63,10 @@ function rowToFill(r: any, flash = false): Fill | null {
 }
 
 export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, openOrders: liveOpenOrders, compact = false }) => {
+  const flowMotionRef = useRef<HTMLDivElement>(null);
+  const flowPanelId = useId();
   const [view, setView] = useState<'trades' | 'depth' | 'book'>('trades');
+  useViewMotion(flowMotionRef, view);
   const [showAllFills, setShowAllFills] = useState(false);
   const [fills, setFills] = useState<Fill[]>([]);
   const [orders, setOrders] = useState<{ side: 'LONG' | 'SHORT'; price: number; size: number }[]>([]);
@@ -182,23 +187,17 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
     return { bids, asks: asks.reverse(), max: Math.max(cb, ca, 1) };
   }, [orders, price]);
 
-  const Tabs = (
-    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-      {(['trades', 'depth', 'book'] as const).map(v => (
-        <button key={v} title={v === 'depth' ? 'Recent reported fills grouped by price; not executable market liquidity' : v === 'book' ? 'Conditional orders; not a matching-engine order book' : 'Reported testnet trading activity'} onClick={() => setView(v)} style={{
-          background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 3px',
-          fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase',
-          color: view === v ? 'var(--fg)' : 'var(--fg-subtle)',
-          borderBottom: view === v ? '1.5px solid var(--accent)' : '1.5px solid transparent',
-        }}>{v === 'trades' ? 'Trades' : v === 'depth' ? 'Volume' : 'Orders'}</button>
-      ))}
-    </div>
-  );
+  const Tabs = <MotionTabs panelId={flowPanelId} label="Market activity" value={view} onChange={value => setView(value as typeof view)}
+    options={[
+      {value:'trades',label:'Trades',title:'Reported testnet trading activity'},
+      {value:'depth',label:'Volume',title:'Recent reported fills grouped by price; not executable market liquidity'},
+      {value:'book',label:'Orders',title:'Conditional orders; not a matching-engine order book'},
+    ]}/>;
 
   const LadderRows = (rowsArr: any[], kind: 'bid' | 'ask', maxTotal: number) => (
     rowsArr.map((r, i) => (
-      <div key={`${kind}${i}`} style={{ display: 'flex', alignItems: 'center', position: 'relative', padding: '0 12px', height: 24, fontSize: 11 }}>
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(r.total / maxTotal) * 100}%`, background: kind === 'ask' ? 'rgba(255,80,80,0.10)' : 'rgba(62,207,142,0.10)' }} />
+      <div key={`${kind}-${r.price}-${i}`} style={{ display: 'flex', alignItems: 'center', position: 'relative', padding: '0 12px', height: 24, fontSize: 11 }}>
+        <div className="velo-flow-volume-bar" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(r.total / maxTotal) * 100}%`, transition: 'width 260ms cubic-bezier(.22,1,.36,1)', background: kind === 'ask' ? 'rgba(255,80,80,0.10)' : 'rgba(62,207,142,0.10)' }} />
         <span style={{ flex: 1, color: kind === 'ask' ? 'var(--pnl-down)' : 'var(--pnl-up)', fontWeight: 600, zIndex: 1 }}>{<AnimatedText text={fmtPrice(r.price)}/>}</span>
         <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-muted)', zIndex: 1 }}>{<AnimatedText text={fmtSize(r.size)}/>}</span>
         <span style={{ flex: 1, textAlign: 'right', color: 'var(--fg-subtle)', fontSize: 10, zIndex: 1 }}>{<AnimatedText text={fmtSize(r.total)}/>}</span>
@@ -214,9 +213,9 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: compact ? 'auto' : '100%', width: '100%', fontFamily: 'var(--font-mono)', userSelect: 'none', overflow: 'hidden', background: 'var(--bg-base-2)' }}>
-      <style>{`@keyframes veloFillFlashBuy{0%{background:rgba(62,207,142,0.28)}100%{background:transparent}}@keyframes veloFillFlashSell{0%{background:rgba(255,80,80,0.28)}100%{background:transparent}}`}</style>
+      <style>{`@media(prefers-reduced-motion:reduce){.velo-flow-volume-bar{transition:none!important}}@keyframes veloFillFlashBuy{0%{background:rgba(62,207,142,0.28)}100%{background:transparent}}@keyframes veloFillFlashSell{0%{background:rgba(255,80,80,0.28)}100%{background:transparent}}`}</style>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 9px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
         {Tabs}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           {view === 'trades' && fills.length > rows && (
@@ -239,7 +238,7 @@ export const OrderBook: React.FC<OrderBookProps> = ({ price, pair, rows = 8, ope
       </div>
 
       {loadError && <div role="status" style={{ padding: '8px 12px', fontSize: 11, color: 'var(--fg-muted)' }}>{loadError} <button onClick={() => setReload(x => x + 1)}>Retry</button></div>}
-      <div style={{ flex: compact ? '0 1 auto' : 1, minHeight: compact ? 56 : 0, maxHeight: compact ? 240 : undefined, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
+      <div ref={flowMotionRef} id={flowPanelId} role="tabpanel" aria-label={view} style={{ flex: compact ? '0 1 auto' : 1, minHeight: compact ? 56 : 0, maxHeight: compact ? 240 : undefined, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
         {view === 'trades' ? (
           loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--fg-subtle)', fontSize: 11 }}>Loading fills…</div>

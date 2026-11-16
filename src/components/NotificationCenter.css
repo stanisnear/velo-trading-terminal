@@ -1,0 +1,22 @@
+.velo-notification-center{position:fixed;z-index:10030;width:min(360px,calc(100vw - 24px));max-height:calc(100dvh - 110px);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--glass-border);border-radius:20px;background:var(--modal-surface);box-shadow:var(--modal-shadow);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);transform-origin:top right;color:var(--fg);font-family:var(--font-sans)}
+.velo-notification-center>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid var(--hairline)}
+.velo-notification-center h2{margin:0 0 4px;font:650 16px/1.3 var(--font-sans);letter-spacing:-.025em}
+.velo-notification-count{font-size:11px;color:var(--fg-muted)}
+.velo-notification-tools{display:flex;gap:3px}
+.velo-notification-tools button{display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;background:transparent;border-radius:10px;color:var(--fg-muted);cursor:pointer;transition:background 150ms,transform 150ms}
+.velo-notification-tools button:hover{background:var(--chip-bg);color:var(--fg)}
+.velo-notification-tools button:active{transform:scale(.9)}
+.velo-notification-list{overflow:auto;overscroll-behavior:contain;min-height:0;max-height:420px}
+.velo-notification-row{display:flex;align-items:flex-start;gap:11px;width:100%;padding:14px 16px;border:0;border-bottom:1px solid var(--hairline);text-align:left;background:transparent;color:var(--fg);font:400 12px/1.55 var(--font-sans);cursor:pointer;transition:background 150ms}
+.velo-notification-row:last-child{border-bottom:0}
+.velo-notification-row:hover{background:var(--chip-bg)}
+.velo-notification-row[data-read=true]{color:var(--fg-muted)}
+.velo-notification-icon{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;border:1px solid var(--hairline);border-radius:10px;color:var(--fg-muted)}
+.velo-notification-copy{display:grid;gap:5px;flex:1;min-width:0;overflow-wrap:anywhere}
+.velo-notification-copy time{font-size:10px;color:var(--fg-subtle)}
+.velo-notification-unread{margin-top:6px;width:5px;height:5px;flex-shrink:0;background:var(--accent);border-radius:50%}
+.velo-notification-empty{display:grid;justify-items:center;gap:9px;padding:38px 20px;color:var(--fg-muted);font-size:12px}
+.velo-notification-empty>svg{margin-bottom:6px;color:var(--fg-subtle)}
+.velo-notification-empty strong{font-weight:550;color:var(--fg)}
+.velo-notification-center button:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+@media(prefers-reduced-motion:reduce){.velo-notification-center button{transition:none}.velo-notification-tools button:active{transform:none}}

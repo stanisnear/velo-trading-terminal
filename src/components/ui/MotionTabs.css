@@ -1,0 +1,7 @@
+.velo-motion-tabs{position:relative;display:flex;align-items:stretch;min-width:0;max-width:100%;isolation:isolate}
+.velo-motion-tabs>button{position:relative;flex-shrink:0;min-height:32px;padding:8px 12px;border:0;background:transparent;color:var(--fg-subtle);font:650 10px/1.35 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;cursor:pointer;transition:color 160ms,background 160ms;touch-action:manipulation}
+.velo-motion-tabs>button[aria-selected=true]{color:var(--fg)}
+.velo-motion-tabs>button:hover{background:var(--chip-bg)}
+.velo-motion-tabs>button:focus-visible{outline:2px solid var(--accent);outline-offset:-4px;border-radius:8px}
+.velo-motion-tabs__line{position:absolute;left:0;bottom:0;height:2px;border-radius:3px;background:var(--accent);pointer-events:none}
+.velo-motion-tabs>button small{margin-left:6px;color:var(--fg-subtle);font:inherit;opacity:.65}
