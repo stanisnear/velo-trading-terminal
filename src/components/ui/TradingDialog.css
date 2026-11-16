@@ -17,3 +17,15 @@
 .trade-dialog-scroll{flex:1 1 auto;scroll-padding-block:12px;padding-top:6px;padding-bottom:12px;border-top:1px solid var(--hairline)}
 .trade-dialog-actions>.velo-button--secondary{background:var(--secondary-bg);color:var(--secondary-fg,var(--fg))}
 .trade-dialog-actions>.velo-button--danger{background:color-mix(in srgb,var(--pnl-down) 12%,transparent);color:var(--pnl-down);border-color:color-mix(in srgb,var(--pnl-down) 25%,transparent)}
+
+/* Reveal content once on entry. Live values never replay the entrance. */
+@media(prefers-reduced-motion:no-preference){
+ .trade-dialog-scroll>:where(section,dl,p,div):not(.velo-manage),
+ .trade-dialog .velo-manage-quotes,.trade-dialog .velo-manage-panel{animation:trade-content-arrive 240ms cubic-bezier(.22,1,.36,1) both}
+ .trade-dialog-scroll>:nth-child(2){animation-delay:25ms}
+ .trade-dialog-scroll>:nth-child(3){animation-delay:45ms}
+ .trade-dialog-scroll>:nth-child(n+4){animation-delay:60ms}
+ .trade-dialog .position-details-facts>div{animation:trade-content-arrive 220ms cubic-bezier(.22,1,.36,1) both}
+ .trade-dialog .position-details-facts>div:nth-child(2n){animation-delay:35ms}
+}
+@keyframes trade-content-arrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}

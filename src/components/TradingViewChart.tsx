@@ -1,5 +1,6 @@
 import { readChartPalette, chartPaletteFallback } from './chartPalette';
 import { AnimatedText } from './ui/AnimatedValue';
+import { ChartHistoryState } from './ui/ChartHistoryState';
 import { formatPrice } from './ui/shared';
 import { pythPriceStream } from '../services/pythPriceService';
 import { subscribeKlines } from '../services/priceService';
@@ -1333,23 +1334,7 @@ export const TradingViewChart: React.FC<TradingViewChartProps> = memo(({
           <span className="chart-history-spinner"><RefreshCw size={11} /></span> Loading older candles
         </div>
       )}
-      {!initialData.length && !hasLiveCandles && (
-        <div className="chart-history-state" aria-live="polite">
-          {historyStatus === 'loading' ? (
-            <>
-              <span className="chart-history-spinner"><RefreshCw size={14} /></span>
-              <span>Loading historical candles</span>
-            </>
-          ) : (
-            <>
-              <span>Market history is temporarily unavailable</span>
-              <button className="chart-history-retry" type="button" onClick={onRetryHistory}>
-                <RefreshCw size={13} /> Retry
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      <ChartHistoryState visible={!initialData.length && !hasLiveCandles} status={historyStatus} onRetry={onRetryHistory}/>
     </div>
   );
 });

@@ -1,11 +1,26 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react';
 
 // Adapted from beUI StatefulButton / RangeSlider motion patterns (MIT,
 // Saurabh Chauhan). Velo keeps native inputs and execution handlers.
 // See licenses/beUI-LICENSE.txt and THIRD-PARTY-NOTICES.md.
 export const supportsProductMotion = () => typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function';
 const glide = { type:'spring', stiffness:700, damping:50, mass:.5 } as const;
+
+function DiscussionRegion({id,children}:{id:string;children:React.ReactNode}) {
+  const present=useIsPresent();
+  return <motion.div id={id} inert={!present} aria-hidden={!present}
+    initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}
+    transition={{height:{duration:.22,ease:[.22,1,.36,1]},opacity:{duration:.14}}}
+    style={{overflow:'hidden'}}>{children}</motion.div>;
+}
+
+/** Threads mount on demand; closing content becomes inert before its exit finishes. */
+export function DiscussionReveal({open,id,children}:{open:boolean;id:string;children:React.ReactNode}) {
+  const reduced=useReducedMotion();
+  if(reduced||!supportsProductMotion())return open?<div id={id}>{children}</div>:null;
+  return <AnimatePresence initial={false}>{open&&<DiscussionRegion key={id} id={id}>{children}</DiscussionRegion>}</AnimatePresence>;
+}
 
 /** Native disclosure state with a short height reveal; hidden links cannot receive focus. */
 export function ContentDisclosure({ open, id, children }: {open:boolean;id:string;children:React.ReactNode}) {
@@ -50,12 +65,20 @@ export function AnimatedPanel({ activeKey, children }: {activeKey:string; childr
 
 /** Native keyboard/touch behavior; the decorative fill follows with a spring. */
 export function MarginSlider({ value, onChange, label }: {value:number;onChange:(value:number)=>void;label:string}) {
+  return <ValueSlider value={value} onChange={onChange} label={label} valueText={`${value}% of free balance`}/>;
+}
+
+/** One native range control for order size and protection targets. */
+export function ValueSlider({value,onChange,label,max=100,disabled=false,valueText,tone='neutral'}:{
+  value:number;onChange:(value:number)=>void;label:string;max?:number;disabled?:boolean;valueText?:string;tone?:'neutral'|'profit'|'loss';
+}) {
   const reduced = useReducedMotion();
-  return <div className="velo-margin-slider">
+  const fill=Math.max(0,Math.min(100,value/max*100));
+  return <div className="velo-margin-slider" data-tone={tone} data-disabled={disabled}>
     <div className="velo-margin-slider__track" aria-hidden="true">{supportsProductMotion() && !reduced ? <motion.div className="velo-margin-slider__fill"
-      initial={false} animate={{width:`${Math.max(0,Math.min(100,value))}%`}} transition={glide}/> : <div className="velo-margin-slider__fill" style={{width:`${value}%`}}/>}</div>
+      initial={false} animate={{width:`${fill}%`}} transition={glide}/> : <div className="velo-margin-slider__fill" style={{width:`${fill}%`}}/>}</div>
     <div className="velo-margin-slider__ticks" aria-hidden="true">{[0,25,50,75,100].map(tick=><i key={tick}/>)}</div>
-    <input type="range" min={0} max={100} step={1} value={value} aria-label={label} aria-valuetext={`${value}% of free balance`}
+    <input type="range" min={0} max={max} step={1} value={value} disabled={disabled} aria-label={label} aria-valuetext={valueText}
       onChange={event=>onChange(Number(event.currentTarget.value))}/>
   </div>;
 }

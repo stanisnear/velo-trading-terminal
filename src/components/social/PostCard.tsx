@@ -1,5 +1,5 @@
 import { TraderPreview } from './TraderPreview';
-import { ReactionFeedback } from '../ui/ProductMotion';
+import { DiscussionReveal, ReactionFeedback } from '../ui/ProductMotion';
 import { AnimatedText } from '../ui/AnimatedValue';
 /**
  * PostCard — the feed post unit (content with @/$ linkification, link preview,
@@ -8,7 +8,7 @@ import { AnimatedText } from '../ui/AnimatedValue';
  * cluster's core). renderContentWithMentions is exported because
  * SinglePostView (still in App) renders post bodies with it.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { ArrowUpRight, Heart, MessageCircle, Repeat, Share2, Trash2 } from 'lucide-react';
 import { CommentThread } from '@/components/CommentThread';
 import { VerifiedBadge } from '@/components/ui/shared';
@@ -148,6 +148,7 @@ export const PostCard = (props: any) => {
     const [shareToast, setShareToast] = useState(false);
     const [mediaOpen, setMediaOpen] = useState(false);
     const discussion = useRef<HTMLDivElement>(null);
+    const discussionId = useId();
     // If defaultOpenComments flips (notification routing), open comments
     useEffect(() => { if (defaultOpenComments) setShowComments(true); }, [defaultOpenComments]);
     const S = {
@@ -251,7 +252,7 @@ export const PostCard = (props: any) => {
                             { icon: <Heart size={15} fill={hasLiked ? 'currentColor' : 'none'}/>, count: post.likes, onClick: () => onLike(post.id), active: hasLiked, hoverColor: 'var(--iris-magenta)' },
                             { icon: <Share2 size={15}/>, count: null, onClick: handleShare, active: false, hoverColor: 'var(--iris-cyan)' },
                         ].map((action, i) => (
-                            <button key={i} className="velo-social-action" aria-pressed={i === 1 || i === 2 ? action.active : undefined} aria-expanded={i === 0 ? showComments : undefined} onClick={action.onClick} aria-label={['Comments', 'Repost', 'Like', 'Share'][i]} title={['Comments', 'Repost', 'Like', 'Share'][i]}
+                            <button key={i} className="velo-social-action" aria-pressed={i === 1 || i === 2 ? action.active : undefined} aria-expanded={i === 0 ? showComments : undefined} aria-controls={i === 0 && showComments ? discussionId : undefined} onClick={action.onClick} aria-label={['Comments', 'Repost', 'Like', 'Share'][i]} title={['Comments', 'Repost', 'Like', 'Share'][i]}
                                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', ...S.mono, fontSize: 11, color: action.active ? action.hoverColor : 'var(--fg-subtle)', transition: 'all 0.1s' }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = action.hoverColor; (e.currentTarget as HTMLElement).style.background = 'var(--chip-bg)'; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = action.active ? action.hoverColor : 'var(--fg-subtle)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -261,7 +262,7 @@ export const PostCard = (props: any) => {
                     </div>
                     <PostReactions post={post} />
                     {/* Comments section */}
-                    {showComments && (
+                    <DiscussionReveal open={showComments} id={discussionId}>
                         <CommentThread
                             post={post}
                             user={user}
@@ -273,7 +274,7 @@ export const PostCard = (props: any) => {
                             onTickerClick={onTickerClick}
                             compact
                         />
-                    )}
+                    </DiscussionReveal>
                 </div>
             </div>
             {mediaOpen && !hideMedia && <PostMediaViewer {...props} onClose={()=>setMediaOpen(false)}/>}

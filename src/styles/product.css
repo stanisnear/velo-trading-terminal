@@ -165,6 +165,10 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
 .velo-margin-slider input::-moz-range-thumb { width:15px;height:15px;border-radius:50%;background:var(--surface-solid);border:2px solid var(--accent); }
 .velo-margin-slider input:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent); }
 .velo-margin-slider input:active::-webkit-slider-thumb { box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 12%,transparent); }
+.velo-margin-slider[data-tone=profit]{--accent:var(--pnl-up)}
+.velo-margin-slider[data-tone=loss]{--accent:var(--pnl-down)}
+.velo-margin-slider[data-disabled=true]{opacity:.5}
+.velo-margin-slider input:disabled{cursor:not-allowed}
 .velo-action-slot { position:relative;display:inline-grid;align-items:center;justify-items:center;min-height:20px; }
 .velo-action-slot__measure { grid-area:1/1;visibility:hidden;pointer-events:none; }
 .velo-action-slot__content { grid-area:1/1;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap; }

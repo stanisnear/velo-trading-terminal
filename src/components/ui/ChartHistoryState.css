@@ -1,0 +1,8 @@
+.chart-history-announcement{position:absolute;inset:0;pointer-events:none;z-index:3}
+.chart-history-panel{position:absolute;inset:0;display:grid;align-content:center;justify-items:center;gap:20px;padding:24px;color:var(--fg-muted);font:500 12px/1.5 var(--font-sans)}
+.chart-history-placeholder{position:relative;width:min(82%,560px);height:clamp(70px,20vh,150px);overflow:hidden;color:var(--hairline-strong);opacity:.6}
+.chart-history-placeholder svg{display:block;width:100%;height:100%}
+.chart-history-placeholder>i{position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent, color-mix(in srgb,var(--fg-muted) 12%,transparent),transparent);animation:chart-history-scan 1.8s ease-in-out infinite}
+.chart-history-message{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+@keyframes chart-history-scan{to{transform:translateX(100%)}}
+@media(prefers-reduced-motion:reduce){.chart-history-placeholder>i,.chart-history-message .chart-history-spinner{animation:none}}

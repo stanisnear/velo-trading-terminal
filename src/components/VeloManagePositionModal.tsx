@@ -4,7 +4,7 @@ import { positionSettlement, liquidationEstimate, triggerPriceForRoe } from '@/s
 import { V4_MAX_TP_PRICE_MOVE, parseTradePrice, isEmptyTradePrice, validateProtectionPrices } from '@/services/tradeFormValidation.mjs';
 import { Share2, CheckCircle2, ExternalLink, Loader2, ShieldCheck, SlidersHorizontal, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { TradingDialog } from './ui/TradingDialog';
-import { MeasuredPanel,ActionContent,supportsProductMotion } from './ui/ProductMotion';
+import { MeasuredPanel,ActionContent,ValueSlider,supportsProductMotion } from './ui/ProductMotion';
 import { motion,useReducedMotion } from 'motion/react';
 import { formatMoney, formatPrice } from './ui/shared';
 import { baseScanTxUrl } from '@/services/veloPerpsService';
@@ -86,9 +86,9 @@ export function VeloManagePositionModal({ isOpen, onClose, position, currentPric
         <span>{p.v4 ? 'Est. net PnL' : 'Est. PnL before fees'}</span>
         <strong style={{ color: projected === null ? 'var(--fg-muted)' : projected >= 0 ? 'var(--pnl-up)' : 'var(--pnl-down)' }}>{<AnimatedText text={projected === null ? 'Not set' : `${signedMoney(projected)} (${percent > 0 ? '+' : ''}${percent.toFixed(1)}%)`}/>}</strong>
       </div>
-      <input aria-label={`${label} return slider`} type="range" min="0" max={max} step="1" disabled={disabled}
-        value={Math.min(max, Math.max(0, profit ? percent : -percent))} onChange={e => {
-          const target = Number(e.target.value);
+      <ValueSlider label={`${label} return slider`} max={max} disabled={disabled} tone={profit?'profit':'loss'}
+        valueText={valid?`${percent.toFixed(1)}% return on margin`:'Not set'}
+        value={Math.min(max, Math.max(0, profit ? percent : -percent))} onChange={target => {
           const minimumLoss = -positionSettlement(p, p.entryPrice, now, true).pnl / margin * 100 + .05;
           const price = triggerPriceForRoe(p, profit ? target : -Math.max(target, minimumLoss), now);
           setValue(target === 0 ? '' : String(Number(price.toPrecision(10))));
