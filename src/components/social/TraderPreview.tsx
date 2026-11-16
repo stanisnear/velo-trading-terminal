@@ -10,7 +10,7 @@ const PreviewSurface = React.forwardRef<HTMLDivElement, React.ComponentProps<typ
  const present=useIsPresent(),reduced=useReducedMotion(),animate=supportsProductMotion()&&!reduced;
  return <motion.div {...props} ref={ref} inert={!present} aria-hidden={!present}
   initial={animate?{opacity:0,y:5,scale:.98}:false} animate={{opacity:1,y:0,scale:1}}
-  exit={{opacity:0,y:animate?3:0,scale:animate?.985:1}} transition={{duration:animate?.16:0,ease:[.22,1,.36,1]}}/>;
+  exit={{opacity:0,y:animate?3:0,scale:animate ? .985 : 1}} transition={{duration:animate ? .16 : 0,ease:[.22,1,.36,1]}}/>;
 });
 
 /** A focusable public-profile preview. Reads already loaded data; no extra requests. */
@@ -34,7 +34,7 @@ export function TraderPreview({profile,onView,children}:{profile:any;onView:()=>
  const name=profileDisplayName(profile);
  return <span className="trader-preview-anchor" ref={anchor} onPointerEnter={event=>{if(event.pointerType==='mouse')show();}} onPointerLeave={hide} onFocusCapture={()=>{if(suppressFocus.current){suppressFocus.current=false;return;}show();}} onBlurCapture={event=>{if(!card.current?.contains(event.relatedTarget as Node)&&!anchor.current?.contains(event.relatedTarget as Node))hide();}} onKeyDown={event=>{if(event.key==='Escape'&&open){event.preventDefault();event.stopPropagation();setOpen(false);}if(event.key==='ArrowDown'){event.preventDefault();cancel();focusPreview.current=true;setOpen(true);}}}>
   {children}
-  {position&&createPortal(<AnimatePresence initial={false}>{open&&<PreviewSurface key="profile" ref={card} id={id} role="dialog" aria-label={`${name} profile preview`} className="trader-preview-card" style={position} onPointerEnter={cancel} onPointerLeave={hide} onFocusCapture={cancel} onBlurCapture={hide} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setOpen(false);suppressFocus.current=true;anchor.current?.querySelector('button')?.focus();}}}>
+  {position&&createPortal(<AnimatePresence>{open&&<PreviewSurface key="profile" ref={card} id={id} role="dialog" aria-label={`${name} profile preview`} className="trader-preview-card" style={position} onPointerEnter={cancel} onPointerLeave={hide} onFocusCapture={cancel} onBlurCapture={hide} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setOpen(false);suppressFocus.current=true;anchor.current?.querySelector('button')?.focus();}}}>
    <div className="trader-preview-identity">{profile.avatar&&<img src={profile.avatar} alt=""/>}<div><strong>{name}</strong><small>{!isWalletPlaceholder(profile.handle)&&profile.handle?profile.handle:`@${name}`}</small></div>{profile.isPrivate&&<LockKeyhole size={15}/>}</div>
    {profile.bio&&<p>{String(profile.bio).slice(0,160)}</p>}
    {Array.isArray(profile.followers)&&<div className="trader-preview-followers"><Users size={13}/><b>{profile.followers.length.toLocaleString()}</b> followers{Array.isArray(profile.following)&&<span> · {profile.following.length.toLocaleString()} following</span>}</div>}
