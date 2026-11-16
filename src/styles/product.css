@@ -172,8 +172,6 @@ html.light { --trade-surface:var(--surface-solid); --chart-surface:var(--trade-s
 @keyframes velo-morph-loader { 0%,100% { border-radius:3px;transform:rotate(0deg) scale(.75);opacity:.6; } 50% { border-radius:50%;transform:rotate(180deg) scale(1);opacity:1; } }
 .velo-button:active,.trade-auth-gate__button:active { transform:scale(.98); }
 @media(prefers-reduced-motion:reduce) { .velo-morph-loader { animation:none;border-radius:50%;opacity:.65; } }
-/* Motion owns selection transforms; CSS only handles colour. */
-.velo-segment-lens { transition:background 160ms,border-color 160ms; }
 @media(min-width:1024px) { .velo-trade-rail { width:clamp(320px,25vw,374px); } }
 .velo-market-sparkline { position:relative;height:34px;min-width:0; }
 .velo-market-sparkline>svg { width:100%;height:30px;display:block;overflow:visible; }

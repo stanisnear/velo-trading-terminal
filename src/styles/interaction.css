@@ -12,12 +12,61 @@ html.light { --media-glass:rgba(244,247,245,.76); --media-overlay:rgba(37,46,41,
 .velo-button__label { display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:opacity 140ms ease,transform 200ms var(--material-ease); }
 .velo-button[aria-busy=true] .velo-button__label { opacity:0; transform:translateY(3px); }
 .velo-button__spinner { position:absolute; left:calc(50% - 8px); top:calc(50% - 8px); }
-.velo-toast { display:flex; align-items:center; gap:10px; max-width:calc(100vw - 32px); padding:11px 12px 11px 16px; border:1px solid var(--glass-border); border-radius:18px; background:var(--modal-surface); color:var(--fg); box-shadow:var(--modal-shadow); -webkit-backdrop-filter:blur(26px); backdrop-filter:blur(26px); animation:velo-attachment-in 220ms var(--material-ease); }
-.velo-toast__message { min-width:0; font:500 13px/1.5 var(--font-sans); overflow-wrap:anywhere; }
-.velo-toast__close { flex:none; display:grid; place-items:center; width:28px; height:28px; padding:0; color:var(--fg-subtle); background:transparent; border:0; border-radius:50%; cursor:pointer; }
+.velo-toast-region {
+  position:fixed;
+  z-index:100;
+  inset-inline:0;
+  top:max(88px,calc(env(safe-area-inset-top,0px) + 70px));
+  display:grid;
+  justify-items:center;
+  padding-inline:16px;
+  pointer-events:none;
+}
+.velo-toast__announcement {
+  position:absolute;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  clip-path:inset(50%);
+}
+.velo-toast {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:10px;
+  width:max-content;
+  max-width:min(100%,26rem);
+  padding:9px 7px 9px 13px;
+  border:1px solid var(--glass-border);
+  border-radius:15px;
+  background:var(--modal-surface);
+  color:var(--fg);
+  box-shadow:var(--modal-shadow);
+  -webkit-backdrop-filter:blur(var(--glass-blur,18px));
+  backdrop-filter:blur(var(--glass-blur,18px));
+  pointer-events:auto;
+  animation:velo-toast-in 180ms var(--material-ease) both;
+}
+.velo-toast__icon { display:grid; place-items:center; color:var(--accent-text); }
+.velo-toast[data-type=SUCCESS] .velo-toast__icon { color:var(--pnl-up); }
+.velo-toast[data-type=ERROR] .velo-toast__icon { color:var(--pnl-down); }
+.velo-toast__check { stroke-dasharray:1; animation:velo-toast-check 220ms 50ms var(--material-ease) both; }
+.velo-toast__message { display:grid; gap:1px; font:500 13px/1.4 var(--font-sans); overflow-wrap:anywhere; }
+.velo-toast__message strong { font-weight:650; }
+.velo-toast__message span { color:var(--fg-muted); font-size:12px; }
+.velo-toast__close { display:grid; place-items:center; width:36px; height:36px; padding:0; color:var(--fg-subtle); background:transparent; border:0; border-radius:10px; cursor:pointer; }
 .velo-toast__close:hover { color:var(--fg); background:var(--chip-bg); }
+.velo-toast__close:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+@keyframes velo-toast-in { from { opacity:0; transform:translateY(-6px); } }
+@keyframes velo-toast-check { from { stroke-dashoffset:1; } to { stroke-dashoffset:0; } }
 .velo-segments { position:relative; isolation:isolate; display:grid; grid-template-columns:repeat(var(--segment-count),minmax(0,1fr)); gap:0; padding:4px; border:1px solid var(--hairline); border-radius:14px; background:var(--chip-bg); }
-.velo-segment-lens { position:absolute; z-index:-1; top:4px; left:4px; bottom:4px; width:calc((100% - 8px)/var(--segment-count)); border:1px solid var(--lens-edge); border-radius:10px; background:var(--lens-tint); box-shadow:0 1px 0 var(--glass-ring) inset,0 3px 8px -6px rgba(0,0,0,.2); transform:translateX(calc(var(--segment-index)*100%)); transition:transform 300ms var(--material-ease); pointer-events:none; }
+.velo-segment-lens { position:absolute; z-index:-1; top:4px; left:4px; bottom:4px; width:calc((100% - 8px)/var(--segment-count)); border:1px solid var(--lens-edge); border-radius:10px; background:var(--lens-tint); box-shadow:0 1px 0 var(--glass-ring) inset,0 3px 8px -6px rgba(0,0,0,.2); transform:translateX(calc(var(--segment-index)*100%)); transition:transform 300ms var(--material-ease),background 160ms,border-color 160ms; pointer-events:none; }
+/* Spring sampled with Motion's spring(.24, .12). */
+@supports (transition-timing-function:linear(0,1)) {
+  .velo-segment-lens {
+    transition-timing-function:linear(0,.173,.4574,.6915,.8448,.9317,.9754,.9946,1.0015,1),ease,ease;
+  }
+}
 .velo-segments > button { min-width:0; min-height:36px; padding:7px 12px; color:var(--fg-subtle); background:none; border:0; border-radius:10px; cursor:pointer; font:550 12px/1.2 var(--font-sans); letter-spacing:-.01em; transition:color var(--motion-fast),transform var(--motion-fast); touch-action:manipulation; }
 .velo-segments > button[aria-pressed=true] { color:var(--fg); }
 .velo-segments > button:disabled { opacity:.35;cursor:not-allowed;transform:none; }
@@ -41,6 +90,6 @@ html.light { --media-glass:rgba(244,247,245,.76); --media-overlay:rgba(37,46,41,
 ::view-transition-old(root),::view-transition-new(root) { animation:none; mix-blend-mode:normal; }
 ::view-transition-group(root) { animation-duration:420ms; }
 @media(max-width:900px) { .social-page .social-feed-grid { grid-template-columns:1fr; gap:16px; } .social-page .social-feed-sidebar { position:static; } }
-@media(prefers-reduced-motion:reduce) { .velo-segment-lens,.velo-segments > button,.navbar-theme-toggle svg,.social-post-card,.social-post-card button svg,.velo-button__label { transition:none!important; } .social-post-card [role=checkbox],.velo-toast { animation:none!important; } }
+@media(prefers-reduced-motion:reduce) { .velo-segment-lens,.velo-segments > button,.navbar-theme-toggle svg,.social-post-card,.social-post-card button svg,.velo-button__label { transition:none!important; } .social-post-card [role=checkbox],.velo-toast,.velo-toast__check { animation:none!important; } }
 @media(prefers-reduced-transparency:reduce) { :root,html.light { --media-glass:var(--bg-2); } }
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) { :root,html.light { --media-glass:var(--bg-2); } }

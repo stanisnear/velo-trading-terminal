@@ -1,6 +1,6 @@
 import { ActionContent } from './ProductMotion';
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { RefreshCw, CheckCircle, AlertCircle, Info, X } from 'lucide-react';
+import { RefreshCw, AlertCircle, Info, X } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // VELO SHARED UI — Brand-aligned components
@@ -156,31 +156,61 @@ export const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-export const ToastNotification = ({ message, type, onClose }: { message: string, type: 'SUCCESS' | 'ERROR' | 'INFO', onClose: () => void }) => {
-    const closeRef = useRef(onClose);
-    closeRef.current = onClose;
-    useEffect(() => {
-        playSound(type === 'SUCCESS' ? 'SUCCESS' : type === 'ERROR' ? 'ERROR' : 'CLICK');
-        const timer = setTimeout(() => closeRef.current(), 4000);
-        return () => clearTimeout(timer);
-    }, [message, type]);
+export type ToastMessage = {
+    message: string;
+    detail?: string;
+    type: 'SUCCESS' | 'ERROR' | 'INFO';
+};
 
-    const accentColor = type === 'SUCCESS' ? 'var(--pnl-up)' : type === 'ERROR' ? 'var(--pnl-down)' : 'var(--iris-violet)';
-    const icons = {
-        SUCCESS: <CheckCircle size={18} style={{ color: 'var(--pnl-up)' }} fill="currentColor" />,
-        ERROR: <AlertCircle size={18} style={{ color: 'var(--pnl-down)' }} fill="currentColor" />,
-        INFO: <Info size={18} style={{ color: 'var(--iris-violet)' }} fill="currentColor" />
-    };
+export function ToastNotification({ notification, onClose }: {
+    notification: ToastMessage | null;
+    onClose: () => void;
+}) {
+    const closeRef = useRef(onClose);
+    useEffect(() => {
+        closeRef.current = onClose;
+    }, [onClose]);
+    useEffect(() => {
+        if (!notification) return;
+        const { type, detail } = notification;
+        playSound(type === 'INFO' ? 'CLICK' : type);
+        const timer = setTimeout(() => closeRef.current(), detail || type === 'ERROR' ? 6000 : 4000);
+        return () => clearTimeout(timer);
+    }, [notification]);
+
+    const announcement = notification
+        ? [notification.message, notification.detail].filter(Boolean).join('. ')
+        : '';
 
     return (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-auto pointer-events-none">
-            <div className="velo-toast pointer-events-auto" role={type === 'ERROR' ? 'alert' : 'status'}>
-                <div style={{ flexShrink: 0, color: accentColor }} aria-hidden="true">{icons[type]}</div>
-                <span className="velo-toast__message">{message}</span>
-                <button type="button" className="velo-toast__close" onClick={onClose} aria-label="Dismiss notification"><X size={14}/></button>
-            </div>
+        <div className="velo-toast-region">
+            <span className="velo-toast__announcement" role="status" aria-atomic="true">
+                {notification?.type !== 'ERROR' ? announcement : ''}
+            </span>
+            <span className="velo-toast__announcement" role="alert" aria-atomic="true">
+                {notification?.type === 'ERROR' ? announcement : ''}
+            </span>
+            {notification && (
+                <div className="velo-toast" data-type={notification.type}>
+                    <span className="velo-toast__icon" aria-hidden="true">
+                        {notification.type === 'SUCCESS' ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                                <circle cx="12" cy="12" r="9" />
+                                <path key={announcement} className="velo-toast__check" d="m8 12 2.6 2.6L16 9" pathLength="1" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        ) : notification.type === 'ERROR' ? <AlertCircle size={18} /> : <Info size={18} />}
+                    </span>
+                    <div className="velo-toast__message" aria-hidden="true">
+                        <strong>{notification.message}</strong>
+                        {notification.detail && <span>{notification.detail}</span>}
+                    </div>
+                    <button type="button" className="velo-toast__close" onClick={onClose} aria-label="Dismiss notification">
+                        <X size={16} aria-hidden="true" />
+                    </button>
+                </div>
+            )}
         </div>
-    )
+    );
 }
 
 // --- Shared Components ---

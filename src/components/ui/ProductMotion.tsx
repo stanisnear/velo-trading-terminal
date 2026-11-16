@@ -5,7 +5,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 // Saurabh Chauhan). Velo keeps native inputs and execution handlers.
 // See licenses/beUI-LICENSE.txt and THIRD-PARTY-NOTICES.md.
 export const supportsProductMotion = () => typeof Element !== 'undefined' && typeof Element.prototype.animate === 'function';
-const swap = { type:'spring', stiffness:460, damping:30, mass:.55 } as const;
 const glide = { type:'spring', stiffness:700, damping:50, mass:.5 } as const;
 
 /** Native disclosure state with a short height reveal; hidden links cannot receive focus. */
@@ -27,10 +26,10 @@ export function ActionContent({ pending, pendingLabel = 'Working', children }: {
     <span className="velo-action-slot__measure" aria-hidden="true">{children}</span>
     <AnimatePresence initial={false} mode="popLayout">
       <motion.span key={pending ? 'pending' : 'idle'} className="velo-action-slot__content"
-        initial={reduced ? {opacity:0} : {opacity:0,y:7,filter:'blur(3px)'}}
-        animate={{opacity:1,y:0,filter:'blur(0px)'}}
-        exit={reduced ? {opacity:0} : {opacity:0,y:-5,filter:'blur(3px)'}}
-        transition={reduced ? {duration:0} : swap}>
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -3 }}
+        transition={{ duration: 0.16, ease: 'easeOut' }}>
         {pending ? <><i className="velo-morph-loader" aria-hidden="true"/><span role="status">{pendingLabel}</span></> : children}
       </motion.span>
     </AnimatePresence>

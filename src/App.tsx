@@ -33,7 +33,6 @@ import {
 
 import { TradingViewChart } from './components/TradingViewChart';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
-import { VeloAnimation, VeloAnimationKind } from './components/VeloAnimation';
 import { v4 as uuidv4 } from 'uuid';
 import { PortfolioChart } from './components/PortfolioChart';
 import { OrderBook } from './components/OrderBook';
@@ -76,7 +75,7 @@ import { Navbar, MobileSidebar, MobileBottomNav } from './components/Navigation'
 import { useSharedPost } from './services/useSharedPost';
 import { withoutCommentBranch } from './services/commentPersistence.mjs';
 import { EditProfileModal, DeletePostConfirmModal, UsersListModal, LoginModal, EditPositionModal, ResetPasswordModal } from './components/Modals';
-import { formatTime, ToastNotification, GlassCard, Button, Input, VeloAssetIcon } from './components/ui/shared';
+import { formatTime, ToastNotification, GlassCard, Button, Input, VeloAssetIcon, type ToastMessage } from './components/ui/shared';
 import { DepositWithdrawModal } from './components/DepositWithdrawModal';
 import { useOrderlyTrading } from './services/useOrderlyTrading';
 import { orderlyPortfolioUrl, baseScanTxUrl, claimOrderlyFaucet } from './services/orderlyService';
@@ -1515,7 +1514,7 @@ const App = () => {
 
     // Toast must be declared BEFORE useOrderlyTrading because we pass setToast
     // into that hook as a callback. Moving this any later → TDZ crash on init.
-    const [toast, setToast] = useState<{ message: string, type: 'SUCCESS' | 'ERROR' | 'INFO' } | null>(null);
+    const [toast, setToast] = useState<ToastMessage | null>(null);
 
     // ── Orderly on-chain trading ─────────────────────────────────────────────
     const [burnerAddress, setBurnerAddress] = useState<`0x${string}` | null>(null);
@@ -2205,15 +2204,6 @@ const App = () => {
     const [watchlist, setWatchlist] = useState<string[]>(() => {
         try { return JSON.parse(localStorage.getItem('velo_fav_markets') || '[]'); } catch { return []; }
     });
-
-    // Unified animation overlay (used by every flow — login, register, logout,
-    // deposit, withdraw, order-open, order-close). `animLabel`/`animSub` let
-    // individual flows enrich the display with contextual copy (e.g. username
-    // on login, pair+side on order open).
-    const [anim, setAnim] = useState<{ kind: VeloAnimationKind; label?: string; sublabel?: string } | null>(null);
-    const triggerAnim = (kind: VeloAnimationKind, label?: string, sublabel?: string) => {
-        setAnim({ kind, label, sublabel });
-    };
 
     // ────────────────────────────────────────────────────────────────────────
     // BACKGROUND DEPOSIT WATCHER
@@ -4403,17 +4393,20 @@ const App = () => {
                 ...prev.transactionHistory,
             ],
         } : null);
-        triggerAnim('DEPOSIT', `+ $${a.toLocaleString()}`, 'Funds added to account');
-        playSound('SUCCESS');
+        const showConfirmation = () => setToast({
+            message: "Deposit confirmed",
+            detail: `$${formatMoney(a)}`,
+            type: 'SUCCESS',
+        });
+        if (!isSupabaseConfigured()) {
+            showConfirmation();
+            return;
+        }
 
-        if (!isSupabaseConfigured()) return;
-
-        // recordTransaction inserts the row AND adjusts the balance via RPC.
-        // If either fails, reconcile local state from DB so we never show a
-        // balance that doesn't match what Supabase says.
         try {
             pendingTransactions.current += 1;
             await recordTransaction(user.id, 'DEPOSIT', a);
+            if (activeHistoryUser.current === user.id) showConfirmation();
             // Refresh transaction history from DB to replace optimistic entry with real UUID
             try {
                 const freshTxns = await fetchTransactions(user.id);
@@ -4450,14 +4443,20 @@ const App = () => {
                 ...prev.transactionHistory,
             ],
         } : null);
-        triggerAnim('WITHDRAW', `- $${a.toLocaleString()}`, 'Processing your withdrawal');
-        playSound('SUCCESS');
-
-        if (!isSupabaseConfigured()) return;
+        const showConfirmation = () => setToast({
+            message: "Withdrawal confirmed",
+            detail: `$${formatMoney(a)}`,
+            type: 'SUCCESS',
+        });
+        if (!isSupabaseConfigured()) {
+            showConfirmation();
+            return;
+        }
 
         try {
             pendingTransactions.current += 1;
             await recordTransaction(user.id, 'WITHDRAW', a);
+            if (activeHistoryUser.current === user.id) showConfirmation();
             // Refresh transaction history from DB to replace optimistic entry with real UUID
             try {
                 const freshTxns = await fetchTransactions(user.id);
@@ -4606,8 +4605,7 @@ const App = () => {
                     // History tab after page reload / on other devices.
                     insertTradeHistory(user.id, addOpenHistory).catch(e => console.warn("[velo] insertTradeHistory (add) failed:", e));
                 }
-                setToast({message:'Position Updated', type:'SUCCESS'}); playSound('OPEN');
-                triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `$${formatMoney(size)} @ $${formatPrice(price)}`);
+                setToast({ message: 'Position updated', detail: `${pairId} · ${side} · $${formatMoney(size)} @ $${formatPrice(price)}`, type: 'SUCCESS' });
                 // Update TP/SL orders
                 if (tp || sl) {
                     setOpenOrders(prev => {
@@ -4637,14 +4635,14 @@ const App = () => {
                 } : null);
                 if (isSupabaseConfigured() && user) insertTradeHistory(user.id, closeHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
 
-                triggerAnim('ORDER_CLOSE', `${pairId}`, `${existingPosition.side === 'LONG' ? 'SELL' : 'BUY'} · $${formatMoney(closeSize)} @ $${formatPrice(price)}`);
+                const closeDetail = `${pairId} · $${formatMoney(closeSize)} @ $${formatPrice(price)}`;
 
                 if (size < existingPosition.size) {
                     // Partial close
                     const updatedPos = { ...existingPosition, size: existingPosition.size - size };
                     setPositions(prev => prev.map(p => p.id === existingPosition.id ? updatedPos : p));
                     if (isSupabaseConfigured() && user) updatePositionInDB(existingPosition.id, { size: updatedPos.size }).catch(() => {});
-                    setToast({message:'Position Reduced', type:'INFO'}); playSound('CLOSE');
+                    setToast({ message: 'Position reduced', detail: closeDetail, type: 'SUCCESS' });
                 } else if (size === existingPosition.size) {
                     // Full close
                     setPositions(prev => prev.filter(p => p.id !== existingPosition.id));
@@ -4655,7 +4653,7 @@ const App = () => {
                         supabaseDeletePosition(existingPosition.id).catch(() => {});
                         deleteOrdersForPosition(existingPosition.id).catch(() => {});
                     }
-                    setToast({message:'Position Closed', type:'INFO'}); playSound('CLOSE');
+                    setToast({ message: 'Position closed', detail: closeDetail, type: 'SUCCESS' });
                 } else {
                     // Flip: close old, open new
                     const remainingSize = size - existingPosition.size;
@@ -4691,8 +4689,7 @@ const App = () => {
                         // Persist the flip OPEN event so it appears in Recent Activity / History.
                         insertTradeHistory(user.id, flipHistory).catch(e => console.warn("[velo] insertTradeHistory (flip) failed:", e));
                     }
-                    setToast({message:'Position Flipped', type:'SUCCESS'}); playSound('OPEN');
-                    triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `$${formatMoney(remainingSize)} @ $${formatPrice(price)}`);
+                    setToast({ message: 'Position flipped', detail: `${pairId} · ${side} · $${formatMoney(remainingSize)} @ $${formatPrice(price)}`, type: 'SUCCESS' });
                     const closeSide = side === 'LONG' ? 'SHORT' : 'LONG';
                     const newOrds: OpenOrder[] = [];
                     if (tp) newOrds.push({ id: `ord_tp_${newPos.id}_${uniqueId}`, pair: pairId, side: closeSide, type: 'TAKE_PROFIT', price: tp, size: remainingSize, leverage, timestamp: Date.now(), relatedPositionId: newPos.id });
@@ -4769,8 +4766,7 @@ const App = () => {
                 // Persist the OPEN event so it appears in Recent Activity / History.
                 insertTradeHistory(capturedUser.id, openHistory).catch(e => console.warn("[velo] insertTradeHistory (new) failed:", e));
             }
-            setToast({message:'Market Order Filled', type:'SUCCESS'}); playSound('OPEN');
-            triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `$${formatMoney(size)} @ $${formatPrice(price)}`);
+            setToast({ message: 'Market order filled', detail: `${pairId} · ${side} · $${formatMoney(size)} @ $${formatPrice(price)}`, type: 'SUCCESS' });
             // Add local temp orders immediately for UI (will be replaced with DB-id versions above)
             const closeSide = side === 'LONG' ? 'SHORT' : 'LONG';
             const newOrds: OpenOrder[] = [];
@@ -4920,11 +4916,10 @@ const App = () => {
                 }
 
                 setToast({
-                  message: `${side} ${pairId.replace('/USD', '')} @ ${leverage}× opened`,
+                  message: 'Market order filled',
+                  detail: `${pairId} · ${side} ${leverage}× · $${formatMoney(result.notionalUSDC)} @ $${formatPrice(result.entryPrice)}`,
                   type: 'SUCCESS',
                 });
-                triggerAnim('ORDER_OPEN', `${pairId} · ${side}`, `${leverage}× · $${formatMoney(size)} @ $${formatPrice(result.entryPrice)}`);
-                playSound('CLICK');
                 releaseLock();
 
                 // Persist the open tx hash keyed by tradeId so the position details
@@ -5178,14 +5173,13 @@ const App = () => {
                 return;
             }
 
-            setToast({ message: 'Closing position — waiting for on-chain confirmation…', type: 'SUCCESS' });
+            setToast({ message: 'Waiting for close confirmation', detail: p.pair, type: 'INFO' });
             veloPerpsTrading.closePosition(tradeId, veloPair).then((result) => {
                 const share = recordConfirmedClose(p, result);
                 if (share) setCloseReceipt(share);
                 setPositions(prev => prev.filter(x => x.id !== id));
                 setOpenOrders(prev => prev.filter(o => o.relatedPositionId !== id));
-                setToast({ message: `Position closed · PnL $${result.pnlUSDC.toFixed(2)}`, type: 'SUCCESS' });
-                playSound('CLOSE');
+                setToast({ message: 'Position closed', detail: `${p.pair} · Realized PnL $${result.pnlUSDC.toFixed(2)}`, type: 'SUCCESS' });
             }).catch((e) => {
                 setToast({ message: e?.txHash ? `Close submitted; confirmation delayed. Check ${e.txHash} before retrying.` : `Close not confirmed: ${e?.shortMessage || e?.message || 'Please retry'}`, type: 'ERROR' });
             }).finally(() => processingIds.current.delete(id));
@@ -5227,9 +5221,7 @@ const App = () => {
             insertTradeHistory(user.id, closeHistory).catch(e => console.warn("[velo] insertTradeHistory failed:", e));
         }
 
-        triggerAnim('ORDER_CLOSE', `${p.pair}`, `${p.side === 'LONG' ? 'SELL' : 'BUY'} · $${formatMoney(p.size)} · PnL $${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`);
-        setToast({message:'Position Closed', type:'INFO'});
-        playSound('CLOSE');
+        setToast({ message: 'Position closed', detail: `${p.pair} · PnL $${pnl.toFixed(2)}`, type: 'SUCCESS' });
         // Release processing lock after a short delay to prevent rapid double-close
         setTimeout(() => processingIds.current.delete(id), 1000);
         // Notify self on close with PnL summary
@@ -5934,8 +5926,7 @@ const App = () => {
         <div className={`min-h-screen font-sans transition-colors duration-300 ${theme} mode-${theme === 'dark' ? 'dark' : 'light'}`} style={{ background: 'var(--app-bg, var(--bg-base))', color: 'var(--fg)', position: 'relative' }}>
             {/* Subtle ambient background — consistent across all pages */}
             <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, background: 'var(--ambient)', opacity: 0.35 }} />
-            <VeloAnimation kind={anim?.kind ?? null} label={anim?.label} sublabel={anim?.sublabel} onDone={() => setAnim(null)} />
-            {toast && <ToastNotification message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            <ToastNotification notification={toast} onClose={() => setToast(null)} />
 
             {/* Trading-wallet re-derivation gate — shown when a returning user is
                 on a device without their local burner. Persistent until done. */}
