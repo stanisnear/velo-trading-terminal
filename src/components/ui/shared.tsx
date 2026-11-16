@@ -167,16 +167,30 @@ export function ToastNotification({ notification, onClose }: {
     onClose: () => void;
 }) {
     const closeRef = useRef(onClose);
+    const [hovered, setHovered] = useState(false);
+    const [focused, setFocused] = useState(false);
+    const returnFocus = useRef<HTMLElement | null>(null);
     useEffect(() => {
         closeRef.current = onClose;
     }, [onClose]);
     useEffect(() => {
         if (!notification) return;
-        const { type, detail } = notification;
+        const { type } = notification;
         playSound(type === 'INFO' ? 'CLICK' : type);
-        const timer = setTimeout(() => closeRef.current(), detail || type === 'ERROR' ? 6000 : 4000);
-        return () => clearTimeout(timer);
     }, [notification]);
+    useEffect(() => {
+        if (!notification || notification.type === 'ERROR' || hovered || focused) return;
+        const timer = setTimeout(() => closeRef.current(), notification.detail ? 6000 : 4000);
+        return () => clearTimeout(timer);
+    }, [notification, hovered, focused]);
+
+    const dismiss = () => {
+        if (focused && returnFocus.current?.isConnected) returnFocus.current.focus({ preventScroll: true });
+        returnFocus.current = null;
+        setFocused(false);
+        setHovered(false);
+        onClose();
+    };
 
     const announcement = notification
         ? [notification.message, notification.detail].filter(Boolean).join('. ')
@@ -191,7 +205,9 @@ export function ToastNotification({ notification, onClose }: {
                 {notification?.type === 'ERROR' ? announcement : ''}
             </span>
             {notification && (
-                <div className="velo-toast" data-type={notification.type}>
+                <div className="velo-toast" data-type={notification.type}
+                    onPointerEnter={event => { if (event.pointerType === 'mouse') setHovered(true); }}
+                    onPointerLeave={event => { if (event.pointerType === 'mouse') setHovered(false); }}>
                     <span className="velo-toast__icon" aria-hidden="true">
                         {notification.type === 'SUCCESS' ? (
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
@@ -204,7 +220,12 @@ export function ToastNotification({ notification, onClose }: {
                         <strong>{notification.message}</strong>
                         {notification.detail && <span>{notification.detail}</span>}
                     </div>
-                    <button type="button" className="velo-toast__close" onClick={onClose} aria-label="Dismiss notification">
+                    <button type="button" className="velo-toast__close" onClick={dismiss} aria-label="Dismiss notification"
+                        onFocus={event => {
+                            returnFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null;
+                            setFocused(true);
+                        }}
+                        onBlur={() => setFocused(false)}>
                         <X size={16} aria-hidden="true" />
                     </button>
                 </div>
